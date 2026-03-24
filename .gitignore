@@ -67,6 +67,10 @@ client_sdks/devconnect-android/.gradle/
 # SDK lock files (libraries should not lock dependencies)
 client_sdks/**/pubspec.lock
 
+# Lock files
+pubspec.lock
+macos/Podfile.lock
+
 # Secrets
 *.env
 *.key
