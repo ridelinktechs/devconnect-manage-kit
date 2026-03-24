@@ -312,7 +312,7 @@ function safeValue(value: any): any {
     return value;
   }
   if (value instanceof ArrayBuffer || (typeof Buffer !== 'undefined' && Buffer.isBuffer(value))) {
-    return `<Buffer ${value.byteLength ?? value.length} bytes>`;
+    return `<Buffer ${(value as any).byteLength ?? (value as any).length} bytes>`;
   }
   try {
     return JSON.parse(JSON.stringify(value));
