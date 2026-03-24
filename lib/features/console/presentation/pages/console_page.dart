@@ -41,6 +41,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
   LogEntry? _selectedEntry;
   int _maxVisible = _pageSize;
   bool _loadingMore = false;
+  int _previousCount = 0;
 
   @override
   void initState() {
@@ -65,7 +66,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
     final totalEntries = ref.read(filteredConsoleEntriesProvider).length;
     if (_maxVisible >= totalEntries) return;
 
-    setState(() => _loadingMore = true);
+    _loadingMore = true;
     final oldMaxExtent = _scrollController.position.maxScrollExtent;
 
     setState(() {
@@ -75,10 +76,11 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         final newMaxExtent = _scrollController.position.maxScrollExtent;
-        final delta = newMaxExtent - oldMaxExtent;
-        _scrollController.jumpTo(_scrollController.position.pixels + delta);
+        _scrollController.jumpTo(
+          _scrollController.position.pixels + (newMaxExtent - oldMaxExtent),
+        );
       }
-      setState(() => _loadingMore = false);
+      _loadingMore = false;
     });
   }
 
@@ -93,8 +95,8 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
     final visibleEntries = entries.sublist(startIndex);
     final hasMore = startIndex > 0;
 
-    // Auto scroll to bottom
-    if (_autoScroll && entries.isNotEmpty) {
+    // Auto scroll to bottom only when new items arrive
+    if (_autoScroll && entries.length > _previousCount && entries.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollController.hasClients) {
           _scrollController.animateTo(
@@ -105,6 +107,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
         }
       });
     }
+    _previousCount = entries.length;
 
     return Column(
       children: [
@@ -175,11 +178,13 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                               padding: const EdgeInsets.symmetric(
                                   vertical: 6),
                               itemCount: visibleEntries.length,
+                              itemExtent: 44,
                               itemBuilder: (context, index) {
                                 final entry = visibleEntries[index];
                                 final isSelected =
                                     _selectedEntry?.id == entry.id;
                                 return _LogEntryCard(
+                                  key: ValueKey(entry.id),
                                   entry: entry,
                                   isSelected: isSelected,
                                   onTap: () {
@@ -500,6 +505,7 @@ class _LogEntryCard extends ConsumerStatefulWidget {
   final VoidCallback onTap;
 
   const _LogEntryCard({
+    super.key,
     required this.entry,
     required this.isSelected,
     required this.onTap,

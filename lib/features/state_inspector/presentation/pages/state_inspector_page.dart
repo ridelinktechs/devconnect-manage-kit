@@ -53,10 +53,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
     final entries = ref.read(filteredStateChangesProvider);
     if (_maxVisible >= entries.length) return;
 
-    setState(() {
-      _loadingMore = true;
-    });
-
+    _loadingMore = true;
     final oldMaxExtent = _scrollController.position.maxScrollExtent;
 
     setState(() {
@@ -66,12 +63,11 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         final newMaxExtent = _scrollController.position.maxScrollExtent;
-        final delta = newMaxExtent - oldMaxExtent;
-        _scrollController.jumpTo(_scrollController.offset + delta);
+        _scrollController.jumpTo(
+          _scrollController.offset + (newMaxExtent - oldMaxExtent),
+        );
       }
-      setState(() {
-        _loadingMore = false;
-      });
+      _loadingMore = false;
     });
   }
 
@@ -167,11 +163,13 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                             child: ListView.builder(
                               controller: _scrollController,
                               itemCount: visibleEntries.length,
+                              itemExtent: 52,
                               itemBuilder: (context, index) {
                                 final entry = visibleEntries[
                                     visibleEntries.length - 1 - index];
                                 final isSelected = selected?.id == entry.id;
                                 return _StateChangeTile(
+                                  key: ValueKey(entry.id),
                                   entry: entry,
                                   isSelected: isSelected,
                                   onTap: () {
@@ -308,6 +306,7 @@ class _StateChangeTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _StateChangeTile({
+    super.key,
     required this.entry,
     required this.isSelected,
     required this.onTap,

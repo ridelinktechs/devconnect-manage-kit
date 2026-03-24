@@ -18,6 +18,10 @@ import '../../../../models/storage/storage_entry.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../provider/all_events_provider.dart';
 
+// ═══════════════════════════════════════════════
+// All Events Page
+// ═══════════════════════════════════════════════
+
 class AllEventsPage extends ConsumerStatefulWidget {
   const AllEventsPage({super.key});
 
@@ -33,7 +37,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
   bool _loadingMore = false;
   int _previousCount = 0;
 
-  static const _pageSize = 50;
+  static const _pageSize = 80;
 
   @override
   void initState() {
@@ -71,8 +75,9 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         final newMaxExtent = _scrollController.position.maxScrollExtent;
-        _scrollController
-            .jumpTo(_scrollController.position.pixels + (newMaxExtent - oldMaxExtent));
+        _scrollController.jumpTo(
+          _scrollController.position.pixels + (newMaxExtent - oldMaxExtent),
+        );
       }
       _loadingMore = false;
     });
@@ -93,8 +98,17 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
       _autoScroll = !_autoScroll;
       if (_autoScroll) {
         _maxVisible = _pageSize;
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _scrollToBottom());
       }
+    });
+  }
+
+  void _clearAll() {
+    setState(() {
+      _selectedEvent = null;
+      _maxVisible = _pageSize;
+      _previousCount = 0;
     });
   }
 
@@ -104,19 +118,24 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
     final devices = ref.watch(connectedDevicesProvider);
     final server = ref.watch(wsServerProvider);
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     // Slice visible items
-    final startIndex = (allEvents.length - _maxVisible).clamp(0, allEvents.length);
+    final startIndex =
+        (allEvents.length - _maxVisible).clamp(0, allEvents.length);
     final visibleEvents = allEvents.sublist(startIndex);
     final hasMore = startIndex > 0;
 
     // Auto-scroll on new items
-    if (_autoScroll && allEvents.length > _previousCount && allEvents.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if (_autoScroll &&
+        allEvents.length > _previousCount &&
+        allEvents.isNotEmpty) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _scrollToBottom());
     }
     _previousCount = allEvents.length;
 
-    // Clear selection if selected event is no longer in visible list
+    // Clear selection if event removed
     if (_selectedEvent != null &&
         !allEvents.any((e) => e.id == _selectedEvent!.id)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -126,18 +145,19 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
 
     return Column(
       children: [
-        _Toolbar(
+        // ── Header ──
+        _Header(
           eventCount: allEvents.length,
-          visibleCount: visibleEvents.length,
           deviceCount: devices.length,
           serverRunning: server.isRunning,
           port: server.isRunning ? server.port : 9090,
           autoScroll: _autoScroll,
           onToggleAutoScroll: _toggleAutoScroll,
+          onClear: _clearAll,
         ),
-        const Divider(height: 1),
-        _StatsBar(events: allEvents),
-        const Divider(height: 1),
+        // ── Stats + Filters ──
+        _FilterBar(events: allEvents),
+        // ── Content ──
         Expanded(
           child: visibleEvents.isEmpty
               ? EmptyState(
@@ -151,50 +171,39 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                 )
               : Row(
                   children: [
-                    // Event list
+                    // ── Event List ──
                     Expanded(
                       flex: _selectedEvent != null ? 4 : 1,
                       child: Column(
                         children: [
                           if (hasMore && !_autoScroll)
-                            GestureDetector(
+                            _LoadMoreBanner(
+                              count: allEvents.length -
+                                  visibleEvents.length,
                               onTap: _loadMore,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(vertical: 6),
-                                  color: ColorTokens.primary.withValues(alpha: 0.05),
-                                  child: Center(
-                                    child: Text(
-                                      '${allEvents.length - visibleEvents.length} older events — tap to load more',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: ColorTokens.primary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
                             ),
                           Expanded(
                             child: ListView.builder(
                               controller: _scrollController,
                               itemCount: visibleEvents.length,
+                              itemExtent: 44,
                               itemBuilder: (context, index) {
                                 final event = visibleEvents[index];
                                 final isSelected =
                                     _selectedEvent?.id == event.id;
-                                return _EventTile(
+                                return _EventRow(
+                                  key: ValueKey(event.id),
                                   event: event,
                                   isSelected: isSelected,
+                                  showDetail: _selectedEvent != null,
                                   onTap: () {
                                     setState(() {
                                       _selectedEvent =
                                           isSelected ? null : event;
                                     });
                                   },
+                                  onCopyTitle: () =>
+                                      _copy(context, event.title),
                                 );
                               },
                             ),
@@ -202,10 +211,14 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                         ],
                       ),
                     ),
-                    // Detail panel
+                    // ── Detail Panel ──
                     if (_selectedEvent != null) ...[
                       VerticalDivider(
-                          width: 1, color: theme.dividerColor),
+                        width: 1,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.08),
+                      ),
                       Expanded(
                         flex: 5,
                         child: _EventDetailPanel(
@@ -221,53 +234,83 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
       ],
     );
   }
+
+  void _copy(BuildContext context, String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Copied'),
+        duration: Duration(milliseconds: 800),
+      ),
+    );
+  }
 }
 
-// ──────────────────────────────────────────────
-// Toolbar
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
+// Header
+// ═══════════════════════════════════════════════
 
-class _Toolbar extends ConsumerWidget {
+class _Header extends ConsumerWidget {
   final int eventCount;
-  final int visibleCount;
   final int deviceCount;
   final bool serverRunning;
   final int port;
   final bool autoScroll;
   final VoidCallback onToggleAutoScroll;
+  final VoidCallback onClear;
 
-  const _Toolbar({
+  const _Header({
     required this.eventCount,
-    required this.visibleCount,
     required this.deviceCount,
     required this.serverRunning,
     required this.port,
     required this.autoScroll,
     required this.onToggleAutoScroll,
+    required this.onClear,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final activeFilters = ref.watch(allEventsFilterProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      height: 48,
+      height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? const Color(0xFF0D1117) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.08),
+          ),
+        ),
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.layoutDashboard,
-              size: 16, color: ColorTokens.primary),
-          const SizedBox(width: 8),
-          Text('All Events',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600)),
+          // Title
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6C5CE7), Color(0xFF8B7EF0)],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(LucideIcons.activity, size: 16, color: Colors.white),
+          ),
           const SizedBox(width: 10),
-          // Event count chip
+          Text(
+            'All Events',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Count badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
@@ -275,9 +318,7 @@ class _Toolbar extends ConsumerWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              visibleCount < eventCount
-                  ? '$visibleCount / $eventCount'
-                  : '$eventCount',
+              '$eventCount',
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -286,62 +327,33 @@ class _Toolbar extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // Server status
+          // Status pills
           _StatusPill(
             color: serverRunning ? ColorTokens.success : ColorTokens.error,
             label: serverRunning ? 'Port $port' : 'Stopped',
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           _StatusPill(
-            color: ColorTokens.info,
+            color: deviceCount > 0 ? ColorTokens.info : Colors.grey,
             label: '$deviceCount device${deviceCount != 1 ? 's' : ''}',
           ),
+
           const Spacer(),
-          // Type filter chips
-          _TypeFilterChip(
-            label: 'LOG',
-            icon: LucideIcons.terminal,
-            color: ColorTokens.logInfo,
-            isActive: activeFilters.contains(EventType.log),
-            onTap: () => _toggleFilter(ref, EventType.log),
-          ),
-          const SizedBox(width: 4),
-          _TypeFilterChip(
-            label: 'API',
-            icon: LucideIcons.globe,
-            color: ColorTokens.success,
-            isActive: activeFilters.contains(EventType.network),
-            onTap: () => _toggleFilter(ref, EventType.network),
-          ),
-          const SizedBox(width: 4),
-          _TypeFilterChip(
-            label: 'STATE',
-            icon: LucideIcons.layers,
-            color: ColorTokens.secondary,
-            isActive: activeFilters.contains(EventType.state),
-            onTap: () => _toggleFilter(ref, EventType.state),
-          ),
-          const SizedBox(width: 4),
-          _TypeFilterChip(
-            label: 'STORE',
-            icon: LucideIcons.database,
-            color: ColorTokens.warning,
-            isActive: activeFilters.contains(EventType.storage),
-            onTap: () => _toggleFilter(ref, EventType.storage),
-          ),
-          const SizedBox(width: 12),
-          _TypeFilterChip(
-            label: 'AUTO',
+
+          // Auto-scroll toggle
+          _ToolbarButton(
             icon: LucideIcons.arrowDownToLine,
-            color: ColorTokens.primary,
+            label: 'AUTO',
             isActive: autoScroll,
+            color: ColorTokens.primary,
             onTap: onToggleAutoScroll,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
+          // Search
           SizedBox(
-            width: 180,
+            width: 200,
             child: SearchField(
-              hintText: 'Search all...',
+              hintText: 'Search events...',
               onChanged: (v) =>
                   ref.read(allEventsSearchProvider.notifier).state = v,
             ),
@@ -350,8 +362,112 @@ class _Toolbar extends ConsumerWidget {
       ),
     );
   }
+}
 
-  void _toggleFilter(WidgetRef ref, EventType type) {
+// ═══════════════════════════════════════════════
+// Filter Bar
+// ═══════════════════════════════════════════════
+
+class _FilterBar extends ConsumerWidget {
+  final List<UnifiedEvent> events;
+
+  const _FilterBar({required this.events});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeFilters = ref.watch(allEventsFilterProvider);
+
+    final logCount = events.where((e) => e.type == EventType.log).length;
+    final netCount = events.where((e) => e.type == EventType.network).length;
+    final stateCount = events.where((e) => e.type == EventType.state).length;
+    final storeCount = events.where((e) => e.type == EventType.storage).length;
+    final errorCount = events.where((e) => e.level == 'error').length;
+
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF161B22) : const Color(0xFFF6F8FA),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.06),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          _FilterChip(
+            label: 'LOG',
+            count: logCount,
+            icon: LucideIcons.terminal,
+            color: ColorTokens.logInfo,
+            isActive: activeFilters.contains(EventType.log),
+            onTap: () => _toggle(ref, EventType.log),
+          ),
+          const SizedBox(width: 6),
+          _FilterChip(
+            label: 'API',
+            count: netCount,
+            icon: LucideIcons.globe,
+            color: ColorTokens.success,
+            isActive: activeFilters.contains(EventType.network),
+            onTap: () => _toggle(ref, EventType.network),
+          ),
+          const SizedBox(width: 6),
+          _FilterChip(
+            label: 'STATE',
+            count: stateCount,
+            icon: LucideIcons.layers,
+            color: ColorTokens.secondary,
+            isActive: activeFilters.contains(EventType.state),
+            onTap: () => _toggle(ref, EventType.state),
+          ),
+          const SizedBox(width: 6),
+          _FilterChip(
+            label: 'STORE',
+            count: storeCount,
+            icon: LucideIcons.database,
+            color: ColorTokens.warning,
+            isActive: activeFilters.contains(EventType.storage),
+            onTap: () => _toggle(ref, EventType.storage),
+          ),
+          if (errorCount > 0) ...[
+            const SizedBox(width: 10),
+            Container(
+              width: 1,
+              height: 18,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.08),
+            ),
+            const SizedBox(width: 10),
+            _FilterChip(
+              label: 'ERRORS',
+              count: errorCount,
+              icon: LucideIcons.triangleAlert,
+              color: ColorTokens.error,
+              isActive: true,
+              onTap: () {},
+            ),
+          ],
+          const Spacer(),
+          // Show all / only active
+          Text(
+            '${activeFilters.length}/${EventType.values.length} filters',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey[500],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggle(WidgetRef ref, EventType type) {
     final current = ref.read(allEventsFilterProvider);
     if (current.contains(type)) {
       ref.read(allEventsFilterProvider.notifier).state =
@@ -362,227 +478,58 @@ class _Toolbar extends ConsumerWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  final Color color;
-  final String label;
+// ═══════════════════════════════════════════════
+// Event Row (optimized: fixed height, minimal rebuild)
+// ═══════════════════════════════════════════════
 
-  const _StatusPill({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 5,
-            height: 5,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TypeFilterChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _TypeFilterChip({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color:
-                isActive ? color.withValues(alpha: 0.12) : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isActive
-                  ? color.withValues(alpha: 0.4)
-                  : Colors.grey.withValues(alpha: 0.15),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 11, color: isActive ? color : Colors.grey),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: isActive ? color : Colors.grey,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────
-// Stats Bar (now uses filtered events)
-// ──────────────────────────────────────────────
-
-class _StatsBar extends StatelessWidget {
-  final List<UnifiedEvent> events;
-
-  const _StatsBar({required this.events});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final logCount = events.where((e) => e.type == EventType.log).length;
-    final netCount = events.where((e) => e.type == EventType.network).length;
-    final stateCount = events.where((e) => e.type == EventType.state).length;
-    final storeCount = events.where((e) => e.type == EventType.storage).length;
-    final errorCount = events.where((e) => e.level == 'error').length;
-
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
-      child: Row(
-        children: [
-          _StatChip('Logs', logCount, ColorTokens.logInfo, LucideIcons.terminal),
-          const SizedBox(width: 12),
-          _StatChip('API', netCount, ColorTokens.success, LucideIcons.globe),
-          const SizedBox(width: 12),
-          _StatChip(
-              'State', stateCount, ColorTokens.secondary, LucideIcons.layers),
-          const SizedBox(width: 12),
-          _StatChip(
-              'Storage', storeCount, ColorTokens.warning, LucideIcons.database),
-          if (errorCount > 0) ...[
-            const SizedBox(width: 12),
-            _StatChip('Errors', errorCount, ColorTokens.error,
-                LucideIcons.triangleAlert),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final String label;
-  final int count;
-  final Color color;
-  final IconData icon;
-
-  const _StatChip(this.label, this.count, this.color, this.icon);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 10, color: color.withValues(alpha: 0.7)),
-        const SizedBox(width: 4),
-        Text(
-          '$label: ',
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey[500],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Text(
-          '$count',
-          style: TextStyle(
-            fontSize: 10,
-            color: color,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ──────────────────────────────────────────────
-// Event Tile (redesigned)
-// ──────────────────────────────────────────────
-
-class _EventTile extends ConsumerWidget {
+class _EventRow extends ConsumerWidget {
   final UnifiedEvent event;
   final bool isSelected;
+  final bool showDetail;
   final VoidCallback onTap;
+  final VoidCallback onCopyTitle;
 
-  const _EventTile({
+  const _EventRow({
+    super.key,
     required this.event,
     required this.isSelected,
+    required this.showDetail,
     required this.onTap,
+    required this.onCopyTitle,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final time = DateFormat('HH:mm:ss.SSS').format(
       DateTime.fromMillisecondsSinceEpoch(event.timestamp),
     );
 
-    final typeInfo = _getTypeInfo(event);
+    final typeInfo = _typeInfo(event);
     final devices = ref.watch(connectedDevicesProvider);
     final device =
         devices.where((d) => d.deviceId == event.deviceId).firstOrNull;
+
+    final bgColor = isSelected
+        ? ColorTokens.primary.withValues(alpha: 0.08)
+        : isDark
+            ? Colors.transparent
+            : Colors.white;
 
     return GestureDetector(
       onTap: onTap,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: isSelected
-                ? ColorTokens.primary.withValues(alpha: 0.06)
-                : isDark
-                    ? Colors.transparent
-                    : Colors.white,
+            color: bgColor,
             border: Border(
               bottom: BorderSide(
                 color: isDark
-                    ? Colors.white.withValues(alpha: 0.04)
-                    : Colors.black.withValues(alpha: 0.05),
+                    ? Colors.white.withValues(alpha: 0.03)
+                    : Colors.black.withValues(alpha: 0.04),
               ),
               left: BorderSide(
                 color: isSelected ? ColorTokens.primary : typeInfo.color,
@@ -592,23 +539,23 @@ class _EventTile extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              // Timestamp
+              // Time
               SizedBox(
-                width: 88,
+                width: 84,
                 child: Text(
                   time,
                   style: TextStyle(
                     fontFamily: 'JetBrains Mono',
                     fontSize: 10,
                     color: Colors.grey[500],
-                    letterSpacing: -0.2,
+                    letterSpacing: -0.3,
                   ),
                 ),
               ),
               // Type badge
               Container(
-                width: 54,
-                padding: const EdgeInsets.symmetric(vertical: 3),
+                width: 56,
+                height: 22,
                 decoration: BoxDecoration(
                   color: typeInfo.color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
@@ -653,19 +600,27 @@ class _EventTile extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               // Subtitle
-              Text(
-                event.subtitle,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey[500],
-                  fontFamily: 'JetBrains Mono',
+              if (!showDetail)
+                Text(
+                  event.subtitle,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[500],
+                    fontFamily: 'JetBrains Mono',
+                  ),
                 ),
+              // Copy button (only visible on hover would be ideal,
+              // but for desktop quick-access is better)
+              const SizedBox(width: 4),
+              _MiniIconButton(
+                icon: LucideIcons.copy,
+                tooltip: 'Copy',
+                onTap: onCopyTitle,
               ),
-              // Chevron indicator
               if (isSelected) ...[
-                const SizedBox(width: 6),
+                const SizedBox(width: 2),
                 Icon(LucideIcons.chevronRight,
                     size: 12, color: ColorTokens.primary),
               ],
@@ -676,17 +631,19 @@ class _EventTile extends ConsumerWidget {
     );
   }
 
-  _TypeInfo _getTypeInfo(UnifiedEvent event) {
+  static _TypeInfo _typeInfo(UnifiedEvent event) {
     switch (event.type) {
       case EventType.log:
         return _TypeInfo(
-          color: _logLevelColor(event.level),
+          color: _logColor(event.level),
           icon: LucideIcons.terminal,
           label: event.level.toUpperCase(),
         );
       case EventType.network:
         return _TypeInfo(
-          color: ColorTokens.success,
+          color: event.level == 'error'
+              ? ColorTokens.error
+              : ColorTokens.success,
           icon: LucideIcons.globe,
           label: 'API',
         );
@@ -705,12 +662,10 @@ class _EventTile extends ConsumerWidget {
     }
   }
 
-  Color _logLevelColor(String level) {
+  static Color _logColor(String level) {
     switch (level) {
       case 'debug':
         return ColorTokens.logDebug;
-      case 'info':
-        return ColorTokens.logInfo;
       case 'warn':
         return ColorTokens.logWarn;
       case 'error':
@@ -721,17 +676,253 @@ class _EventTile extends ConsumerWidget {
   }
 }
 
+// ═══════════════════════════════════════════════
+// Small UI Components
+// ═══════════════════════════════════════════════
+
 class _TypeInfo {
   final Color color;
   final IconData icon;
   final String label;
-
   _TypeInfo({required this.color, required this.icon, required this.label});
 }
 
-// ──────────────────────────────────────────────
-// Detail Panel (routes to correct detail view)
-// ──────────────────────────────────────────────
+class _StatusPill extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _StatusPill({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ToolbarButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ToolbarButton({
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: isActive
+                ? color.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isActive
+                  ? color.withValues(alpha: 0.3)
+                  : Colors.grey.withValues(alpha: 0.15),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 12, color: isActive ? color : Colors.grey[500]),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: isActive ? color : Colors.grey[500],
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final IconData icon;
+  final Color color;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.icon,
+    required this.color,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: isActive
+                ? color.withValues(alpha: 0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isActive
+                  ? color.withValues(alpha: 0.3)
+                  : Colors.grey.withValues(alpha: 0.1),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 10,
+                  color: isActive ? color : Colors.grey[600]),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: isActive ? color : Colors.grey[600],
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: isActive
+                      ? color.withValues(alpha: 0.7)
+                      : Colors.grey[500],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _MiniIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              color: Colors.grey.withValues(alpha: 0.06),
+            ),
+            child: Icon(icon, size: 11, color: Colors.grey[500]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadMoreBanner extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _LoadMoreBanner({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          color: ColorTokens.primary.withValues(alpha: 0.04),
+          child: Center(
+            child: Text(
+              '$count older events — click to load more',
+              style: const TextStyle(
+                fontSize: 10,
+                color: ColorTokens.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Detail Panel
+// ═══════════════════════════════════════════════
 
 class _EventDetailPanel extends StatelessWidget {
   final UnifiedEvent event;
@@ -747,41 +938,34 @@ class _EventDetailPanel extends StatelessWidget {
       color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
       child: Column(
         children: [
-          // Detail header
           _DetailHeader(event: event, onClose: onClose),
           const Divider(height: 1),
-          // Detail content based on type
-          Expanded(child: _buildDetailContent()),
+          Expanded(child: _buildContent()),
         ],
       ),
     );
   }
 
-  Widget _buildDetailContent() {
-    final rawData = event.rawData;
-
+  Widget _buildContent() {
     switch (event.type) {
       case EventType.log:
-        if (rawData is LogEntry) {
-          return _LogDetailContent(entry: rawData);
+        if (event.rawData is LogEntry) {
+          return _LogDetail(entry: event.rawData as LogEntry);
         }
         return _FallbackDetail(event: event);
-
       case EventType.network:
-        if (rawData is NetworkEntry) {
-          return _NetworkDetailContent(entry: rawData);
+        if (event.rawData is NetworkEntry) {
+          return _NetworkDetail(entry: event.rawData as NetworkEntry);
         }
         return _FallbackDetail(event: event);
-
       case EventType.state:
-        if (rawData is StateChange) {
-          return _StateDetailContent(entry: rawData);
+        if (event.rawData is StateChange) {
+          return _StateDetail(entry: event.rawData as StateChange);
         }
         return _FallbackDetail(event: event);
-
       case EventType.storage:
-        if (rawData is StorageEntry) {
-          return _StorageDetailContent(entry: rawData);
+        if (event.rawData is StorageEntry) {
+          return _StorageDetail(entry: event.rawData as StorageEntry);
         }
         return _FallbackDetail(event: event);
     }
@@ -805,31 +989,7 @@ class _DetailHeader extends ConsumerWidget {
     final device =
         devices.where((d) => d.deviceId == event.deviceId).firstOrNull;
 
-    Color typeColor;
-    IconData typeIcon;
-    String typeLabel;
-    switch (event.type) {
-      case EventType.log:
-        typeColor = ColorTokens.logInfo;
-        typeIcon = LucideIcons.terminal;
-        typeLabel = 'Log Detail';
-        break;
-      case EventType.network:
-        typeColor = ColorTokens.success;
-        typeIcon = LucideIcons.globe;
-        typeLabel = 'Network Detail';
-        break;
-      case EventType.state:
-        typeColor = ColorTokens.secondary;
-        typeIcon = LucideIcons.layers;
-        typeLabel = 'State Detail';
-        break;
-      case EventType.storage:
-        typeColor = ColorTokens.warning;
-        typeIcon = LucideIcons.database;
-        typeLabel = 'Storage Detail';
-        break;
-    }
+    final (typeColor, typeIcon, typeLabel) = _typeDetails(event.type);
 
     return Container(
       height: 44,
@@ -863,6 +1023,23 @@ class _DetailHeader extends ConsumerWidget {
             ),
           ),
           const Spacer(),
+          // Copy all as JSON
+          _ActionButton(
+            icon: LucideIcons.braces,
+            label: 'JSON',
+            onTap: () {
+              final json = const JsonEncoder.withIndent('  ')
+                  .convert(_eventToJson(event));
+              Clipboard.setData(ClipboardData(text: json));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('JSON copied'),
+                  duration: Duration(milliseconds: 800),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 6),
           GestureDetector(
             onTap: onClose,
             child: MouseRegion(
@@ -882,122 +1059,142 @@ class _DetailHeader extends ConsumerWidget {
       ),
     );
   }
+
+  (Color, IconData, String) _typeDetails(EventType type) {
+    switch (type) {
+      case EventType.log:
+        return (ColorTokens.logInfo, LucideIcons.terminal, 'Log Detail');
+      case EventType.network:
+        return (ColorTokens.success, LucideIcons.globe, 'Network Detail');
+      case EventType.state:
+        return (
+          ColorTokens.secondary,
+          LucideIcons.layers,
+          'State Detail'
+        );
+      case EventType.storage:
+        return (
+          ColorTokens.warning,
+          LucideIcons.database,
+          'Storage Detail'
+        );
+    }
+  }
+
+  Map<String, dynamic> _eventToJson(UnifiedEvent e) {
+    return {
+      'type': e.type.name,
+      'id': e.id,
+      'deviceId': e.deviceId,
+      'timestamp': e.timestamp,
+      'title': e.title,
+      'subtitle': e.subtitle,
+      'level': e.level,
+    };
+  }
 }
 
-// ──────────────────────────────────────────────
-// Log Detail
-// ──────────────────────────────────────────────
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
-class _LogDetailContent extends StatelessWidget {
-  final LogEntry entry;
-
-  const _LogDetailContent({required this.entry});
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(5),
+            color: Colors.grey.withValues(alpha: 0.08),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: Colors.grey[500]),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[500],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Log Detail
+// ═══════════════════════════════════════════════
+
+class _LogDetail extends StatelessWidget {
+  final LogEntry entry;
+
+  const _LogDetail({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Level + Tag + Copy
           Row(
             children: [
               LogLevelBadge(level: entry.level.name),
               if (entry.tag != null) ...[
                 const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    entry.tag!,
-                    style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
-                      fontSize: 11,
-                      color: Colors.grey[400],
-                    ),
-                  ),
-                ),
+                _TagChip(entry.tag!),
               ],
               const Spacer(),
               _CopyButton(
                 tooltip: 'Copy message',
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: entry.message));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Message copied'),
-                        duration: Duration(seconds: 1)),
-                  );
-                },
+                onTap: () => _copyText(context, entry.message, 'Message'),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          // Message
-          _SectionTitle('Message'),
+          _SectionLabel('Message'),
           const SizedBox(height: 6),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF161B22)
-                  : const Color(0xFFF0F0F0),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.05)
-                      : Colors.black.withValues(alpha: 0.05)),
-            ),
-            child: SelectableText(
-              entry.message,
-              style: TextStyle(
-                fontFamily: 'JetBrains Mono',
-                fontSize: 12,
-                color: isDark ? const Color(0xFFE6EDF3) : Colors.black87,
-                height: 1.6,
-              ),
-            ),
-          ),
-          // Metadata
+          _CodeBlock(text: entry.message, isDark: isDark),
           if (entry.metadata != null && entry.metadata!.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _SectionTitle('Metadata'),
+            _SectionLabel('Metadata'),
             const SizedBox(height: 6),
             JsonViewer(data: entry.metadata, initiallyExpanded: true),
           ],
-          // Stack trace
           if (entry.stackTrace != null) ...[
             const SizedBox(height: 16),
-            _SectionTitle('Stack Trace'),
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: ColorTokens.error.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: ColorTokens.error.withValues(alpha: 0.15)),
-              ),
-              child: SelectableText(
-                entry.stackTrace!,
-                style: TextStyle(
-                  fontFamily: 'JetBrains Mono',
-                  fontSize: 11,
-                  color: ColorTokens.error.withValues(alpha: 0.9),
-                  height: 1.5,
+            Row(
+              children: [
+                _SectionLabel('Stack Trace'),
+                const Spacer(),
+                _CopyButton(
+                  tooltip: 'Copy stack trace',
+                  onTap: () =>
+                      _copyText(context, entry.stackTrace!, 'Stack trace'),
                 ),
-              ),
+              ],
             ),
+            const SizedBox(height: 6),
+            _ErrorBlock(text: entry.stackTrace!, isDark: isDark),
           ],
         ],
       ),
@@ -1005,14 +1202,14 @@ class _LogDetailContent extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 // Network Detail
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 
-class _NetworkDetailContent extends StatelessWidget {
+class _NetworkDetail extends StatelessWidget {
   final NetworkEntry entry;
 
-  const _NetworkDetailContent({required this.entry});
+  const _NetworkDetail({required this.entry});
 
   @override
   Widget build(BuildContext context) {
@@ -1052,42 +1249,41 @@ class _NetworkDetailContent extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'JetBrains Mono',
                           fontSize: 11,
-                          color:
-                              isDark ? const Color(0xFFE6EDF3) : Colors.black87,
+                          color: isDark
+                              ? const Color(0xFFE6EDF3)
+                              : Colors.black87,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Action buttons row
+                Row(
+                  children: [
+                    if (entry.duration != null) ...[
+                      _TimingBar(duration: entry.duration!),
+                      const Spacer(),
+                    ] else
+                      const Spacer(),
                     _CopyButton(
                       tooltip: 'Copy URL',
                       icon: LucideIcons.link,
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: entry.url));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('URL copied'),
-                              duration: Duration(seconds: 1)),
-                        );
-                      },
+                      onTap: () =>
+                          _copyText(context, entry.url, 'URL'),
                     ),
                     const SizedBox(width: 4),
                     _CopyButton(
-                      tooltip: 'Copy cURL',
+                      tooltip: 'Copy as cURL',
                       icon: LucideIcons.terminal,
-                      onTap: () {
-                        Clipboard.setData(
-                            ClipboardData(text: _buildCurl(entry)));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('cURL copied'),
-                              duration: Duration(seconds: 1)),
-                        );
-                      },
+                      onTap: () => _copyText(
+                          context, _buildCurl(entry), 'cURL'),
                     ),
                     const SizedBox(width: 4),
                     _CopyButton(
-                      tooltip: 'Copy Response',
+                      tooltip: 'Copy response',
                       icon: LucideIcons.download,
                       onTap: () {
                         final body = entry.responseBody;
@@ -1097,20 +1293,11 @@ class _NetworkDetailContent extends StatelessWidget {
                                 ? const JsonEncoder.withIndent('  ')
                                     .convert(body)
                                 : '');
-                        Clipboard.setData(ClipboardData(text: text));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Response copied'),
-                              duration: Duration(seconds: 1)),
-                        );
+                        _copyText(context, text, 'Response');
                       },
                     ),
                   ],
                 ),
-                if (entry.duration != null) ...[
-                  const SizedBox(height: 8),
-                  _TimingBar(duration: entry.duration!),
-                ],
               ],
             ),
           ),
@@ -1144,15 +1331,15 @@ class _NetworkDetailContent extends StatelessWidget {
     );
   }
 
-  String _buildCurl(NetworkEntry entry) {
-    final buf = StringBuffer("curl -X ${entry.method} '${entry.url}'");
-    entry.requestHeaders.forEach((k, v) {
+  String _buildCurl(NetworkEntry e) {
+    final buf = StringBuffer("curl -X ${e.method} '${e.url}'");
+    e.requestHeaders.forEach((k, v) {
       buf.write(" \\\n  -H '$k: $v'");
     });
-    if (entry.requestBody != null) {
-      final body = entry.requestBody is String
-          ? entry.requestBody as String
-          : const JsonEncoder().convert(entry.requestBody);
+    if (e.requestBody != null) {
+      final body = e.requestBody is String
+          ? e.requestBody as String
+          : const JsonEncoder().convert(e.requestBody);
       buf.write(" \\\n  -d '$body'");
     }
     return buf.toString();
@@ -1166,7 +1353,7 @@ class _TimingBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxWidth = 250.0;
+    final maxWidth = 200.0;
     final ratio = (duration / 2000).clamp(0.0, 1.0);
 
     Color barColor;
@@ -1219,11 +1406,11 @@ class _HeadersView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionTitle('Request Headers'),
+          _SectionLabel('Request Headers'),
           const SizedBox(height: 8),
           _HeaderTable(headers: entry.requestHeaders),
           const SizedBox(height: 20),
-          _SectionTitle('Response Headers'),
+          _SectionLabel('Response Headers'),
           const SizedBox(height: 8),
           _HeaderTable(headers: entry.responseHeaders),
         ],
@@ -1242,10 +1429,8 @@ class _HeaderTable extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (headers.isEmpty) {
-      return Text(
-        'No headers',
-        style: TextStyle(color: Colors.grey[500], fontSize: 12),
-      );
+      return Text('No headers',
+          style: TextStyle(color: Colors.grey[500], fontSize: 12));
     }
 
     return Container(
@@ -1262,8 +1447,7 @@ class _HeaderTable extends StatelessWidget {
           final e = entry.value;
           final isLast = entry.key == headers.length - 1;
           return Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: isLast
                 ? null
                 : BoxDecoration(
@@ -1318,10 +1502,7 @@ class _BodyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (body == null) {
-      return EmptyState(
-        icon: LucideIcons.fileText,
-        title: 'No $label',
-      );
+      return EmptyState(icon: LucideIcons.fileText, title: 'No $label');
     }
 
     return SingleChildScrollView(
@@ -1329,7 +1510,7 @@ class _BodyView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionTitle(label),
+          _SectionLabel(label),
           const SizedBox(height: 8),
           if (body is Map || body is List)
             JsonViewer(data: body, initiallyExpanded: true)
@@ -1366,28 +1547,15 @@ class _TimingView extends StatelessWidget {
                 DateTime.fromMillisecondsSinceEpoch(entry.endTime!),
               ),
             ),
-          if (entry.duration != null) _InfoRow('Duration', '${entry.duration}ms'),
+          if (entry.duration != null)
+            _InfoRow('Duration', '${entry.duration}ms'),
           if (entry.error != null) ...[
             const SizedBox(height: 12),
-            _SectionTitle('Error'),
+            _SectionLabel('Error'),
             const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: ColorTokens.error.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: ColorTokens.error.withValues(alpha: 0.15)),
-              ),
-              child: Text(
-                entry.error!,
-                style: TextStyle(
-                  fontFamily: 'JetBrains Mono',
-                  fontSize: 12,
-                  color: ColorTokens.error,
-                ),
-              ),
+            _ErrorBlock(
+              text: entry.error!,
+              isDark: Theme.of(context).brightness == Brightness.dark,
             ),
           ],
         ],
@@ -1396,19 +1564,17 @@ class _TimingView extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 // State Detail
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 
-class _StateDetailContent extends StatelessWidget {
+class _StateDetail extends StatelessWidget {
   final StateChange entry;
 
-  const _StateDetailContent({required this.entry});
+  const _StateDetail({required this.entry});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return DefaultTabController(
       length: 3,
       child: Column(
@@ -1417,46 +1583,24 @@ class _StateDetailContent extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: ColorTokens.secondary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    entry.stateManagerType,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: ColorTokens.secondary,
-                    ),
-                  ),
-                ),
+                _TagChip(entry.stateManagerType,
+                    color: ColorTokens.secondary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     entry.actionName,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: 'JetBrains Mono',
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black87,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 _CopyButton(
                   tooltip: 'Copy action',
-                  onTap: () {
-                    Clipboard.setData(
-                        ClipboardData(text: entry.actionName));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Action copied'),
-                          duration: Duration(seconds: 1)),
-                    );
-                  },
+                  onTap: () =>
+                      _copyText(context, entry.actionName, 'Action'),
                 ),
               ],
             ),
@@ -1477,38 +1621,29 @@ class _StateDetailContent extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                // Diff
                 entry.diff.isEmpty
                     ? const EmptyState(
-                        icon: LucideIcons.gitCompare,
-                        title: 'No diff',
-                      )
+                        icon: LucideIcons.gitCompare, title: 'No diff')
                     : ListView.builder(
                         padding: const EdgeInsets.all(12),
                         itemCount: entry.diff.length,
-                        itemBuilder: (context, index) {
-                          final d = entry.diff[index];
-                          return _DiffRow(diff: d);
-                        },
+                        itemBuilder: (context, index) =>
+                            _DiffRow(diff: entry.diff[index]),
                       ),
-                // Previous state
                 entry.previousState.isEmpty
                     ? const EmptyState(
                         icon: LucideIcons.layers,
-                        title: 'No previous state',
-                      )
+                        title: 'No previous state')
                     : SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: JsonViewer(
                             data: entry.previousState,
                             initiallyExpanded: true),
                       ),
-                // Next state
                 entry.nextState.isEmpty
                     ? const EmptyState(
                         icon: LucideIcons.layers,
-                        title: 'No next state',
-                      )
+                        title: 'No next state')
                     : SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: JsonViewer(
@@ -1642,41 +1777,33 @@ class _DiffRow extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 // Storage Detail
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 
-class _StorageDetailContent extends StatelessWidget {
+class _StorageDetail extends StatelessWidget {
   final StorageEntry entry;
 
-  const _StorageDetailContent({required this.entry});
+  const _StorageDetail({required this.entry});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Color opColor;
-    IconData opIcon;
     switch (entry.operation.toLowerCase()) {
       case 'write':
         opColor = ColorTokens.success;
-        opIcon = LucideIcons.pencil;
         break;
       case 'read':
         opColor = ColorTokens.info;
-        opIcon = LucideIcons.eye;
         break;
       case 'delete':
-        opColor = ColorTokens.error;
-        opIcon = LucideIcons.trash2;
-        break;
       case 'clear':
         opColor = ColorTokens.error;
-        opIcon = LucideIcons.eraser;
         break;
       default:
         opColor = ColorTokens.warning;
-        opIcon = LucideIcons.database;
     }
 
     return SingleChildScrollView(
@@ -1684,112 +1811,45 @@ class _StorageDetailContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Operation + Type
           Row(
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: opColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(opIcon, size: 12, color: opColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      entry.operation.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: opColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _TagChip(entry.operation.toUpperCase(), color: opColor),
               const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: ColorTokens.warning.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  entry.storageType.name,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: ColorTokens.warning,
-                  ),
-                ),
-              ),
+              _TagChip(entry.storageType.name, color: ColorTokens.warning),
               const Spacer(),
               _CopyButton(
                 tooltip: 'Copy key',
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: entry.key));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Key copied'),
-                        duration: Duration(seconds: 1)),
-                  );
-                },
+                onTap: () => _copyText(context, entry.key, 'Key'),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          // Key
-          _SectionTitle('Key'),
+          _SectionLabel('Key'),
           const SizedBox(height: 6),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF161B22)
-                  : const Color(0xFFF0F0F0),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: SelectableText(
-              entry.key,
-              style: TextStyle(
-                fontFamily: 'JetBrains Mono',
-                fontSize: 13,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-          ),
-          // Value
+          _CodeBlock(text: entry.key, isDark: isDark),
           if (entry.value != null) ...[
             const SizedBox(height: 16),
-            _SectionTitle('Value'),
+            Row(
+              children: [
+                _SectionLabel('Value'),
+                const Spacer(),
+                _CopyButton(
+                  tooltip: 'Copy value',
+                  onTap: () {
+                    final text = entry.value is String
+                        ? entry.value as String
+                        : const JsonEncoder.withIndent('  ')
+                            .convert(entry.value);
+                    _copyText(context, text, 'Value');
+                  },
+                ),
+              ],
+            ),
             const SizedBox(height: 6),
             if (entry.value is Map || entry.value is List)
               JsonViewer(data: entry.value, initiallyExpanded: true)
             else
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF161B22)
-                      : const Color(0xFFF0F0F0),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: SelectableText(
-                  '${entry.value}',
-                  style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
-                    fontSize: 12,
-                    color: isDark ? Colors.white70 : Colors.black87,
-                    height: 1.5,
-                  ),
-                ),
-              ),
+              _CodeBlock(text: '${entry.value}', isDark: isDark),
           ],
         ],
       ),
@@ -1797,9 +1857,9 @@ class _StorageDetailContent extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────
-// Fallback Detail (when rawData type doesn't match)
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
+// Fallback Detail
+// ═══════════════════════════════════════════════
 
 class _FallbackDetail extends StatelessWidget {
   final UnifiedEvent event;
@@ -1815,42 +1875,21 @@ class _FallbackDetail extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionTitle('Title'),
+          _SectionLabel('Title'),
           const SizedBox(height: 6),
-          SelectableText(
-            event.title,
-            style: TextStyle(
-              fontFamily: 'JetBrains Mono',
-              fontSize: 13,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-          ),
+          _CodeBlock(text: event.title, isDark: isDark),
           const SizedBox(height: 16),
-          _SectionTitle('Details'),
+          _SectionLabel('Details'),
           const SizedBox(height: 6),
-          SelectableText(
-            event.subtitle,
-            style: TextStyle(
-              fontFamily: 'JetBrains Mono',
-              fontSize: 12,
-              color: Colors.grey[400],
-            ),
-          ),
+          _CodeBlock(text: event.subtitle, isDark: isDark),
           if (event.rawData != null) ...[
             const SizedBox(height: 16),
-            _SectionTitle('Raw Data'),
+            _SectionLabel('Raw Data'),
             const SizedBox(height: 6),
             if (event.rawData is Map || event.rawData is List)
               JsonViewer(data: event.rawData, initiallyExpanded: true)
             else
-              SelectableText(
-                '${event.rawData}',
-                style: TextStyle(
-                  fontFamily: 'JetBrains Mono',
-                  fontSize: 12,
-                  color: isDark ? Colors.white70 : Colors.black87,
-                ),
-              ),
+              _CodeBlock(text: '${event.rawData}', isDark: isDark),
           ],
         ],
       ),
@@ -1858,14 +1897,14 @@ class _FallbackDetail extends StatelessWidget {
   }
 }
 
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 // Shared Widgets
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 
-class _SectionTitle extends StatelessWidget {
+class _SectionLabel extends StatelessWidget {
   final String text;
 
-  const _SectionTitle(this.text);
+  const _SectionLabel(this.text);
 
   @override
   Widget build(BuildContext context) {
@@ -1876,6 +1915,33 @@ class _SectionTitle extends StatelessWidget {
         fontWeight: FontWeight.w600,
         color: Colors.grey[500],
         letterSpacing: 0.5,
+      ),
+    );
+  }
+}
+
+class _TagChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _TagChip(this.label, {this.color = Colors.grey});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'JetBrains Mono',
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
       ),
     );
   }
@@ -1909,6 +1975,69 @@ class _CopyButton extends StatelessWidget {
             ),
             child: Icon(icon, size: 13, color: Colors.grey[500]),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CodeBlock extends StatelessWidget {
+  final String text;
+  final bool isDark;
+
+  const _CodeBlock({required this.text, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF161B22) : const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: SelectableText(
+        text,
+        style: TextStyle(
+          fontFamily: 'JetBrains Mono',
+          fontSize: 12,
+          color: isDark ? const Color(0xFFE6EDF3) : Colors.black87,
+          height: 1.6,
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorBlock extends StatelessWidget {
+  final String text;
+  final bool isDark;
+
+  const _ErrorBlock({required this.text, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: ColorTokens.error.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border:
+            Border.all(color: ColorTokens.error.withValues(alpha: 0.15)),
+      ),
+      child: SelectableText(
+        text,
+        style: TextStyle(
+          fontFamily: 'JetBrains Mono',
+          fontSize: 11,
+          color: ColorTokens.error.withValues(alpha: 0.9),
+          height: 1.5,
         ),
       ),
     );
@@ -1950,4 +2079,18 @@ class _InfoRow extends StatelessWidget {
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════════
+// Helper
+// ═══════════════════════════════════════════════
+
+void _copyText(BuildContext context, String text, String label) {
+  Clipboard.setData(ClipboardData(text: text));
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('$label copied'),
+      duration: const Duration(milliseconds: 800),
+    ),
+  );
 }

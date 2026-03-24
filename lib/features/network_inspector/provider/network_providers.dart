@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/network/network_entry.dart';
@@ -7,13 +9,32 @@ import '../../../server/ws_message_handler.dart';
 final networkEntriesProvider =
     StateNotifierProvider<NetworkNotifier, List<NetworkEntry>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  return NetworkNotifier(handler);
+  final notifier = NetworkNotifier(handler);
+  ref.onDispose(() => notifier.cancelSubscription());
+  return notifier;
 });
 
 final networkSearchProvider = StateProvider<String>((ref) => '');
 final networkMethodFilterProvider = StateProvider<String?>((ref) => null);
 final networkSourceFilterProvider =
     StateProvider<Set<String>>((ref) => {'app', 'library', 'system'});
+
+/// System URLs to hide by default (connectivity checks, captive portal, etc.)
+const _systemUrlPatterns = [
+  'generate_204',
+  'connectivitycheck',
+  'captive.apple.com',
+  'msftconnecttest',
+  'gstatic.com/generate_204',
+  'clients3.google.com',
+  'detectportal',
+  'nmcheck',
+];
+
+bool _isSystemUrl(String url) {
+  final lower = url.toLowerCase();
+  return _systemUrlPatterns.any((p) => lower.contains(p));
+}
 
 final filteredNetworkEntriesProvider = Provider<List<NetworkEntry>>((ref) {
   final entries = ref.watch(networkEntriesProvider);
@@ -28,6 +49,8 @@ final filteredNetworkEntriesProvider = Provider<List<NetworkEntry>>((ref) {
       return false;
     }
     if (!sourceFilter.contains(e.source)) return false;
+    // Hide system/connectivity check URLs unless searching for them
+    if (search.isEmpty && _isSystemUrl(e.url)) return false;
     if (search.isNotEmpty) {
       return e.url.toLowerCase().contains(search);
     }
@@ -38,8 +61,10 @@ final filteredNetworkEntriesProvider = Provider<List<NetworkEntry>>((ref) {
 final selectedNetworkEntryProvider = StateProvider<NetworkEntry?>((ref) => null);
 
 class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
+  late final StreamSubscription<NetworkEntry> _sub;
+
   NetworkNotifier(WsMessageHandler wsMessageHandler) : super([]) {
-    wsMessageHandler.onNetwork.listen((entry) {
+    _sub = wsMessageHandler.onNetwork.listen((entry) {
       // Update existing or add new
       final index = state.indexWhere((e) => e.id == entry.id);
       if (index >= 0) {
@@ -55,6 +80,8 @@ class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
       }
     });
   }
+
+  void cancelSubscription() => _sub.cancel();
 
   void clear() => state = [];
 }

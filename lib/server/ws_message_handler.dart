@@ -32,10 +32,14 @@ class WsMessageHandler {
   Stream<Map<String, dynamic>> get onStateSnapshot => _stateSnapshotController.stream;
   Stream<Map<String, dynamic>> get onCustomResult => _customResultController.stream;
 
+  late final StreamSubscription<DCMessage> _messageSub;
+  late final StreamSubscription<DeviceInfo> _connectionSub;
+  late final StreamSubscription<String> _disconnectionSub;
+
   WsMessageHandler({required this.server}) {
-    server.onMessage.listen(_handleMessage);
-    server.onConnection.listen((device) => _deviceController.add(device));
-    server.onDisconnection.listen((id) => _disconnectController.add(id));
+    _messageSub = server.onMessage.listen(_handleMessage);
+    _connectionSub = server.onConnection.listen((device) => _deviceController.add(device));
+    _disconnectionSub = server.onDisconnection.listen((id) => _disconnectController.add(id));
   }
 
   void _handleMessage(DCMessage message) {
@@ -225,6 +229,9 @@ class WsMessageHandler {
   }
 
   void dispose() {
+    _messageSub.cancel();
+    _connectionSub.cancel();
+    _disconnectionSub.cancel();
     _logController.close();
     _networkController.close();
     _stateController.close();

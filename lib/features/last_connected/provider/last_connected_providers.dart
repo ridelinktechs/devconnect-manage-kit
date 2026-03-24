@@ -19,17 +19,30 @@ final lastConnectedProvider =
     StateNotifierProvider<LastConnectedNotifier, List<DisconnectedSession>>(
         (ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  return LastConnectedNotifier(ref, handler);
+  final notifier = LastConnectedNotifier(ref, handler);
+  ref.onDispose(() => notifier.cancelSubscriptions());
+  return notifier;
 });
 
 class LastConnectedNotifier extends StateNotifier<List<DisconnectedSession>> {
   final Ref _ref;
   final Map<String, Timer> _pendingTimers = {};
   final Map<String, DeviceInfo> _pendingDevices = {};
+  late final StreamSubscription<DeviceInfo> _connectSub;
+  late final StreamSubscription<String> _disconnectSub;
 
   LastConnectedNotifier(this._ref, WsMessageHandler handler) : super([]) {
-    handler.onDeviceConnected.listen(_onDeviceConnected);
-    handler.onDeviceDisconnected.listen(_onDeviceDisconnected);
+    _connectSub = handler.onDeviceConnected.listen(_onDeviceConnected);
+    _disconnectSub = handler.onDeviceDisconnected.listen(_onDeviceDisconnected);
+  }
+
+  void cancelSubscriptions() {
+    _connectSub.cancel();
+    _disconnectSub.cancel();
+    for (final timer in _pendingTimers.values) {
+      timer.cancel();
+    }
+    _pendingTimers.clear();
   }
 
   void _onDeviceConnected(DeviceInfo device) {
@@ -87,8 +100,10 @@ class LastConnectedNotifier extends StateNotifier<List<DisconnectedSession>> {
       disconnectedAt: DateTime.now(),
       logs: logs.where((e) => e.deviceId == deviceId).toList(),
       networkEntries: network.where((e) => e.deviceId == deviceId).toList(),
-      stateChanges: stateChanges.where((e) => e.deviceId == deviceId).toList(),
-      storageEntries: storage.where((e) => e.deviceId == deviceId).toList(),
+      stateChanges:
+          stateChanges.where((e) => e.deviceId == deviceId).toList(),
+      storageEntries:
+          storage.where((e) => e.deviceId == deviceId).toList(),
       clientIp: device.clientIp,
     );
 

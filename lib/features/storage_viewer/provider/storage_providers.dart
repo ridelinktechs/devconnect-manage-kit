@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/storage/storage_entry.dart';
@@ -7,7 +9,9 @@ import '../../../server/ws_message_handler.dart';
 final storageEntriesProvider =
     StateNotifierProvider<StorageNotifier, List<StorageEntry>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  return StorageNotifier(handler);
+  final notifier = StorageNotifier(handler);
+  ref.onDispose(() => notifier.cancelSubscription());
+  return notifier;
 });
 
 final storageSearchProvider = StateProvider<String>((ref) => '');
@@ -31,8 +35,10 @@ final selectedStorageEntryProvider =
     StateProvider<StorageEntry?>((ref) => null);
 
 class StorageNotifier extends StateNotifier<List<StorageEntry>> {
+  late final StreamSubscription<StorageEntry> _sub;
+
   StorageNotifier(WsMessageHandler wsMessageHandler) : super([]) {
-    wsMessageHandler.onStorage.listen((entry) {
+    _sub = wsMessageHandler.onStorage.listen((entry) {
       // Update existing key or add new
       final index = state.indexWhere(
           (e) => e.key == entry.key && e.storageType == entry.storageType);
@@ -41,10 +47,17 @@ class StorageNotifier extends StateNotifier<List<StorageEntry>> {
         updated[index] = entry;
         state = updated;
       } else {
-        state = [...state, entry];
+        // Cap at 5000 entries
+        if (state.length > 5000) {
+          state = [...state.skip(500), entry];
+        } else {
+          state = [...state, entry];
+        }
       }
     });
   }
+
+  void cancelSubscription() => _sub.cancel();
 
   void clear() => state = [];
 }

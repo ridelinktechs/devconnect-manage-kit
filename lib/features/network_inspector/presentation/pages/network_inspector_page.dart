@@ -34,6 +34,7 @@ class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
   bool _autoScroll = false;
   int _maxVisible = _pageSize;
   bool _loadingMore = false;
+  int _previousCount = 0;
 
   @override
   void initState() {
@@ -54,18 +55,21 @@ class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
     final entries = ref.read(filteredNetworkEntriesProvider);
     if (_maxVisible >= entries.length) return;
 
-    setState(() => _loadingMore = true);
+    _loadingMore = true;
     final oldMaxExtent = _scrollController.position.maxScrollExtent;
+
     setState(() {
       _maxVisible = (_maxVisible + _pageSize).clamp(0, entries.length);
     });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         final newMaxExtent = _scrollController.position.maxScrollExtent;
-        final delta = newMaxExtent - oldMaxExtent;
-        _scrollController.jumpTo(_scrollController.position.pixels + delta);
+        _scrollController.jumpTo(
+          _scrollController.position.pixels + (newMaxExtent - oldMaxExtent),
+        );
       }
-      setState(() => _loadingMore = false);
+      _loadingMore = false;
     });
   }
 
@@ -88,8 +92,8 @@ class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
     final visibleEntries = entries.sublist(startIndex);
     final hasMore = startIndex > 0;
 
-    // Auto-scroll to bottom when new entries arrive
-    if (_autoScroll && entries.isNotEmpty) {
+    // Auto-scroll to bottom only when new entries arrive
+    if (_autoScroll && entries.length > _previousCount && entries.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollController.hasClients) {
           _scrollController.animateTo(
@@ -100,6 +104,7 @@ class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
         }
       });
     }
+    _previousCount = entries.length;
 
     return Column(
       children: [
@@ -164,12 +169,14 @@ class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
                               padding:
                                   const EdgeInsets.symmetric(vertical: 6),
                               itemCount: visibleEntries.length,
+                              itemExtent: 56,
                               itemBuilder: (context, index) {
                                 final entry = visibleEntries[
                                     visibleEntries.length - 1 - index];
                                 final isSelected =
                                     selected?.id == entry.id;
                                 return _RequestCard(
+                                  key: ValueKey(entry.id),
                                   entry: entry,
                                   isSelected: isSelected,
                                   onTap: () {
@@ -514,6 +521,7 @@ class _RequestCard extends ConsumerWidget {
   final VoidCallback onTap;
 
   const _RequestCard({
+    super.key,
     required this.entry,
     required this.isSelected,
     required this.onTap,

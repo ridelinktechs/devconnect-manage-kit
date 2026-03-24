@@ -55,6 +55,7 @@ class _JsonNode extends StatefulWidget {
 
 class _JsonNodeState extends State<_JsonNode> {
   late bool _expanded;
+  List<_JsonNode>? _cachedChildren;
 
   @override
   void initState() {
@@ -63,38 +64,57 @@ class _JsonNodeState extends State<_JsonNode> {
   }
 
   @override
+  void didUpdateWidget(_JsonNode oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Invalidate cache if value identity changes
+    if (!identical(oldWidget.value, widget.value)) {
+      _cachedChildren = null;
+    }
+  }
+
+  List<_JsonNode> _buildChildren() {
+    if (_cachedChildren != null) return _cachedChildren!;
+
+    if (widget.value is Map) {
+      _cachedChildren = (widget.value as Map).entries.map((e) {
+        return _JsonNode(
+          keyName: e.key.toString(),
+          value: e.value,
+          depth: widget.depth + 1,
+        );
+      }).toList();
+    } else if (widget.value is List) {
+      _cachedChildren = (widget.value as List).asMap().entries.map((e) {
+        return _JsonNode(
+          keyName: '${e.key}',
+          value: e.value,
+          depth: widget.depth + 1,
+        );
+      }).toList();
+    } else {
+      _cachedChildren = [];
+    }
+    return _cachedChildren!;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final indent = widget.depth * 16.0;
 
     if (widget.value is Map) {
       return _buildExpandable(
-        context,
         '{${(widget.value as Map).length}}',
-        (widget.value as Map).entries.map((e) {
-          return _JsonNode(
-            keyName: e.key.toString(),
-            value: e.value,
-            depth: widget.depth + 1,
-          );
-        }).toList(),
         indent,
+        isDark,
       );
     }
 
     if (widget.value is List) {
       return _buildExpandable(
-        context,
         '[${(widget.value as List).length}]',
-        (widget.value as List).asMap().entries.map((e) {
-          return _JsonNode(
-            keyName: '${e.key}',
-            value: e.value,
-            depth: widget.depth + 1,
-          );
-        }).toList(),
         indent,
+        isDark,
       );
     }
 
@@ -158,15 +178,7 @@ class _JsonNodeState extends State<_JsonNode> {
     );
   }
 
-  Widget _buildExpandable(
-    BuildContext context,
-    String badge,
-    List<Widget> children,
-    double indent,
-  ) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
+  Widget _buildExpandable(String badge, double indent, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -213,7 +225,7 @@ class _JsonNodeState extends State<_JsonNode> {
             ),
           ),
         ),
-        if (_expanded) ...children,
+        if (_expanded) ..._buildChildren(),
       ],
     );
   }

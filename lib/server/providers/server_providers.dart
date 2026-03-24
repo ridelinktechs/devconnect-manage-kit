@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/device_info.dart';
@@ -20,7 +22,9 @@ final wsMessageHandlerProvider = Provider<WsMessageHandler>((ref) {
 final connectedDevicesProvider =
     StateNotifierProvider<ConnectedDevicesNotifier, List<DeviceInfo>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  return ConnectedDevicesNotifier(handler);
+  final notifier = ConnectedDevicesNotifier(handler);
+  ref.onDispose(() => notifier.cancelSubscriptions());
+  return notifier;
 });
 
 /// null = show all devices, non-null = filter by this deviceId
@@ -36,13 +40,21 @@ final selectedDeviceProvider =
 });
 
 class ConnectedDevicesNotifier extends StateNotifier<List<DeviceInfo>> {
+  late final StreamSubscription<DeviceInfo> _connectSub;
+  late final StreamSubscription<String> _disconnectSub;
+
   ConnectedDevicesNotifier(WsMessageHandler handler) : super([]) {
-    handler.onDeviceConnected.listen((device) {
+    _connectSub = handler.onDeviceConnected.listen((device) {
       state = [...state, device];
     });
-    handler.onDeviceDisconnected.listen((deviceId) {
+    _disconnectSub = handler.onDeviceDisconnected.listen((deviceId) {
       state = state.where((d) => d.deviceId != deviceId).toList();
     });
+  }
+
+  void cancelSubscriptions() {
+    _connectSub.cancel();
+    _disconnectSub.cancel();
   }
 }
 

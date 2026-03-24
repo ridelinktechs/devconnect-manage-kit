@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/log/log_entry.dart';
@@ -7,7 +9,9 @@ import '../../../server/ws_message_handler.dart';
 final consoleEntriesProvider =
     StateNotifierProvider<ConsoleNotifier, List<LogEntry>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  return ConsoleNotifier(handler);
+  final notifier = ConsoleNotifier(handler);
+  ref.onDispose(() => notifier.cancelSubscription());
+  return notifier;
 });
 
 final consoleSearchProvider = StateProvider<String>((ref) => '');
@@ -34,8 +38,10 @@ final filteredConsoleEntriesProvider = Provider<List<LogEntry>>((ref) {
 });
 
 class ConsoleNotifier extends StateNotifier<List<LogEntry>> {
+  late final StreamSubscription<LogEntry> _sub;
+
   ConsoleNotifier(WsMessageHandler wsMessageHandler) : super([]) {
-    wsMessageHandler.onLog.listen((entry) {
+    _sub = wsMessageHandler.onLog.listen((entry) {
       if (state.length > 10000) {
         state = [...state.skip(1000), entry];
       } else {
@@ -43,6 +49,8 @@ class ConsoleNotifier extends StateNotifier<List<LogEntry>> {
       }
     });
   }
+
+  void cancelSubscription() => _sub.cancel();
 
   void clear() => state = [];
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/state/state_change.dart';
@@ -7,7 +9,9 @@ import '../../../server/ws_message_handler.dart';
 final stateChangesProvider =
     StateNotifierProvider<StateChangesNotifier, List<StateChange>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  return StateChangesNotifier(handler);
+  final notifier = StateChangesNotifier(handler);
+  ref.onDispose(() => notifier.cancelSubscription());
+  return notifier;
 });
 
 final selectedStateChangeProvider =
@@ -31,8 +35,10 @@ final filteredStateChangesProvider = Provider<List<StateChange>>((ref) {
 });
 
 class StateChangesNotifier extends StateNotifier<List<StateChange>> {
+  late final StreamSubscription<StateChange> _sub;
+
   StateChangesNotifier(WsMessageHandler wsMessageHandler) : super([]) {
-    wsMessageHandler.onState.listen((entry) {
+    _sub = wsMessageHandler.onState.listen((entry) {
       if (state.length > 5000) {
         state = [...state.skip(500), entry];
       } else {
@@ -40,6 +46,8 @@ class StateChangesNotifier extends StateNotifier<List<StateChange>> {
       }
     });
   }
+
+  void cancelSubscription() => _sub.cancel();
 
   void clear() => state = [];
 }

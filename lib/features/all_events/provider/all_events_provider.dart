@@ -16,7 +16,7 @@ class UnifiedEvent {
   final int timestamp;
   final String title;
   final String subtitle;
-  final String level; // for logs: debug/info/warn/error, for network: status code
+  final String level;
   final dynamic rawData;
 
   UnifiedEvent({
@@ -30,6 +30,23 @@ class UnifiedEvent {
     this.level = 'info',
     this.rawData,
   });
+}
+
+/// System URLs that should be filtered out (connectivity checks, etc.)
+const _systemUrlPatterns = [
+  'generate_204',
+  'connectivitycheck',
+  'captive.apple.com',
+  'msftconnecttest',
+  'gstatic.com/generate_204',
+  'clients3.google.com',
+  'detectportal',
+  'nmcheck',
+];
+
+bool _isSystemUrl(String url) {
+  final lower = url.toLowerCase();
+  return _systemUrlPatterns.any((p) => lower.contains(p));
 }
 
 final allEventsProvider = Provider<List<UnifiedEvent>>((ref) {
@@ -54,6 +71,9 @@ final allEventsProvider = Provider<List<UnifiedEvent>>((ref) {
   }
 
   for (final req in network) {
+    // Filter out system/connectivity check URLs
+    if (_isSystemUrl(req.url)) continue;
+
     events.add(UnifiedEvent(
       type: EventType.network,
       id: req.id,
@@ -104,6 +124,9 @@ final allEventsSearchProvider = StateProvider<String>((ref) => '');
 final allEventsFilterProvider = StateProvider<Set<EventType>>(
   (ref) => EventType.values.toSet(),
 );
+
+/// Whether to show system/connectivity check URLs
+final showSystemUrlsProvider = StateProvider<bool>((ref) => false);
 
 final filteredAllEventsProvider = Provider<List<UnifiedEvent>>((ref) {
   final events = ref.watch(allEventsProvider);

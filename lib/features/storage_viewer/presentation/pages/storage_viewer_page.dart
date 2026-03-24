@@ -53,18 +53,21 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
     final entries = ref.read(filteredStorageEntriesProvider);
     if (_maxVisible >= entries.length) return;
 
-    setState(() => _loadingMore = true);
-
+    _loadingMore = true;
     final oldMaxExtent = _scrollController.position.maxScrollExtent;
+
     setState(() {
       _maxVisible = (_maxVisible + _pageSize).clamp(0, entries.length);
     });
 
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      final newMaxExtent = _scrollController.position.maxScrollExtent;
-      final delta = newMaxExtent - oldMaxExtent;
-      _scrollController.jumpTo(_scrollController.offset + delta);
-      setState(() => _loadingMore = false);
+      if (_scrollController.hasClients) {
+        final newMaxExtent = _scrollController.position.maxScrollExtent;
+        _scrollController.jumpTo(
+          _scrollController.offset + (newMaxExtent - oldMaxExtent),
+        );
+      }
+      _loadingMore = false;
     });
   }
 
@@ -158,10 +161,12 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                             child: ListView.builder(
                               controller: _scrollController,
                               itemCount: visibleEntries.length,
+                              itemExtent: 52,
                               itemBuilder: (context, index) {
                                 final entry = visibleEntries[index];
                                 final isSelected = selected?.id == entry.id;
                                 return _StorageEntryTile(
+                                  key: ValueKey(entry.id),
                                   entry: entry,
                                   isSelected: isSelected,
                                   onTap: () {
@@ -295,6 +300,7 @@ class _StorageEntryTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _StorageEntryTile({
+    super.key,
     required this.entry,
     required this.isSelected,
     required this.onTap,
