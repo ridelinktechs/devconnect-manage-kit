@@ -57,10 +57,15 @@ windows/flutter/ephemeral/
 # Node (React Native SDK)
 client_sdks/devconnect-react-native/node_modules/
 client_sdks/devconnect-react-native/dist/
+client_sdks/devconnect-react-native/package-lock.json
+client_sdks/devconnect-react-native/yarn.lock
 
 # Android SDK build
 client_sdks/devconnect-android/build/
 client_sdks/devconnect-android/.gradle/
+
+# SDK lock files (libraries should not lock dependencies)
+client_sdks/**/pubspec.lock
 
 # Secrets
 *.env
