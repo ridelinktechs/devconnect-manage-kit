@@ -107,13 +107,14 @@ async function readHostCache(): Promise<string | null> {
 
 async function tryConnect(host: string, port: number, timeoutMs: number): Promise<boolean> {
   try {
+    console.log(`[DevConnect] tryConnect ws://${host}:${port} (${timeoutMs}ms)`);
     const ws = new WebSocket(`ws://${host}:${port}`);
     return await new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => { try { ws.close(); } catch (_) {} resolve(false); }, timeoutMs);
-      ws.onopen = () => { clearTimeout(timer); try { ws.close(); } catch (_) {} resolve(true); };
-      ws.onerror = () => { clearTimeout(timer); resolve(false); };
+      const timer = setTimeout(() => { console.log(`[DevConnect] tryConnect TIMEOUT ${host}`); try { ws.close(); } catch (_) {} resolve(false); }, timeoutMs);
+      ws.onopen = () => { console.log(`[DevConnect] tryConnect OK ${host}`); clearTimeout(timer); try { ws.close(); } catch (_) {} resolve(true); };
+      ws.onerror = (e: any) => { console.log(`[DevConnect] tryConnect ERROR ${host}:`, e?.message || e); clearTimeout(timer); resolve(false); };
     });
-  } catch (_) { return false; }
+  } catch (e: any) { console.log(`[DevConnect] tryConnect EXCEPTION ${host}:`, e?.message); return false; }
 }
 
 /**
@@ -140,9 +141,11 @@ function getDevServerHost(): string | null {
 }
 
 async function autoDetectHost(port: number): Promise<string> {
+  console.log('[DevConnect] autoDetectHost started, port:', port);
   // 0. Try cached host from previous session (instant reconnect)
   const cached = await readHostCache();
-  if (cached && await tryConnect(cached, port, 600)) return cached;
+  console.log('[DevConnect] cached host:', cached);
+  if (cached && await tryConnect(cached, port, 600)) { console.log('[DevConnect] using cached host:', cached); return cached; }
 
   // 1. Race: Metro scriptURL + known hosts in parallel
   //    USB (adb reverse) → localhost/10.0.2.2 responds fast
@@ -290,13 +293,16 @@ export class DevConnect {
    * ```
    */
   static async init(config: DevConnectConfig): Promise<DevConnect> {
-    if (DevConnect.instance) return DevConnect.instance;
+    console.log('[DevConnect] init() called, config:', JSON.stringify(config));
+    if (DevConnect.instance) { console.log('[DevConnect] already initialized'); return DevConnect.instance; }
 
     const port = config.port ?? 9090;
     const shouldAuto = (config.auto ?? true) && (!config.host || config.host === 'auto');
+    console.log('[DevConnect] shouldAuto:', shouldAuto, 'port:', port);
     const resolvedHost = shouldAuto
       ? await autoDetectHost(port)
       : (config.host ?? 'localhost');
+    console.log('[DevConnect] resolvedHost:', resolvedHost);
 
     const dc = new DevConnect({ ...config, resolvedHost });
     DevConnect.instance = dc;
@@ -345,9 +351,11 @@ export class DevConnect {
 
   private connect(): void {
     try {
+      console.log(`[DevConnect] connect() ws://${this.config.host}:${this.config.port}`);
       this.ws = new WebSocket(`ws://${this.config.host}:${this.config.port}`);
 
       this.ws.onopen = () => {
+        console.log('[DevConnect] WebSocket OPEN');
         this.connected = true;
         this.messageQueue.forEach((msg) => this.ws?.send(msg));
         this.messageQueue = [];
@@ -383,9 +391,10 @@ export class DevConnect {
         } catch (_) {}
       };
 
-      this.ws.onclose = () => { this.connected = false; this.scheduleReconnect(); };
-      this.ws.onerror = () => { this.connected = false; this.scheduleReconnect(); };
-    } catch (_) {
+      this.ws.onclose = () => { console.log('[DevConnect] WebSocket CLOSED'); this.connected = false; this.scheduleReconnect(); };
+      this.ws.onerror = (e: any) => { console.log('[DevConnect] WebSocket ERROR:', e?.message || e); this.connected = false; this.scheduleReconnect(); };
+    } catch (e: any) {
+      console.log('[DevConnect] connect() EXCEPTION:', e?.message);
       this.scheduleReconnect();
     }
   }
