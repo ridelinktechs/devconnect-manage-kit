@@ -159,7 +159,42 @@ object DevConnect {
             deviceId = deviceId,
             appName = appName,
             appVersion = appVersion
-        )
+        ).also { ws ->
+            ws.onServerMessage = { type, json ->
+                val payload = json.optJSONObject("payload") ?: JSONObject()
+                when (type) {
+                    "server:state:restore" -> {
+                        val state = payload.optJSONObject("state")
+                        if (state != null) {
+                            val map = jsonObjectToMap(state)
+                            onStateRestore?.invoke(map)
+                        }
+                    }
+                    "server:redux:dispatch" -> {
+                        val action = payload.optJSONObject("action")
+                        if (action != null) {
+                            val map = jsonObjectToMap(action)
+                            onReduxDispatch?.invoke(map)
+                        }
+                    }
+                    "server:custom:command" -> {
+                        val cmd = payload.optString("command", "")
+                        val handler = commandHandlers[cmd]
+                        if (handler != null) {
+                            val args = payload.optJSONObject("args")
+                            val argsMap = if (args != null) jsonObjectToMap(args) else null
+                            val result = handler(argsMap)
+                            val correlationId = json.optString("correlationId", null)
+                            val resultPayload = buildPayload {
+                                put("command", cmd)
+                                if (result != null) put("result", result)
+                            }
+                            send("client:custom:command_result", resultPayload)
+                        }
+                    }
+                }
+            }
+        }
         client?.connect()
 
         // Auto-intercept System.out (println) if enabled
@@ -319,6 +354,22 @@ object DevConnect {
     }
 
     fun isConnected(): Boolean = client?.isConnected == true
+
+    /**
+     * Disconnect from DevConnect desktop.
+     */
+    fun disconnect() {
+        client?.disconnect()
+        client = null
+    }
+
+    // ---- State Restore ----
+
+    /** Handler called when desktop restores a state snapshot */
+    var onStateRestore: ((Map<String, Any>) -> Unit)? = null
+
+    /** Handler called when desktop dispatches a Redux/ViewModel action */
+    var onReduxDispatch: ((Map<String, Any>) -> Unit)? = null
 
     // ---- OkHttp Interceptor ----
 
@@ -508,6 +559,122 @@ object DevConnect {
         })
     }
 
+    // ---- Performance Profiling ----
+
+    /**
+     * Report a performance metric (FPS, memory, CPU, jank frame, etc.).
+     *
+     * ```kotlin
+     * // Report FPS
+     * DevConnect.reportPerformanceMetric(
+     *     metricType = "fps",
+     *     value = 58.5,
+     *     label = "Main Thread FPS"
+     * )
+     *
+     * // Report memory usage in MB
+     * DevConnect.reportPerformanceMetric(
+     *     metricType = "memory_usage",
+     *     value = 142.3,
+     *     label = "Heap Used"
+     * )
+     *
+     * // Report CPU usage percentage
+     * DevConnect.reportPerformanceMetric(
+     *     metricType = "cpu_usage",
+     *     value = 35.2
+     * )
+     *
+     * // Report a jank frame (build time in ms)
+     * DevConnect.reportPerformanceMetric(
+     *     metricType = "jank_frame",
+     *     value = 32.1,
+     *     label = "Slow render in RecyclerView"
+     * )
+     * ```
+     *
+     * @param metricType One of: fps, frame_build_time, frame_raster_time, memory_usage, memory_peak, cpu_usage, jank_frame
+     * @param value The metric value (FPS number, MB, percentage, ms, etc.)
+     * @param label Optional human-readable label
+     * @param metadata Optional additional key-value data
+     */
+    fun reportPerformanceMetric(
+        metricType: String,
+        value: Double,
+        label: String? = null,
+        metadata: Map<String, Any>? = null
+    ) {
+        send("client:performance:metric", buildPayload {
+            put("metricType", metricType)
+            put("value", value)
+            label?.let { put("label", it) }
+            metadata?.let { put("metadata", JSONObject(it)) }
+        })
+    }
+
+    // ---- Memory Leak Detection ----
+
+    /**
+     * Report a detected memory leak.
+     *
+     * ```kotlin
+     * // Report an undisposed stream/listener
+     * DevConnect.reportMemoryLeak(
+     *     leakType = "undisposed_stream",
+     *     severity = "warning",
+     *     objectName = "LocationListener",
+     *     detail = "LocationManager listener not removed in MapsActivity",
+     *     retainedSizeBytes = 4096
+     * )
+     *
+     * // Report a growing collection
+     * DevConnect.reportMemoryLeak(
+     *     leakType = "growing_collection",
+     *     severity = "critical",
+     *     objectName = "eventCache",
+     *     detail = "ArrayList grows unbounded — 15000 items",
+     *     retainedSizeBytes = 1200000,
+     *     metadata = mapOf("currentSize" to 15000, "maxExpected" to 100)
+     * )
+     *
+     * // Report Activity leak (e.g. from LeakCanary)
+     * DevConnect.reportMemoryLeak(
+     *     leakType = "widget_leak",
+     *     severity = "critical",
+     *     objectName = "DetailActivity",
+     *     detail = "Activity retained after onDestroy",
+     *     stackTrace = leakTrace.toString()
+     * )
+     * ```
+     *
+     * @param leakType One of: undisposed_controller, undisposed_stream, undisposed_timer, undisposed_animation_controller, widget_leak, growing_collection, custom
+     * @param severity One of: info, warning, critical
+     * @param objectName Name of the leaked object/class
+     * @param detail Human-readable description
+     * @param retainedSizeBytes Estimated retained memory in bytes
+     * @param stackTrace Stack trace or leak trace string
+     * @param metadata Optional additional key-value data
+     */
+    fun reportMemoryLeak(
+        leakType: String,
+        severity: String,
+        objectName: String,
+        detail: String? = null,
+        retainedSizeBytes: Long? = null,
+        stackTrace: String? = null,
+        metadata: Map<String, Any>? = null
+    ) {
+        send("client:memory:leak", buildPayload {
+            put("leakType", leakType)
+            put("severity", severity)
+            put("objectName", objectName)
+            detail?.let { put("detail", it) }
+            retainedSizeBytes?.let { put("retainedSizeBytes", it) }
+            stackTrace?.let { put("stackTrace", it) }
+            metadata?.let { put("metadata", JSONObject(it)) }
+        })
+    }
+
     // ---- Network (internal) ----
 
     fun reportNetworkStart(
@@ -643,5 +810,27 @@ object DevConnect {
 
     private fun buildPayload(block: JSONObject.() -> Unit): JSONObject {
         return JSONObject().apply(block)
+    }
+
+    private fun jsonObjectToMap(json: JSONObject): Map<String, Any> {
+        val map = mutableMapOf<String, Any>()
+        val keys = json.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val value = json.get(key)
+            map[key] = when (value) {
+                is JSONObject -> jsonObjectToMap(value)
+                is org.json.JSONArray -> {
+                    val list = mutableListOf<Any>()
+                    for (i in 0 until value.length()) {
+                        val item = value.get(i)
+                        list.add(if (item is JSONObject) jsonObjectToMap(item) else item)
+                    }
+                    list
+                }
+                else -> value
+            }
+        }
+        return map
     }
 }

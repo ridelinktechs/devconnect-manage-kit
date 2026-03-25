@@ -642,6 +642,225 @@ export class DevConnect {
     DevConnect.safeSend('client:storage:operation', opts);
   }
 
+  // ---- Performance Profiling ----
+
+  /**
+   * Report a performance metric (FPS, memory, CPU, jank frame, etc.).
+   *
+   * ```typescript
+   * // Report FPS
+   * DevConnect.reportPerformanceMetric({
+   *   metricType: 'fps',
+   *   value: 58.5,
+   *   label: 'Main Thread FPS',
+   * });
+   *
+   * // Report memory usage in MB
+   * DevConnect.reportPerformanceMetric({
+   *   metricType: 'memory_usage',
+   *   value: 142.3,
+   *   label: 'Heap Used',
+   * });
+   *
+   * // Report CPU usage percentage
+   * DevConnect.reportPerformanceMetric({
+   *   metricType: 'cpu_usage',
+   *   value: 35.2,
+   * });
+   *
+   * // Report a jank frame (build time in ms)
+   * DevConnect.reportPerformanceMetric({
+   *   metricType: 'jank_frame',
+   *   value: 32.1,
+   *   label: 'Slow render in UserList',
+   * });
+   * ```
+   */
+  static reportPerformanceMetric(opts: {
+    metricType: 'fps' | 'frame_build_time' | 'frame_raster_time' | 'memory_usage' | 'memory_peak' | 'cpu_usage' | 'jank_frame';
+    value: number;
+    label?: string;
+    metadata?: Record<string, any>;
+  }): void {
+    DevConnect.safeSend('client:performance:metric', {
+      metricType: opts.metricType,
+      value: opts.value,
+      ...(opts.label ? { label: opts.label } : {}),
+      ...(opts.metadata ? { metadata: opts.metadata } : {}),
+    });
+  }
+
+  // ---- Memory Leak Detection ----
+
+  /**
+   * Report a detected memory leak.
+   *
+   * ```typescript
+   * // Report an undisposed subscription
+   * DevConnect.reportMemoryLeak({
+   *   leakType: 'undisposed_stream',
+   *   severity: 'warning',
+   *   objectName: 'UserDataSubscription',
+   *   detail: 'EventEmitter listener not removed in ProfileScreen',
+   *   retainedSizeBytes: 2048,
+   *   stackTrace: new Error().stack,
+   * });
+   *
+   * // Report a growing collection
+   * DevConnect.reportMemoryLeak({
+   *   leakType: 'growing_collection',
+   *   severity: 'critical',
+   *   objectName: 'eventCache',
+   *   detail: 'Array grows unbounded — 15000 items, expected < 100',
+   *   retainedSizeBytes: 1200000,
+   *   metadata: { currentSize: 15000, maxExpected: 100 },
+   * });
+   * ```
+   */
+  static reportMemoryLeak(opts: {
+    leakType: 'undisposed_controller' | 'undisposed_stream' | 'undisposed_timer' | 'undisposed_animation_controller' | 'widget_leak' | 'growing_collection' | 'custom';
+    severity: 'info' | 'warning' | 'critical';
+    objectName: string;
+    detail?: string;
+    retainedSizeBytes?: number;
+    stackTrace?: string;
+    metadata?: Record<string, any>;
+  }): void {
+    DevConnect.safeSend('client:memory:leak', {
+      leakType: opts.leakType,
+      severity: opts.severity,
+      objectName: opts.objectName,
+      ...(opts.detail ? { detail: opts.detail } : {}),
+      ...(opts.retainedSizeBytes != null ? { retainedSizeBytes: opts.retainedSizeBytes } : {}),
+      ...(opts.stackTrace ? { stackTrace: opts.stackTrace } : {}),
+      ...(opts.metadata ? { metadata: opts.metadata } : {}),
+    });
+  }
+
+  // ---- Connection ----
+
+  /** Check if currently connected to DevConnect desktop. */
+  static isConnected(): boolean {
+    return DevConnect.instance?.connected ?? false;
+  }
+
+  /** Disconnect from DevConnect desktop. */
+  static disconnect(): void {
+    const instance = DevConnect.getInstanceSafe();
+    if (instance) {
+      if (instance.reconnectTimer) {
+        clearTimeout(instance.reconnectTimer);
+        instance.reconnectTimer = null;
+      }
+      instance.connected = false;
+      try { instance.ws?.close(); } catch (_) {}
+      instance.ws = null;
+    }
+  }
+
+  // ---- Tagged Logger ----
+
+  /**
+   * Create a tagged logger instance.
+   *
+   * ```typescript
+   * const logger = DevConnect.logger('AuthService');
+   * logger.log('User logged in');
+   * logger.debug('Token refreshed');
+   * logger.warn('Session expiring');
+   * logger.error('Login failed', 'stack trace...');
+   * ```
+   */
+  static logger(tag: string): {
+    log: (message: string, metadata?: Record<string, any>) => void;
+    debug: (message: string, metadata?: Record<string, any>) => void;
+    warn: (message: string, metadata?: Record<string, any>) => void;
+    error: (message: string, stackTrace?: string, metadata?: Record<string, any>) => void;
+  } {
+    return {
+      log: (message, metadata?) => DevConnect.log(message, tag, metadata),
+      debug: (message, metadata?) => DevConnect.debug(message, tag, metadata),
+      warn: (message, metadata?) => DevConnect.warn(message, tag, metadata),
+      error: (message, stackTrace?, metadata?) => DevConnect.error(message, tag, stackTrace, metadata),
+    };
+  }
+
+  // ---- Network (manual reporting) ----
+
+  /**
+   * Manually report a network request start.
+   * Useful when auto-interception is disabled or for custom transports.
+   *
+   * ```typescript
+   * const requestId = 'req-123';
+   * DevConnect.reportNetworkStart({
+   *   requestId,
+   *   method: 'POST',
+   *   url: 'https://api.example.com/data',
+   *   headers: { 'Authorization': 'Bearer xxx' },
+   * });
+   * ```
+   */
+  static reportNetworkStart(opts: {
+    requestId: string;
+    method: string;
+    url: string;
+    headers?: Record<string, string>;
+    body?: any;
+  }): void {
+    DevConnect.safeSend('client:network:request_start', {
+      requestId: opts.requestId,
+      method: opts.method,
+      url: opts.url,
+      startTime: Date.now(),
+      ...(opts.headers ? { requestHeaders: opts.headers } : {}),
+      ...(opts.body !== undefined ? { requestBody: opts.body } : {}),
+    });
+  }
+
+  /**
+   * Manually report a network request completion.
+   *
+   * ```typescript
+   * DevConnect.reportNetworkComplete({
+   *   requestId: 'req-123',
+   *   method: 'POST',
+   *   url: 'https://api.example.com/data',
+   *   statusCode: 200,
+   *   startTime: 1711180800000,
+   *   responseBody: { success: true },
+   * });
+   * ```
+   */
+  static reportNetworkComplete(opts: {
+    requestId: string;
+    method: string;
+    url: string;
+    statusCode: number;
+    startTime: number;
+    requestHeaders?: Record<string, string>;
+    responseHeaders?: Record<string, string>;
+    requestBody?: any;
+    responseBody?: any;
+    error?: string;
+  }): void {
+    const now = Date.now();
+    DevConnect.safeSend('client:network:request_complete', {
+      requestId: opts.requestId,
+      method: opts.method,
+      url: opts.url,
+      statusCode: opts.statusCode,
+      startTime: opts.startTime,
+      endTime: now,
+      duration: now - opts.startTime,
+      ...(opts.requestHeaders ? { requestHeaders: opts.requestHeaders } : {}),
+      ...(opts.responseHeaders ? { responseHeaders: opts.responseHeaders } : {}),
+      ...(opts.requestBody !== undefined ? { requestBody: opts.requestBody } : {}),
+      ...(opts.responseBody !== undefined ? { responseBody: opts.responseBody } : {}),
+      ...(opts.error ? { error: opts.error } : {}),
+    });
+  }
+
   // ---- Redux dispatch from desktop ----
 
   /**

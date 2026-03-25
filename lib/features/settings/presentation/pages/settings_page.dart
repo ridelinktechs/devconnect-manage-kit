@@ -770,6 +770,8 @@ class _TabVisibilitySection extends ConsumerWidget {
     (TabKey.state, 'State', LucideIcons.layers, ColorTokens.secondary),
     (TabKey.storage, 'Storage', LucideIcons.database, ColorTokens.warning),
     (TabKey.database, 'Database', LucideIcons.hardDrive, Color(0xFFD2A8FF)),
+    (TabKey.performance, 'Performance', LucideIcons.gauge, Color(0xFF10B981)),
+    (TabKey.memoryLeaks, 'Memory Leaks', LucideIcons.bug, Color(0xFFEF4444)),
     (TabKey.history, 'History', LucideIcons.history, Colors.grey),
   ];
 

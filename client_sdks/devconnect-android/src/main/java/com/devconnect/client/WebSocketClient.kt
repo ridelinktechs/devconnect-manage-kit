@@ -21,6 +21,8 @@ class WebSocketClient(
     private val appName: String,
     private val appVersion: String
 ) {
+    /** Callback for incoming server messages (type, payload) */
+    var onServerMessage: ((String, JSONObject) -> Unit)? = null
     var isConnected = false
         private set
 
@@ -156,6 +158,9 @@ class WebSocketClient(
             val type = json.optString("type")
             if (type == "server:hello") {
                 sendHandshake()
+            } else if (type.startsWith("server:")) {
+                val payload = json.optJSONObject("payload") ?: JSONObject()
+                onServerMessage?.invoke(type, json)
             }
         } catch (_: Exception) {}
     }

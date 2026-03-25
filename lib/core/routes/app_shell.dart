@@ -1,11 +1,15 @@
 import 'dart:io' show Platform;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../components/layout/device_bottom_bar.dart';
 import '../../components/layout/sidebar.dart';
+import '../providers/tab_visibility_provider.dart';
 import '../theme/theme_provider.dart';
 import '../../features/last_connected/provider/last_connected_providers.dart';
 
@@ -52,6 +56,9 @@ class _AppShellState extends ConsumerState<AppShell> {
             });
           }
 
+          final enabledTabs = ref.watch(tabVisibilityProvider);
+          final isLocked = !isTabEnabled(enabledTabs, widget.currentPath);
+
           return Stack(
             children: [
               Row(
@@ -66,7 +73,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                     child: Column(
                       children: [
                         if (Platform.isMacOS) const SizedBox(height: 64),
-                        Expanded(child: widget.child),
+                        Expanded(
+                          child: isLocked
+                              ? const _LockedTabOverlay()
+                              : widget.child,
+                        ),
+                        const DeviceBottomBar(),
                       ],
                     ),
                   ),
@@ -94,6 +106,70 @@ class _AppShellState extends ConsumerState<AppShell> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _LockedTabOverlay extends StatelessWidget {
+  const _LockedTabOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          color: isDark
+              ? Colors.black.withValues(alpha: 0.6)
+              : Colors.white.withValues(alpha: 0.7),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.04),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: Icon(
+                    LucideIcons.lock,
+                    size: 28,
+                    color: isDark ? Colors.white38 : Colors.black26,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Tab Disabled',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white54 : Colors.black45,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Enable this tab in Settings > Tab Visibility',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.white30 : Colors.black26,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

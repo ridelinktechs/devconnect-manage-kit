@@ -42,6 +42,7 @@ class DevConnect {
   DevConnect._();
 
   static DevConnectClient get client => DevConnectClient.instance;
+  static DevConnectClient? get clientSafe => DevConnectClient.instanceSafe;
   static bool _initialized = false;
 
   /// One-line setup: init + intercept ALL HTTP + capture ALL developer logs.
@@ -353,11 +354,13 @@ class DevConnect {
   static void reportPerformanceMetric({
     required String metricType,
     required double value,
+    String? label,
     Map<String, dynamic>? metadata,
   }) {
     client.reportPerformanceMetric(
       metricType: metricType,
       value: value,
+      label: label,
       metadata: metadata,
     );
   }
@@ -379,6 +382,149 @@ class DevConnect {
       stackTrace: stackTrace,
       retainedSizeBytes: retainedSizeBytes,
       metadata: metadata,
+    );
+  }
+
+  // ---- Connection ----
+
+  /// Check if currently connected to DevConnect desktop.
+  static bool get isConnected => clientSafe?.isConnected ?? false;
+
+  /// Disconnect from DevConnect desktop.
+  static Future<void> disconnect() async {
+    await clientSafe?.disconnect();
+  }
+
+  // ---- Storage ----
+
+  /// Report a storage operation (read/write/delete).
+  ///
+  /// ```dart
+  /// DevConnect.reportStorageOperation(
+  ///   storageType: 'shared_preferences',
+  ///   key: 'theme',
+  ///   value: 'dark',
+  ///   operation: 'write',
+  /// );
+  /// ```
+  static void reportStorageOperation({
+    required String storageType,
+    required String key,
+    dynamic value,
+    required String operation,
+  }) {
+    client.reportStorageOperation(
+      storageType: storageType,
+      key: key,
+      value: value,
+      operation: operation,
+    );
+  }
+
+  // ---- State Snapshot ----
+
+  /// Send a full state snapshot to desktop (for saving/restoring later).
+  ///
+  /// ```dart
+  /// DevConnect.sendStateSnapshot(
+  ///   stateManager: 'riverpod',
+  ///   state: {'counter': 42, 'user': userMap},
+  /// );
+  /// ```
+  static void sendStateSnapshot({
+    required String stateManager,
+    required Map<String, dynamic> state,
+  }) {
+    client.sendStateSnapshot(stateManager: stateManager, state: state);
+  }
+
+  /// Set handler for state restore from desktop.
+  ///
+  /// ```dart
+  /// DevConnect.onStateRestore((state) {
+  ///   ref.read(appStateProvider.notifier).restore(state);
+  /// });
+  /// ```
+  static set onStateRestore(void Function(Map<String, dynamic> state)? handler) {
+    clientSafe?.onStateRestore = handler;
+  }
+
+  // ---- Benchmark ----
+
+  /// Start a benchmark timer.
+  ///
+  /// ```dart
+  /// DevConnect.benchmarkStart('loadUserData');
+  /// await fetchUser();
+  /// DevConnect.benchmarkStep('loadUserData');
+  /// await fetchPosts();
+  /// DevConnect.benchmarkStop('loadUserData');
+  /// ```
+  static void benchmarkStart(String title) => client.benchmarkStart(title);
+  static void benchmarkStep(String title) => client.benchmarkStep(title);
+  static void benchmarkStop(String title) => client.benchmarkStop(title);
+
+  // ---- Custom Commands ----
+
+  /// Register a custom command that desktop can trigger.
+  ///
+  /// ```dart
+  /// DevConnect.registerCommand('clearCache', (args) {
+  ///   prefs.clear();
+  ///   return {'success': true};
+  /// });
+  /// ```
+  static void registerCommand(
+    String name,
+    dynamic Function(Map<String, dynamic>?) handler,
+  ) {
+    client.registerCommand(name, handler);
+  }
+
+  // ---- Network (manual) ----
+
+  /// Manually report a network request start.
+  /// Useful when auto-interception is not used.
+  static void reportNetworkStart({
+    required String requestId,
+    required String method,
+    required String url,
+    Map<String, String>? headers,
+    dynamic body,
+  }) {
+    client.reportNetworkStart(
+      requestId: requestId,
+      method: method,
+      url: url,
+      headers: headers,
+      body: body,
+    );
+  }
+
+  /// Manually report a network request completion.
+  static void reportNetworkComplete({
+    required String requestId,
+    required String method,
+    required String url,
+    required int statusCode,
+    required int startTime,
+    Map<String, String>? requestHeaders,
+    Map<String, String>? responseHeaders,
+    dynamic requestBody,
+    dynamic responseBody,
+    String? error,
+  }) {
+    client.reportNetworkComplete(
+      requestId: requestId,
+      method: method,
+      url: url,
+      statusCode: statusCode,
+      startTime: startTime,
+      requestHeaders: requestHeaders,
+      responseHeaders: responseHeaders,
+      requestBody: requestBody,
+      responseBody: responseBody,
+      error: error,
     );
   }
 

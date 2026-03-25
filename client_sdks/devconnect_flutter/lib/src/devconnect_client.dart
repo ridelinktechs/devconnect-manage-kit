@@ -747,11 +747,13 @@ class DevConnectClient {
   void reportPerformanceMetric({
     required String metricType,
     required double value,
+    String? label,
     Map<String, dynamic>? metadata,
   }) {
     _send('client:performance:metric', {
       'metricType': metricType,
       'value': value,
+      if (label != null) 'label': label,
       if (metadata != null) 'metadata': metadata,
     });
   }

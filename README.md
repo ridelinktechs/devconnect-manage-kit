@@ -32,6 +32,8 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 | Log viewer | ✅ | ✅ | ✅ | ✅ |
 | Storage viewer | ✅ | ✅ | ✅ | ❌ |
 | Database browser | ✅ | ❌ | ✅ | ❌ |
+| Performance profiling | ✅ FPS/CPU/Memory/Jank | ❌ | ❌ | ✅ |
+| Memory leak detection | ✅ | ❌ | ❌ | ✅ |
 | Benchmark timing | ✅ | ✅ | ❌ | ✅ |
 | Custom commands | ✅ | ✅ | ❌ | ❌ |
 | Multi-device | ✅ | ❌ | ✅ | ❌ |
@@ -51,6 +53,8 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 - **Console / Logs** — Log viewer with level filters (debug/info/warn/error), search, tags, metadata, stack traces
 - **Storage Viewer** — Browse and monitor SharedPreferences, AsyncStorage, Hive, MMKV, SecureStorage, DataStore
 - **Database Browser** — SQLite, Drift, Room, Isar table viewer with SQL query editor
+- **Performance Profiling** — Real-time FPS, CPU, memory usage charts with jank frame detection
+- **Memory Leak Detection** — Detect undisposed controllers, streams, timers, growing collections with severity levels and stack traces
 - **Benchmark** — Performance timing with step markers
 - **Custom Commands** — Send commands from desktop to app and get results
 - **Multi-Device** — Connect multiple apps simultaneously, per-device filtering
@@ -149,6 +153,8 @@ flutter build windows --release # Windows
 - State Inspector - state change timeline, before/after diff, snapshot + restore
 - Storage Viewer - SharedPreferences, AsyncStorage, Hive, MMKV, SecureStorage
 - Database Viewer - SQLite, Drift, Room, Isar with query editor
+- Performance Profiling - real-time FPS, CPU, memory charts with jank detection
+- Memory Leak Detection - severity-based leak viewer with stack traces and metadata
 - Benchmark - performance timing with steps
 - Custom Commands - send commands from desktop to app
 - Device Panel - connected devices with platform badge, OS version
@@ -398,6 +404,67 @@ isarReporter.reportQuery('User', results);
 isarReporter.reportPut('User', {'name': 'John'});
 ```
 
+### Performance Profiling
+
+```dart
+// Report FPS
+DevConnect.reportPerformanceMetric(
+  metricType: 'fps',
+  value: 58.5,
+  label: 'Main Thread FPS',
+);
+
+// Report memory usage (MB)
+DevConnect.reportPerformanceMetric(
+  metricType: 'memory_usage',
+  value: 142.3,
+  label: 'Dart Heap',
+);
+
+// Report CPU usage (%)
+DevConnect.reportPerformanceMetric(
+  metricType: 'cpu_usage',
+  value: 35.2,
+);
+
+// Report jank frame (build time in ms)
+DevConnect.reportPerformanceMetric(
+  metricType: 'jank_frame',
+  value: 32.1,
+  label: 'Slow build in ListView',
+);
+```
+
+Available metric types: `fps`, `frame_build_time`, `frame_raster_time`, `memory_usage`, `memory_peak`, `cpu_usage`, `jank_frame`.
+
+### Memory Leak Detection
+
+```dart
+// Report undisposed controller
+DevConnect.reportMemoryLeak(
+  leakType: 'undisposed_controller',
+  severity: 'warning',
+  objectName: 'AnimationController',
+  detail: 'AnimationController not disposed in ProfileScreen',
+  retainedSizeBytes: 2048,
+  stackTrace: StackTrace.current.toString(),
+);
+
+// Report growing collection
+DevConnect.reportMemoryLeak(
+  leakType: 'growing_collection',
+  severity: 'critical',
+  objectName: 'eventCache',
+  detail: 'List grows unbounded — 15000 items, expected < 100',
+  retainedSizeBytes: 1200000,
+  metadata: {'currentSize': 15000, 'maxExpected': 100},
+);
+```
+
+Available leak types: `undisposed_controller`, `undisposed_stream`, `undisposed_timer`, `undisposed_animation_controller`, `widget_leak`, `growing_collection`, `custom`.
+
+Severity levels: `info`, `warning`, `critical`.
+
 ### Benchmark
 
 ```dart
@@ -414,6 +481,33 @@ DevConnect.benchmarkStop('loadHome');
 DevConnect.registerCommand('clearCache', (args) {
   return {'cleared': true};
 });
+```
+
+### State Snapshot + Restore
+
+```dart
+// Send a state snapshot to desktop
+DevConnect.sendStateSnapshot(
+  stateManager: 'riverpod',
+  state: {'counter': 42, 'user': userMap},
+);
+
+// Handle state restore from desktop
+DevConnect.onStateRestore = (state) {
+  ref.read(appStateProvider.notifier).restore(state);
+};
+```
+
+### Connection Management
+
+```dart
+// Check connection status
+if (DevConnect.isConnected) {
+  print('Connected to DevConnect desktop');
+}
+
+// Disconnect
+await DevConnect.disconnect();
 ```
 
 ### Navigation
@@ -631,6 +725,96 @@ import { DevConnectMMKV } from 'devconnect-react-native';
 DevConnectMMKV.wrap(storage);
 ```
 
+### Performance Profiling
+
+```typescript
+// Report FPS
+DevConnect.reportPerformanceMetric({
+  metricType: 'fps',
+  value: 58.5,
+  label: 'JS Thread FPS',
+});
+
+// Report memory usage (MB)
+DevConnect.reportPerformanceMetric({
+  metricType: 'memory_usage',
+  value: 142.3,
+  label: 'JS Heap',
+});
+
+// Report CPU usage (%)
+DevConnect.reportPerformanceMetric({
+  metricType: 'cpu_usage',
+  value: 35.2,
+});
+
+// Report jank frame (ms)
+DevConnect.reportPerformanceMetric({
+  metricType: 'jank_frame',
+  value: 32.1,
+  label: 'Slow render in FlatList',
+});
+```
+
+### Memory Leak Detection
+
+```typescript
+// Report undisposed subscription
+DevConnect.reportMemoryLeak({
+  leakType: 'undisposed_stream',
+  severity: 'warning',
+  objectName: 'UserDataSubscription',
+  detail: 'EventEmitter listener not removed in ProfileScreen',
+  retainedSizeBytes: 2048,
+  stackTrace: new Error().stack,
+});
+
+// Report growing collection
+DevConnect.reportMemoryLeak({
+  leakType: 'growing_collection',
+  severity: 'critical',
+  objectName: 'eventCache',
+  detail: 'Array grows unbounded — 15000 items, expected < 100',
+  retainedSizeBytes: 1200000,
+  metadata: { currentSize: 15000, maxExpected: 100 },
+});
+```
+
+### Tagged Logger
+
+```typescript
+const logger = DevConnect.logger('AuthService');
+logger.log('User logged in');
+logger.debug('Token refreshed');
+logger.warn('Session expiring');
+logger.error('Login failed', error.stack);
+```
+
+### Manual Network Reporting
+
+```typescript
+// When auto-interception is disabled or for custom transports
+const requestId = 'req-123';
+
+DevConnect.reportNetworkStart({
+  requestId,
+  method: 'POST',
+  url: 'https://api.example.com/data',
+  headers: { 'Content-Type': 'application/json' },
+  body: { name: 'John' },
+});
+
+// After response
+DevConnect.reportNetworkComplete({
+  requestId,
+  method: 'POST',
+  url: 'https://api.example.com/data',
+  statusCode: 200,
+  startTime: 1711180800000,
+  responseBody: { success: true },
+});
+```
+
 ### Benchmark
 
 ```typescript
@@ -657,6 +841,18 @@ DevConnect.sendStateSnapshot('redux', store.getState());
 DevConnect.onStateRestore((state) => {
   store.dispatch({ type: 'RESTORE_STATE', payload: state });
 });
+```
+
+### Connection Management
+
+```typescript
+// Check connection status
+if (DevConnect.isConnected()) {
+  console.log('Connected to DevConnect desktop');
+}
+
+// Disconnect
+DevConnect.disconnect();
 ```
 
 ---
@@ -858,6 +1054,69 @@ roomReporter.reportQuery("SELECT * FROM users", results)
 roomReporter.reportInsert("users", rowId)
 ```
 
+### Performance Profiling
+
+```kotlin
+// Report FPS
+DevConnect.reportPerformanceMetric(
+    metricType = "fps",
+    value = 58.5,
+    label = "Main Thread FPS"
+)
+
+// Report memory usage (MB)
+DevConnect.reportPerformanceMetric(
+    metricType = "memory_usage",
+    value = 142.3,
+    label = "Heap Used"
+)
+
+// Report CPU usage (%)
+DevConnect.reportPerformanceMetric(
+    metricType = "cpu_usage",
+    value = 35.2
+)
+
+// Report jank frame (ms)
+DevConnect.reportPerformanceMetric(
+    metricType = "jank_frame",
+    value = 32.1,
+    label = "Slow render in RecyclerView"
+)
+```
+
+### Memory Leak Detection
+
+```kotlin
+// Report undisposed listener (integrates well with LeakCanary)
+DevConnect.reportMemoryLeak(
+    leakType = "undisposed_stream",
+    severity = "warning",
+    objectName = "LocationListener",
+    detail = "LocationManager listener not removed in MapsActivity",
+    retainedSizeBytes = 4096
+)
+
+// Report Activity leak (e.g. from LeakCanary)
+DevConnect.reportMemoryLeak(
+    leakType = "widget_leak",
+    severity = "critical",
+    objectName = "DetailActivity",
+    detail = "Activity retained after onDestroy",
+    stackTrace = leakTrace.toString()
+)
+
+// Report growing collection
+DevConnect.reportMemoryLeak(
+    leakType = "growing_collection",
+    severity = "critical",
+    objectName = "eventCache",
+    detail = "ArrayList grows unbounded — 15000 items",
+    retainedSizeBytes = 1200000,
+    metadata = mapOf("currentSize" to 15000, "maxExpected" to 100)
+)
+```
+
 ### Benchmark
 
 ```kotlin
@@ -874,6 +1133,30 @@ DevConnect.benchmarkStop("loadHome")
 DevConnect.registerCommand("clearCache") { args ->
     mapOf("cleared" to true)
 }
+```
+
+### State Snapshot + Restore
+
+```kotlin
+// Send a state snapshot to desktop
+DevConnect.sendStateSnapshot("viewmodel", mapOf("user" to userMap))
+
+// Handle state restore from desktop
+DevConnect.onStateRestore = { state ->
+    viewModel.restoreState(state)
+}
+```
+
+### Connection Management
+
+```kotlin
+// Check connection status
+if (DevConnect.isConnected()) {
+    Log.d("DC", "Connected to DevConnect desktop")
+}
+
+// Disconnect
+DevConnect.disconnect()
 ```
 
 ---
