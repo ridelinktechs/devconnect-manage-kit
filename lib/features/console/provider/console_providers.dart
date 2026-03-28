@@ -27,7 +27,8 @@ final filteredConsoleEntriesProvider = Provider<List<LogEntry>>((ref) {
 
   return entries.where((e) {
     // Filter by selected device
-    if (selectedDevice != null && e.deviceId != selectedDevice) return false;
+    if (selectedDevice == null) return false;
+    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (!filters.contains(e.level)) return false;
     if (search.isNotEmpty) {
       return e.message.toLowerCase().contains(search) ||

@@ -21,7 +21,8 @@ final filteredBenchmarkEntriesProvider =
   final search = ref.watch(benchmarkSearchProvider).toLowerCase();
 
   return entries.where((e) {
-    if (selectedDevice != null && e.deviceId != selectedDevice) return false;
+    if (selectedDevice == null) return false;
+    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (search.isNotEmpty && !e.title.toLowerCase().contains(search)) {
       return false;
     }

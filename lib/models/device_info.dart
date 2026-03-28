@@ -12,6 +12,7 @@ abstract class DeviceInfo with _$DeviceInfo {
     required String osVersion,
     required String appName,
     required String appVersion,
+    String? versionCode,
     String? sdkVersion,
     DateTime? connectedAt,
     String? clientIp,

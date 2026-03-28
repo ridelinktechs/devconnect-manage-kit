@@ -35,6 +35,8 @@ class AppTheme {
       cardColor: const Color(0xFF161B22),
       dividerColor: const Color(0xFF21262D),
       textTheme: _buildTextTheme(Brightness.dark),
+      tooltipTheme: _tooltipTheme(Brightness.dark),
+      snackBarTheme: _snackBarTheme(Brightness.dark),
     );
   }
 
@@ -67,6 +69,56 @@ class AppTheme {
       cardColor: Colors.white,
       dividerColor: const Color(0xFFD0D7DE),
       textTheme: _buildTextTheme(Brightness.light),
+      tooltipTheme: _tooltipTheme(Brightness.light),
+      snackBarTheme: _snackBarTheme(Brightness.light),
+    );
+  }
+
+  static SnackBarThemeData _snackBarTheme(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    return SnackBarThemeData(
+      backgroundColor: isDark ? const Color(0xFF2D333B) : const Color(0xFF1F2328),
+      contentTextStyle: TextStyle(
+        fontFamily: GoogleFonts.inter().fontFamily,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: isDark ? const Color(0xFFE6EDF3) : Colors.white,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      behavior: SnackBarBehavior.floating,
+      elevation: 4,
+    );
+  }
+
+  static TooltipThemeData _tooltipTheme(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    return TooltipThemeData(
+      waitDuration: const Duration(milliseconds: 400),
+      showDuration: const Duration(milliseconds: 1500),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      margin: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2D333B) : const Color(0xFF1F2328),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      textStyle: TextStyle(
+        fontFamily: GoogleFonts.inter().fontFamily,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: isDark ? const Color(0xFFE6EDF3) : Colors.white,
+      ),
     );
   }
 

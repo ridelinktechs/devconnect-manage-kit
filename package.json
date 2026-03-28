@@ -4,6 +4,12 @@
   "description": "DevConnect - Desktop debugging & inspection tool for React Native, Flutter, and Android",
   "main": "client_sdks/devconnect-react-native/src/index.ts",
   "private": true,
+  "exports": {
+    ".": "./client_sdks/devconnect-react-native/src/index.ts",
+    "./client_sdks/devconnect-react-native/src": "./client_sdks/devconnect-react-native/src/index.ts",
+    "./client_sdks/devconnect-react-native/src/*": "./client_sdks/devconnect-react-native/src/*",
+    "./client_sdks/*": "./client_sdks/*"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/ridelinktechs/devconnect.git"

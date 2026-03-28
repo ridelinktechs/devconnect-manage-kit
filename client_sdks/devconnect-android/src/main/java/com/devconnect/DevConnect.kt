@@ -71,7 +71,7 @@ import java.util.UUID
 object DevConnect {
     private var client: WebSocketClient? = null
     private var enabled = true
-    private var deviceId = UUID.randomUUID().toString()
+    private var deviceId = ""
 
     /** Pre-init queue: messages sent before init() completes */
     private val preInitQueue = mutableListOf<Pair<String, JSONObject>>()
@@ -83,9 +83,15 @@ object DevConnect {
      * @param appName Your app's name
      * @param appVersion Your app's version
      * @param host Desktop IP. null or "auto" for auto-detection.
-     * @param port WebSocket port (default: 9090)
+     * @param port WebSocket port (default: 9091)
      * @param auto Auto-detect host if not specified (default: true)
-     * @param enabled Set false to disable in production
+     * @param enabled Pass BuildConfig.DEBUG to disable in production (default: true)
+     *
+     * Production usage:
+     * ```kotlin
+     * DevConnect.init(context = this, appName = "MyApp", enabled = BuildConfig.DEBUG)
+     * ```
+     * When enabled=false: zero overhead — no WebSocket, no timers, no monitoring.
      *
      * Auto-detection tries: 10.0.2.2 (emulator) -> 10.0.3.2 (Genymotion) -> localhost -> 127.0.0.1
      */
@@ -102,6 +108,21 @@ object DevConnect {
             sb.append((input[i].code xor key[i % key.length].code).toChar())
         }
         return sb.toString()
+    }
+
+    @android.annotation.SuppressLint("HardwareIds")
+    private fun generateStableDeviceId(appName: String): String {
+        val ctx = appContext
+        val seed = if (ctx != null) {
+            val androidId = android.provider.Settings.Secure.getString(
+                ctx.contentResolver,
+                android.provider.Settings.Secure.ANDROID_ID
+            ) ?: ""
+            "$androidId:${ctx.packageName}"
+        } else {
+            "$appName:${android.os.Build.BRAND}:${android.os.Build.MODEL}:${android.os.Build.FINGERPRINT}"
+        }
+        return UUID.nameUUIDFromBytes(seed.toByteArray()).toString()
     }
 
     private fun saveHostCache(host: String, port: Int) {
@@ -134,10 +155,17 @@ object DevConnect {
         appName: String,
         appVersion: String = "1.0.0",
         host: String? = null,
-        port: Int = 9090,
+        port: Int = 9091,
         auto: Boolean = true,
         enabled: Boolean = true,
-        autoInterceptLogs: Boolean = false
+        versionCode: String? = null,
+        autoInterceptLogs: Boolean = false,
+        /** Auto-start performance monitoring (default: true) */
+        autoPerformance: Boolean = true,
+        /** Auto-start memory leak detection (default: true) */
+        autoMemoryLeak: Boolean = true,
+        /** Auto-start app benchmark (default: true) */
+        autoBenchmark: Boolean = true
     ) {
         this.enabled = enabled
         if (!enabled) return
@@ -146,6 +174,9 @@ object DevConnect {
         if (context is android.content.Context) {
             appContext = context.applicationContext
         }
+
+        // Generate stable deviceId from app + device info (prevents duplicates on reconnect/hot-reload)
+        deviceId = generateStableDeviceId(appName)
 
         val resolvedHost = if (host == null || host == "auto") {
             if (auto) autoDetectHost(port) else "10.0.2.2"
@@ -158,7 +189,8 @@ object DevConnect {
             port = port,
             deviceId = deviceId,
             appName = appName,
-            appVersion = appVersion
+            appVersion = appVersion,
+            versionCode = versionCode
         ).also { ws ->
             ws.onServerMessage = { type, json ->
                 val payload = json.optJSONObject("payload") ?: JSONObject()
@@ -208,6 +240,17 @@ object DevConnect {
                 send(type, payload)
             }
             preInitQueue.clear()
+        }
+
+        // Auto-start monitoring plugins (run in both dev and production)
+        if (autoPerformance) {
+            com.devconnect.plugins.startPerformanceMonitor(context)
+        }
+        if (autoMemoryLeak) {
+            com.devconnect.plugins.startMemoryLeakDetector(context)
+        }
+        if (autoBenchmark) {
+            com.devconnect.plugins.setupAppBenchmark(context)
         }
     }
 

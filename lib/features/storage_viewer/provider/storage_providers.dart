@@ -22,7 +22,8 @@ final filteredStorageEntriesProvider = Provider<List<StorageEntry>>((ref) {
   final selectedDevice = ref.watch(selectedDeviceProvider);
 
   return entries.where((e) {
-    if (selectedDevice != null && e.deviceId != selectedDevice) return false;
+    if (selectedDevice == null) return false;
+    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (search.isNotEmpty) {
       return e.key.toLowerCase().contains(search) ||
           (e.value?.toString().toLowerCase().contains(search) ?? false);
@@ -31,8 +32,14 @@ final filteredStorageEntriesProvider = Provider<List<StorageEntry>>((ref) {
   }).toList();
 });
 
-final selectedStorageEntryProvider =
-    StateProvider<StorageEntry?>((ref) => null);
+final selectedStorageIdProvider = StateProvider<String?>((ref) => null);
+
+final selectedStorageEntryProvider = Provider<StorageEntry?>((ref) {
+  final id = ref.watch(selectedStorageIdProvider);
+  if (id == null) return null;
+  final entries = ref.watch(storageEntriesProvider);
+  return entries.where((e) => e.id == id).firstOrNull;
+});
 
 class StorageNotifier extends StateNotifier<List<StorageEntry>> {
   late final StreamSubscription<StorageEntry> _sub;

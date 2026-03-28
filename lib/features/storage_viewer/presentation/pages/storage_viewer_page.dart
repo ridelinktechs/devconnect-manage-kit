@@ -1,17 +1,20 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
-import '../../../../components/inputs/scroll_direction_button.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../models/storage/storage_entry.dart';
+import '../../../../components/lists/stable_list_view.dart';
+import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../provider/storage_providers.dart';
 
 class StorageViewerPage extends ConsumerStatefulWidget {
@@ -22,229 +25,219 @@ class StorageViewerPage extends ConsumerStatefulWidget {
 }
 
 class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
-  static const _pageSize = 50;
-
   final ScrollController _scrollController = ScrollController();
+  final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
-  int _maxVisible = 50;
-  bool _loadingMore = false;
-  int _previousCount = 0;
+  bool _programmaticScroll = false;
+  int _visibleCount = 0;
+  int _generation = 0;
+  final List<StorageEntry> _entries = [];
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    ref.listenManual(
+      filteredStorageEntriesProvider,
+      (previous, next) {
+        // Storage has in-place updates (value changes for existing key).
+        // Always full sync to ensure tiles reflect latest data.
+        final grew = next.length > _entries.length;
+        _entries..clear()..addAll(next);
+        _entryCount.value = _entries.length;
+        if (grew) _visibleCount = _entries.length;
+        _generation++;
+        setState(() {});
+        if (_autoScroll) _autoScrollIfNeeded();
+      },
+      fireImmediately: true,
+    );
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final reversed = ref.read(scrollDirectionProvider) == ScrollDirection.top;
+    final atBottom = reversed
+        ? pos.pixels <= pos.minScrollExtent + 2.0
+        : pos.pixels >= pos.maxScrollExtent - 2.0;
+    final distFromBottom = reversed
+        ? pos.pixels - pos.minScrollExtent
+        : pos.maxScrollExtent - pos.pixels;
+
+    if (!_autoScroll && atBottom) {
+      _autoScroll = true;
+      _visibleCount = _entries.length;
+      setState(() {});
+      return;
+    }
+
+    if (_autoScroll && !_programmaticScroll && distFromBottom > 50.0) {
+      _autoScroll = false;
+      setState(() {});
+      return;
+    }
+
+    if (!_autoScroll && _visibleCount < _entries.length) {
+      if (distFromBottom < pos.viewportDimension * 1.5) {
+        _visibleCount = _entries.length;
+        setState(() {});
+      }
+    }
+  }
+
+  void _autoScrollIfNeeded() {
+    if (!_autoScroll || _programmaticScroll) return;
+    _programmaticScroll = true;
+    _doAutoScroll();
+  }
+
+  void _doAutoScroll() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+        _programmaticScroll = false;
+        return;
+      }
+      final reversed = ref.read(scrollDirectionProvider) == ScrollDirection.top;
+      final pos = _scrollController.position;
+      final target = reversed ? pos.minScrollExtent : pos.maxScrollExtent;
+      final atTarget = reversed
+          ? pos.pixels <= pos.minScrollExtent + 2.0
+          : pos.pixels >= pos.maxScrollExtent - 2.0;
+      if (atTarget) {
+        _programmaticScroll = false;
+        return;
+      }
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+      ).whenComplete(() {
+        if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+          _programmaticScroll = false;
+          return;
+        }
+        final p = _scrollController.position;
+        final done = reversed
+            ? p.pixels <= p.minScrollExtent + 2.0
+            : p.pixels >= p.maxScrollExtent - 2.0;
+        if (!done) {
+          _doAutoScroll();
+        } else {
+          _programmaticScroll = false;
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _entryCount.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (_loadingMore || !_scrollController.hasClients) return;
-
-    final pos = _scrollController.position;
-    final scrollDir = ref.read(scrollDirectionProvider);
-
-    if (scrollDir == ScrollDirection.bottom) {
-      if (pos.pixels < 50) _loadMore();
-    } else {
-      if (pos.pixels > pos.maxScrollExtent - 50) _loadMore();
-    }
-  }
-
-  void _loadMore() {
-    final entries = ref.read(filteredStorageEntriesProvider);
-    if (_maxVisible >= entries.length) return;
-
-    _loadingMore = true;
-    final scrollDir = ref.read(scrollDirectionProvider);
-    final oldMaxExtent = _scrollController.position.maxScrollExtent;
-
-    setState(() {
-      _maxVisible = (_maxVisible + _pageSize).clamp(0, entries.length);
-    });
-
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients && scrollDir == ScrollDirection.bottom) {
-        final newMaxExtent = _scrollController.position.maxScrollExtent;
-        _scrollController.jumpTo(
-          _scrollController.offset + (newMaxExtent - oldMaxExtent),
-        );
-      }
-      _loadingMore = false;
-    });
-  }
-
-  void _scrollToTarget() {
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        final scrollDir = ref.read(scrollDirectionProvider);
-        final target = scrollDir == ScrollDirection.top
-            ? 0.0
-            : _scrollController.position.maxScrollExtent;
-        _scrollController.animateTo(
-          target,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _toggleAutoScroll() {
-    setState(() {
-      _autoScroll = !_autoScroll;
-      if (_autoScroll) {
-        _maxVisible = _pageSize;
-        _scrollToTarget();
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final entries = ref.watch(filteredStorageEntriesProvider);
-    final selected = ref.watch(selectedStorageEntryProvider);
     final theme = Theme.of(context);
-
-    // Reset pagination when scroll direction changes
     final scrollDir = ref.watch(scrollDirectionProvider);
-    ref.listen<ScrollDirection>(scrollDirectionProvider, (prev, next) {
-      if (prev != next) {
-        setState(() => _maxVisible = _pageSize);
-        _scrollToTarget();
-      }
-    });
-
-    // Slice visible items based on scroll direction
-    final List<StorageEntry> visibleEntries;
-    final bool hasMore;
-
-    if (scrollDir == ScrollDirection.bottom) {
-      final startIndex =
-          (entries.length - _maxVisible).clamp(0, entries.length);
-      visibleEntries = entries.sublist(startIndex);
-      hasMore = startIndex > 0;
-    } else {
-      final reversed = entries.reversed.toList();
-      visibleEntries = reversed.take(_maxVisible).toList();
-      hasMore = entries.length > _maxVisible;
-    }
-
-    // Auto-scroll when new items arrive and autoScroll is enabled
-    if (_autoScroll && entries.length > _previousCount && entries.isNotEmpty) {
-      _scrollToTarget();
-    }
-    _previousCount = entries.length;
+    final isReversed = scrollDir == ScrollDirection.top;
 
     return Column(
       children: [
         _Toolbar(
-          totalCount: entries.length,
-          visibleCount: visibleEntries.length,
+          totalCount: _entryCount,
           autoScroll: _autoScroll,
-          onToggleAutoScroll: _toggleAutoScroll,
+          onToggleAutoScroll: () {
+            if (_autoScroll) {
+              _autoScroll = false;
+              _programmaticScroll = false;
+              if (_scrollController.hasClients) {
+                _scrollController.jumpTo(_scrollController.offset);
+              }
+            } else {
+              _autoScroll = true;
+              _visibleCount = _entries.length;
+              _autoScrollIfNeeded();
+            }
+            setState(() {});
+          },
         ),
         const Divider(height: 1),
         Expanded(
-          child: entries.isEmpty
+          child: _entries.isEmpty
               ? const EmptyState(
                   icon: LucideIcons.database,
                   title: 'No storage data',
                   subtitle:
                       'SharedPreferences, AsyncStorage, and Hive entries appear here',
                 )
-              : Row(
-                  children: [
-                    // Key list
-                    Expanded(
-                      flex: selected != null ? 2 : 1,
-                      child: Column(
-                        children: [
-                          if (hasMore && scrollDir == ScrollDirection.bottom)
-                            GestureDetector(
-                              onTap: _loadMore,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: Container(
-                                  width: double.infinity,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 6),
-                                  color: ColorTokens.primary
-                                      .withValues(alpha: 0.05),
-                                  child: Center(
-                                    child: Text(
-                                      '${entries.length - visibleEntries.length} older entries — tap to load more',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: ColorTokens.primary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          Expanded(
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              itemCount: visibleEntries.length,
-                              itemExtent: 52,
-                              itemBuilder: (context, index) {
-                                final entry = visibleEntries[index];
+              : Consumer(
+                  builder: (context, ref, _) {
+                    final selected = ref.watch(selectedStorageEntryProvider);
+                    return Row(
+                      children: [
+                        // Key list
+                        Expanded(
+                          flex: 2,
+                          child: ListView.custom(
+                            controller: _scrollController,
+                            reverse: isReversed,
+                            physics: isReversed ? const PositionRetainedScrollPhysics() : null,
+                            itemExtent: 44,
+                            childrenDelegate: StableBuilderDelegate(
+                              generation: _generation,
+                              childCount: _visibleCount,
+                              findChildIndexCallback: (key) {
+                                if (key is ValueKey<String>) {
+                                  final idx = _entries.indexWhere((e) => e.id == key.value);
+                                  return idx == -1 ? null : idx;
+                                }
+                                return null;
+                              },
+                              builder: (context, index) {
+                                final entry = _entries[index];
                                 final isSelected = selected?.id == entry.id;
-                                return _StorageEntryTile(
+                                return RepaintBoundary(
                                   key: ValueKey(entry.id),
-                                  entry: entry,
-                                  isSelected: isSelected,
-                                  onTap: () {
-                                    ref
-                                        .read(selectedStorageEntryProvider
-                                            .notifier)
-                                        .state = isSelected ? null : entry;
-                                  },
+                                  child: _StorageEntryTile(
+                                    entry: entry,
+                                    isSelected: isSelected,
+                                    onTap: () {
+                                      ref
+                                          .read(selectedStorageIdProvider.notifier)
+                                          .state = isSelected ? null : entry.id;
+                                      if (!isSelected && _autoScroll) {
+                                        _autoScroll = false;
+                                        _programmaticScroll = false;
+                                        if (_scrollController.hasClients) {
+                                          _scrollController.jumpTo(_scrollController.offset);
+                                        }
+                                        setState(() {});
+                                      }
+                                    },
+                                  ),
                                 );
                               },
                             ),
                           ),
-                          if (hasMore && scrollDir == ScrollDirection.top)
-                            GestureDetector(
-                              onTap: _loadMore,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: Container(
-                                  width: double.infinity,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 6),
-                                  color: ColorTokens.primary
-                                      .withValues(alpha: 0.05),
-                                  child: Center(
-                                    child: Text(
-                                      '${entries.length - visibleEntries.length} older entries — tap to load more',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: ColorTokens.primary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                        ),
+                        if (selected != null) ...[
+                          VerticalDivider(width: 1, color: theme.dividerColor),
+                          Expanded(
+                            flex: 3,
+                            child: _StorageDetailPanel(
+                              entry: selected,
+                              onClose: () => ref
+                                  .read(selectedStorageIdProvider.notifier)
+                                  .state = null,
                             ),
+                          ),
                         ],
-                      ),
-                    ),
-                    if (selected != null) ...[
-                      VerticalDivider(width: 1, color: theme.dividerColor),
-                      Expanded(
-                        child: _StorageDetailPanel(entry: selected),
-                      ),
-                    ],
-                  ],
+                      ],
+                    );
+                  },
                 ),
         ),
       ],
@@ -253,14 +246,12 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
 }
 
 class _Toolbar extends ConsumerWidget {
-  final int totalCount;
-  final int visibleCount;
+  final ValueNotifier<int> totalCount;
   final bool autoScroll;
   final VoidCallback onToggleAutoScroll;
 
   const _Toolbar({
     required this.totalCount,
-    required this.visibleCount,
     required this.autoScroll,
     required this.onToggleAutoScroll,
   });
@@ -269,10 +260,6 @@ class _Toolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
-    final countText = visibleCount != totalCount
-        ? '$visibleCount / $totalCount'
-        : '$totalCount';
 
     return Container(
       height: 48,
@@ -286,50 +273,11 @@ class _Toolbar extends ConsumerWidget {
           const SizedBox(width: 8),
           Text('Storage', style: theme.textTheme.titleMedium),
           const SizedBox(width: 8),
-          Text('$countText keys', style: theme.textTheme.bodySmall),
-          const Spacer(),
-          GestureDetector(
-            onTap: onToggleAutoScroll,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: autoScroll
-                      ? ColorTokens.primary.withValues(alpha: 0.12)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: autoScroll
-                        ? ColorTokens.primary.withValues(alpha: 0.4)
-                        : Colors.grey.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.arrowDownToLine,
-                        size: 11,
-                        color:
-                            autoScroll ? ColorTokens.primary : Colors.grey),
-                    const SizedBox(width: 4),
-                    Text('AUTO',
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: autoScroll
-                                ? ColorTokens.primary
-                                : Colors.grey,
-                            letterSpacing: 0.5)),
-                  ],
-                ),
-              ),
-            ),
+          ValueListenableBuilder<int>(
+            valueListenable: totalCount,
+            builder: (_, c, __) => Text('$c keys', style: theme.textTheme.bodySmall),
           ),
-          const SizedBox(width: 4),
-          const ScrollDirectionButton(),
-          const SizedBox(width: 8),
+          const Spacer(),
           SizedBox(
             width: 200,
             child: SearchField(
@@ -338,15 +286,130 @@ class _Toolbar extends ConsumerWidget {
                   ref.read(storageSearchProvider.notifier).state = v,
             ),
           ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => ref.read(storageEntriesProvider.notifier).clear(),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Icon(LucideIcons.trash2, size: 14, color: Colors.grey[500]),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _IconBtn(
+                  icon: LucideIcons.arrowDownToLine,
+                  tooltip: 'Auto-scroll',
+                  isActive: autoScroll,
+                  onTap: onToggleAutoScroll,
+                ),
+                const SizedBox(width: 2),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final dir = ref.watch(scrollDirectionProvider);
+                    final isTop = dir == ScrollDirection.top;
+                    return _IconBtn(
+                      icon: isTop
+                          ? LucideIcons.arrowUpNarrowWide
+                          : LucideIcons.arrowDownNarrowWide,
+                      tooltip: isTop ? 'Newest first' : 'Oldest first',
+                      isActive: isTop,
+                      onTap: () =>
+                          ref.read(scrollDirectionProvider.notifier).state =
+                              isTop ? ScrollDirection.bottom : ScrollDirection.top,
+                    );
+                  },
+                ),
+                const SizedBox(width: 2),
+                Container(
+                  width: 1,
+                  height: 18,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.08),
+                ),
+                const SizedBox(width: 2),
+                _IconBtn(
+                  icon: LucideIcons.trash2,
+                  tooltip: 'Clear all',
+                  isDanger: true,
+                  onTap: () =>
+                      ref.read(storageEntriesProvider.notifier).clear(),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _IconBtn extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool isActive;
+  final bool isDanger;
+  final VoidCallback onTap;
+
+  const _IconBtn({
+    required this.icon,
+    required this.tooltip,
+    this.isActive = false,
+    this.isDanger = false,
+    required this.onTap,
+  });
+
+  @override
+  State<_IconBtn> createState() => _IconBtnState();
+}
+
+class _IconBtnState extends State<_IconBtn> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Color iconColor;
+    Color bgColor;
+
+    if (widget.isActive) {
+      iconColor = ColorTokens.primary;
+      bgColor = ColorTokens.primary.withValues(alpha: 0.15);
+    } else if (widget.isDanger && _hovered) {
+      iconColor = ColorTokens.error;
+      bgColor = ColorTokens.error.withValues(alpha: 0.12);
+    } else if (_hovered) {
+      iconColor = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+      bgColor = isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.06);
+    } else {
+      iconColor = Colors.grey[500]!;
+      bgColor = Colors.transparent;
+    }
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(widget.icon, size: 14, color: iconColor),
+          ),
+        ),
       ),
     );
   }
@@ -364,114 +427,136 @@ class _StorageEntryTile extends StatelessWidget {
     required this.onTap,
   });
 
+  static Color _typeColor(StorageType type) {
+    switch (type) {
+      case StorageType.asyncStorage: return const Color(0xFF61DAFB);
+      case StorageType.sharedPreferences: return const Color(0xFF3DDC84);
+      case StorageType.hive: return const Color(0xFFFFC107);
+      case StorageType.sqlite: return const Color(0xFF003B57);
+    }
+  }
+
+  static String _typeLabel(StorageType type) {
+    switch (type) {
+      case StorageType.asyncStorage: return 'AS';
+      case StorageType.sharedPreferences: return 'SP';
+      case StorageType.hive: return 'HV';
+      case StorageType.sqlite: return 'SQL';
+    }
+  }
+
+  static Color _opColor(String op) {
+    switch (op.toLowerCase()) {
+      case 'write': return ColorTokens.success;
+      case 'delete':
+      case 'clear': return ColorTokens.error;
+      default: return ColorTokens.info;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    Color typeColor;
-    String typeLabel;
-    switch (entry.storageType) {
-      case StorageType.asyncStorage:
-        typeColor = const Color(0xFF61DAFB);
-        typeLabel = 'AS';
-        break;
-      case StorageType.sharedPreferences:
-        typeColor = const Color(0xFF3DDC84);
-        typeLabel = 'SP';
-        break;
-      case StorageType.hive:
-        typeColor = const Color(0xFFFFC107);
-        typeLabel = 'HV';
-        break;
-      case StorageType.sqlite:
-        typeColor = const Color(0xFF003B57);
-        typeLabel = 'SQL';
-        break;
-    }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final time = DateFormat('HH:mm:ss.SSS').format(
+      DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
+    );
+    final tColor = _typeColor(entry.storageType);
+    final opColor = _opColor(entry.operation);
 
     return GestureDetector(
       onTap: onTap,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          height: 44,
+          padding: const EdgeInsets.only(right: 14),
           decoration: BoxDecoration(
             color: isSelected
-                ? ColorTokens.primary.withValues(alpha: 0.08)
-                : null,
+                ? ColorTokens.selectedBg(isDark)
+                : Colors.transparent,
             border: Border(
               bottom: BorderSide(
-                color: theme.dividerColor.withValues(alpha: 0.3),
-                width: 0.5,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.03)
+                    : Colors.black.withValues(alpha: 0.04),
               ),
-              left: isSelected
-                  ? const BorderSide(color: ColorTokens.primary, width: 2)
-                  : BorderSide.none,
+              left: BorderSide(
+                color: isSelected ? ColorTokens.selectedAccent : tColor,
+                width: isSelected ? 3 : 2,
+              ),
             ),
           ),
           child: Row(
             children: [
+              const SizedBox(width: 12),
+              // Timestamp
+              SizedBox(
+                width: 84,
+                child: Text(
+                  time,
+                  style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 10,
+                    color: Colors.grey[500],
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+              // Operation badge
               Container(
-                width: 28,
-                padding: const EdgeInsets.symmetric(vertical: 2),
+                height: 22,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
-                  color: typeColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(3),
+                  color: opColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
                 ),
                 child: Center(
                   child: Text(
-                    typeLabel,
+                    entry.operation.toUpperCase(),
                     style: TextStyle(
-                      fontSize: 8,
+                      fontSize: 9,
                       fontWeight: FontWeight.w800,
-                      color: typeColor,
+                      color: opColor,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.key,
-                      style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+              // Storage type badge
+              Container(
+                height: 22,
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                decoration: BoxDecoration(
+                  color: tColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Center(
+                  child: Text(
+                    _typeLabel(entry.storageType),
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: tColor,
+                      letterSpacing: 0.3,
                     ),
-                    Text(
-                      _valuePreview(entry.value),
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey[500],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: _opColor(entry.operation).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(3),
-                ),
+              const SizedBox(width: 10),
+              // Key name
+              Expanded(
                 child: Text(
-                  entry.operation.toUpperCase(),
+                  entry.key,
                   style: TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
-                    color: _opColor(entry.operation),
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 12,
+                    color: isDark
+                        ? const Color(0xFFE6EDF3)
+                        : const Color(0xFF1F2328),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -480,30 +565,91 @@ class _StorageEntryTile extends StatelessWidget {
       ),
     );
   }
-
-  String _valuePreview(dynamic value) {
-    if (value == null) return 'null';
-    final str = value.toString();
-    return str.length > 50 ? '${str.substring(0, 50)}...' : str;
-  }
-
-  Color _opColor(String op) {
-    switch (op.toLowerCase()) {
-      case 'write':
-        return ColorTokens.success;
-      case 'delete':
-      case 'clear':
-        return ColorTokens.error;
-      default:
-        return ColorTokens.info;
-    }
-  }
 }
 
-class _StorageDetailPanel extends StatelessWidget {
+class _StorageDetailPanel extends StatefulWidget {
   final StorageEntry entry;
+  final VoidCallback onClose;
 
-  const _StorageDetailPanel({required this.entry});
+  const _StorageDetailPanel({required this.entry, required this.onClose});
+
+  @override
+  State<_StorageDetailPanel> createState() => _StorageDetailPanelState();
+}
+
+class _StorageDetailPanelState extends State<_StorageDetailPanel> {
+  bool _formatted = false;
+  bool _jsonMode = false;
+  bool _jsonEverOpened = false;
+
+  StorageEntry get entry => widget.entry;
+
+  void _takeScreenshot(BuildContext context, bool isDark) {
+    final isAlreadyJson = entry.value is Map || entry.value is List;
+    final parsedJson = isAlreadyJson ? null : _tryParseJson(entry.value);
+
+    final screenshotWidget = Container(
+      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Key',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[500])),
+          const SizedBox(height: 4),
+          Text(entry.key,
+              style: TextStyle(
+                fontFamily: 'JetBrains Mono',
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: ColorTokens.primary,
+              )),
+          if (entry.value != null) ...[
+            const SizedBox(height: 16),
+            Text('Value',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[500])),
+            const SizedBox(height: 4),
+            if (isAlreadyJson)
+              JsonViewer(data: entry.value, initiallyExpanded: true)
+            else if (_formatted && parsedJson != null)
+              JsonViewer(data: parsedJson, initiallyExpanded: true)
+            else
+              JsonViewer(data: entry.value, initiallyExpanded: false),
+          ],
+          const SizedBox(height: 16),
+          Text('Metadata',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[500])),
+          const SizedBox(height: 4),
+          Text(
+              'Type: ${entry.storageType.name}  |  Operation: ${entry.operation}',
+              style: TextStyle(
+                  fontFamily: 'JetBrains Mono',
+                  fontSize: 11,
+                  color: isDark ? Colors.white70 : Colors.black54)),
+        ],
+      ),
+    );
+    captureWidgetAsImage(context, screenshotWidget);
+  }
+
+  dynamic _tryParseJson(dynamic value) {
+    if (value is! String) return null;
+    try {
+      final parsed = jsonDecode(value);
+      if (parsed is Map || parsed is List) return parsed;
+    } catch (_) {}
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -513,53 +659,296 @@ class _StorageDetailPanel extends StatelessWidget {
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
     );
 
+    final isAlreadyJson = entry.value is Map || entry.value is List;
+    final parsedJson = isAlreadyJson ? null : _tryParseJson(entry.value);
+    final canFormat = parsedJson != null;
+
+    final opColor = _StorageEntryTile._opColor(entry.operation);
+    final tColor = _StorageEntryTile._typeColor(entry.storageType);
+
     return Container(
       color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Column(
+        children: [
+          // Header
+          Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF161B22) : Colors.white,
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.black.withValues(alpha: 0.06),
+                ),
+              ),
+            ),
+            child: Row(
               children: [
-                Text('Key', style: theme.textTheme.titleSmall),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.copy, size: 14),
-                  onPressed: () {
-                    Clipboard.setData(
-                      ClipboardData(text: entry.value?.toString() ?? ''),
-                    );
-                  },
-                  tooltip: 'Copy value',
-                  splashRadius: 14,
+                Icon(LucideIcons.database, size: 14, color: ColorTokens.primary),
+                const SizedBox(width: 8),
+                // Operation badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: opColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    entry.operation.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: opColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                // Type badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: tColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    entry.storageType.name,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: tColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    entry.key,
+                    style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  time,
+                  style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 10,
+                    color: Colors.grey[500],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _DetailIconBtn(
+                  icon: LucideIcons.camera,
+                  tooltip: 'Capture',
+                  isDark: isDark,
+                  onTap: () => _takeScreenshot(context, isDark),
+                ),
+                const SizedBox(width: 4),
+                _DetailIconBtn(
+                  icon: LucideIcons.x,
+                  tooltip: 'Close',
+                  isDark: isDark,
+                  onTap: widget.onClose,
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              entry.key,
-              style: TextStyle(
-                fontFamily: 'JetBrains Mono',
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: ColorTokens.primary,
+          ),
+          // Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Value section
+                  Row(
+                    children: [
+                      Text('Value', style: theme.textTheme.titleSmall),
+                      const Spacer(),
+                      if (isAlreadyJson || (canFormat && _formatted && parsedJson != null)) ...[
+                        _ViewModeToggle(
+                          isJsonMode: _jsonMode,
+                          onToggle: () => setState(() {
+                            _jsonMode = !_jsonMode;
+                            if (_jsonMode) _jsonEverOpened = true;
+                          }),
+                          isDark: isDark,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      if (canFormat && !isAlreadyJson)
+                        _FormatToggle(
+                          isFormatted: _formatted,
+                          onToggle: () =>
+                              setState(() => _formatted = !_formatted),
+                          isDark: isDark,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_jsonMode && (isAlreadyJson || (_formatted && parsedJson != null))) ...[
+                    if (_jsonEverOpened)
+                      JsonPrettyViewer(data: isAlreadyJson ? entry.value : parsedJson),
+                  ] else ...[
+                    if (isAlreadyJson)
+                      JsonViewer(data: entry.value, initiallyExpanded: true)
+                    else if (_formatted && parsedJson != null)
+                      JsonViewer(data: parsedJson, initiallyExpanded: true)
+                    else
+                      JsonViewer(data: entry.value, initiallyExpanded: false),
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            Text('Value', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 4),
-            if (entry.value is Map || entry.value is List)
-              JsonViewer(data: entry.value, initiallyExpanded: true)
-            else
-              JsonPrettyViewer(data: entry.value),
-            const SizedBox(height: 16),
-            Text('Metadata', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 4),
-            _MetaRow('Type', entry.storageType.name),
-            _MetaRow('Operation', entry.operation),
-            _MetaRow('Timestamp', time),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailIconBtn extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _DetailIconBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.06),
+            ),
+            child: Icon(icon, size: 13, color: Colors.grey[500]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ViewModeToggle extends StatelessWidget {
+  final bool isJsonMode;
+  final VoidCallback onToggle;
+  final bool isDark;
+
+  const _ViewModeToggle({
+    required this.isJsonMode,
+    required this.onToggle,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onToggle,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            color: isJsonMode
+                ? ColorTokens.primary.withValues(alpha: 0.15)
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.06)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isJsonMode ? LucideIcons.braces : LucideIcons.list,
+                size: 12,
+                color: isJsonMode ? ColorTokens.primary : Colors.grey[500],
+              ),
+              const SizedBox(width: 4),
+              Text(
+                isJsonMode ? 'JSON' : 'Tree',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: isJsonMode ? ColorTokens.primary : Colors.grey[500],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FormatToggle extends StatelessWidget {
+  final bool isFormatted;
+  final VoidCallback onToggle;
+  final bool isDark;
+
+  const _FormatToggle({
+    required this.isFormatted,
+    required this.onToggle,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onToggle,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            color: isFormatted
+                ? ColorTokens.primary.withValues(alpha: 0.15)
+                : (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                LucideIcons.braces,
+                size: 12,
+                color: isFormatted ? ColorTokens.primary : Colors.grey[500],
+              ),
+              const SizedBox(width: 4),
+              Text(
+                isFormatted ? 'Raw' : 'Format',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: isFormatted ? ColorTokens.primary : Colors.grey[500],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,21 +3,20 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
+import '../../../../core/utils/duration_format.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' hide ScrollDirection;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
-import '../../../../components/inputs/scroll_direction_button.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/misc/status_badge.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/providers/tab_visibility_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../core/theme/theme_provider.dart';
 import '../../../../models/display/display_entry.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../models/network/network_entry.dart';
@@ -29,6 +28,7 @@ import '../../../display/provider/display_providers.dart';
 import '../../../network_inspector/provider/network_providers.dart';
 import '../../../state_inspector/provider/state_providers.dart';
 import '../../../storage_viewer/provider/storage_providers.dart';
+import '../../../../components/lists/stable_list_view.dart';
 import '../../provider/all_events_provider.dart';
 
 // ═══════════════════════════════════════════════
@@ -44,89 +44,130 @@ class AllEventsPage extends ConsumerStatefulWidget {
 
 class _AllEventsPageState extends ConsumerState<AllEventsPage> {
   final _scrollController = ScrollController();
-  UnifiedEvent? _selectedEvent;
+  final _selectedEventId = ValueNotifier<String?>(null);
+  final _eventCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
-  int _maxVisible = _pageSize;
-  bool _loadingMore = false;
-  int _previousCount = 0;
-
-  static const _pageSize = 80;
+  bool _programmaticScroll = false;
+  int _visibleCount = 0;
+  int _generation = 0;
+  final List<UnifiedEvent> _events = [];
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    ref.listenManual(
+      filteredAllEventsProvider,
+      (previous, next) {
+        final prevLen = _events.length;
+        if (next.length > prevLen && previous != null && next.length - prevLen == next.length - previous.length) {
+          _events.addAll(next.sublist(prevLen));
+          _eventCount.value = _events.length;
+          if (!_autoScroll) return;
+          _visibleCount = _events.length;
+          setState(() {});
+          _autoScrollIfNeeded();
+        } else {
+          _events..clear()..addAll(next);
+          _eventCount.value = _events.length;
+          _visibleCount = _events.length;
+          _generation++;
+          setState(() {});
+          if (_autoScroll) _autoScrollIfNeeded();
+        }
+      },
+      fireImmediately: true,
+    );
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _selectedEventId.dispose();
+    _eventCount.dispose();
     super.dispose();
   }
 
   void _onScroll() {
-    if (_loadingMore || !_scrollController.hasClients) return;
-
+    if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
-    final scrollDir = ref.read(scrollDirectionProvider);
+    final atBottom = pos.pixels >= pos.maxScrollExtent - 2.0;
+    final distFromBottom = pos.maxScrollExtent - pos.pixels;
 
-    if (scrollDir == ScrollDirection.bottom) {
-      // Bottom mode: newest at bottom → scroll UP to load older items
-      if (pos.pixels < 50) _loadMore();
-    } else {
-      // Top mode: newest at top → scroll DOWN to load older items
-      if (pos.pixels > pos.maxScrollExtent - 50) _loadMore();
+    if (!_autoScroll && atBottom) {
+      _autoScroll = true;
+      _visibleCount = _events.length;
+      setState(() {});
+      return;
+    }
+
+    if (_autoScroll && !_programmaticScroll && distFromBottom > 50.0) {
+      _autoScroll = false;
+      setState(() {});
+      return;
+    }
+
+    if (!_autoScroll && _visibleCount < _events.length) {
+      if (distFromBottom < pos.viewportDimension * 1.5) {
+        _visibleCount = _events.length;
+        setState(() {});
+      }
     }
   }
 
-  void _loadMore() {
-    final totalCount = ref.read(filteredAllEventsProvider).length;
-    if (_maxVisible >= totalCount) return;
-
-    _loadingMore = true;
-    final scrollDir = ref.read(scrollDirectionProvider);
-    final oldMaxExtent = _scrollController.position.maxScrollExtent;
-
-    setState(() {
-      _maxVisible = (_maxVisible + _pageSize).clamp(0, totalCount);
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients && scrollDir == ScrollDirection.bottom) {
-        // Keep scroll position stable when prepending items at the top
-        final newMaxExtent = _scrollController.position.maxScrollExtent;
-        _scrollController.jumpTo(
-          _scrollController.position.pixels + (newMaxExtent - oldMaxExtent),
-        );
-      }
-      _loadingMore = false;
-    });
+  void _autoScrollIfNeeded() {
+    if (!_autoScroll || _programmaticScroll) return;
+    _programmaticScroll = true;
+    _doAutoScroll();
   }
 
-  void _scrollToTarget() {
-    if (_scrollController.hasClients) {
-      final scrollDir = ref.read(scrollDirectionProvider);
-      final target = scrollDir == ScrollDirection.top
-          ? 0.0
-          : _scrollController.position.maxScrollExtent;
+  void _doAutoScroll() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+        _programmaticScroll = false;
+        return;
+      }
+      final pos = _scrollController.position;
+      final target = pos.maxScrollExtent;
+      final atTarget = pos.pixels >= pos.maxScrollExtent - 2.0;
+      if (atTarget) {
+        _programmaticScroll = false;
+        return;
+      }
       _scrollController.animateTo(
         target,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
-      );
-    }
+      ).whenComplete(() {
+        if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+          _programmaticScroll = false;
+          return;
+        }
+        final p = _scrollController.position;
+        final done = p.pixels >= p.maxScrollExtent - 2.0;
+        if (!done) {
+          _doAutoScroll();
+        } else {
+          _programmaticScroll = false;
+        }
+      });
+    });
   }
 
   void _toggleAutoScroll() {
-    setState(() {
-      _autoScroll = !_autoScroll;
-      if (_autoScroll) {
-        _maxVisible = _pageSize;
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _scrollToTarget());
+    if (_autoScroll) {
+      _autoScroll = false;
+      _programmaticScroll = false;
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.offset);
       }
-    });
+    } else {
+      _autoScroll = true;
+      _visibleCount = _events.length;
+      _autoScrollIfNeeded();
+    }
+    setState(() {});
   }
 
   void _clearAll() {
@@ -136,82 +177,47 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
     ref.read(storageEntriesProvider.notifier).clear();
     ref.read(displayEntriesProvider.notifier).clear();
     ref.read(asyncOperationEntriesProvider.notifier).clear();
-    setState(() {
-      _selectedEvent = null;
-      _maxVisible = _pageSize;
-      _previousCount = 0;
-    });
+    _selectedEventId.value = null;
+    _events.clear();
+    _eventCount.value = 0;
+    _visibleCount = 0;
+    setState(() {});
+  }
+
+  UnifiedEvent? _findEvent(String? id) {
+    if (id == null) return null;
+    return _events.where((e) => e.id == id).firstOrNull;
   }
 
   @override
   Widget build(BuildContext context) {
-    final allEvents = ref.watch(filteredAllEventsProvider);
     final devices = ref.watch(connectedDevicesProvider);
     final server = ref.watch(wsServerProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // Reset pagination when scroll direction changes
-    final scrollDir = ref.watch(scrollDirectionProvider);
-    ref.listen<ScrollDirection>(scrollDirectionProvider, (prev, next) {
-      if (prev != next) {
-        setState(() => _maxVisible = _pageSize);
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _scrollToTarget());
-      }
-    });
-
-    // Slice visible items based on scroll direction
-    final List<UnifiedEvent> visibleEvents;
-    final bool hasMore;
-
-    if (scrollDir == ScrollDirection.bottom) {
-      // Bottom mode: oldest first, show last _maxVisible items
-      final startIndex =
-          (allEvents.length - _maxVisible).clamp(0, allEvents.length);
-      visibleEvents = allEvents.sublist(startIndex);
-      hasMore = startIndex > 0;
-    } else {
-      // Top mode: newest first, reverse and show first _maxVisible items
-      final reversed = allEvents.reversed.toList();
-      visibleEvents = reversed.take(_maxVisible).toList();
-      hasMore = allEvents.length > _maxVisible;
-    }
-
-    // Auto-scroll on new items
-    if (_autoScroll &&
-        allEvents.length > _previousCount &&
-        allEvents.isNotEmpty) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _scrollToTarget());
-    }
-    _previousCount = allEvents.length;
-
-    // Clear selection if event removed
-    if (_selectedEvent != null &&
-        !allEvents.any((e) => e.id == _selectedEvent!.id)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _selectedEvent = null);
-      });
-    }
+    final sortOrder = ref.watch(allEventsSortOrderProvider);
 
     return Column(
       children: [
         // ── Header ──
         _Header(
-          eventCount: allEvents.length,
-          deviceCount: devices.length,
+          eventCount: _eventCount,
           serverRunning: server.isRunning,
           port: server.isRunning ? server.port : 9090,
+          deviceCount: devices.length,
           autoScroll: _autoScroll,
           onToggleAutoScroll: _toggleAutoScroll,
           onClear: _clearAll,
         ),
-        // ── Stats + Filters ──
-        _FilterBar(events: allEvents),
+        // ── Stats + Filters ── (rebuilds via _eventCount, not setState)
+        ValueListenableBuilder<int>(
+          valueListenable: _eventCount,
+          builder: (_, __, ___) => _FilterBar(events: _events),
+        ),
         // ── Content ──
         Expanded(
-          child: visibleEvents.isEmpty
+          child: _events.isEmpty
               ? EmptyState(
                   icon: LucideIcons.layoutDashboard,
                   title: devices.isEmpty
@@ -224,73 +230,94 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
               : Row(
                   children: [
                     // ── Event List ──
+                    // List never rebuilds due to selection change.
                     Expanded(
-                      flex: _selectedEvent != null ? 4 : 1,
-                      child: Column(
-                        children: [
-                          if (hasMore && scrollDir == ScrollDirection.bottom)
-                            _LoadMoreBanner(
-                              count: allEvents.length -
-                                  visibleEvents.length,
-                              onTap: _loadMore,
-                            ),
-                          Expanded(
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              itemCount: visibleEvents.length,
-                              itemExtent: 44,
-                              itemBuilder: (context, index) {
-                                final event = visibleEvents[index];
-                                final isSelected =
-                                    _selectedEvent?.id == event.id;
-                                final device = devices
-                                    .where(
-                                        (d) => d.deviceId == event.deviceId)
-                                    .firstOrNull;
-                                return _EventRow(
-                                  key: ValueKey(event.id),
-                                  event: event,
-                                  isSelected: isSelected,
-                                  showDetail: _selectedEvent != null,
-                                  platform: device?.platform,
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedEvent =
-                                          isSelected ? null : event;
-                                    });
-                                  },
-                                  onCopyTitle: () =>
-                                      _copy(context, event.title),
-                                );
-                              },
-                            ),
-                          ),
-                          if (hasMore && scrollDir == ScrollDirection.top)
-                            _LoadMoreBanner(
-                              count: allEvents.length -
-                                  visibleEvents.length,
-                              onTap: _loadMore,
-                            ),
-                        ],
+                      child: ListView.custom(
+                        controller: _scrollController,
+                        itemExtent: 44,
+                        childrenDelegate: StableBuilderDelegate(
+                          generation: _generation,
+                          childCount: _visibleCount,
+                          findChildIndexCallback: (key) {
+                            if (key is ValueKey<String>) {
+                              final idx = _events.indexWhere((e) => e.id == key.value);
+                              return idx == -1 ? null : idx;
+                            }
+                            return null;
+                          },
+                          builder: (context, index) {
+                            final actualIndex = sortOrder == SortOrder.newestFirst
+                                ? _visibleCount - 1 - index
+                                : index;
+                            if (actualIndex < 0 || actualIndex >= _events.length) {
+                              return const SizedBox.shrink();
+                            }
+                            final event = _events[actualIndex];
+                            final device = devices
+                                .where(
+                                    (d) => d.deviceId == event.deviceId)
+                                .firstOrNull;
+                            return RepaintBoundary(
+                              key: ValueKey(event.id),
+                              child: ValueListenableBuilder<String?>(
+                                valueListenable: _selectedEventId,
+                                builder: (context, selectedId, _) {
+                                  final isSelected = selectedId == event.id;
+                                  return _EventRow(
+                                    event: event,
+                                    isSelected: isSelected,
+                                    showDetail: false,
+                                    platform: device?.platform,
+                                    onTap: () {
+                                      _selectedEventId.value =
+                                          isSelected ? null : event.id;
+                                      if (!isSelected && _autoScroll) {
+                                        _autoScroll = false;
+                                        _programmaticScroll = false;
+                                        if (_scrollController.hasClients) {
+                                          _scrollController.jumpTo(_scrollController.offset);
+                                        }
+                                        setState(() {});
+                                      }
+                                    },
+                                    onCopyTitle: () =>
+                                        _copy(context, event.title),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ),
                     // ── Detail Panel ──
-                    if (_selectedEvent != null) ...[
-                      VerticalDivider(
-                        width: 1,
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.08),
-                      ),
-                      Expanded(
-                        flex: 5,
-                        child: _EventDetailPanel(
-                          event: _selectedEvent!,
-                          onClose: () =>
-                              setState(() => _selectedEvent = null),
-                        ),
-                      ),
-                    ],
+                    // Only the detail panel listens to selection changes.
+                    ValueListenableBuilder<String?>(
+                      valueListenable: _selectedEventId,
+                      builder: (context, selectedId, _) {
+                        final selectedEvent = _findEvent(selectedId);
+                        if (selectedEvent == null) return const SizedBox.shrink();
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            VerticalDivider(
+                              width: 1,
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.06)
+                                  : Colors.black.withValues(alpha: 0.08),
+                            ),
+                            SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.45,
+                              child: _EventDetailPanel(
+                                key: ValueKey(selectedEvent.id),
+                                event: selectedEvent,
+                                onClose: () => _selectedEventId.value = null,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ],
                 ),
         ),
@@ -314,165 +341,169 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
 // ═══════════════════════════════════════════════
 
 class _Header extends ConsumerWidget {
-  final int eventCount;
-  final int deviceCount;
+  final ValueNotifier<int> eventCount;
   final bool serverRunning;
   final int port;
+  final int deviceCount;
   final bool autoScroll;
   final VoidCallback onToggleAutoScroll;
   final VoidCallback onClear;
 
   const _Header({
     required this.eventCount,
-    required this.deviceCount,
     required this.serverRunning,
     required this.port,
+    required this.deviceCount,
     required this.autoScroll,
     required this.onToggleAutoScroll,
     required this.onClear,
   });
 
-  List<Widget> _buildDeviceChips(WidgetRef ref) {
-    final devices = ref.watch(connectedDevicesProvider);
-    if (devices.isEmpty) return [];
-    return devices.map((d) {
-      final label = d.deviceName != d.osVersion
-          ? '${d.deviceName} · ${d.osVersion}'
-          : d.osVersion;
-      return Padding(
-        padding: const EdgeInsets.only(left: 8),
-        child: _StatusPill(
-          color: const Color(0xFF8B5CF6),
-          label: '${d.appName} — $label',
-        ),
-      );
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      height: 56,
+      height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1117) : Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Colors.black.withValues(alpha: 0.08),
-          ),
-        ),
+        color: isDark ? const Color(0xFF161B22) : Colors.white,
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 700;
-          return Row(
-            children: [
-              // Title
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6C5CE7), Color(0xFF8B7EF0)],
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(LucideIcons.activity, size: 16, color: Colors.white),
+      child: Row(
+        children: [
+          // ── Left: Title + meta ──
+          Icon(LucideIcons.activity, size: 16, color: ColorTokens.primary),
+          const SizedBox(width: 8),
+          Text('All Events', style: theme.textTheme.titleMedium),
+          const SizedBox(width: 8),
+          ValueListenableBuilder<int>(
+            valueListenable: eventCount,
+            builder: (_, count, __) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
               ),
-              const SizedBox(width: 10),
-              Text(
-                'All Events',
+              child: Text(
+                '$count',
                 style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : Colors.black87,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'JetBrains Mono',
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
                 ),
               ),
-              const SizedBox(width: 10),
-              // Count badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: ColorTokens.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Server status
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: serverRunning ? ColorTokens.success : ColorTokens.error,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: (serverRunning ? ColorTokens.success : ColorTokens.error)
+                      .withValues(alpha: 0.4),
+                  blurRadius: 4,
                 ),
-                child: Text(
-                  '$eventCount',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: ColorTokens.primary,
-                  ),
-                ),
-              ),
-              if (!isNarrow) ...[
-                const SizedBox(width: 12),
-                // Status pills
-                _StatusPill(
-                  color: serverRunning ? ColorTokens.success : ColorTokens.error,
-                  label: serverRunning ? 'Port $port' : 'Stopped',
-                ),
-                const SizedBox(width: 8),
-                _StatusPill(
-                  color: deviceCount > 0 ? ColorTokens.info : Colors.grey,
-                  label: '$deviceCount device${deviceCount != 1 ? 's' : ''}',
-                ),
-                // Show connected device info
-                ..._buildDeviceChips(ref),
               ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            serverRunning ? 'Port $port' : 'Stopped',
+            style: TextStyle(
+              fontSize: 11,
+              fontFamily: 'JetBrains Mono',
+              color: Colors.grey[500],
+            ),
+          ),
+          if (deviceCount > 0) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('·', style: TextStyle(color: Colors.grey[600])),
+            ),
+            Icon(LucideIcons.smartphone, size: 11, color: Colors.grey[500]),
+            const SizedBox(width: 3),
+            Text(
+              '$deviceCount',
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'JetBrains Mono',
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
 
-              const Spacer(),
+          const Spacer(),
 
-              // Auto-scroll toggle
-              _ToolbarButton(
-                icon: LucideIcons.arrowDownToLine,
-                label: 'AUTO',
-                isActive: autoScroll,
-                color: ColorTokens.primary,
-                onTap: onToggleAutoScroll,
-              ),
-              const SizedBox(width: 6),
-              const ScrollDirectionButton(),
-              const SizedBox(width: 8),
-              // Search
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: isNarrow ? 140 : 220,
+          SizedBox(
+            width: 200,
+            child: SearchField(
+              hintText: 'Search events...',
+              onChanged: (v) =>
+                  ref.read(allEventsSearchProvider.notifier).state = v,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // ── Action group ──
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _IconBtn(
+                  icon: LucideIcons.arrowDownToLine,
+                  tooltip: 'Auto-scroll',
+                  isActive: autoScroll,
+                  onTap: onToggleAutoScroll,
                 ),
-                child: SearchField(
-                  hintText: 'Search events...',
-                  onChanged: (v) =>
-                      ref.read(allEventsSearchProvider.notifier).state = v,
+                const SizedBox(width: 2),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final sort = ref.watch(allEventsSortOrderProvider);
+                    final isNewest = sort == SortOrder.newestFirst;
+                    return _IconBtn(
+                      icon: isNewest ? LucideIcons.arrowUpNarrowWide : LucideIcons.arrowDownNarrowWide,
+                      tooltip: isNewest ? 'Newest first' : 'Oldest first',
+                      isActive: isNewest,
+                      onTap: () => ref.read(allEventsSortOrderProvider.notifier).state =
+                          isNewest ? SortOrder.oldestFirst : SortOrder.newestFirst,
+                    );
+                  },
                 ),
-              ),
-              const SizedBox(width: 8),
-              // Clear all
-              GestureDetector(
-                onTap: onClear,
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Tooltip(
-                    message: 'Clear all events',
-                    child: Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        color: Colors.grey.withValues(alpha: 0.08),
-                      ),
-                      child: Icon(LucideIcons.trash2,
-                          size: 16, color: Colors.grey[500]),
-                    ),
-                  ),
+                const SizedBox(width: 2),
+                Container(
+                  width: 1,
+                  height: 18,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.08),
                 ),
-              ),
-            ],
-          );
-        },
+                const SizedBox(width: 2),
+                _IconBtn(
+                  icon: LucideIcons.trash2,
+                  tooltip: 'Clear all',
+                  isDanger: true,
+                  onTap: onClear,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -571,13 +602,6 @@ class _FilterBar extends ConsumerWidget {
       ));
     }
 
-    final visibleFilterCount =
-        activeFilters.where((t) {
-          final tabKey = _eventToTab(t);
-          return tabKey == null || enabledTabs.contains(tabKey);
-        }).length;
-    final totalVisible = enabledTabs.length.clamp(0, EventType.values.length);
-
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -614,32 +638,9 @@ class _FilterBar extends ConsumerWidget {
             ),
           ],
           const Spacer(),
-          Text(
-            '$visibleFilterCount/$totalVisible filters',
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey[500],
-            ),
-          ),
         ],
       ),
     );
-  }
-
-  TabKey? _eventToTab(EventType type) {
-    switch (type) {
-      case EventType.log:
-        return TabKey.console;
-      case EventType.network:
-        return TabKey.network;
-      case EventType.state:
-        return TabKey.state;
-      case EventType.storage:
-        return TabKey.storage;
-      case EventType.display:
-      case EventType.asyncOp:
-        return null; // No dedicated tab
-    }
   }
 
   void _toggle(WidgetRef ref, EventType type) {
@@ -684,11 +685,38 @@ class _EventRow extends StatelessWidget {
 
     final typeInfo = _typeInfo(event);
 
+    // Left bar color: for network, show status-based color
+    Color leftBarColor = typeInfo.color;
+    if (event.type == EventType.network && event.rawData is NetworkEntry) {
+      final netEntry = event.rawData as NetworkEntry;
+      if (!netEntry.isComplete) {
+        leftBarColor = ColorTokens.warning;
+      } else if (netEntry.statusCode <= 0 || netEntry.statusCode >= 400) {
+        leftBarColor = ColorTokens.error;
+      } else {
+        leftBarColor = ColorTokens.success;
+      }
+    }
+
+    // Status-based background for network requests
+    final isNetworkError = event.type == EventType.network &&
+        event.rawData is NetworkEntry &&
+        (event.rawData as NetworkEntry).isComplete &&
+        ((event.rawData as NetworkEntry).statusCode <= 0 ||
+            (event.rawData as NetworkEntry).statusCode >= 400);
+    final isNetworkInProgress = event.type == EventType.network &&
+        event.rawData is NetworkEntry &&
+        !(event.rawData as NetworkEntry).isComplete;
+
     final bgColor = isSelected
-        ? ColorTokens.primary.withValues(alpha: 0.08)
-        : isDark
-            ? Colors.transparent
-            : Colors.white;
+        ? ColorTokens.selectedBg(isDark)
+        : isNetworkError
+            ? ColorTokens.error.withValues(alpha: isDark ? 0.08 : 0.05)
+            : isNetworkInProgress
+                ? ColorTokens.warning.withValues(alpha: isDark ? 0.08 : 0.05)
+                : isDark
+                    ? Colors.transparent
+                    : Colors.white;
 
     return GestureDetector(
       onTap: onTap,
@@ -706,7 +734,7 @@ class _EventRow extends StatelessWidget {
                     : Colors.black.withValues(alpha: 0.04),
               ),
               left: BorderSide(
-                color: isSelected ? ColorTokens.primary : typeInfo.color,
+                color: isSelected ? ColorTokens.selectedAccent : leftBarColor,
                 width: isSelected ? 3 : 2,
               ),
             ),
@@ -775,16 +803,55 @@ class _EventRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Subtitle
-              if (!showDetail)
-                Text(
-                  event.subtitle,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey[500],
-                    fontFamily: 'JetBrains Mono',
+              // Subtitle / Status indicator
+              if (!showDetail) ...[
+                if (event.type == EventType.network &&
+                    event.rawData is NetworkEntry) ...[
+                  if (!(event.rawData as NetworkEntry).isComplete) ...[
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: ColorTokens.warning,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'in progress',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: ColorTokens.warning,
+                        fontFamily: 'JetBrains Mono',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ] else ...[
+                    StatusBadge(
+                        statusCode:
+                            (event.rawData as NetworkEntry).statusCode),
+                    const SizedBox(width: 6),
+                    if ((event.rawData as NetworkEntry).duration != null)
+                      Text(
+                        formatDuration(
+                            (event.rawData as NetworkEntry).duration!),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[500],
+                          fontFamily: 'JetBrains Mono',
+                        ),
+                      ),
+                  ],
+                ] else
+                  Text(
+                    event.subtitle,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey[500],
+                      fontFamily: 'JetBrains Mono',
+                    ),
                   ),
-                ),
+              ],
               // Copy button (only visible on hover would be ideal,
               // but for desktop quick-access is better)
               const SizedBox(width: 4),
@@ -868,106 +935,160 @@ class _EventRow extends StatelessWidget {
 // Small UI Components
 // ═══════════════════════════════════════════════
 
-class _TypeInfo {
-  final Color color;
-  final IconData icon;
-  final String label;
-  _TypeInfo({required this.color, required this.icon, required this.label});
-}
+// ═══════════════════════════════════════════════
+// Detail Tab Bar
+// ═══════════════════════════════════════════════
 
-class _StatusPill extends StatelessWidget {
-  final Color color;
-  final String label;
+class _DetailTabBar extends StatelessWidget {
+  final TabController controller;
+  final bool isDark;
+  final Color accentColor;
+  final List<String> tabs;
 
-  const _StatusPill({required this.color, required this.label});
+  const _DetailTabBar({
+    required this.controller,
+    required this.isDark,
+    required this.accentColor,
+    required this.tabs,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: TabBar(
+        controller: controller,
+        labelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+        labelColor: accentColor,
+        unselectedLabelColor: isDark ? Colors.grey[500] : Colors.grey[600],
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isDark
+                ? accentColor.withValues(alpha: 0.25)
+                : Colors.black.withValues(alpha: 0.06),
           ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+        ),
+        indicatorPadding: EdgeInsets.zero,
+        dividerHeight: 0,
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: WidgetStateProperty.all(Colors.transparent),
+        padding: EdgeInsets.zero,
+        labelPadding: EdgeInsets.zero,
+        tabs: tabs
+            .map((t) => Tab(height: 28, text: t))
+            .toList(),
       ),
     );
   }
 }
 
-class _ToolbarButton extends StatelessWidget {
+class _IconBtn extends StatefulWidget {
   final IconData icon;
-  final String label;
+  final String tooltip;
   final bool isActive;
-  final Color color;
+  final bool isDanger;
   final VoidCallback onTap;
 
-  const _ToolbarButton({
+  const _IconBtn({
     required this.icon,
-    required this.label,
-    required this.isActive,
-    required this.color,
+    required this.tooltip,
+    this.isActive = false,
+    this.isDanger = false,
     required this.onTap,
   });
 
   @override
+  State<_IconBtn> createState() => _IconBtnState();
+}
+
+class _IconBtnState extends State<_IconBtn> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return _PressableButton(
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: isActive
-                ? color.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isActive
-                  ? color.withValues(alpha: 0.3)
-                  : Colors.grey.withValues(alpha: 0.15),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Color iconColor;
+    Color bgColor;
+
+    if (widget.isActive) {
+      iconColor = ColorTokens.primary;
+      bgColor = ColorTokens.primary.withValues(alpha: 0.15);
+    } else if (widget.isDanger && _hovered) {
+      iconColor = ColorTokens.error;
+      bgColor = ColorTokens.error.withValues(alpha: 0.12);
+    } else if (_hovered) {
+      iconColor = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+      bgColor = isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.06);
+    } else {
+      iconColor = isDark ? Colors.grey[500]! : Colors.grey[500]!;
+      bgColor = Colors.transparent;
+    }
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(7),
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon,
-                  size: 14, color: isActive ? color : Colors.grey[500]),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: isActive ? color : Colors.grey[500],
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
+            child: Icon(
+              widget.icon,
+              size: 14,
+              color: iconColor,
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class _TypeInfo {
+  final Color color;
+  final IconData icon;
+  final String label;
+  _TypeInfo({required this.color, required this.icon, required this.label});
 }
 
 class _FilterChip extends StatelessWidget {
@@ -1076,38 +1197,6 @@ class _MiniIconButton extends StatelessWidget {
   }
 }
 
-class _LoadMoreBanner extends StatelessWidget {
-  final int count;
-  final VoidCallback onTap;
-
-  const _LoadMoreBanner({required this.count, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          color: ColorTokens.primary.withValues(alpha: 0.04),
-          child: Center(
-            child: Text(
-              '$count older events — click to load more',
-              style: const TextStyle(
-                fontSize: 10,
-                color: ColorTokens.primary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ═══════════════════════════════════════════════
 // Detail Panel
 // ═══════════════════════════════════════════════
@@ -1116,7 +1205,7 @@ class _EventDetailPanel extends StatefulWidget {
   final UnifiedEvent event;
   final VoidCallback onClose;
 
-  const _EventDetailPanel({required this.event, required this.onClose});
+  const _EventDetailPanel({super.key, required this.event, required this.onClose});
 
   @override
   State<_EventDetailPanel> createState() => _EventDetailPanelState();
@@ -1125,6 +1214,8 @@ class _EventDetailPanel extends StatefulWidget {
 class _EventDetailPanelState extends State<_EventDetailPanel> {
   int _currentTabIndex = 0;
   bool _currentJsonMode = false;
+  bool _storageFormatted = false;
+  final _contentKey = GlobalKey();
 
   Future<void> _captureAndSave(Widget screenshotWidget) async {
     try {
@@ -1164,7 +1255,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
         return;
       }
 
-      final image = await boundary.toImage(pixelRatio: 2.0);
+      final image = await boundary.toImage(pixelRatio: 3.0);
       final byteData =
           await image.toByteData(format: ui.ImageByteFormat.png);
       overlayEntry.remove();
@@ -1459,10 +1550,40 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
   }
 
   Future<void> _takeTabScreenshot() async {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    await _captureAndSave(
-        _buildTabScreenshotWidget(theme, isDark, _currentTabIndex));
+    await _captureLiveContent();
+  }
+
+  /// Captures the currently visible content (with user's expand/collapse state).
+  Future<void> _captureLiveContent() async {
+    try {
+      _showCaptureFlash();
+
+      final boundary = _contentKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final pngBytes = byteData.buffer.asUint8List();
+      final fileName =
+          'devconnect_${DateTime.now().millisecondsSinceEpoch}.png';
+      final location = await getSaveLocation(
+        suggestedName: fileName,
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'PNG Image', extensions: ['png']),
+        ],
+      );
+      if (location == null) return;
+
+      final file = File(location.path);
+      await file.writeAsBytes(pngBytes);
+      if (mounted) _showSavedToast(file.path);
+    } catch (e) {
+      if (mounted) _showErrorToast('$e');
+    }
   }
 
   /// Builds the full detail widget for screenshot (no scroll constraints).
@@ -1695,11 +1816,12 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
               children: [
                 const _SectionLabel('REQUEST BODY'),
                 const SizedBox(height: 8),
-                if (entry.requestBody is Map || entry.requestBody is List)
-                  JsonViewer(
-                      data: entry.requestBody, initiallyExpanded: true)
+                if (_currentJsonMode ||
+                    !(entry.requestBody is Map || entry.requestBody is List))
+                  JsonPrettyViewer(data: entry.requestBody)
                 else
-                  JsonPrettyViewer(data: entry.requestBody),
+                  JsonViewer(
+                      data: entry.requestBody, initiallyExpanded: true),
               ],
             ),
           ),
@@ -1714,12 +1836,12 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
               children: [
                 const _SectionLabel('RESPONSE BODY'),
                 const SizedBox(height: 8),
-                if (entry.responseBody is Map ||
-                    entry.responseBody is List)
-                  JsonViewer(
-                      data: entry.responseBody, initiallyExpanded: true)
+                if (_currentJsonMode ||
+                    !(entry.responseBody is Map || entry.responseBody is List))
+                  JsonPrettyViewer(data: entry.responseBody)
                 else
-                  JsonPrettyViewer(data: entry.responseBody),
+                  JsonViewer(
+                      data: entry.responseBody, initiallyExpanded: true),
               ],
             ),
           ),
@@ -1747,7 +1869,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                   ),
                 ),
               if (entry.duration != null)
-                _InfoRow('Duration', '${entry.duration}ms'),
+                _InfoRow('Duration', formatDuration(entry.duration!)),
               if (entry.error != null) ...[
                 const SizedBox(height: 12),
                 const _SectionLabel('Error'),
@@ -1876,12 +1998,23 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
             const SizedBox(height: 6),
             if (entry.value is Map || entry.value is List)
               JsonViewer(data: entry.value, initiallyExpanded: true)
+            else if (_storageFormatted && _tryParseStorageJson(entry.value) != null)
+              JsonViewer(data: _tryParseStorageJson(entry.value), initiallyExpanded: true)
             else
               _CodeBlock(text: '${entry.value}', isDark: isDark),
           ],
         ],
       ),
     );
+  }
+
+  dynamic _tryParseStorageJson(dynamic value) {
+    if (value is! String) return null;
+    try {
+      final parsed = jsonDecode(value);
+      if (parsed is Map || parsed is List) return parsed;
+    } catch (_) {}
+    return null;
   }
 
   Widget _fallbackScreenshot(UnifiedEvent event, bool isDark) {
@@ -1984,9 +2117,13 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
           ],
         ),
       );
-      if (entry.duration != null) {
-        // Timing bar under URL
-      }
+      final timingBar = entry.duration != null
+          ? Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: _TimingBar(duration: entry.duration!),
+            )
+          : null;
 
       final tabNames = ['Headers', 'Request', 'Response', 'Timing'];
       final tabLabel = Container(
@@ -2044,7 +2181,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                     ),
                   ),
                 if (entry.duration != null)
-                  _InfoRow('Duration', '${entry.duration}ms'),
+                  _InfoRow('Duration', formatDuration(entry.duration!)),
                 if (entry.error != null) ...[
                   const SizedBox(height: 12),
                   const _SectionLabel('Error'),
@@ -2060,7 +2197,13 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
       tabContent = Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [urlBar, tabLabel, body],
+        children: [
+          urlBar,
+          if (timingBar != null) timingBar,
+          const Divider(height: 1),
+          tabLabel,
+          body,
+        ],
       );
     } else if (event.type == EventType.state &&
         event.rawData is StateChange) {
@@ -2175,7 +2318,12 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                 widget.event.type == EventType.state,
           ),
           const Divider(height: 1),
-          Expanded(child: _buildContent()),
+          Expanded(
+            child: RepaintBoundary(
+              key: _contentKey,
+              child: _buildContent(),
+            ),
+          ),
         ],
       ),
     );
@@ -2208,7 +2356,10 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
         return _FallbackDetail(event: widget.event);
       case EventType.storage:
         if (widget.event.rawData is StorageEntry) {
-          return _StorageDetail(entry: widget.event.rawData as StorageEntry);
+          return _StorageDetail(
+            entry: widget.event.rawData as StorageEntry,
+            onFormatChanged: (v) => _storageFormatted = v,
+          );
         }
         return _FallbackDetail(event: widget.event);
       case EventType.display:
@@ -2440,9 +2591,35 @@ class _LogDetail extends StatelessWidget {
 
   const _LogDetail({required this.entry});
 
+  /// Try to extract JSON from the log message.
+  /// Returns (prefix, parsedJson) or null if no JSON found.
+  static (String, dynamic)? _extractJson(String message) {
+    // Try full message first
+    try {
+      final parsed = jsonDecode(message.trim());
+      if (parsed is Map || parsed is List) return ('', parsed);
+    } catch (_) {}
+
+    // Find all { or [ positions and try each
+    for (var i = 0; i < message.length; i++) {
+      final ch = message[i];
+      if (ch != '{' && ch != '[') continue;
+      final jsonStr = message.substring(i).trim();
+      try {
+        final parsed = jsonDecode(jsonStr);
+        if (parsed is Map || parsed is List) {
+          final prefix = message.substring(0, i).trim();
+          return (prefix, parsed);
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final jsonResult = _extractJson(entry.message);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -2466,7 +2643,14 @@ class _LogDetail extends StatelessWidget {
           const SizedBox(height: 16),
           _SectionLabel('Message'),
           const SizedBox(height: 6),
-          _CodeBlock(text: entry.message, isDark: isDark),
+          if (jsonResult != null) ...[
+            if (jsonResult.$1.isNotEmpty) ...[
+              _CodeBlock(text: jsonResult.$1, isDark: isDark),
+              const SizedBox(height: 10),
+            ],
+            _InlineJsonView(data: jsonResult.$2, label: 'Data'),
+          ] else
+            _CodeBlock(text: entry.message, isDark: isDark),
           if (entry.metadata != null && entry.metadata!.isNotEmpty) ...[
             const SizedBox(height: 16),
             _InlineJsonView(data: entry.metadata, label: 'Metadata'),
@@ -2564,6 +2748,40 @@ class _NetworkDetailState extends State<_NetworkDetail>
                     if (entry.isComplete) ...[
                       StatusBadge(statusCode: entry.statusCode),
                       const SizedBox(width: 8),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: ColorTokens.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: ColorTokens.warning.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 10,
+                              height: 10,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: ColorTokens.warning,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'In Progress...',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: ColorTokens.warning,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                     ],
                     Expanded(
                       child: Text(
@@ -2639,21 +2857,12 @@ class _NetworkDetailState extends State<_NetworkDetail>
             ),
           ),
           // Tabs
-          TabBar(
+          _DetailTabBar(
             controller: _tabController,
-            labelStyle: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-            indicatorColor: ColorTokens.primary,
-            tabs: const [
-              Tab(text: 'Headers'),
-              Tab(text: 'Request'),
-              Tab(text: 'Response'),
-              Tab(text: 'Timing'),
-            ],
+            isDark: isDark,
+            accentColor: ColorTokens.primary,
+            tabs: const ['Headers', 'Request', 'Response', 'Timing'],
           ),
-          const Divider(height: 1),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -2727,7 +2936,7 @@ class _TimingBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          '${duration}ms',
+          formatDuration(duration),
           style: TextStyle(
             fontFamily: 'JetBrains Mono',
             fontSize: 11,
@@ -2989,6 +3198,7 @@ class _BodyView extends StatefulWidget {
 
 class _BodyViewState extends State<_BodyView> {
   bool _jsonMode = false;
+  bool _jsonEverOpened = false;
 
   @override
   Widget build(BuildContext context) {
@@ -3066,7 +3276,10 @@ class _BodyViewState extends State<_BodyView> {
                 ),
                 GestureDetector(
                   onTap: () {
-                    setState(() => _jsonMode = true);
+                    setState(() {
+                      _jsonMode = true;
+                      _jsonEverOpened = true;
+                    });
                     widget.onJsonModeChanged?.call(true);
                   },
                   child: MouseRegion(
@@ -3106,11 +3319,28 @@ class _BodyViewState extends State<_BodyView> {
           ),
         ),
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: _jsonMode || !(parsedBody is Map || parsedBody is List)
-                ? JsonPrettyViewer(data: parsedBody)
-                : JsonViewer(data: parsedBody, initiallyExpanded: true),
+          child: Stack(
+            children: [
+              // Tree view — hidden when JSON mode
+              Offstage(
+                offstage: _jsonMode,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: canToggle
+                      ? JsonViewer(data: parsedBody, initiallyExpanded: true)
+                      : JsonPrettyViewer(data: parsedBody),
+                ),
+              ),
+              // JSON view — only built after first click, then kept alive
+              if (canToggle && _jsonEverOpened)
+                Offstage(
+                  offstage: !_jsonMode,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: JsonPrettyViewer(data: parsedBody),
+                  ),
+                ),
+            ],
           ),
         ),
       ],
@@ -3131,6 +3361,7 @@ class _InlineJsonView extends StatefulWidget {
 
 class _InlineJsonViewState extends State<_InlineJsonView> {
   bool _jsonMode = false;
+  bool _jsonEverOpened = false;
 
   @override
   Widget build(BuildContext context) {
@@ -3186,7 +3417,10 @@ class _InlineJsonViewState extends State<_InlineJsonView> {
                 ),
               ),
               GestureDetector(
-                onTap: () => setState(() => _jsonMode = true),
+                onTap: () => setState(() {
+                  _jsonMode = true;
+                  _jsonEverOpened = true;
+                }),
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: Container(
@@ -3222,9 +3456,18 @@ class _InlineJsonViewState extends State<_InlineJsonView> {
           ],
         ),
         const SizedBox(height: 8),
-        _jsonMode || !(parsed is Map || parsed is List)
-            ? JsonPrettyViewer(data: parsed)
-            : JsonViewer(data: parsed, initiallyExpanded: true),
+        if (canToggle) ...[
+          Offstage(
+            offstage: _jsonMode,
+            child: JsonViewer(data: parsed, initiallyExpanded: true),
+          ),
+          if (_jsonEverOpened)
+            Offstage(
+              offstage: !_jsonMode,
+              child: JsonPrettyViewer(data: parsed),
+            ),
+        ] else
+          JsonPrettyViewer(data: parsed),
       ],
     );
   }
@@ -3249,7 +3492,7 @@ class _TimingView extends StatelessWidget {
     IconData durationIcon;
     if (duration == null) {
       durationColor = Colors.grey;
-      durationLabel = 'Pending';
+      durationLabel = 'In Progress';
       durationIcon = LucideIcons.loader;
     } else if (duration < 200) {
       durationColor = ColorTokens.success;
@@ -3274,6 +3517,49 @@ class _TimingView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Loading indicator for pending requests
+          if (duration == null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    ColorTokens.warning.withValues(alpha: 0.12),
+                    ColorTokens.warning.withValues(alpha: 0.04),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: ColorTokens.warning.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: ColorTokens.warning,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Waiting for response...',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: ColorTokens.warning,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (duration == null) const SizedBox(height: 16),
           // Duration hero card
           if (duration != null)
             Container(
@@ -3309,7 +3595,7 @@ class _TimingView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${duration}ms',
+                        formatDuration(duration),
                         style: TextStyle(
                           fontFamily: 'JetBrains Mono',
                           fontSize: 24,
@@ -3627,6 +3913,7 @@ class _StateDetailState extends State<_StateDetail>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
         Container(
@@ -3655,20 +3942,12 @@ class _StateDetailState extends State<_StateDetail>
             ],
           ),
         ),
-        TabBar(
+        _DetailTabBar(
           controller: _tabController,
-          labelStyle: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-          indicatorColor: ColorTokens.secondary,
-          tabs: const [
-            Tab(text: 'Diff'),
-            Tab(text: 'Previous'),
-            Tab(text: 'Next'),
-          ],
+          isDark: isDark,
+          accentColor: ColorTokens.secondary,
+          tabs: const ['Diff', 'Previous', 'Next'],
         ),
-        const Divider(height: 1),
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -3830,10 +4109,30 @@ class _DiffRow extends StatelessWidget {
 // Storage Detail
 // ═══════════════════════════════════════════════
 
-class _StorageDetail extends StatelessWidget {
+class _StorageDetail extends StatefulWidget {
   final StorageEntry entry;
+  final ValueChanged<bool>? onFormatChanged;
 
-  const _StorageDetail({required this.entry});
+  const _StorageDetail({required this.entry, this.onFormatChanged});
+
+  @override
+  State<_StorageDetail> createState() => _StorageDetailState();
+}
+
+class _StorageDetailState extends State<_StorageDetail> {
+  bool _formatted = false;
+
+  StorageEntry get entry => widget.entry;
+
+  /// Try to parse a string value as JSON
+  dynamic _tryParseJson(dynamic value) {
+    if (value is! String) return null;
+    try {
+      final parsed = jsonDecode(value);
+      if (parsed is Map || parsed is List) return parsed;
+    } catch (_) {}
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3854,6 +4153,10 @@ class _StorageDetail extends StatelessWidget {
       default:
         opColor = ColorTokens.warning;
     }
+
+    final parsedJson = _tryParseJson(entry.value);
+    final isAlreadyJson = entry.value is Map || entry.value is List;
+    final canFormat = parsedJson != null && !isAlreadyJson;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -3878,13 +4181,24 @@ class _StorageDetail extends StatelessWidget {
           _CodeBlock(text: entry.key, isDark: isDark),
           if (entry.value != null) ...[
             const SizedBox(height: 16),
-            if (entry.value is Map || entry.value is List)
+            if (isAlreadyJson)
               _InlineJsonView(data: entry.value, label: 'Value')
             else ...[
               Row(
                 children: [
                   _SectionLabel('Value'),
                   const Spacer(),
+                  if (canFormat) ...[
+                    _FormatToggleButton(
+                      isFormatted: _formatted,
+                      onToggle: () =>
+                          setState(() {
+                            _formatted = !_formatted;
+                            widget.onFormatChanged?.call(_formatted);
+                          }),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   _CopyButton(
                     tooltip: 'Copy value',
                     onTap: () {
@@ -3898,7 +4212,10 @@ class _StorageDetail extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
-              _CodeBlock(text: '${entry.value}', isDark: isDark),
+              if (_formatted && parsedJson != null)
+                _InlineJsonView(data: parsedJson, label: '')
+              else
+                _CodeBlock(text: '${entry.value}', isDark: isDark),
             ],
           ],
         ],
@@ -4024,6 +4341,58 @@ class _CopyButton extends StatelessWidget {
               color: Colors.grey.withValues(alpha: 0.08),
             ),
             child: Icon(icon, size: 13, color: Colors.grey[500]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FormatToggleButton extends StatelessWidget {
+  final bool isFormatted;
+  final VoidCallback onToggle;
+
+  const _FormatToggleButton({
+    required this.isFormatted,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _PressableButton(
+      onTap: onToggle,
+      child: Tooltip(
+        message: isFormatted ? 'Show raw' : 'Format JSON',
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              color: isFormatted
+                  ? ColorTokens.primary.withValues(alpha: 0.15)
+                  : Colors.grey.withValues(alpha: 0.08),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.braces,
+                  size: 12,
+                  color: isFormatted ? ColorTokens.primary : Colors.grey[500],
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  isFormatted ? 'Raw' : 'Format',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color:
+                        isFormatted ? ColorTokens.primary : Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

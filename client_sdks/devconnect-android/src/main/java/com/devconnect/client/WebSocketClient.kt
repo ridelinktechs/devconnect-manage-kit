@@ -19,7 +19,8 @@ class WebSocketClient(
     private val port: Int,
     private val deviceId: String,
     private val appName: String,
-    private val appVersion: String
+    private val appVersion: String,
+    private val versionCode: String? = null
 ) {
     /** Callback for incoming server messages (type, payload) */
     var onServerMessage: ((String, JSONObject) -> Unit)? = null
@@ -89,6 +90,7 @@ class WebSocketClient(
                 put("osVersion", "Android ${android.os.Build.VERSION.RELEASE}")
                 put("appName", appName)
                 put("appVersion", appVersion)
+                if (versionCode != null) put("versionCode", versionCode)
                 put("sdkVersion", "1.0.0")
             })
         }

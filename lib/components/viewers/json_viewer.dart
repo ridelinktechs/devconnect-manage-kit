@@ -1,5 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -232,113 +235,187 @@ class _JsonNodeState extends State<_JsonNode> {
   }
 }
 
-class JsonPrettyViewer extends StatelessWidget {
+/// Per-line highlight result from isolate.
+class _HighlightResult {
+  final String formatted;
+  final int lineCount;
+  /// Per-line tokens: lineTokens[i] = [text, colorInt, bold, text, colorInt, bold, ...]
+  final List<List<Object>> lineTokens;
+
+  _HighlightResult(this.formatted, this.lineCount, this.lineTokens);
+}
+
+/// Runs in isolate — per-line tokenization.
+_HighlightResult _computeHighlight(List<dynamic> args) {
+  final data = args[0];
+  final isDark = args[1] as bool;
+
+  String formatted;
+  try {
+    formatted = const JsonEncoder.withIndent('  ').convert(data);
+  } catch (e) {
+    formatted = data?.toString() ?? 'null';
+  }
+
+  final lines = formatted.split('\n');
+
+  final dKey = isDark ? 0xFF9CDCFE : 0xFF0451A5;
+  final dString = isDark ? 0xFFCE9178 : 0xFFA31515;
+  final dNumber = isDark ? 0xFFB5CEA8 : 0xFF098658;
+  final dBool = isDark ? 0xFF569CD6 : 0xFF0000FF;
+  final dNull = isDark ? 0xFF569CD6 : 0xFF0000FF;
+  final dBracket = isDark ? 0xFFFFD700 : 0xFF000000;
+  final dPunct = isDark ? 0xFFD4D4D4 : 0xFF000000;
+  final dPlain = isDark ? 0xFFD4D4D4 : 0xFF1F2328;
+
+  final tokenPattern = RegExp(
+    r'("(?:[^"\\]|\\.)*")\s*:'
+    r'|("(?:[^"\\]|\\.)*")'
+    r'|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)'
+    r'|(true|false)'
+    r'|(null)'
+    r'|([{}\[\]])'
+    r'|([,:])',
+  );
+
+  final lineTokens = <List<Object>>[];
+
+  for (final line in lines) {
+    final tokens = <Object>[];
+    int cursor = 0;
+
+    for (final m in tokenPattern.allMatches(line)) {
+      if (m.start > cursor) {
+        tokens.addAll([line.substring(cursor, m.start), dPlain, 0]);
+      }
+      int color;
+      int bold = 0;
+      if (m.group(1) != null) { color = dKey; bold = 1; }
+      else if (m.group(2) != null) { color = dString; }
+      else if (m.group(3) != null) { color = dNumber; }
+      else if (m.group(4) != null) { color = dBool; }
+      else if (m.group(5) != null) { color = dNull; }
+      else if (m.group(6) != null) { color = dBracket; }
+      else { color = dPunct; }
+      tokens.addAll([m.group(0)!, color, bold]);
+      cursor = m.end;
+    }
+    if (cursor < line.length) {
+      tokens.addAll([line.substring(cursor), dPlain, 0]);
+    }
+    lineTokens.add(tokens);
+  }
+
+  return _HighlightResult(formatted, lines.length, lineTokens);
+}
+
+/// Global cache keyed by data identity.
+final _highlightCache = <int, _HighlightResult>{};
+
+class JsonPrettyViewer extends StatefulWidget {
   final dynamic data;
 
   const JsonPrettyViewer({super.key, required this.data});
 
-  static final _tokenPattern = RegExp(
-    r'("(?:[^"\\]|\\.)*")\s*:'       // key followed by colon
-    r'|("(?:[^"\\]|\\.)*")'          // string value
-    r'|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)' // number
-    r'|(true|false)'                  // boolean
-    r'|(null)'                        // null
-    r'|([{}\[\]])'                    // brackets
-    r'|([,:])'                        // punctuation
-  );
+  @override
+  State<JsonPrettyViewer> createState() => _JsonPrettyViewerState();
+}
 
-  List<TextSpan> _highlight(String source, bool isDark) {
-    // Colors — dark
-    const dKey = Color(0xFF9CDCFE);
-    const dString = Color(0xFFCE9178);
-    const dNumber = Color(0xFFB5CEA8);
-    const dBool = Color(0xFF569CD6);
-    const dNull = Color(0xFF569CD6);
-    const dBracket = Color(0xFFFFD700);
-    const dPunct = Color(0xFFD4D4D4);
-    const dPlain = Color(0xFFD4D4D4);
-    // Colors — light
-    const lKey = Color(0xFF0451A5);
-    const lString = Color(0xFFA31515);
-    const lNumber = Color(0xFF098658);
-    const lBool = Color(0xFF0000FF);
-    const lNull = Color(0xFF0000FF);
-    const lBracket = Color(0xFF000000);
-    const lPunct = Color(0xFF000000);
-    const lPlain = Color(0xFF1F2328);
+class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
+  static const double _lineHeight = 18.0;
 
+  _HighlightResult? _result;
+  bool _loading = true;
+  bool? _lastIsDark;
+  /// Per-line TextSpan cache — built lazily per visible line.
+  final Map<int, List<TextSpan>> _lineSpanCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _startCompute();
+  }
+
+  @override
+  void didUpdateWidget(JsonPrettyViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.data, widget.data)) {
+      _result = null;
+      _lineSpanCache.clear();
+      _startCompute();
+    }
+  }
+
+  int get _cacheKey => identityHashCode(widget.data);
+
+  void _startCompute() {
+    final cached = _highlightCache[_cacheKey];
+    if (cached != null) {
+      _result = cached;
+      _loading = false;
+      return;
+    }
+
+    _loading = true;
+    final isDark =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+            Brightness.dark;
+
+    compute(_computeHighlight, [widget.data, isDark]).then((result) {
+      if (!mounted) return;
+      _highlightCache[_cacheKey] = result;
+      setState(() {
+        _result = result;
+        _loading = false;
+      });
+    });
+  }
+
+  List<TextSpan> _getLineSpans(int index) {
+    if (_lineSpanCache.containsKey(index)) return _lineSpanCache[index]!;
+    final tokens = _result!.lineTokens[index];
     final spans = <TextSpan>[];
-    int cursor = 0;
-
-    for (final m in _tokenPattern.allMatches(source)) {
-      // Text before this match (whitespace / newlines)
-      if (m.start > cursor) {
-        spans.add(TextSpan(
-          text: source.substring(cursor, m.start),
-          style: TextStyle(color: isDark ? dPlain : lPlain),
-        ));
-      }
-
-      Color color;
-      if (m.group(1) != null) {
-        // Key
-        color = isDark ? dKey : lKey;
-      } else if (m.group(2) != null) {
-        // String value
-        color = isDark ? dString : lString;
-      } else if (m.group(3) != null) {
-        // Number
-        color = isDark ? dNumber : lNumber;
-      } else if (m.group(4) != null) {
-        // Boolean
-        color = isDark ? dBool : lBool;
-      } else if (m.group(5) != null) {
-        // Null
-        color = isDark ? dNull : lNull;
-      } else if (m.group(6) != null) {
-        // Brackets
-        color = isDark ? dBracket : lBracket;
-      } else {
-        // Punctuation
-        color = isDark ? dPunct : lPunct;
-      }
-
-      final fontWeight =
-          (m.group(1) != null) ? FontWeight.w600 : FontWeight.normal;
-
+    for (int i = 0; i < tokens.length; i += 3) {
       spans.add(TextSpan(
-        text: m.group(0),
-        style: TextStyle(color: color, fontWeight: fontWeight),
-      ));
-
-      cursor = m.end;
-    }
-
-    // Trailing text
-    if (cursor < source.length) {
-      spans.add(TextSpan(
-        text: source.substring(cursor),
-        style: TextStyle(color: isDark ? dPlain : lPlain),
+        text: tokens[i] as String,
+        style: TextStyle(
+          color: Color(tokens[i + 1] as int),
+          fontWeight: (tokens[i + 2] as int) == 1
+              ? FontWeight.w600
+              : FontWeight.normal,
+        ),
       ));
     }
-
+    _lineSpanCache[index] = spans;
     return spans;
+  }
+
+  Future<void> _saveJsonFile(String content) async {
+    final fileName = 'data_${DateTime.now().millisecondsSinceEpoch}.json';
+    final location = await getSaveLocation(
+      suggestedName: fileName,
+      acceptedTypeGroups: [
+        const XTypeGroup(label: 'JSON', extensions: ['json']),
+      ],
+    );
+    if (location == null) return;
+    await File(location.path).writeAsString(content);
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    String formatted;
-    try {
-      formatted = const JsonEncoder.withIndent('  ').convert(data);
-    } catch (e) {
-      formatted = data?.toString() ?? 'null';
+    if (_lastIsDark != null && _lastIsDark != isDark) {
+      _lineSpanCache.clear();
+      _result = null;
+      _highlightCache.remove(_cacheKey);
+      _startCompute();
     }
+    _lastIsDark = isDark;
 
-    final lines = formatted.split('\n');
-    final spans = _highlight(formatted, isDark);
+    final lineCount = _result?.lineCount ?? 0;
+    final gutterWidth = '$lineCount'.length * 8.0 + 20;
 
     return Container(
       width: double.infinity,
@@ -352,6 +429,7 @@ class JsonPrettyViewer extends StatelessWidget {
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Toolbar
@@ -372,8 +450,11 @@ class JsonPrettyViewer extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.braces, size: 12,
-                    color: isDark ? const Color(0xFFFFD700) : const Color(0xFF0451A5)),
+                Icon(LucideIcons.braces,
+                    size: 12,
+                    color: isDark
+                        ? const Color(0xFFFFD700)
+                        : const Color(0xFF0451A5)),
                 const SizedBox(width: 6),
                 Text(
                   'JSON',
@@ -384,55 +465,73 @@ class JsonPrettyViewer extends StatelessWidget {
                     color: isDark ? Colors.grey[400] : Colors.grey[600],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '${lines.length} lines',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontFamily: 'JetBrains Mono',
-                    color: Colors.grey[500],
+                if (!_loading) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    '$lineCount lines',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'JetBrains Mono',
+                      color: Colors.grey[500],
+                    ),
                   ),
-                ),
+                ],
                 const Spacer(),
-                _MiniButton(
-                  icon: LucideIcons.copy,
-                  tooltip: 'Copy JSON',
-                  isDark: isDark,
-                  onTap: () =>
-                      Clipboard.setData(ClipboardData(text: formatted)),
-                ),
+                if (!_loading) ...[
+                  _MiniButton(
+                    icon: LucideIcons.copy,
+                    tooltip: 'Copy JSON',
+                    isDark: isDark,
+                    onTap: () => Clipboard.setData(
+                        ClipboardData(text: _result!.formatted)),
+                  ),
+                  const SizedBox(width: 4),
+                  _MiniButton(
+                    icon: LucideIcons.download,
+                    tooltip: 'Save as file',
+                    isDark: isDark,
+                    onTap: () => _saveJsonFile(_result!.formatted),
+                  ),
+                ],
               ],
             ),
           ),
-          // Code area with line numbers
-          Padding(
-            padding: const EdgeInsets.all(0),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Line numbers gutter
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        right: BorderSide(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.06)
-                              : Colors.black.withValues(alpha: 0.06),
-                        ),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: List.generate(
-                        lines.length,
-                        (i) => SizedBox(
-                          height: 18,
+          // Content — virtualized per-line rendering
+          if (_loading)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: isDark ? Colors.grey[600] : Colors.grey[400],
+                  ),
+                ),
+              ),
+            )
+          else
+            Flexible(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final bounded = constraints.maxHeight.isFinite;
+                  return ListView.builder(
+                itemCount: lineCount,
+                itemExtent: _lineHeight,
+                shrinkWrap: !bounded,
+                physics: bounded ? null : const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemBuilder: (context, index) {
+                  return SizedBox(
+                    height: _lineHeight,
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: gutterWidth,
                           child: Text(
-                            '${i + 1}',
+                            '${index + 1}',
+                            textAlign: TextAlign.right,
                             style: TextStyle(
                               fontFamily: 'JetBrains Mono',
                               fontSize: 11,
@@ -441,28 +540,35 @@ class JsonPrettyViewer extends StatelessWidget {
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                  // Code content
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 10, horizontal: 12),
-                    child: SelectableText.rich(
-                      TextSpan(
-                        style: const TextStyle(
-                          fontFamily: 'JetBrains Mono',
-                          fontSize: 12,
-                          height: 1.5,
+                        Container(
+                          width: 1,
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : Colors.black.withValues(alpha: 0.06),
                         ),
-                        children: spans,
-                      ),
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              style: const TextStyle(
+                                fontFamily: 'JetBrains Mono',
+                                fontSize: 12,
+                                height: 1.5,
+                              ),
+                              children: _getLineSpans(index),
+                            ),
+                            overflow: TextOverflow.clip,
+                            softWrap: false,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  );
+                },
+              );
+                },
               ),
             ),
-          ),
         ],
       ),
     );

@@ -32,12 +32,23 @@ class ColorTokens {
 
   // Status code colors
   static Color statusCodeColor(int code) {
+    if (code <= 0) return error;
     if (code < 200) return info;
     if (code < 300) return success;
     if (code < 400) return warning;
-    if (code < 500) return error;
-    return const Color(0xFFD63031);
+    return error;
   }
+
+  // Selection highlight colors
+  static Color selectedBg(bool isDark) => isDark
+      ? const Color(0xFF0D9488).withValues(alpha: 0.18) // teal
+      : const Color(0xFF0EA5E9).withValues(alpha: 0.12); // sky blue
+
+  static Color selectedBorder(bool isDark) => isDark
+      ? const Color(0xFF0D9488).withValues(alpha: 0.5)
+      : const Color(0xFF0EA5E9).withValues(alpha: 0.4);
+
+  static const Color selectedAccent = Color(0xFF0D9488); // teal for left bar
 
   static Color httpMethodColor(String method) {
     switch (method.toUpperCase()) {

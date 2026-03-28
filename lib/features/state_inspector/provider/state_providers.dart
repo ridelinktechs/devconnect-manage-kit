@@ -25,7 +25,8 @@ final filteredStateChangesProvider = Provider<List<StateChange>>((ref) {
   final selectedDevice = ref.watch(selectedDeviceProvider);
 
   return entries.where((e) {
-    if (selectedDevice != null && e.deviceId != selectedDevice) return false;
+    if (selectedDevice == null) return false;
+    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (search.isNotEmpty) {
       return e.actionName.toLowerCase().contains(search) ||
           e.stateManagerType.toLowerCase().contains(search);

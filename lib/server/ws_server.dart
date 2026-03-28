@@ -191,7 +191,14 @@ class WsServer {
     );
   }
 
+  /// Track sockets that already completed handshake to prevent duplicates.
+  final _handshookSockets = <WebSocket>{};
+
   void _handleHandshake(WebSocket socket, DCMessage message, String? clientIp) {
+    // Guard: ignore duplicate handshake from the same socket
+    if (_handshookSockets.contains(socket)) return;
+    _handshookSockets.add(socket);
+
     final deviceInfo = DeviceInfo.fromJson(
       message.payload['deviceInfo'] as Map<String, dynamic>,
     );
@@ -204,6 +211,31 @@ class WsServer {
         clientIp: clientIp,
       ),
     );
+    // If same deviceId reconnects (hot reload), close old socket
+    final oldConn = _connections[deviceId];
+    if (oldConn != null && oldConn.socket != socket) {
+      try { oldConn.socket.close(); } catch (_) {}
+    }
+
+    // Fallback dedup: same clientIp + appName = same device (handles old SDK with random deviceId)
+    if (clientIp != null) {
+      final appName = deviceInfo.appName;
+      final staleIds = <String>[];
+      for (final entry in _connections.entries) {
+        if (entry.key != deviceId &&
+            entry.value.deviceInfo.clientIp == clientIp &&
+            entry.value.deviceInfo.appName == appName &&
+            entry.value.socket != socket) {
+          staleIds.add(entry.key);
+          try { entry.value.socket.close(); } catch (_) {}
+        }
+      }
+      for (final id in staleIds) {
+        _connections.remove(id);
+        _disconnectionController.add(id);
+      }
+    }
+
     _connections[deviceId] = connection;
 
     // Send handshake ack
@@ -220,6 +252,7 @@ class WsServer {
   }
 
   void _handleDisconnect(WebSocket socket) {
+    _handshookSockets.remove(socket);
     String? disconnectedId;
     _connections.removeWhere((id, conn) {
       if (conn.socket == socket) {

@@ -23,7 +23,8 @@ final filteredPerformanceEntriesProvider =
   final metricFilter = ref.watch(performanceMetricFilterProvider);
 
   return entries.where((e) {
-    if (selectedDevice != null && e.deviceId != selectedDevice) return false;
+    if (selectedDevice == null) return false;
+    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (metricFilter != null && e.metricType != metricFilter) return false;
     return true;
   }).toList();
@@ -124,7 +125,8 @@ final filteredMemoryLeakEntriesProvider =
   final severityFilter = ref.watch(memoryLeakFilterProvider);
 
   return entries.where((e) {
-    if (selectedDevice != null && e.deviceId != selectedDevice) return false;
+    if (selectedDevice == null) return false;
+    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (severityFilter != null && e.severity != severityFilter) return false;
     return true;
   }).toList();

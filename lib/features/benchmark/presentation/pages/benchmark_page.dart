@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../../../core/utils/duration_format.dart';
 
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
@@ -17,13 +18,24 @@ class BenchmarkPage extends ConsumerStatefulWidget {
 }
 
 class _BenchmarkPageState extends ConsumerState<BenchmarkPage> {
-  BenchmarkEntry? _selected;
+  String? _selectedId;
 
   @override
   Widget build(BuildContext context) {
     final entries = ref.watch(filteredBenchmarkEntriesProvider);
     final stats = ref.watch(benchmarkStatsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final selected = _selectedId != null
+        ? entries.where((e) => e.id == _selectedId).firstOrNull
+        : null;
+
+    // Clear selection if entry was removed
+    if (_selectedId != null && selected == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectedId = null);
+      });
+    }
 
     return Column(
       children: [
@@ -33,7 +45,7 @@ class _BenchmarkPageState extends ConsumerState<BenchmarkPage> {
           isDark: isDark,
           onClear: () {
             ref.read(benchmarkEntriesProvider.notifier).clear();
-            setState(() => _selected = null);
+            setState(() => _selectedId = null);
           },
         ),
         // Stats row
@@ -52,7 +64,7 @@ class _BenchmarkPageState extends ConsumerState<BenchmarkPage> {
                   children: [
                     // List
                     Expanded(
-                      flex: _selected != null ? 4 : 1,
+                      flex: selected != null ? 4 : 1,
                       child: ListView.builder(
                         itemCount: entries.length,
                         itemExtent: 56,
@@ -60,19 +72,19 @@ class _BenchmarkPageState extends ConsumerState<BenchmarkPage> {
                           // Show newest first
                           final entry =
                               entries[entries.length - 1 - index];
-                          final isSelected = _selected?.id == entry.id;
+                          final isSelected = _selectedId == entry.id;
                           return _BenchmarkRow(
                             entry: entry,
                             isSelected: isSelected,
                             isDark: isDark,
                             onTap: () => setState(() =>
-                                _selected = isSelected ? null : entry),
+                                _selectedId = isSelected ? null : entry.id),
                           );
                         },
                       ),
                     ),
                     // Detail
-                    if (_selected != null) ...[
+                    if (selected != null) ...[
                       VerticalDivider(
                         width: 1,
                         color: isDark
@@ -82,10 +94,11 @@ class _BenchmarkPageState extends ConsumerState<BenchmarkPage> {
                       Expanded(
                         flex: 5,
                         child: _BenchmarkDetail(
-                          entry: _selected!,
+                          key: ValueKey(selected.id),
+                          entry: selected,
                           isDark: isDark,
                           onClose: () =>
-                              setState(() => _selected = null),
+                              setState(() => _selectedId = null),
                         ),
                       ),
                     ],
@@ -215,25 +228,25 @@ class _StatsBar extends StatelessWidget {
           const SizedBox(width: 16),
           _StatChip(
             label: 'Avg',
-            value: '${stats.avgDuration.toStringAsFixed(0)}ms',
+            value: formatDuration(stats.avgDuration.toInt()),
             color: ColorTokens.secondary,
           ),
           const SizedBox(width: 16),
           _StatChip(
             label: 'Min',
-            value: '${stats.minDuration.toStringAsFixed(0)}ms',
+            value: formatDuration(stats.minDuration.toInt()),
             color: ColorTokens.success,
           ),
           const SizedBox(width: 16),
           _StatChip(
             label: 'Max',
-            value: '${stats.maxDuration.toStringAsFixed(0)}ms',
+            value: formatDuration(stats.maxDuration.toInt()),
             color: _durationColor(stats.maxDuration),
           ),
           const SizedBox(width: 16),
           _StatChip(
             label: 'P50',
-            value: '${stats.p50Duration.toStringAsFixed(0)}ms',
+            value: formatDuration(stats.p50Duration.toInt()),
             color: _durationColor(stats.p50Duration),
           ),
         ],
@@ -375,7 +388,7 @@ class _BenchmarkRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  _formatDuration(duration),
+                  formatDuration(duration),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -401,6 +414,7 @@ class _BenchmarkDetail extends StatelessWidget {
   final VoidCallback onClose;
 
   const _BenchmarkDetail({
+    super.key,
     required this.entry,
     required this.isDark,
     required this.onClose,
@@ -450,7 +464,7 @@ class _BenchmarkDetail extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      _formatDuration(entry.duration!),
+                      formatDuration(entry.duration!),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -493,7 +507,7 @@ class _BenchmarkDetail extends StatelessWidget {
                       if (entry.duration != null)
                         _InfoRow(
                           label: 'Duration',
-                          value: _formatDuration(entry.duration!),
+                          value: formatDuration(entry.duration!),
                           valueColor:
                               _durationColor(entry.duration!.toDouble()),
                         ),
@@ -620,13 +634,13 @@ class _WaterfallChart extends StatelessWidget {
           return Expanded(
             flex: (seg.fraction * 1000).round().clamp(1, 1000),
             child: Tooltip(
-              message: '${seg.label}: ${_formatDuration(seg.duration)}',
+              message: '${seg.label}: ${formatDuration(seg.duration)}',
               child: Container(
                 color: color.withValues(alpha: 0.7),
                 alignment: Alignment.center,
                 child: seg.fraction > 0.08
                     ? Text(
-                        '${seg.duration}ms',
+                        formatDuration(seg.duration),
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
@@ -744,7 +758,7 @@ class _StepRow extends StatelessWidget {
           ),
           // Delta
           Text(
-            '+${_formatDuration(delta)}',
+            '+${formatDuration(delta)}',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -858,8 +872,4 @@ Color _durationColor(double ms) {
   return const Color(0xFFDC2626);
 }
 
-String _formatDuration(int ms) {
-  if (ms < 1000) return '${ms}ms';
-  if (ms < 60000) return '${(ms / 1000).toStringAsFixed(1)}s';
-  return '${(ms / 60000).toStringAsFixed(1)}m';
-}
+// Use formatDuration from core/utils/duration_format.dart

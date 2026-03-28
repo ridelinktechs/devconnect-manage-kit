@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../../../core/utils/duration_format.dart';
 
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/misc/status_badge.dart';
@@ -228,7 +229,7 @@ class _SessionTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: isSelected
-                ? ColorTokens.primary.withValues(alpha: 0.06)
+                ? ColorTokens.selectedBg(Theme.of(context).brightness == Brightness.dark)
                 : null,
             border: Border(
               bottom: BorderSide(
@@ -236,7 +237,7 @@ class _SessionTile extends StatelessWidget {
                 width: 0.5,
               ),
               left: BorderSide(
-                color: isSelected ? ColorTokens.primary : platColor,
+                color: isSelected ? ColorTokens.selectedAccent : platColor,
                 width: isSelected ? 3 : 2,
               ),
             ),
@@ -572,7 +573,7 @@ class _AllEventsList extends StatelessWidget {
         color: ColorTokens.success,
         icon: LucideIcons.globe,
         title: '${n.method} ${n.url}',
-        subtitle: n.isComplete ? '${n.statusCode}' : 'pending',
+        subtitle: n.isComplete ? '${n.statusCode}' : 'in progress',
       ));
     }
     for (final s in session.stateChanges) {
@@ -883,7 +884,7 @@ class _NetworkList extends StatelessWidget {
               if (e.duration != null) ...[
                 const SizedBox(width: 8),
                 Text(
-                  '${e.duration}ms',
+                  formatDuration(e.duration!),
                   style: TextStyle(
                     fontFamily: 'JetBrains Mono',
                     fontSize: 10,

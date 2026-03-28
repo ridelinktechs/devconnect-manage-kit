@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'devconnect_client.dart';
@@ -17,6 +18,9 @@ import 'reporters/mmkv_reporter.dart';
 import 'reporters/secure_storage_reporter.dart';
 import 'reporters/signals_observer.dart';
 import 'reporters/storage_reporter.dart';
+import 'plugins/performance_monitor.dart' as perf_monitor;
+import 'plugins/memory_leak_detector.dart' as memory_detector;
+import 'plugins/app_benchmark.dart' as app_bench;
 
 /// DevConnect Flutter SDK - Main entry point.
 ///
@@ -44,6 +48,10 @@ class DevConnect {
   static DevConnectClient get client => DevConnectClient.instance;
   static DevConnectClient? get clientSafe => DevConnectClient.instanceSafe;
   static bool _initialized = false;
+
+  /// Safe no-op guard for release builds.
+  /// Returns true if SDK is active (debug + initialized).
+  static bool get _active => kDebugMode && _initialized;
 
   /// One-line setup: init + intercept ALL HTTP + capture ALL developer logs.
   ///
@@ -81,26 +89,45 @@ class DevConnect {
     required String appName,
     required void Function() runApp,
     String appVersion = '1.0.0',
+    String? versionCode,
     String? host,
-    int port = 9090,
+    int port = 9091,
     bool auto_ = true,
-    bool enabled = true,
+    bool? enabled,
     bool autoInterceptHttp = true,
     bool autoInterceptLogs = true,
+    /// Auto-start performance monitoring (default: true)
+    bool autoPerformance = true,
+    /// Auto-start memory leak detection (default: true)
+    bool autoMemoryLeak = true,
+    /// Auto-start app benchmark (default: true)
+    bool autoBenchmark = true,
   }) async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    if (!enabled) {
+    // Production kill-switch: completely no-op in release builds.
+    // No WebSocket, no monitoring, no timers — zero overhead.
+    if (!(enabled ?? kDebugMode)) {
       runApp();
       return;
     }
 
+    // Monitoring plugins only run in debug
+    if (autoPerformance) perf_monitor.startPerformanceMonitor();
+    if (autoMemoryLeak) memory_detector.startMemoryLeakDetector();
+    if (autoBenchmark) app_bench.setupAppBenchmark();
+
     await init(
       appName: appName,
       appVersion: appVersion,
+      versionCode: versionCode,
       host: host,
       port: port,
       auto_: auto_,
+      enabled: true, // already checked above
+      autoPerformance: false, // already started above
+      autoMemoryLeak: false,
+      autoBenchmark: false,
     );
 
     // Intercept ALL HTTP traffic globally
@@ -123,13 +150,21 @@ class DevConnect {
   static Future<void> init({
     required String appName,
     String appVersion = '1.0.0',
+    String? versionCode,
     String? host,
-    int port = 9090,
+    int port = 9091,
     String platform = 'flutter',
     bool auto_ = true,
-    bool enabled = true,
+    bool? enabled,
+    /// Auto-start performance monitoring (default: true)
+    bool autoPerformance = true,
+    /// Auto-start memory leak detection (default: true)
+    bool autoMemoryLeak = true,
+    /// Auto-start app benchmark (default: true)
+    bool autoBenchmark = true,
   }) async {
-    if (!enabled || _initialized) return;
+    // Production kill-switch: no-op in release builds by default.
+    if (!(enabled ?? kDebugMode) || _initialized) return;
     _initialized = true;
 
     await DevConnectClient.init(
@@ -137,10 +172,16 @@ class DevConnect {
       port: port,
       appName: appName,
       appVersion: appVersion,
+      versionCode: versionCode,
       auto_: auto_,
       deviceName: Platform.localHostname,
       platform: platform,
     );
+
+    // Auto-start monitoring plugins
+    if (autoPerformance) perf_monitor.startPerformanceMonitor();
+    if (autoMemoryLeak) memory_detector.startMemoryLeakDetector();
+    if (autoBenchmark) app_bench.setupAppBenchmark();
   }
 
   /// Run a callback in a Zone that captures print() and debugPrint().
@@ -196,23 +237,29 @@ class DevConnect {
   }
 
   static void log(String message,
-          {String? tag, Map<String, dynamic>? metadata}) =>
-      client.log(message, tag: tag, metadata: metadata);
+      {String? tag, Map<String, dynamic>? metadata}) {
+    if (!_active) return;
+    client.log(message, tag: tag, metadata: metadata);
+  }
 
   static void debug(String message,
-          {String? tag, Map<String, dynamic>? metadata}) =>
-      client.debug(message, tag: tag, metadata: metadata);
+      {String? tag, Map<String, dynamic>? metadata}) {
+    if (!_active) return;
+    client.debug(message, tag: tag, metadata: metadata);
+  }
 
   static void warn(String message,
-          {String? tag, Map<String, dynamic>? metadata}) =>
-      client.warn(message, tag: tag, metadata: metadata);
+      {String? tag, Map<String, dynamic>? metadata}) {
+    if (!_active) return;
+    client.warn(message, tag: tag, metadata: metadata);
+  }
 
   static void error(String message,
-          {String? tag,
-          String? stackTrace,
-          Map<String, dynamic>? metadata}) =>
-      client.error(message,
-          tag: tag, stackTrace: stackTrace, metadata: metadata);
+      {String? tag, String? stackTrace, Map<String, dynamic>? metadata}) {
+    if (!_active) return;
+    client.error(message,
+        tag: tag, stackTrace: stackTrace, metadata: metadata);
+  }
 
   // ---- GetX / GetConnect ----
 
@@ -340,6 +387,7 @@ class DevConnect {
     Map<String, dynamic>? nextState,
     List<Map<String, dynamic>>? diff,
   }) {
+    if (!_active) return;
     client.reportStateChange(
       stateManager: stateManager,
       action: action,
@@ -357,6 +405,7 @@ class DevConnect {
     String? label,
     Map<String, dynamic>? metadata,
   }) {
+    if (!_active) return;
     client.reportPerformanceMetric(
       metricType: metricType,
       value: value,
@@ -374,6 +423,7 @@ class DevConnect {
     int? retainedSizeBytes,
     Map<String, dynamic>? metadata,
   }) {
+    if (!_active) return;
     client.reportMemoryLeak(
       leakType: leakType,
       objectName: objectName,
@@ -413,6 +463,7 @@ class DevConnect {
     dynamic value,
     required String operation,
   }) {
+    if (!_active) return;
     client.reportStorageOperation(
       storageType: storageType,
       key: key,
@@ -435,6 +486,7 @@ class DevConnect {
     required String stateManager,
     required Map<String, dynamic> state,
   }) {
+    if (!_active) return;
     client.sendStateSnapshot(stateManager: stateManager, state: state);
   }
 
@@ -446,6 +498,7 @@ class DevConnect {
   /// });
   /// ```
   static set onStateRestore(void Function(Map<String, dynamic> state)? handler) {
+    if (!_active) return;
     clientSafe?.onStateRestore = handler;
   }
 
@@ -460,9 +513,20 @@ class DevConnect {
   /// await fetchPosts();
   /// DevConnect.benchmarkStop('loadUserData');
   /// ```
-  static void benchmarkStart(String title) => client.benchmarkStart(title);
-  static void benchmarkStep(String title) => client.benchmarkStep(title);
-  static void benchmarkStop(String title) => client.benchmarkStop(title);
+  static void benchmarkStart(String title) {
+    if (!_active) return;
+    client.benchmarkStart(title);
+  }
+
+  static void benchmarkStep(String title) {
+    if (!_active) return;
+    client.benchmarkStep(title);
+  }
+
+  static void benchmarkStop(String title) {
+    if (!_active) return;
+    client.benchmarkStop(title);
+  }
 
   // ---- Custom Commands ----
 
@@ -478,6 +542,7 @@ class DevConnect {
     String name,
     dynamic Function(Map<String, dynamic>?) handler,
   ) {
+    if (!_active) return;
     client.registerCommand(name, handler);
   }
 
@@ -492,6 +557,7 @@ class DevConnect {
     Map<String, String>? headers,
     dynamic body,
   }) {
+    if (!_active) return;
     client.reportNetworkStart(
       requestId: requestId,
       method: method,
@@ -514,6 +580,7 @@ class DevConnect {
     dynamic responseBody,
     String? error,
   }) {
+    if (!_active) return;
     client.reportNetworkComplete(
       requestId: requestId,
       method: method,
@@ -538,6 +605,7 @@ class DevConnect {
     String? image,
     Map<String, dynamic>? metadata,
   }) {
+    if (!_active) return;
     client.display(name,
         value: value,
         preview: preview,
@@ -558,6 +626,7 @@ class DevConnect {
     dynamic result,
     Map<String, dynamic>? metadata,
   }) {
+    if (!_active) return;
     client.reportAsyncOperation(
       operationType: operationType,
       description: description,

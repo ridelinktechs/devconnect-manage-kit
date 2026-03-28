@@ -1,6 +1,10 @@
 # Build artifacts
 *.dmg
 
+# Internal notes
+src/.notes/
+.claude/
+
 # Miscellaneous
 *.class
 *.log

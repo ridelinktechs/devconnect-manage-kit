@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../core/utils/duration_format.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../provider/database_providers.dart';
@@ -102,8 +103,8 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                                             vertical: 8,
                                           ),
                                           color: isSelected
-                                              ? ColorTokens.primary
-                                                  .withValues(alpha: 0.1)
+                                              ? ColorTokens.selectedBg(
+                                                  Theme.of(context).brightness == Brightness.dark)
                                               : null,
                                           child: Row(
                                             children: [
@@ -111,7 +112,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                                                 LucideIcons.table2,
                                                 size: 14,
                                                 color: isSelected
-                                                    ? ColorTokens.primary
+                                                    ? ColorTokens.selectedAccent
                                                     : Colors.grey[500],
                                               ),
                                               const SizedBox(width: 8),
@@ -124,7 +125,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                                                         ? FontWeight.w600
                                                         : FontWeight.w400,
                                                     color: isSelected
-                                                        ? ColorTokens.primary
+                                                        ? ColorTokens.selectedAccent
                                                         : null,
                                                   ),
                                                 ),
@@ -298,7 +299,7 @@ class _QueryResultView extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                '${result.executionTimeMs}ms',
+                formatDuration(result.executionTimeMs),
                 style: TextStyle(
                   fontFamily: 'JetBrains Mono',
                   fontSize: 11,

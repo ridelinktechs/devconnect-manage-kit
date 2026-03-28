@@ -11,6 +11,12 @@ export { DevConnectLogger } from './reporters/logReporter';
 export { DevConnectStorage } from './reporters/storageReporter';
 export { DevConnectMMKV } from './reporters/mmkvReporter';
 
+// Auto-monitoring plugins
+export { startPerformanceMonitor, stopPerformanceMonitor } from './plugins/performanceMonitor';
+export { startMemoryLeakDetector, stopMemoryLeakDetector, watchCollection } from './plugins/memoryLeakDetector';
+export { setupAppBenchmark, benchmarkScreen, benchmarkAsync } from './plugins/appBenchmark';
+export { devConnectThunkTracker, trackAsync } from './plugins/asyncTracker';
+
 // Logging library integrations
 export {
   devConnectTransport,       // react-native-logs

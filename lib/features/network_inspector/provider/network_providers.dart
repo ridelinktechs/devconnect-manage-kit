@@ -44,7 +44,8 @@ final filteredNetworkEntriesProvider = Provider<List<NetworkEntry>>((ref) {
   final sourceFilter = ref.watch(networkSourceFilterProvider);
 
   return entries.where((e) {
-    if (selectedDevice != null && e.deviceId != selectedDevice) return false;
+    if (selectedDevice == null) return false;
+    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (methodFilter != null && e.method.toUpperCase() != methodFilter) {
       return false;
     }
@@ -58,7 +59,16 @@ final filteredNetworkEntriesProvider = Provider<List<NetworkEntry>>((ref) {
   }).toList();
 });
 
-final selectedNetworkEntryProvider = StateProvider<NetworkEntry?>((ref) => null);
+/// Stores the selected entry ID (not the object — object goes stale on update).
+final selectedNetworkIdProvider = StateProvider<String?>((ref) => null);
+
+/// Always returns the latest entry object from the list for the selected ID.
+final selectedNetworkEntryProvider = Provider<NetworkEntry?>((ref) {
+  final id = ref.watch(selectedNetworkIdProvider);
+  if (id == null) return null;
+  final entries = ref.watch(networkEntriesProvider);
+  return entries.where((e) => e.id == id).firstOrNull;
+});
 
 class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
   late final StreamSubscription<NetworkEntry> _sub;

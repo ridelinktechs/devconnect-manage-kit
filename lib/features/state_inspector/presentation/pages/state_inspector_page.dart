@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
-import '../../../../components/inputs/scroll_direction_button.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../models/state/state_change.dart';
+import '../../../../components/lists/stable_list_view.dart';
+import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../provider/state_providers.dart';
 
 class StateInspectorPage extends ConsumerStatefulWidget {
@@ -22,139 +23,156 @@ class StateInspectorPage extends ConsumerStatefulWidget {
 }
 
 class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
-  static const _pageSize = 50;
-
   final ScrollController _scrollController = ScrollController();
+  final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
-  int _maxVisible = 50;
-  bool _loadingMore = false;
-  int _previousCount = 0;
+  bool _programmaticScroll = false;
+  int _visibleCount = 0;
+  int _generation = 0;
+  final List<StateChange> _entries = [];
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    ref.listenManual(
+      filteredStateChangesProvider,
+      (previous, next) {
+        final prevLen = _entries.length;
+        if (next.length > prevLen && previous != null && next.length - prevLen == next.length - previous.length) {
+          _entries.addAll(next.sublist(prevLen));
+          _entryCount.value = _entries.length;
+          if (!_autoScroll) return;
+          _visibleCount = _entries.length;
+          setState(() {});
+          _autoScrollIfNeeded();
+        } else {
+          _entries..clear()..addAll(next);
+          _entryCount.value = _entries.length;
+          _visibleCount = _entries.length;
+          _generation++;
+          setState(() {});
+          if (_autoScroll) _autoScrollIfNeeded();
+        }
+      },
+      fireImmediately: true,
+    );
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final reversed = ref.read(scrollDirectionProvider) == ScrollDirection.top;
+    final atBottom = reversed
+        ? pos.pixels <= pos.minScrollExtent + 2.0
+        : pos.pixels >= pos.maxScrollExtent - 2.0;
+    final distFromBottom = reversed
+        ? pos.pixels - pos.minScrollExtent
+        : pos.maxScrollExtent - pos.pixels;
+
+    if (!_autoScroll && atBottom) {
+      _autoScroll = true;
+      _visibleCount = _entries.length;
+      setState(() {});
+      return;
+    }
+
+    if (_autoScroll && !_programmaticScroll && distFromBottom > 50.0) {
+      _autoScroll = false;
+      setState(() {});
+      return;
+    }
+
+    if (!_autoScroll && _visibleCount < _entries.length) {
+      if (distFromBottom < pos.viewportDimension * 1.5) {
+        _visibleCount = _entries.length;
+        setState(() {});
+      }
+    }
+  }
+
+  void _autoScrollIfNeeded() {
+    if (!_autoScroll || _programmaticScroll) return;
+    _programmaticScroll = true;
+    _doAutoScroll();
+  }
+
+  void _doAutoScroll() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+        _programmaticScroll = false;
+        return;
+      }
+      final reversed = ref.read(scrollDirectionProvider) == ScrollDirection.top;
+      final pos = _scrollController.position;
+      final target = reversed ? pos.minScrollExtent : pos.maxScrollExtent;
+      final atTarget = reversed
+          ? pos.pixels <= pos.minScrollExtent + 2.0
+          : pos.pixels >= pos.maxScrollExtent - 2.0;
+      if (atTarget) {
+        _programmaticScroll = false;
+        return;
+      }
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+      ).whenComplete(() {
+        if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+          _programmaticScroll = false;
+          return;
+        }
+        final p = _scrollController.position;
+        final done = reversed
+            ? p.pixels <= p.minScrollExtent + 2.0
+            : p.pixels >= p.maxScrollExtent - 2.0;
+        if (!done) {
+          _doAutoScroll();
+        } else {
+          _programmaticScroll = false;
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _entryCount.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (_loadingMore || !_scrollController.hasClients) return;
-
-    final pos = _scrollController.position;
-    final scrollDir = ref.read(scrollDirectionProvider);
-
-    if (scrollDir == ScrollDirection.bottom) {
-      if (pos.pixels < 50) _loadMore();
-    } else {
-      if (pos.pixels > pos.maxScrollExtent - 50) _loadMore();
-    }
-  }
-
-  void _loadMore() {
-    final entries = ref.read(filteredStateChangesProvider);
-    if (_maxVisible >= entries.length) return;
-
-    _loadingMore = true;
-    final scrollDir = ref.read(scrollDirectionProvider);
-    final oldMaxExtent = _scrollController.position.maxScrollExtent;
-
-    setState(() {
-      _maxVisible = (_maxVisible + _pageSize).clamp(0, entries.length);
-    });
-
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients && scrollDir == ScrollDirection.bottom) {
-        final newMaxExtent = _scrollController.position.maxScrollExtent;
-        _scrollController.jumpTo(
-          _scrollController.offset + (newMaxExtent - oldMaxExtent),
-        );
-      }
-      _loadingMore = false;
-    });
-  }
-
-  void _scrollToTarget() {
-    if (_scrollController.hasClients) {
-      final scrollDir = ref.read(scrollDirectionProvider);
-      final target = scrollDir == ScrollDirection.top
-          ? 0.0
-          : _scrollController.position.maxScrollExtent;
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
-  void _toggleAutoScroll() {
-    setState(() {
-      _autoScroll = !_autoScroll;
-      if (_autoScroll) {
-        _maxVisible = _pageSize;
-        SchedulerBinding.instance.addPostFrameCallback((_) {
-          _scrollToTarget();
-        });
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final entries = ref.watch(filteredStateChangesProvider);
     final selected = ref.watch(selectedStateChangeProvider);
     final theme = Theme.of(context);
-
-    // Reset pagination when scroll direction changes
     final scrollDir = ref.watch(scrollDirectionProvider);
-    ref.listen<ScrollDirection>(scrollDirectionProvider, (prev, next) {
-      if (prev != next) {
-        setState(() => _maxVisible = _pageSize);
-        SchedulerBinding.instance
-            .addPostFrameCallback((_) => _scrollToTarget());
-      }
-    });
-
-    // Slice visible items based on scroll direction
-    final List<StateChange> visibleEntries;
-    final bool hasMore;
-
-    if (scrollDir == ScrollDirection.bottom) {
-      final startIndex =
-          (entries.length - _maxVisible).clamp(0, entries.length);
-      visibleEntries = entries.sublist(startIndex);
-      hasMore = startIndex > 0;
-    } else {
-      final reversed = entries.reversed.toList();
-      visibleEntries = reversed.take(_maxVisible).toList();
-      hasMore = entries.length > _maxVisible;
-    }
-
-    // Auto-scroll when new items arrive and autoScroll is on
-    if (_autoScroll && entries.length > _previousCount && entries.isNotEmpty) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        _scrollToTarget();
-      });
-    }
-    _previousCount = entries.length;
+    final isReversed = scrollDir == ScrollDirection.top;
 
     return Column(
       children: [
         _Toolbar(
-          totalCount: entries.length,
-          visibleCount: visibleEntries.length,
+          totalCount: _entryCount,
           autoScroll: _autoScroll,
-          onToggleAutoScroll: _toggleAutoScroll,
+          onToggleAutoScroll: () {
+            if (_autoScroll) {
+              _autoScroll = false;
+              _programmaticScroll = false;
+              if (_scrollController.hasClients) {
+                _scrollController.jumpTo(_scrollController.offset);
+              }
+            } else {
+              _autoScroll = true;
+              _visibleCount = _entries.length;
+              _autoScrollIfNeeded();
+            }
+            setState(() {});
+          },
         ),
         const Divider(height: 1),
         Expanded(
-          child: entries.isEmpty
+          child: _entries.isEmpty
               ? const EmptyState(
                   icon: LucideIcons.layers,
                   title: 'No state changes',
@@ -163,88 +181,61 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                 )
               : Row(
                   children: [
-                    // Timeline
+                    // Timeline — full width when no selection
                     Expanded(
-                      flex: selected != null ? 2 : 1,
-                      child: Column(
-                        children: [
-                          if (hasMore && scrollDir == ScrollDirection.bottom)
-                            GestureDetector(
-                              onTap: _loadMore,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: Container(
-                                  width: double.infinity,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 6),
-                                  color: ColorTokens.primary
-                                      .withValues(alpha: 0.05),
-                                  child: Center(
-                                    child: Text(
-                                      '${entries.length - visibleEntries.length} older changes — tap to load more',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: ColorTokens.primary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                      flex: 2,
+                      child: ListView.custom(
+                        controller: _scrollController,
+                        reverse: isReversed,
+                        physics: isReversed ? const PositionRetainedScrollPhysics() : null,
+                        itemExtent: 44,
+                        childrenDelegate: StableBuilderDelegate(
+                          generation: _generation,
+                          childCount: _visibleCount,
+                          findChildIndexCallback: (key) {
+                            if (key is ValueKey<String>) {
+                              final idx = _entries.indexWhere((e) => e.id == key.value);
+                              return idx == -1 ? null : idx;
+                            }
+                            return null;
+                          },
+                          builder: (context, index) {
+                            final entry = _entries[index];
+                            final isSelected = selected?.id == entry.id;
+                            return RepaintBoundary(
+                              key: ValueKey(entry.id),
+                              child: _StateChangeTile(
+                                entry: entry,
+                                isSelected: isSelected,
+                                onTap: () {
+                                  ref
+                                      .read(selectedStateChangeProvider.notifier)
+                                      .state = isSelected ? null : entry;
+                                  if (!isSelected && _autoScroll) {
+                                    _autoScroll = false;
+                                    _programmaticScroll = false;
+                                    if (_scrollController.hasClients) {
+                                      _scrollController.jumpTo(_scrollController.offset);
+                                    }
+                                    setState(() {});
+                                  }
+                                },
                               ),
-                            ),
-                          Expanded(
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              itemCount: visibleEntries.length,
-                              itemExtent: 52,
-                              itemBuilder: (context, index) {
-                                final entry = visibleEntries[index];
-                                final isSelected = selected?.id == entry.id;
-                                return _StateChangeTile(
-                                  key: ValueKey(entry.id),
-                                  entry: entry,
-                                  isSelected: isSelected,
-                                  onTap: () {
-                                    ref
-                                        .read(selectedStateChangeProvider
-                                            .notifier)
-                                        .state = isSelected ? null : entry;
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-                          if (hasMore && scrollDir == ScrollDirection.top)
-                            GestureDetector(
-                              onTap: _loadMore,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: Container(
-                                  width: double.infinity,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 6),
-                                  color: ColorTokens.primary
-                                      .withValues(alpha: 0.05),
-                                  child: Center(
-                                    child: Text(
-                                      '${entries.length - visibleEntries.length} older changes — tap to load more',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: ColorTokens.primary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
+                            );
+                          },
+                        ),
                       ),
                     ),
                     if (selected != null) ...[
                       VerticalDivider(width: 1, color: theme.dividerColor),
                       Expanded(
-                        child: _StateDetailPanel(entry: selected),
+                        flex: 3,
+                        child: _StateDetailPanel(
+                          entry: selected,
+                          onClose: () => ref
+                              .read(selectedStateChangeProvider.notifier)
+                              .state = null,
+                        ),
                       ),
                     ],
                   ],
@@ -256,14 +247,12 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
 }
 
 class _Toolbar extends ConsumerWidget {
-  final int totalCount;
-  final int visibleCount;
+  final ValueNotifier<int> totalCount;
   final bool autoScroll;
   final VoidCallback onToggleAutoScroll;
 
   const _Toolbar({
     required this.totalCount,
-    required this.visibleCount,
     required this.autoScroll,
     required this.onToggleAutoScroll,
   });
@@ -272,10 +261,8 @@ class _Toolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
-    final countText = visibleCount != totalCount
-        ? '$visibleCount / $totalCount changes'
-        : '$totalCount changes';
+    final scrollDir = ref.watch(scrollDirectionProvider);
+    final isTop = scrollDir == ScrollDirection.top;
 
     return Container(
       height: 48,
@@ -289,52 +276,11 @@ class _Toolbar extends ConsumerWidget {
           const SizedBox(width: 8),
           Text('State Inspector', style: theme.textTheme.titleMedium),
           const SizedBox(width: 8),
-          Text(countText, style: theme.textTheme.bodySmall),
-          const Spacer(),
-          GestureDetector(
-            onTap: onToggleAutoScroll,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: autoScroll
-                      ? ColorTokens.primary.withValues(alpha: 0.12)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: autoScroll
-                        ? ColorTokens.primary.withValues(alpha: 0.4)
-                        : Colors.grey.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.arrowDownToLine,
-                        size: 11,
-                        color:
-                            autoScroll ? ColorTokens.primary : Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      'AUTO',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color:
-                            autoScroll ? ColorTokens.primary : Colors.grey,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          ValueListenableBuilder<int>(
+            valueListenable: totalCount,
+            builder: (_, c, __) => Text('$c changes', style: theme.textTheme.bodySmall),
           ),
-          const SizedBox(width: 4),
-          const ScrollDirectionButton(),
-          const SizedBox(width: 8),
+          const Spacer(),
           SizedBox(
             width: 200,
             child: SearchField(
@@ -343,13 +289,49 @@ class _Toolbar extends ConsumerWidget {
                   ref.read(stateSearchProvider.notifier).state = v,
             ),
           ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => ref.read(stateChangesProvider.notifier).clear(),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child:
-                  Icon(LucideIcons.trash2, size: 14, color: Colors.grey[500]),
+          const SizedBox(width: 12),
+          // ── Action group ──
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _IconBtn(
+                  icon: LucideIcons.arrowDownToLine,
+                  tooltip: 'Auto-scroll',
+                  isActive: autoScroll,
+                  onTap: onToggleAutoScroll,
+                ),
+                const SizedBox(width: 2),
+                _IconBtn(
+                  icon: isTop ? LucideIcons.arrowUpNarrowWide : LucideIcons.arrowDownNarrowWide,
+                  tooltip: isTop ? 'Newest at top' : 'Newest at bottom',
+                  isActive: isTop,
+                  onTap: () => ref.read(scrollDirectionProvider.notifier).state =
+                      isTop ? ScrollDirection.bottom : ScrollDirection.top,
+                ),
+                const SizedBox(width: 2),
+                Container(
+                  width: 1,
+                  height: 18,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.08),
+                ),
+                const SizedBox(width: 2),
+                _IconBtn(
+                  icon: LucideIcons.trash2,
+                  tooltip: 'Clear all',
+                  isDanger: true,
+                  onTap: () => ref.read(stateChangesProvider.notifier).clear(),
+                ),
+              ],
             ),
           ),
         ],
@@ -372,84 +354,107 @@ class _StateChangeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final time = DateFormat('HH:mm:ss.SSS').format(
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
     );
+    final changes = entry.diff.length;
 
     return GestureDetector(
       onTap: onTap,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          height: 44,
+          padding: const EdgeInsets.only(right: 14),
           decoration: BoxDecoration(
             color: isSelected
-                ? ColorTokens.primary.withValues(alpha: 0.08)
-                : null,
+                ? ColorTokens.selectedBg(isDark)
+                : Colors.transparent,
             border: Border(
               bottom: BorderSide(
-                color: theme.dividerColor.withValues(alpha: 0.3),
-                width: 0.5,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.03)
+                    : Colors.black.withValues(alpha: 0.04),
               ),
-              left: isSelected
-                  ? const BorderSide(color: ColorTokens.primary, width: 2)
-                  : BorderSide.none,
+              left: BorderSide(
+                color: isSelected
+                    ? ColorTokens.selectedAccent
+                    : ColorTokens.secondary,
+                width: isSelected ? 3 : 2,
+              ),
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: ColorTokens.secondary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Text(
+              const SizedBox(width: 12),
+              // Timestamp
+              SizedBox(
+                width: 84,
+                child: Text(
+                  time,
+                  style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 10,
+                    color: Colors.grey[500],
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+              // State manager badge
+              Container(
+                height: 22,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: ColorTokens.secondary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.layers, size: 10,
+                        color: ColorTokens.secondary),
+                    const SizedBox(width: 3),
+                    Text(
                       entry.stateManagerType.toUpperCase(),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 9,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: ColorTokens.secondary,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    time,
-                    style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
-                      fontSize: 10,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                entry.actionName,
-                style: TextStyle(
-                  fontFamily: 'JetBrains Mono',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.white : Colors.black87,
+                  ],
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-              if (entry.diff.isNotEmpty)
+              const SizedBox(width: 10),
+              // Action name
+              Expanded(
+                child: Text(
+                  entry.actionName,
+                  style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 12,
+                    color: isDark
+                        ? const Color(0xFFE6EDF3)
+                        : const Color(0xFF1F2328),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Changes count
+              if (changes > 0) ...[
+                const SizedBox(width: 8),
                 Text(
-                  '${entry.diff.length} change${entry.diff.length > 1 ? 's' : ''}',
+                  '$changes change${changes > 1 ? 's' : ''}',
                   style: TextStyle(
                     fontSize: 10,
                     color: Colors.grey[500],
+                    fontFamily: 'JetBrains Mono',
                   ),
                 ),
+              ],
             ],
           ),
         ),
@@ -458,10 +463,128 @@ class _StateChangeTile extends StatelessWidget {
   }
 }
 
-class _StateDetailPanel extends StatelessWidget {
+class _StateDetailPanel extends StatefulWidget {
   final StateChange entry;
+  final VoidCallback onClose;
 
-  const _StateDetailPanel({required this.entry});
+  const _StateDetailPanel({required this.entry, required this.onClose});
+
+  @override
+  State<_StateDetailPanel> createState() => _StateDetailPanelState();
+}
+
+class _StateDetailPanelState extends State<_StateDetailPanel> {
+  bool _jsonPrettyMode = false;
+
+  StateChange get entry => widget.entry;
+
+  void _takeScreenshot(BuildContext context, bool isDark) {
+    final screenshotWidget = Container(
+      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: isDark ? const Color(0xFF161B22) : Colors.white,
+            child: Row(
+              children: [
+                Icon(LucideIcons.gitCommitHorizontal,
+                    size: 16, color: ColorTokens.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    entry.actionName,
+                    style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Diff
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('DIFF',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[500],
+                        letterSpacing: 1)),
+                const SizedBox(height: 8),
+                if (entry.diff.isEmpty)
+                  Text('No changes',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 12))
+                else
+                  ...entry.diff.map((d) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          '${d.operation} ${d.path}: ${d.oldValue} → ${d.newValue}',
+                          style: TextStyle(
+                            fontFamily: 'JetBrains Mono',
+                            fontSize: 11,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      )),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Before
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('BEFORE',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[500],
+                        letterSpacing: 1)),
+                const SizedBox(height: 8),
+                JsonViewer(
+                    data: entry.previousState, initiallyExpanded: false),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // After
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('AFTER',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[500],
+                        letterSpacing: 1)),
+                const SizedBox(height: 8),
+                JsonViewer(
+                    data: entry.nextState, initiallyExpanded: false),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    captureWidgetAsImage(context, screenshotWidget);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -494,19 +617,74 @@ class _StateDetailPanel extends StatelessWidget {
                           ),
                         ),
                       ),
+                      // JSON mode toggle
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _jsonPrettyMode = !_jsonPrettyMode),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(6),
+                              color: _jsonPrettyMode
+                                  ? ColorTokens.secondary.withValues(alpha: 0.15)
+                                  : (isDark
+                                      ? Colors.white.withValues(alpha: 0.06)
+                                      : Colors.black.withValues(alpha: 0.06)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _jsonPrettyMode
+                                      ? LucideIcons.braces
+                                      : LucideIcons.list,
+                                  size: 12,
+                                  color: _jsonPrettyMode
+                                      ? ColorTokens.secondary
+                                      : Colors.grey[500],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _jsonPrettyMode ? 'Pretty' : 'Tree',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: _jsonPrettyMode
+                                        ? ColorTokens.secondary
+                                        : Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // Screenshot button
+                      _DetailIconBtn(
+                        icon: LucideIcons.camera,
+                        tooltip: 'Capture as image',
+                        isDark: isDark,
+                        onTap: () => _takeScreenshot(context, isDark),
+                      ),
+                      const SizedBox(width: 4),
+                      // Close button
+                      _DetailIconBtn(
+                        icon: LucideIcons.x,
+                        tooltip: 'Close',
+                        isDark: isDark,
+                        onTap: widget.onClose,
+                      ),
                     ],
                   ),
                 ),
-                const TabBar(
-                  labelStyle: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  tabs: [
-                    Tab(text: 'Diff'),
-                    Tab(text: 'Before'),
-                    Tab(text: 'After'),
-                  ],
+                _DetailTabBar(
+                  isDark: isDark,
+                  accentColor: ColorTokens.secondary,
+                  tabs: const ['Diff', 'Before', 'After'],
                 ),
               ],
             ),
@@ -517,26 +695,71 @@ class _StateDetailPanel extends StatelessWidget {
                 // Diff tab
                 _DiffView(diff: entry.diff),
                 // Before tab
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: JsonViewer(
-                    data: entry.previousState,
-                    initiallyExpanded: true,
-                  ),
+                _StateJsonToggleView(
+                  data: entry.previousState,
+                  jsonMode: _jsonPrettyMode,
                 ),
                 // After tab
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: JsonViewer(
-                    data: entry.nextState,
-                    initiallyExpanded: true,
-                  ),
+                _StateJsonToggleView(
+                  data: entry.nextState,
+                  jsonMode: _jsonPrettyMode,
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _StateJsonToggleView extends StatefulWidget {
+  final dynamic data;
+  final bool jsonMode;
+
+  const _StateJsonToggleView({
+    required this.data,
+    required this.jsonMode,
+  });
+
+  @override
+  State<_StateJsonToggleView> createState() => _StateJsonToggleViewState();
+}
+
+class _StateJsonToggleViewState extends State<_StateJsonToggleView> {
+  bool _jsonEverOpened = false;
+
+  @override
+  void didUpdateWidget(_StateJsonToggleView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.jsonMode && !_jsonEverOpened) {
+      _jsonEverOpened = true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.jsonMode && !_jsonEverOpened) {
+      _jsonEverOpened = true;
+    }
+    return Stack(
+      children: [
+        Offstage(
+          offstage: widget.jsonMode,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: JsonViewer(data: widget.data, initiallyExpanded: true),
+          ),
+        ),
+        if (_jsonEverOpened)
+          Offstage(
+            offstage: !widget.jsonMode,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: JsonPrettyViewer(data: widget.data),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -657,6 +880,192 @@ class _DiffView extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Detail Tab Bar (pill style)
+// ═══════════════════════════════════════════════
+
+class _DetailIconBtn extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _DetailIconBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.06),
+            ),
+            child: Icon(icon, size: 13, color: Colors.grey[500]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailTabBar extends StatelessWidget {
+  final bool isDark;
+  final Color accentColor;
+  final List<String> tabs;
+
+  const _DetailTabBar({
+    required this.isDark,
+    required this.accentColor,
+    required this.tabs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: TabBar(
+        labelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+        labelColor: accentColor,
+        unselectedLabelColor: isDark ? Colors.grey[500] : Colors.grey[600],
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isDark
+                ? accentColor.withValues(alpha: 0.25)
+                : Colors.black.withValues(alpha: 0.06),
+          ),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+        ),
+        indicatorPadding: EdgeInsets.zero,
+        dividerHeight: 0,
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: WidgetStateProperty.all(Colors.transparent),
+        padding: EdgeInsets.zero,
+        labelPadding: EdgeInsets.zero,
+        tabs: tabs.map((t) => Tab(height: 28, text: t)).toList(),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Icon Button (28x28, hover, active, danger)
+// ═══════════════════════════════════════════════
+
+class _IconBtn extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool isActive;
+  final bool isDanger;
+  final VoidCallback onTap;
+
+  const _IconBtn({
+    required this.icon,
+    required this.tooltip,
+    this.isActive = false,
+    this.isDanger = false,
+    required this.onTap,
+  });
+
+  @override
+  State<_IconBtn> createState() => _IconBtnState();
+}
+
+class _IconBtnState extends State<_IconBtn> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Color iconColor;
+    Color bgColor;
+
+    if (widget.isActive) {
+      iconColor = ColorTokens.primary;
+      bgColor = ColorTokens.primary.withValues(alpha: 0.15);
+    } else if (widget.isDanger && _hovered) {
+      iconColor = ColorTokens.error;
+      bgColor = ColorTokens.error.withValues(alpha: 0.12);
+    } else if (_hovered) {
+      iconColor = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+      bgColor = isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.06);
+    } else {
+      iconColor = isDark ? Colors.grey[500]! : Colors.grey[500]!;
+      bgColor = Colors.transparent;
+    }
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(
+              widget.icon,
+              size: 14,
+              color: iconColor,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

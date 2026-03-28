@@ -1,13 +1,17 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:ui' as ui;
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' hide ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/utils/duration_format.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
-import '../../../../components/inputs/scroll_direction_button.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/misc/status_badge.dart';
 import '../../../../components/viewers/json_viewer.dart';
@@ -15,6 +19,8 @@ import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../../server/providers/server_providers.dart';
+import '../../../../components/lists/stable_list_view.dart';
+import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../provider/network_providers.dart';
 
 // ---------------------------------------------------------------------------
@@ -30,51 +36,108 @@ class NetworkInspectorPage extends ConsumerStatefulWidget {
 }
 
 class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
-  static const _pageSize = 50;
-
   final _scrollController = ScrollController();
+  final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
-  int _maxVisible = _pageSize;
-  bool _loadingMore = false;
-  int _previousCount = 0;
+  bool _programmaticScroll = false;
+  int _visibleCount = 0;
+  int _generation = 0;
+  final List<NetworkEntry> _entries = [];
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    ref.listenManual(
+      filteredNetworkEntriesProvider,
+      (previous, next) {
+        // Network has in-place updates (response arrives for pending request).
+        // Always full sync to ensure tiles reflect latest data.
+        final grew = next.length > _entries.length;
+        _entries..clear()..addAll(next);
+        _entryCount.value = _entries.length;
+        if (grew) _visibleCount = _entries.length;
+        _generation++;
+        setState(() {});
+        if (_autoScroll) _autoScrollIfNeeded();
+      },
+      fireImmediately: true,
+    );
   }
 
   void _onScroll() {
-    if (_loadingMore || !_scrollController.hasClients) return;
+    if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
-    final scrollDir = ref.read(scrollDirectionProvider);
-    if (scrollDir == ScrollDirection.bottom) {
-      if (pos.pixels < 50) _loadMore();
-    } else {
-      if (pos.pixels > pos.maxScrollExtent - 50) _loadMore();
+    final reversed = ref.read(scrollDirectionProvider) == ScrollDirection.top;
+    final atBottom = reversed
+        ? pos.pixels <= pos.minScrollExtent + 2.0
+        : pos.pixels >= pos.maxScrollExtent - 2.0;
+    final distFromBottom = reversed
+        ? pos.pixels - pos.minScrollExtent
+        : pos.maxScrollExtent - pos.pixels;
+
+    if (!_autoScroll && atBottom) {
+      _autoScroll = true;
+      _visibleCount = _entries.length;
+      setState(() {});
+      return;
+    }
+
+    if (_autoScroll && !_programmaticScroll && distFromBottom > 50.0) {
+      _autoScroll = false;
+      setState(() {});
+      return;
+    }
+
+    if (!_autoScroll && _visibleCount < _entries.length) {
+      if (distFromBottom < pos.viewportDimension * 1.5) {
+        _visibleCount = _entries.length;
+        setState(() {});
+      }
     }
   }
 
-  void _loadMore() {
-    final entries = ref.read(filteredNetworkEntriesProvider);
-    if (_maxVisible >= entries.length) return;
+  void _autoScrollIfNeeded() {
+    if (!_autoScroll || _programmaticScroll) return;
+    _programmaticScroll = true;
+    _doAutoScroll();
+  }
 
-    _loadingMore = true;
-    final scrollDir = ref.read(scrollDirectionProvider);
-    final oldMaxExtent = _scrollController.position.maxScrollExtent;
-
-    setState(() {
-      _maxVisible = (_maxVisible + _pageSize).clamp(0, entries.length);
-    });
-
+  void _doAutoScroll() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients && scrollDir == ScrollDirection.bottom) {
-        final newMaxExtent = _scrollController.position.maxScrollExtent;
-        _scrollController.jumpTo(
-          _scrollController.position.pixels + (newMaxExtent - oldMaxExtent),
-        );
+      if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+        _programmaticScroll = false;
+        return;
       }
-      _loadingMore = false;
+      final reversed = ref.read(scrollDirectionProvider) == ScrollDirection.top;
+      final pos = _scrollController.position;
+      final target = reversed ? pos.minScrollExtent : pos.maxScrollExtent;
+      final atTarget = reversed
+          ? pos.pixels <= pos.minScrollExtent + 2.0
+          : pos.pixels >= pos.maxScrollExtent - 2.0;
+      if (atTarget) {
+        _programmaticScroll = false;
+        return;
+      }
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+      ).whenComplete(() {
+        if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+          _programmaticScroll = false;
+          return;
+        }
+        final p = _scrollController.position;
+        final done = reversed
+            ? p.pixels <= p.minScrollExtent + 2.0
+            : p.pixels >= p.maxScrollExtent - 2.0;
+        if (!done) {
+          _doAutoScroll();
+        } else {
+          _programmaticScroll = false;
+        }
+      });
     });
   }
 
@@ -82,72 +145,39 @@ class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _entryCount.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final entries = ref.watch(filteredNetworkEntriesProvider);
-    final selected = ref.watch(selectedNetworkEntryProvider);
     final theme = Theme.of(context);
-
-    // Compute visible window for pagination
     final scrollDir = ref.watch(scrollDirectionProvider);
-    ref.listen<ScrollDirection>(scrollDirectionProvider, (prev, next) {
-      if (prev != next) {
-        setState(() => _maxVisible = _pageSize);
-      }
-    });
-
-    final List<NetworkEntry> visibleEntries;
-    final bool hasMore;
-    if (scrollDir == ScrollDirection.bottom) {
-      final startIndex =
-          (entries.length - _maxVisible).clamp(0, entries.length);
-      visibleEntries = entries.sublist(startIndex);
-      hasMore = startIndex > 0;
-    } else {
-      final reversed = entries.reversed.toList();
-      visibleEntries = reversed.take(_maxVisible).toList();
-      hasMore = entries.length > _maxVisible;
-    }
-    if (_autoScroll && entries.length > _previousCount && entries.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          final target = scrollDir == ScrollDirection.top
-              ? 0.0
-              : _scrollController.position.maxScrollExtent;
-          _scrollController.animateTo(
-            target,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-    }
-    _previousCount = entries.length;
+    final isReversed = scrollDir == ScrollDirection.top;
 
     return Column(
       children: [
         _Toolbar(
-          count: entries.length,
-          visibleCount:
-              visibleEntries.length != entries.length
-                  ? visibleEntries.length
-                  : null,
+          count: _entryCount,
           autoScroll: _autoScroll,
           onToggleAutoScroll: () {
-            setState(() {
-              _autoScroll = !_autoScroll;
-              if (_autoScroll) {
-                _maxVisible = _pageSize;
+            if (_autoScroll) {
+              _autoScroll = false;
+              _programmaticScroll = false;
+              if (_scrollController.hasClients) {
+                _scrollController.jumpTo(_scrollController.offset);
               }
-            });
+            } else {
+              _autoScroll = true;
+              _visibleCount = _entries.length;
+              _autoScrollIfNeeded();
+            }
+            setState(() {});
           },
         ),
         const Divider(height: 1),
         Expanded(
-          child: entries.isEmpty
+          child: _entries.isEmpty
               ? const EmptyState(
                   icon: LucideIcons.globe,
                   title: 'No network requests',
@@ -155,100 +185,82 @@ class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
                 )
               : Row(
                   children: [
-                    // Request list
                     Expanded(
-                      flex: selected != null ? 2 : 1,
-                      child: Column(
-                        children: [
-                          if (hasMore && scrollDir == ScrollDirection.bottom)
-                            _LoadMoreBanner(
-                              count: entries.length - visibleEntries.length,
-                              onTap: _loadMore,
-                            ),
-                          Expanded(
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 6),
-                              itemCount: visibleEntries.length,
-                              itemExtent: 56,
-                              itemBuilder: (context, index) {
-                                final entry = visibleEntries[index];
-                                final isSelected =
-                                    selected?.id == entry.id;
-                                return _RequestCard(
-                                  key: ValueKey(entry.id),
-                                  entry: entry,
-                                  isSelected: isSelected,
-                                  onTap: () {
-                                    ref
-                                        .read(selectedNetworkEntryProvider
-                                            .notifier)
-                                        .state =
-                                        isSelected ? null : entry;
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-                          if (hasMore && scrollDir == ScrollDirection.top)
-                            _LoadMoreBanner(
-                              count: entries.length - visibleEntries.length,
-                              onTap: _loadMore,
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (selected != null) ...[
-                      VerticalDivider(width: 1, color: theme.dividerColor),
-                      Expanded(
-                        flex: 3,
-                        child: _RequestDetailPanel(
-                          entry: selected,
-                          onClose: () {
-                            ref
-                                .read(selectedNetworkEntryProvider.notifier)
-                                .state = null;
+                      child: ListView.custom(
+                        controller: _scrollController,
+                        reverse: isReversed,
+                        physics: isReversed ? const PositionRetainedScrollPhysics() : null,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        itemExtent: 62,
+                        childrenDelegate: StableBuilderDelegate(
+                          generation: _generation,
+                          childCount: _visibleCount,
+                          findChildIndexCallback: (key) {
+                            if (key is ValueKey<String>) {
+                              final idx = _entries.indexWhere((e) => e.id == key.value);
+                              return idx == -1 ? null : idx;
+                            }
+                            return null;
+                          },
+                          builder: (context, index) {
+                            final entry = _entries[index];
+                            return RepaintBoundary(
+                              key: ValueKey(entry.id),
+                              child: Consumer(
+                                builder: (context, ref, _) {
+                                  final selected = ref.watch(selectedNetworkEntryProvider);
+                                  final isSelected = selected?.id == entry.id;
+                                  return _RequestCard(
+                                    entry: entry,
+                                    isSelected: isSelected,
+                                    onTap: () {
+                                      ref.read(selectedNetworkIdProvider.notifier).state =
+                                          isSelected ? null : entry.id;
+                                      if (!isSelected && _autoScroll) {
+                                        _autoScroll = false;
+              _programmaticScroll = false;
+              if (_scrollController.hasClients) {
+                _scrollController.jumpTo(_scrollController.offset);
+              }
+                                        setState(() {});
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
+                            );
                           },
                         ),
                       ),
-                    ],
+                    ),
+                    // Detail panel reacts to selection via Consumer,
+                    // without rebuilding the list column.
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final selected = ref.watch(selectedNetworkEntryProvider);
+                        if (selected == null) return const SizedBox.shrink();
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            VerticalDivider(width: 1, color: theme.dividerColor),
+                            SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.45,
+                              child: _RequestDetailPanel(
+                                key: ValueKey(selected.id),
+                                entry: selected,
+                                onClose: () {
+                                  ref.read(selectedNetworkIdProvider.notifier).state = null;
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ],
                 ),
         ),
       ],
-    );
-  }
-}
-
-class _LoadMoreBanner extends StatelessWidget {
-  final int count;
-  final VoidCallback onTap;
-
-  const _LoadMoreBanner({required this.count, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          color: ColorTokens.primary.withValues(alpha: 0.05),
-          child: Center(
-            child: Text(
-              '$count older requests — tap to load more',
-              style: TextStyle(
-                fontSize: 10,
-                color: ColorTokens.primary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -258,14 +270,12 @@ class _LoadMoreBanner extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _Toolbar extends ConsumerWidget {
-  final int count;
-  final int? visibleCount;
+  final ValueNotifier<int> count;
   final bool autoScroll;
   final VoidCallback onToggleAutoScroll;
 
   const _Toolbar({
     required this.count,
-    this.visibleCount,
     required this.autoScroll,
     required this.onToggleAutoScroll,
   });
@@ -291,18 +301,21 @@ class _Toolbar extends ConsumerWidget {
           const SizedBox(width: 8),
           Text('Network', style: theme.textTheme.titleMedium),
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: ColorTokens.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              visibleCount != null ? '$visibleCount / $count' : '$count',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: ColorTokens.primary,
+          ValueListenableBuilder<int>(
+            valueListenable: count,
+            builder: (_, c, __) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: ColorTokens.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$c',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: ColorTokens.primary,
+                ),
               ),
             ),
           ),
@@ -371,25 +384,62 @@ class _Toolbar extends ConsumerWidget {
                   ref.read(networkSearchProvider.notifier).state = v,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
 
-          // Auto-scroll toggle
-          _ToolbarButton(
-            icon: LucideIcons.arrowDownToLine,
-            isActive: autoScroll,
-            tooltip: 'Auto-scroll',
-            onTap: onToggleAutoScroll,
-          ),
-          const SizedBox(width: 4),
-          // Scroll direction toggle
-          const ScrollDirectionButton(),
-          const SizedBox(width: 4),
-
-          // Clear button
-          _ToolbarButton(
-            icon: LucideIcons.trash2,
-            tooltip: 'Clear',
-            onTap: () => ref.read(networkEntriesProvider.notifier).clear(),
+          // ── Action group ──
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _IconBtn(
+                  icon: LucideIcons.arrowDownToLine,
+                  tooltip: 'Auto-scroll',
+                  isActive: autoScroll,
+                  onTap: onToggleAutoScroll,
+                ),
+                const SizedBox(width: 2),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final dir = ref.watch(scrollDirectionProvider);
+                    final isTop = dir == ScrollDirection.top;
+                    return _IconBtn(
+                      icon: isTop
+                          ? LucideIcons.arrowUpNarrowWide
+                          : LucideIcons.arrowDownNarrowWide,
+                      tooltip: isTop ? 'Newest first' : 'Oldest first',
+                      isActive: isTop,
+                      onTap: () => ref
+                          .read(scrollDirectionProvider.notifier)
+                          .state = isTop
+                              ? ScrollDirection.bottom
+                              : ScrollDirection.top,
+                    );
+                  },
+                ),
+                const SizedBox(width: 2),
+                Container(
+                  width: 1,
+                  height: 18,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.08),
+                ),
+                const SizedBox(width: 2),
+                _IconBtn(
+                  icon: LucideIcons.trash2,
+                  tooltip: 'Clear',
+                  isDanger: true,
+                  onTap: () => ref.read(networkEntriesProvider.notifier).clear(),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -510,40 +560,71 @@ class _Toolbar extends ConsumerWidget {
 // Toolbar button (same style as console page)
 // ---------------------------------------------------------------------------
 
-class _ToolbarButton extends StatelessWidget {
+class _IconBtn extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final bool isActive;
+  final bool isDanger;
   final VoidCallback onTap;
 
-  const _ToolbarButton({
+  const _IconBtn({
     required this.icon,
     required this.tooltip,
     this.isActive = false,
+    this.isDanger = false,
     required this.onTap,
   });
 
   @override
+  State<_IconBtn> createState() => _IconBtnState();
+}
+
+class _IconBtnState extends State<_IconBtn> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Color iconColor;
+    Color bgColor;
+
+    if (widget.isActive) {
+      iconColor = ColorTokens.primary;
+      bgColor = ColorTokens.primary.withValues(alpha: 0.15);
+    } else if (widget.isDanger && _hovered) {
+      iconColor = ColorTokens.error;
+      bgColor = ColorTokens.error.withValues(alpha: 0.12);
+    } else if (_hovered) {
+      iconColor = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+      bgColor = isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.06);
+    } else {
+      iconColor = isDark ? Colors.grey[500]! : Colors.grey[500]!;
+      bgColor = Colors.transparent;
+    }
+
     return Tooltip(
-      message: tooltip,
+      message: widget.tooltip,
       child: GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
-          child: Container(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: isActive
-                  ? ColorTokens.primary.withValues(alpha: 0.15)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              color: bgColor,
+              borderRadius: BorderRadius.circular(7),
             ),
             child: Icon(
-              icon,
+              widget.icon,
               size: 14,
-              color: isActive ? ColorTokens.primary : Colors.grey[500],
+              color: iconColor,
             ),
           ),
         ),
@@ -592,12 +673,12 @@ class _RequestCard extends ConsumerWidget {
     final Color leftBarColor;
     if (!entry.isComplete) {
       leftBarColor = ColorTokens.info;
+    } else if (entry.statusCode <= 0 || entry.statusCode >= 400) {
+      leftBarColor = ColorTokens.error;
     } else if (entry.statusCode < 300) {
       leftBarColor = ColorTokens.success;
-    } else if (entry.statusCode < 500) {
-      leftBarColor = ColorTokens.warning;
     } else {
-      leftBarColor = ColorTokens.error;
+      leftBarColor = ColorTokens.warning;
     }
 
     // Source badge color
@@ -627,17 +708,25 @@ class _RequestCard extends ConsumerWidget {
             duration: const Duration(milliseconds: 150),
             decoration: BoxDecoration(
               color: isSelected
-                  ? ColorTokens.primary.withValues(alpha: 0.08)
-                  : isDark
-                      ? const Color(0xFF161B22)
-                      : Colors.white,
+                  ? ColorTokens.selectedBg(isDark)
+                  : (entry.isComplete && (entry.statusCode <= 0 || entry.statusCode >= 400))
+                      ? ColorTokens.error.withValues(alpha: isDark ? 0.08 : 0.05)
+                      : !entry.isComplete
+                          ? ColorTokens.warning.withValues(alpha: isDark ? 0.08 : 0.05)
+                          : isDark
+                              ? const Color(0xFF161B22)
+                              : Colors.white,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isSelected
-                    ? ColorTokens.primary.withValues(alpha: 0.4)
-                    : isDark
-                        ? const Color(0xFF30363D)
-                        : const Color(0xFFE1E4E8),
+                    ? ColorTokens.selectedBorder(isDark)
+                    : (entry.isComplete && (entry.statusCode <= 0 || entry.statusCode >= 400))
+                        ? ColorTokens.error.withValues(alpha: isDark ? 0.25 : 0.2)
+                        : !entry.isComplete
+                            ? ColorTokens.warning.withValues(alpha: isDark ? 0.2 : 0.15)
+                            : isDark
+                                ? const Color(0xFF30363D)
+                                : const Color(0xFFE1E4E8),
                 width: 1,
               ),
             ),
@@ -663,61 +752,13 @@ class _RequestCard extends ConsumerWidget {
                           horizontal: 12, vertical: 10),
                       child: Row(
                         children: [
-                          // Badges column
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  if (device != null) ...[
-                                    PlatformBadge(platform: device.platform),
-                                    const SizedBox(width: 4),
-                                  ],
-                                  HttpMethodBadge(method: entry.method),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  // Source badge
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 5, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          sourceColor.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                    child: Text(
-                                      sourceLabel,
-                                      style: TextStyle(
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.w700,
-                                        color: sourceColor,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  // Status badge
-                                  if (entry.isComplete)
-                                    StatusBadge(statusCode: entry.statusCode)
-                                  else
-                                    SizedBox(
-                                      width: 12,
-                                      height: 12,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 1.5,
-                                        color: ColorTokens.primary,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(width: 12),
-
+                          // Badges row (compact)
+                          if (device != null) ...[
+                            PlatformBadge(platform: device.platform),
+                            const SizedBox(width: 4),
+                          ],
+                          HttpMethodBadge(method: entry.method),
+                          const SizedBox(width: 4),
                           // URL + host
                           Expanded(
                             child: Column(
@@ -730,25 +771,74 @@ class _RequestCard extends ConsumerWidget {
                                     fontFamily: 'JetBrains Mono',
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
-                                    color: isDark
-                                        ? const Color(0xFFE6EDF3)
-                                        : const Color(0xFF1F2328),
+                                    color: (entry.isComplete && (entry.statusCode <= 0 || entry.statusCode >= 400))
+                                        ? ColorTokens.error
+                                        : isDark
+                                            ? const Color(0xFFE6EDF3)
+                                            : const Color(0xFF1F2328),
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                if (host.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    host,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.grey[500],
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    // Source badge
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 5, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: sourceColor.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Text(
+                                        sourceLabel,
+                                        style: TextStyle(
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.w700,
+                                          color: sourceColor,
+                                        ),
+                                      ),
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    if (entry.isComplete)
+                                      StatusBadge(statusCode: entry.statusCode)
+                                    else ...[
+                                      SizedBox(
+                                        width: 10,
+                                        height: 10,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 1.5,
+                                          color: ColorTokens.warning,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'in progress',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          color: ColorTokens.warning,
+                                          fontFamily: 'JetBrains Mono',
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                    if (host.isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          host,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey[500],
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ],
                             ),
                           ),
@@ -770,7 +860,7 @@ class _RequestCard extends ConsumerWidget {
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    '${entry.duration}ms',
+                                    formatDuration(entry.duration!),
                                     style: TextStyle(
                                       fontFamily: 'JetBrains Mono',
                                       fontSize: 11,
@@ -814,178 +904,927 @@ class _RequestCard extends ConsumerWidget {
 // Request detail panel
 // ---------------------------------------------------------------------------
 
-class _RequestDetailPanel extends StatelessWidget {
+class _DetailTabBar extends StatelessWidget {
+  final TabController controller;
+  final bool isDark;
+  final Color accentColor;
+  final List<String> tabs;
+
+  const _DetailTabBar({
+    required this.controller,
+    required this.isDark,
+    required this.accentColor,
+    required this.tabs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: TabBar(
+        controller: controller,
+        labelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+        labelColor: accentColor,
+        unselectedLabelColor: isDark ? Colors.grey[500] : Colors.grey[600],
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isDark
+                ? accentColor.withValues(alpha: 0.25)
+                : Colors.black.withValues(alpha: 0.06),
+          ),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+        ),
+        indicatorPadding: EdgeInsets.zero,
+        dividerHeight: 0,
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: WidgetStateProperty.all(Colors.transparent),
+        padding: EdgeInsets.zero,
+        labelPadding: EdgeInsets.zero,
+        tabs: tabs.map((t) => Tab(height: 28, text: t)).toList(),
+      ),
+    );
+  }
+}
+
+class _RequestDetailPanel extends StatefulWidget {
   final NetworkEntry entry;
   final VoidCallback onClose;
 
   const _RequestDetailPanel({
+    super.key,
     required this.entry,
     required this.onClose,
   });
 
   @override
+  State<_RequestDetailPanel> createState() => _RequestDetailPanelState();
+}
+
+class _RequestDetailPanelState extends State<_RequestDetailPanel>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final entry = widget.entry;
 
-    return DefaultTabController(
-      length: 4,
+    return Column(
+      children: [
+        // ---- Header bar ----
+        Container(
+          color: isDark ? const Color(0xFF161B22) : Colors.white,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Method + status + URL + screenshot buttons + close
+              Padding(
+                padding:
+                    const EdgeInsets.only(left: 12, right: 4, top: 8, bottom: 4),
+                child: Row(
+                  children: [
+                    HttpMethodBadge(method: entry.method),
+                    const SizedBox(width: 6),
+                    if (entry.isComplete) ...[
+                      StatusBadge(statusCode: entry.statusCode),
+                      const SizedBox(width: 8),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: ColorTokens.warning.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 10,
+                              height: 10,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: ColorTokens.warning,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'In Progress...',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: ColorTokens.warning,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: Text(
+                        entry.url,
+                        style: TextStyle(
+                          fontFamily: 'JetBrains Mono',
+                          fontSize: 12,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    // Screenshot buttons
+                    Tooltip(
+                      message: 'Capture full detail as image',
+                      waitDuration: const Duration(milliseconds: 400),
+                      child: _HeaderIconButton(
+                        icon: LucideIcons.camera,
+                        tooltip: 'Full',
+                        onPressed: _takeFullScreenshot,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Tooltip(
+                      message: 'Capture current tab only',
+                      waitDuration: const Duration(milliseconds: 400),
+                      child: _HeaderIconButton(
+                        icon: LucideIcons.scanLine,
+                        tooltip: 'Tab',
+                        onPressed: _takeTabScreenshot,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    // Close button
+                    _HeaderIconButton(
+                      icon: LucideIcons.x,
+                      tooltip: 'Close',
+                      onPressed: widget.onClose,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Timing bar
+              if (entry.duration != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _TimingBar(duration: entry.duration!),
+                ),
+
+              const SizedBox(height: 6),
+
+              // Copy actions row
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    _CopyActionChip(
+                      icon: LucideIcons.link,
+                      label: 'Copy URL',
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: entry.url));
+                        _showCopied('URL copied');
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _CopyActionChip(
+                      icon: LucideIcons.terminal,
+                      label: 'Copy cURL',
+                      onTap: () {
+                        Clipboard.setData(
+                            ClipboardData(text: _buildCurl(entry)));
+                        _showCopied('cURL copied');
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _CopyActionChip(
+                      icon: LucideIcons.upload,
+                      label: 'Copy Request',
+                      onTap: () {
+                        final body = entry.requestBody;
+                        final text = body is String
+                            ? body
+                            : (body != null
+                                ? const JsonEncoder.withIndent('  ')
+                                    .convert(body)
+                                : '');
+                        Clipboard.setData(ClipboardData(text: text));
+                        _showCopied('Request copied');
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _CopyActionChip(
+                      icon: LucideIcons.download,
+                      label: 'Copy Response',
+                      onTap: () {
+                        final body = entry.responseBody;
+                        final text = body is String
+                            ? body
+                            : (body != null
+                                ? const JsonEncoder.withIndent('  ')
+                                    .convert(body)
+                                : '');
+                        Clipboard.setData(ClipboardData(text: text));
+                        _showCopied('Response copied');
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Tabs
+              _DetailTabBar(
+                controller: _tabController,
+                isDark: isDark,
+                accentColor: ColorTokens.primary,
+                tabs: const ['Headers', 'Request', 'Response', 'Timing'],
+              ),
+            ],
+          ),
+        ),
+
+        // ---- Tab views ----
+        Expanded(
+          child: Container(
+            color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _HeadersTab(entry: entry),
+                _BodyTab(body: entry.requestBody, label: 'Request Body'),
+                _BodyTab(body: entry.responseBody, label: 'Response Body'),
+                _TimingTab(entry: entry),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---- Screenshot ----
+
+  Future<void> _captureAndSave(Widget screenshotWidget) async {
+    try {
+      _showCaptureFlash();
+
+      final overlayKey = GlobalKey();
+      final theme = Theme.of(context);
+
+      late OverlayEntry overlayEntry;
+      overlayEntry = OverlayEntry(
+        builder: (_) => Positioned(
+          left: -10000,
+          top: 0,
+          child: RepaintBoundary(
+            key: overlayKey,
+            child: Theme(
+              data: theme,
+              child: Material(
+                child: SizedBox(
+                  width: 600,
+                  child: screenshotWidget,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      Overlay.of(context).insert(overlayEntry);
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      final boundary = overlayKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) {
+        overlayEntry.remove();
+        return;
+      }
+
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      overlayEntry.remove();
+
+      if (byteData == null) return;
+
+      final pngBytes = byteData.buffer.asUint8List();
+      final fileName =
+          'devconnect_network_${DateTime.now().millisecondsSinceEpoch}.png';
+      final location = await getSaveLocation(
+        suggestedName: fileName,
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'PNG Image', extensions: ['png']),
+        ],
+      );
+
+      if (location == null) return;
+
+      final file = File(location.path);
+      await file.writeAsBytes(pngBytes);
+
+      if (mounted) _showSavedToast(file.path);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Screenshot failed: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showCaptureFlash() {
+    final overlay = Overlay.of(context);
+    late OverlayEntry flashEntry;
+    flashEntry = OverlayEntry(
+      builder: (_) => TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.35, end: 0.0),
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+        onEnd: () {
+          if (flashEntry.mounted) flashEntry.remove();
+        },
+        builder: (context, value, _) => IgnorePointer(
+          child: Container(
+            color: Colors.white.withValues(alpha: value),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(flashEntry);
+  }
+
+  void _showSavedToast(String path) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => Positioned(
+        bottom: 32,
+        left: 0,
+        right: 0,
+        child: Center(
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) => Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, 20 * (1 - value)),
+                child: Transform.scale(
+                  scale: 0.92 + 0.08 * value,
+                  child: child,
+                ),
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 380),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF131A24)
+                      : const Color(0xFFFFFFFF),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.06),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 32,
+                      offset: const Offset(0, 8),
+                    ),
+                    if (isDark)
+                      BoxShadow(
+                        color: ColorTokens.success.withValues(alpha: 0.08),
+                        blurRadius: 40,
+                        spreadRadius: -4,
+                      ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      height: 3,
+                      margin: const EdgeInsets.symmetric(horizontal: 40),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            ColorTokens.success.withValues(alpha: 0.0),
+                            ColorTokens.success,
+                            ColorTokens.success.withValues(alpha: 0.0),
+                          ],
+                        ),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  ColorTokens.success.withValues(alpha: 0.2),
+                                  ColorTokens.success.withValues(alpha: 0.08),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: ColorTokens.success
+                                    .withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: const Icon(
+                              LucideIcons.checkCheck,
+                              size: 18,
+                              color: ColorTokens.success,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Screenshot saved',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? const Color(0xFFE6EDF3)
+                                        : const Color(0xFF1E293B),
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  path.split('/').last,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontFamily: 'JetBrains Mono',
+                                    color: isDark
+                                        ? Colors.grey[500]
+                                        : Colors.grey[600],
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () {
+                              entry.remove();
+                              Process.run('open', ['-R', path]);
+                            },
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 7),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: isDark
+                                        ? [
+                                            const Color(0xFF1A2332),
+                                            const Color(0xFF1E2A3A),
+                                          ]
+                                        : [
+                                            const Color(0xFFF0F4F8),
+                                            const Color(0xFFE8EDF2),
+                                          ],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.1)
+                                        : Colors.black.withValues(alpha: 0.08),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      LucideIcons.folderOpen,
+                                      size: 13,
+                                      color: isDark
+                                          ? const Color(0xFFE6EDF3)
+                                          : const Color(0xFF374151),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Reveal',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: isDark
+                                            ? const Color(0xFFE6EDF3)
+                                            : const Color(0xFF374151),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => entry.remove(),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6),
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.04)
+                                      : Colors.black.withValues(alpha: 0.04),
+                                ),
+                                child: Icon(LucideIcons.x,
+                                    size: 13,
+                                    color: isDark
+                                        ? Colors.grey[600]
+                                        : Colors.grey[400]),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    Future.delayed(const Duration(seconds: 5), () {
+      if (entry.mounted) entry.remove();
+    });
+  }
+
+  Future<void> _takeFullScreenshot() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    await _captureAndSave(_buildFullScreenshotWidget(isDark));
+  }
+
+  Future<void> _takeTabScreenshot() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    await _captureAndSave(
+        _buildTabScreenshotWidget(isDark, _tabController.index));
+  }
+
+  Widget _buildFullScreenshotWidget(bool isDark) {
+    final entry = widget.entry;
+    final time = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
+      DateTime.fromMillisecondsSinceEpoch(entry.startTime),
+    );
+
+    dynamic parsedReqBody = entry.requestBody;
+    if (parsedReqBody is String) {
+      try { parsedReqBody = jsonDecode(parsedReqBody); } catch (_) {}
+    }
+    dynamic parsedResBody = entry.responseBody;
+    if (parsedResBody is String) {
+      try { parsedResBody = jsonDecode(parsedResBody); } catch (_) {}
+    }
+
+    return Container(
+      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ---- Header bar ----
+          // Header
           Container(
+            padding: const EdgeInsets.all(12),
             color: isDark ? const Color(0xFF161B22) : Colors.white,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Method + status + URL + close
-                Padding(
-                  padding:
-                      const EdgeInsets.only(left: 12, right: 4, top: 8, bottom: 4),
-                  child: Row(
-                    children: [
-                      HttpMethodBadge(method: entry.method),
-                      const SizedBox(width: 6),
-                      if (entry.isComplete) ...[
-                        StatusBadge(statusCode: entry.statusCode),
-                        const SizedBox(width: 8),
-                      ],
-                      Expanded(
-                        child: Text(
-                          entry.url,
-                          style: TextStyle(
+                Row(
+                  children: [
+                    HttpMethodBadge(method: entry.method),
+                    const SizedBox(width: 6),
+                    if (entry.isComplete)
+                      StatusBadge(statusCode: entry.statusCode),
+                    const Spacer(),
+                    Text(time,
+                        style: TextStyle(
+                            fontSize: 10,
                             fontFamily: 'JetBrains Mono',
-                            fontSize: 12,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      // Close button
-                      _HeaderIconButton(
-                        icon: LucideIcons.x,
-                        tooltip: 'Close',
-                        onPressed: onClose,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Timing bar
-                if (entry.duration != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: _TimingBar(duration: entry.duration!),
-                  ),
-
-                const SizedBox(height: 6),
-
-                // Copy actions row
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: [
-                      _CopyActionChip(
-                        icon: LucideIcons.link,
-                        label: 'Copy URL',
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: entry.url));
-                          _showCopied(context, 'URL copied');
-                        },
-                      ),
-                      const SizedBox(width: 6),
-                      _CopyActionChip(
-                        icon: LucideIcons.terminal,
-                        label: 'Copy cURL',
-                        onTap: () {
-                          Clipboard.setData(
-                              ClipboardData(text: _buildCurl(entry)));
-                          _showCopied(context, 'cURL copied');
-                        },
-                      ),
-                      const SizedBox(width: 6),
-                      _CopyActionChip(
-                        icon: LucideIcons.upload,
-                        label: 'Copy Request',
-                        onTap: () {
-                          final body = entry.requestBody;
-                          final text = body is String
-                              ? body
-                              : (body != null
-                                  ? const JsonEncoder.withIndent('  ')
-                                      .convert(body)
-                                  : '');
-                          Clipboard.setData(ClipboardData(text: text));
-                          _showCopied(context, 'Request copied');
-                        },
-                      ),
-                      const SizedBox(width: 6),
-                      _CopyActionChip(
-                        icon: LucideIcons.download,
-                        label: 'Copy Response',
-                        onTap: () {
-                          final body = entry.responseBody;
-                          final text = body is String
-                              ? body
-                              : (body != null
-                                  ? const JsonEncoder.withIndent('  ')
-                                      .convert(body)
-                                  : '');
-                          Clipboard.setData(ClipboardData(text: text));
-                          _showCopied(context, 'Response copied');
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // Tabs
-                TabBar(
-                  labelStyle: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  indicatorColor: ColorTokens.primary,
-                  labelColor:
-                      isDark ? Colors.white : Colors.black87,
-                  unselectedLabelColor: Colors.grey[500],
-                  tabs: const [
-                    Tab(text: 'Headers'),
-                    Tab(text: 'Request'),
-                    Tab(text: 'Response'),
-                    Tab(text: 'Timing'),
+                            color: Colors.grey[500])),
                   ],
+                ),
+                const SizedBox(height: 6),
+                Text(entry.url,
+                    style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: 11,
+                      color: (entry.isComplete &&
+                              (entry.statusCode <= 0 ||
+                                  entry.statusCode >= 400))
+                          ? ColorTokens.error
+                          : isDark
+                              ? const Color(0xFFE6EDF3)
+                              : const Color(0xFF1F2328),
+                    )),
+                if (entry.duration != null) ...[
+                  const SizedBox(height: 6),
+                  _TimingBar(duration: entry.duration!),
+                ],
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Headers section
+          _screenshotSection('Request Headers', isDark),
+          ...entry.requestHeaders.entries.map((e) =>
+              _screenshotHeaderRow(e.key, e.value, isDark)),
+          if (entry.responseHeaders.isNotEmpty) ...[
+            _screenshotSection('Response Headers', isDark),
+            ...entry.responseHeaders.entries.map((e) =>
+                _screenshotHeaderRow(e.key, e.value, isDark)),
+          ],
+          // Request body
+          if (parsedReqBody != null) ...[
+            _screenshotSection('Request Body', isDark),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: parsedReqBody is Map || parsedReqBody is List
+                  ? JsonViewer(data: parsedReqBody, initiallyExpanded: true)
+                  : JsonPrettyViewer(data: parsedReqBody),
+            ),
+          ],
+          // Response body
+          if (parsedResBody != null) ...[
+            _screenshotSection('Response Body', isDark),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: parsedResBody is Map || parsedResBody is List
+                  ? JsonViewer(data: parsedResBody, initiallyExpanded: true)
+                  : JsonPrettyViewer(data: parsedResBody),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabScreenshotWidget(bool isDark, int tabIndex) {
+    final entry = widget.entry;
+    final tabNames = ['Headers', 'Request', 'Response', 'Timing'];
+
+    Widget tabContent;
+    switch (tabIndex) {
+      case 0: // Headers
+        tabContent = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _screenshotSection('Request Headers', isDark),
+            ...entry.requestHeaders.entries.map((e) =>
+                _screenshotHeaderRow(e.key, e.value, isDark)),
+            if (entry.responseHeaders.isNotEmpty) ...[
+              _screenshotSection('Response Headers', isDark),
+              ...entry.responseHeaders.entries.map((e) =>
+                  _screenshotHeaderRow(e.key, e.value, isDark)),
+            ],
+          ],
+        );
+        break;
+      case 1: // Request body
+        tabContent = _buildBodyScreenshot(
+            entry.requestBody, 'Request Body', isDark);
+        break;
+      case 2: // Response body
+        tabContent = _buildBodyScreenshot(
+            entry.responseBody, 'Response Body', isDark);
+        break;
+      case 3: // Timing
+      default:
+        tabContent = Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (entry.duration != null) ...[
+                Text('Duration: ${formatDuration(entry.duration!)}',
+                    style: TextStyle(
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : Colors.black87)),
+                const SizedBox(height: 8),
+                _TimingBar(duration: entry.duration!),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                  'Start: ${DateFormat('HH:mm:ss.SSS').format(DateTime.fromMillisecondsSinceEpoch(entry.startTime))}',
+                  style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: 11,
+                      color: Colors.grey[500])),
+              if (entry.endTime != null)
+                Text(
+                    'End: ${DateFormat('HH:mm:ss.SSS').format(DateTime.fromMillisecondsSinceEpoch(entry.endTime!))}',
+                    style: TextStyle(
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: 11,
+                        color: Colors.grey[500])),
+            ],
+          ),
+        );
+        break;
+    }
+
+    return Container(
+      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Mini header
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: isDark ? const Color(0xFF161B22) : Colors.white,
+            child: Row(
+              children: [
+                HttpMethodBadge(method: entry.method),
+                const SizedBox(width: 6),
+                if (entry.isComplete)
+                  StatusBadge(statusCode: entry.statusCode),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(entry.url,
+                      style: TextStyle(
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: 11,
+                        color: isDark
+                            ? const Color(0xFFE6EDF3)
+                            : const Color(0xFF1F2328),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: ColorTokens.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(tabNames[tabIndex],
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: ColorTokens.primary)),
                 ),
               ],
             ),
           ),
-
           const Divider(height: 1),
+          tabContent,
+        ],
+      ),
+    );
+  }
 
-          // ---- Tab views ----
+  Widget _buildBodyScreenshot(dynamic body, String label, bool isDark) {
+    if (body == null) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text('No $label',
+            style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+      );
+    }
+    dynamic parsed = body;
+    if (parsed is String) {
+      try { parsed = jsonDecode(parsed); } catch (_) {}
+    }
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: parsed is Map || parsed is List
+          ? JsonViewer(data: parsed, initiallyExpanded: true)
+          : JsonPrettyViewer(data: parsed),
+    );
+  }
+
+  Widget _screenshotSection(String title, bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: isDark ? const Color(0xFF1C2128) : const Color(0xFFEEF0F2),
+      child: Text(title,
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white70 : Colors.black87)),
+    );
+  }
+
+  Widget _screenshotHeaderRow(String key, String value, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 180,
+            child: Text(key,
+                style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? const Color(0xFF9CDCFE)
+                        : const Color(0xFF0451A5))),
+          ),
           Expanded(
-            child: Container(
-              color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
-              child: TabBarView(
-                children: [
-                  _HeadersTab(entry: entry),
-                  _BodyTab(body: entry.requestBody, label: 'Request Body'),
-                  _BodyTab(body: entry.responseBody, label: 'Response Body'),
-                  _TimingTab(entry: entry),
-                ],
-              ),
-            ),
+            child: Text(value,
+                style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 11,
+                    color: isDark
+                        ? const Color(0xFFCE9178)
+                        : const Color(0xFFA31515))),
           ),
         ],
       ),
     );
   }
 
-  void _showCopied(BuildContext context, String message) {
+  void _showCopied(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -1146,7 +1985,7 @@ class _TimingBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          '${duration}ms',
+          formatDuration(duration),
           style: TextStyle(
             fontFamily: 'JetBrains Mono',
             fontSize: 11,
@@ -1355,6 +2194,7 @@ class _BodyTab extends StatefulWidget {
 
 class _BodyTabState extends State<_BodyTab> {
   bool _jsonMode = false;
+  bool _jsonEverOpened = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1435,7 +2275,10 @@ class _BodyTabState extends State<_BodyTab> {
                   ),
                 ),
                 GestureDetector(
-                  onTap: () => setState(() => _jsonMode = true),
+                  onTap: () => setState(() {
+                    _jsonMode = true;
+                    _jsonEverOpened = true;
+                  }),
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: Container(
@@ -1498,11 +2341,26 @@ class _BodyTabState extends State<_BodyTab> {
         ),
         // Body content
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: _jsonMode || !(parsedBody is Map || parsedBody is List)
-                ? JsonPrettyViewer(data: parsedBody)
-                : JsonViewer(data: parsedBody, initiallyExpanded: true),
+          child: Stack(
+            children: [
+              Offstage(
+                offstage: _jsonMode,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: canToggle
+                      ? JsonViewer(data: parsedBody, initiallyExpanded: true)
+                      : JsonPrettyViewer(data: parsedBody),
+                ),
+              ),
+              if (canToggle && _jsonEverOpened)
+                Offstage(
+                  offstage: !_jsonMode,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: JsonPrettyViewer(data: parsedBody),
+                  ),
+                ),
+            ],
           ),
         ),
       ],
@@ -1533,7 +2391,7 @@ class _TimingTab extends StatelessWidget {
     IconData durationIcon;
     if (duration == null) {
       durationColor = Colors.grey;
-      durationLabel = 'Pending';
+      durationLabel = 'In Progress';
       durationIcon = LucideIcons.loader;
     } else if (duration < 200) {
       durationColor = ColorTokens.success;
@@ -1593,7 +2451,7 @@ class _TimingTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${duration}ms',
+                        formatDuration(duration),
                         style: TextStyle(
                           fontFamily: 'JetBrains Mono',
                           fontSize: 24,

@@ -52,10 +52,11 @@ class DeviceBottomBar extends ConsumerWidget {
               subtitle: '${devices.length} devices',
               icon: LucideIcons.layers,
               color: ColorTokens.primary,
-              isSelected: selectedId == null,
+              isSelected: selectedId == allDevicesValue,
               isDark: isDark,
-              onTap: () =>
-                  ref.read(selectedDeviceProvider.notifier).select(null),
+              onTap: () => ref
+                  .read(selectedDeviceProvider.notifier)
+                  .select(selectedId == allDevicesValue ? null : allDevicesValue),
             ),
             const SizedBox(width: 4),
           ],
@@ -70,8 +71,8 @@ class DeviceBottomBar extends ConsumerWidget {
                 final d = devices[index];
                 final isActive = selectedId == d.deviceId;
                 return _DeviceChip(
-                  label: _platformLabel(d.platform),
-                  subtitle: d.appName,
+                  label: d.appName,
+                  subtitle: d.osVersion,
                   icon: _platformIcon(d.platform),
                   color: _platformColor(d.platform),
                   isSelected: isActive,
@@ -229,16 +230,15 @@ class _DeviceChipState extends State<_DeviceChip>
   Widget build(BuildContext context) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      onEnter: (_) {
-        setState(() => _hovered = true);
-        _showPopup();
-      },
+      onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) {
         setState(() => _hovered = false);
         _removeOverlay();
       },
       child: GestureDetector(
         onTap: widget.onTap,
+        onLongPress: _showPopup,
+        onSecondaryTap: _showPopup,
         child: AnimatedBuilder(
           animation: _glowAnimation,
           builder: (context, child) {
@@ -298,9 +298,9 @@ class _DeviceChipState extends State<_DeviceChip>
                     ),
                   ),
                   const SizedBox(width: 4),
-                  // App name
+                  // Device info
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 80),
+                    constraints: const BoxConstraints(maxWidth: 140),
                     child: Text(
                       widget.subtitle,
                       style: TextStyle(
@@ -402,12 +402,11 @@ class _DevicePopupState extends State<_DevicePopup>
 
     return Stack(
       children: [
-        // Tap outside to dismiss
+        // Dismiss on tap outside — uses opaque to not block chip clicks
         Positioned.fill(
-          child: GestureDetector(
+          child: Listener(
             behavior: HitTestBehavior.translucent,
-            onTap: widget.onDismiss,
-            child: const SizedBox.expand(),
+            onPointerDown: (_) => widget.onDismiss(),
           ),
         ),
         Positioned(
@@ -427,7 +426,9 @@ class _DevicePopupState extends State<_DevicePopup>
                 // Keep popup visible while hovering it
                 onEnter: (_) {},
                 onExit: (_) => widget.onDismiss(),
-                child: Container(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Container(
                   width: popupWidth,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -564,8 +565,10 @@ class _DevicePopupState extends State<_DevicePopup>
                       const SizedBox(height: 6),
                       _PopupInfoRow(
                         icon: LucideIcons.tag,
-                        label: 'Version',
-                        value: 'v${d.appVersion}',
+                        label: 'App Version',
+                        value: d.versionCode != null
+                            ? '${d.appVersion}(${d.versionCode})'
+                            : d.appVersion,
                         isDark: isDark,
                       ),
                       if (d.sdkVersion != null) ...[
@@ -581,6 +584,7 @@ class _DevicePopupState extends State<_DevicePopup>
                       const SizedBox(height: 4),
                     ],
                   ),
+                ),
                 ),
               ),
             ),
@@ -614,15 +618,17 @@ class _PopupInfoRow extends StatelessWidget {
           color: isDark ? Colors.white24 : Colors.black26,
         ),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: isDark ? Colors.white38 : Colors.black38,
+        SizedBox(
+          width: 72,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isDark ? Colors.white38 : Colors.black38,
+            ),
           ),
         ),
-        const Spacer(),
-        Flexible(
+        Expanded(
           child: Text(
             value,
             style: TextStyle(
@@ -682,3 +688,4 @@ String _platformLabel(String platform) {
       return platform;
   }
 }
+

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/tab_visibility_provider.dart';
+import '../../../core/utils/duration_format.dart';
 import '../../../models/display/display_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../console/provider/console_providers.dart';
@@ -88,10 +89,10 @@ final allEventsProvider = Provider<List<UnifiedEvent>>((ref) {
         timestamp: req.startTime,
         title: '${req.method} ${_shortenUrl(req.url)}',
         subtitle: req.isComplete
-            ? '${req.statusCode} - ${req.duration ?? 0}ms'
-            : 'pending...',
+            ? '${req.statusCode} - ${formatDuration(req.duration ?? 0)}'
+            : 'in progress',
         level: req.isComplete
-            ? (req.statusCode >= 400 ? 'error' : 'info')
+            ? (req.statusCode <= 0 || req.statusCode >= 400 ? 'error' : 'info')
             : 'debug',
         rawData: req,
       ));
@@ -153,7 +154,7 @@ final allEventsProvider = Provider<List<UnifiedEvent>>((ref) {
       timestamp: op.timestamp,
       title: op.description,
       subtitle:
-          '${op.operationType.name} - ${op.status.name}${op.duration != null ? ' (${op.duration}ms)' : ''}',
+          '${op.operationType.name} - ${op.status.name}${op.duration != null ? ' (${formatDuration(op.duration!)})' : ''}',
       level: op.status == AsyncOperationStatus.reject ? 'error' : 'info',
       rawData: op,
     ));
@@ -168,6 +169,12 @@ final allEventsFilterProvider = StateProvider<Set<EventType>>(
   (ref) => EventType.values.toSet(),
 );
 
+enum SortOrder { newestFirst, oldestFirst }
+
+final allEventsSortOrderProvider = StateProvider<SortOrder>(
+  (ref) => SortOrder.oldestFirst,
+);
+
 /// Whether to show system/connectivity check URLs
 final showSystemUrlsProvider = StateProvider<bool>((ref) => false);
 
@@ -178,7 +185,8 @@ final filteredAllEventsProvider = Provider<List<UnifiedEvent>>((ref) {
   final selectedDevice = ref.watch(selectedDeviceProvider);
 
   return events.where((e) {
-    if (selectedDevice != null && e.deviceId != selectedDevice) return false;
+    if (selectedDevice == null) return false;
+    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (!filters.contains(e.type)) return false;
     if (search.isNotEmpty) {
       return e.title.toLowerCase().contains(search) ||

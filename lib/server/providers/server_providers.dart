@@ -2,6 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/benchmark/provider/benchmark_providers.dart';
+import '../../features/console/provider/console_providers.dart';
+import '../../features/display/provider/display_providers.dart';
+import '../../features/network_inspector/provider/network_providers.dart';
+import '../../features/performance/provider/performance_providers.dart';
+import '../../features/state_inspector/provider/state_providers.dart';
+import '../../features/storage_viewer/provider/storage_providers.dart';
 import '../../models/device_info.dart';
 import '../ws_message_handler.dart';
 import '../ws_server.dart';
@@ -22,31 +29,40 @@ final wsMessageHandlerProvider = Provider<WsMessageHandler>((ref) {
 final connectedDevicesProvider =
     StateNotifierProvider<ConnectedDevicesNotifier, List<DeviceInfo>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = ConnectedDevicesNotifier(handler);
+  final notifier = ConnectedDevicesNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscriptions());
   return notifier;
 });
 
-/// null = show all devices, non-null = filter by this deviceId
+/// null = no selection (show nothing), 'all' = show all, deviceId = filter
+const allDevicesValue = '__all__';
+
 final selectedDeviceProvider =
     StateNotifierProvider<SelectedDeviceNotifier, String?>((ref) {
   return SelectedDeviceNotifier();
 });
 
-/// Auto-select first device when exactly one is connected.
-/// Watch this provider from AppShell or a top-level widget.
+/// Auto-select first device when it connects.
+/// Clear selection when selected device disconnects.
 final autoSelectDeviceProvider = Provider<void>((ref) {
   final devices = ref.watch(connectedDevicesProvider);
   final selected = ref.watch(selectedDeviceProvider);
-  if (devices.length == 1 && selected == null) {
+  final notifier = ref.read(selectedDeviceProvider.notifier);
+
+  // Auto-select when a device connects and nothing is selected
+  // (unless user manually unselected — tracked by _manuallyUnselected)
+  if (devices.isNotEmpty && selected == null && !notifier.manuallyUnselected) {
     Future.microtask(() {
-      ref.read(selectedDeviceProvider.notifier).select(devices.first.deviceId);
+      notifier.select(devices.first.deviceId);
     });
   }
-  // Clear selection if selected device disconnected
-  if (selected != null && !devices.any((d) => d.deviceId == selected)) {
+
+  // Clear selection if selected device disconnected (not 'all')
+  if (selected != null &&
+      selected != allDevicesValue &&
+      !devices.any((d) => d.deviceId == selected)) {
     Future.microtask(() {
-      ref.read(selectedDeviceProvider.notifier).select(null);
+      notifier.clearDisconnected();
     });
   }
 });
@@ -54,14 +70,40 @@ final autoSelectDeviceProvider = Provider<void>((ref) {
 class ConnectedDevicesNotifier extends StateNotifier<List<DeviceInfo>> {
   late final StreamSubscription<DeviceInfo> _connectSub;
   late final StreamSubscription<String> _disconnectSub;
+  final Ref _ref;
+  final _recentlyDisconnected = <String>{};
 
-  ConnectedDevicesNotifier(WsMessageHandler handler) : super([]) {
+  ConnectedDevicesNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _connectSub = handler.onDeviceConnected.listen((device) {
-      state = [...state, device];
+      final isReconnect = _recentlyDisconnected.remove(device.deviceId);
+      final filtered = state.where((d) => d.deviceId != device.deviceId).toList();
+      state = [...filtered, device];
+
+      // Clear all data on reconnect (app reload / metro restart)
+      if (isReconnect) {
+        _clearAllData();
+      }
     });
     _disconnectSub = handler.onDeviceDisconnected.listen((deviceId) {
+      _recentlyDisconnected.add(deviceId);
       state = state.where((d) => d.deviceId != deviceId).toList();
     });
+  }
+
+  void _clearAllData() {
+    _ref.read(consoleEntriesProvider.notifier).clear();
+    _ref.read(networkEntriesProvider.notifier).clear();
+    _ref.read(stateChangesProvider.notifier).clear();
+    _ref.read(storageEntriesProvider.notifier).clear();
+    _ref.read(displayEntriesProvider.notifier).clear();
+    _ref.read(asyncOperationEntriesProvider.notifier).clear();
+    _ref.read(performanceEntriesProvider.notifier).clear();
+    _ref.read(memoryLeakEntriesProvider.notifier).clear();
+    _ref.read(benchmarkEntriesProvider.notifier).clear();
+    // Clear selections
+    _ref.read(selectedNetworkIdProvider.notifier).state = null;
+    _ref.read(selectedStorageIdProvider.notifier).state = null;
+    _ref.read(selectedStateChangeProvider.notifier).state = null;
   }
 
   void cancelSubscriptions() {
@@ -73,5 +115,22 @@ class ConnectedDevicesNotifier extends StateNotifier<List<DeviceInfo>> {
 class SelectedDeviceNotifier extends StateNotifier<String?> {
   SelectedDeviceNotifier() : super(null);
 
-  void select(String? deviceId) => state = deviceId;
+  /// True when user explicitly clicked to unselect (set null).
+  /// Reset when user selects a device or a new device auto-selects.
+  bool manuallyUnselected = false;
+
+  void select(String? deviceId) {
+    if (deviceId == null) {
+      manuallyUnselected = true;
+    } else {
+      manuallyUnselected = false;
+    }
+    state = deviceId;
+  }
+
+  /// Called when selected device disconnects — not a manual unselect.
+  void clearDisconnected() {
+    manuallyUnselected = false;
+    state = null;
+  }
 }

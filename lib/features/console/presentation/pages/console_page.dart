@@ -5,12 +5,14 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
-import '../../../../components/inputs/scroll_direction_button.dart';
+
 import '../../../../components/inputs/search_field.dart';
+import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/status_badge.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../provider/console_providers.dart';
@@ -36,135 +38,316 @@ class ConsolePage extends ConsumerStatefulWidget {
 }
 
 class _ConsolePageState extends ConsumerState<ConsolePage> {
-  static const _pageSize = 50;
-
   final _scrollController = ScrollController();
+  final _selectedId = ValueNotifier<String?>(null);
+  final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
-  LogEntry? _selectedEntry;
-  int _maxVisible = _pageSize;
-  bool _loadingMore = false;
-  int _previousCount = 0;
+  bool _programmaticScroll = false;
+  int _visibleCount = 0;
+  int _generation = 0;
+  final List<LogEntry> _entries = [];
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    ref.listenManual<List<LogEntry>>(
+      filteredConsoleEntriesProvider,
+      (previous, next) {
+        final prevLen = _entries.length;
+        if (next.length > prevLen && previous != null && next.length - prevLen == next.length - previous.length) {
+          _entries.addAll(next.sublist(prevLen));
+          _entryCount.value = _entries.length;
+          if (!_autoScroll) return;
+          _visibleCount = _entries.length;
+          setState(() {});
+          _autoScrollIfNeeded();
+        } else {
+          _entries..clear()..addAll(next);
+          _entryCount.value = _entries.length;
+          _visibleCount = _entries.length;
+          _generation++;
+          setState(() {});
+          if (_autoScroll) _autoScrollIfNeeded();
+        }
+      },
+      fireImmediately: true,
+    );
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final reversed = ref.read(scrollDirectionProvider) == ScrollDirection.top;
+    final atBottom = reversed
+        ? pos.pixels <= pos.minScrollExtent + 2.0
+        : pos.pixels >= pos.maxScrollExtent - 2.0;
+    final distFromBottom = reversed
+        ? pos.pixels - pos.minScrollExtent
+        : pos.maxScrollExtent - pos.pixels;
+
+    if (!_autoScroll && atBottom) {
+      _autoScroll = true;
+      _visibleCount = _entries.length;
+      setState(() {});
+      return;
+    }
+
+    if (_autoScroll && !_programmaticScroll && distFromBottom > 50.0) {
+      _autoScroll = false;
+      setState(() {});
+      return;
+    }
+
+    if (!_autoScroll && _visibleCount < _entries.length) {
+      if (distFromBottom < pos.viewportDimension * 1.5) {
+        _visibleCount = _entries.length;
+        setState(() {});
+      }
+    }
+  }
+
+  void _autoScrollIfNeeded() {
+    if (!_autoScroll || _programmaticScroll) return;
+    _programmaticScroll = true;
+    _doAutoScroll();
+  }
+
+  void _doAutoScroll() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+        _programmaticScroll = false;
+        return;
+      }
+      final reversed = ref.read(scrollDirectionProvider) == ScrollDirection.top;
+      final pos = _scrollController.position;
+      final target = reversed ? pos.minScrollExtent : pos.maxScrollExtent;
+      final atTarget = reversed
+          ? pos.pixels <= pos.minScrollExtent + 2.0
+          : pos.pixels >= pos.maxScrollExtent - 2.0;
+      if (atTarget) {
+        _programmaticScroll = false;
+        return;
+      }
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+      ).whenComplete(() {
+        if (!mounted || !_autoScroll || !_scrollController.hasClients) {
+          _programmaticScroll = false;
+          return;
+        }
+        final p = _scrollController.position;
+        final done = reversed
+            ? p.pixels <= p.minScrollExtent + 2.0
+            : p.pixels >= p.maxScrollExtent - 2.0;
+        if (!done) {
+          _doAutoScroll();
+        } else {
+          _programmaticScroll = false;
+        }
+      });
+    });
+  }
+
+  LogEntry? _findEntry(String? id) {
+    if (id == null) return null;
+    return _entries.where((e) => e.id == id).firstOrNull;
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _selectedId.dispose();
+    _entryCount.dispose();
     super.dispose();
   }
 
-  void _onScroll() {
-    if (_loadingMore || !_scrollController.hasClients) return;
+  void _takeDetailScreenshot(BuildContext context, LogEntry entry) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = _levelColor(entry.level);
+    final time = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
+      DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
+    );
 
-    final pos = _scrollController.position;
-    final scrollDir = ref.read(scrollDirectionProvider);
-
-    if (scrollDir == ScrollDirection.bottom) {
-      if (pos.pixels < 50) _loadMore();
-    } else {
-      if (pos.pixels > pos.maxScrollExtent - 50) _loadMore();
-    }
-  }
-
-  void _loadMore() {
-    final totalEntries = ref.read(filteredConsoleEntriesProvider).length;
-    if (_maxVisible >= totalEntries) return;
-
-    _loadingMore = true;
-    final scrollDir = ref.read(scrollDirectionProvider);
-    final oldMaxExtent = _scrollController.position.maxScrollExtent;
-
-    setState(() {
-      _maxVisible = (_maxVisible + _pageSize).clamp(0, totalEntries);
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients && scrollDir == ScrollDirection.bottom) {
-        final newMaxExtent = _scrollController.position.maxScrollExtent;
-        _scrollController.jumpTo(
-          _scrollController.position.pixels + (newMaxExtent - oldMaxExtent),
-        );
-      }
-      _loadingMore = false;
-    });
+    captureWidgetAsImage(
+      context,
+      Container(
+        color: isDark ? const Color(0xFF0D1117) : Colors.white,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: isDark ? const Color(0xFF161B22) : const Color(0xFFF6F8FA),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.terminal, size: 16, color: ColorTokens.primary),
+                  const SizedBox(width: 8),
+                  LogLevelBadge(level: entry.level.name),
+                  const SizedBox(width: 10),
+                  Text(
+                    time,
+                    style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: 11,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Tag
+            if (entry.tag != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Tag', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(entry.tag!, style: TextStyle(fontFamily: 'JetBrains Mono', fontSize: 10, color: Colors.grey[500])),
+                    ),
+                  ],
+                ),
+              ),
+            // Message
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Message', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF161B22) : const Color(0xFFF0F0F0),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06),
+                      ),
+                    ),
+                    child: Text(
+                      entry.message,
+                      style: TextStyle(
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: 12,
+                        height: 1.6,
+                        color: isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1F2328),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Metadata
+            if (entry.metadata != null && entry.metadata!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Metadata', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF161B22) : const Color(0xFFF0F0F0),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: JsonViewer(data: entry.metadata, initiallyExpanded: true),
+                    ),
+                  ],
+                ),
+              ),
+            // Stack trace
+            if (entry.stackTrace != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Stack Trace', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: color.withValues(alpha: 0.15)),
+                      ),
+                      child: Text(
+                        entry.stackTrace!,
+                        style: TextStyle(
+                          fontFamily: 'JetBrains Mono',
+                          fontSize: 11,
+                          color: color.withValues(alpha: 0.9),
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      width: 600,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final entries = ref.watch(filteredConsoleEntriesProvider);
     final theme = Theme.of(context);
-
-    // Reset pagination when scroll direction changes
     final scrollDir = ref.watch(scrollDirectionProvider);
-    ref.listen<ScrollDirection>(scrollDirectionProvider, (prev, next) {
-      if (prev != next) {
-        setState(() => _maxVisible = _pageSize);
-      }
-    });
-
-    // Slice visible items based on scroll direction
-    final List<LogEntry> visibleEntries;
-    final bool hasMore;
-
-    if (scrollDir == ScrollDirection.bottom) {
-      final startIndex =
-          (entries.length - _maxVisible).clamp(0, entries.length);
-      visibleEntries = entries.sublist(startIndex);
-      hasMore = startIndex > 0;
-    } else {
-      final reversed = entries.reversed.toList();
-      visibleEntries = reversed.take(_maxVisible).toList();
-      hasMore = entries.length > _maxVisible;
-    }
-
-    // Auto scroll when new items arrive
-    if (_autoScroll && entries.length > _previousCount && entries.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          final target = scrollDir == ScrollDirection.top
-              ? 0.0
-              : _scrollController.position.maxScrollExtent;
-          _scrollController.animateTo(
-            target,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-    }
-    _previousCount = entries.length;
+    final isReversed = scrollDir == ScrollDirection.top;
 
     return Column(
       children: [
         _ConsoleToolbar(
-          entryCount: entries.length,
-          visibleCount:
-              visibleEntries.length != entries.length
-                  ? visibleEntries.length
-                  : null,
+          entryCount: _entryCount,
           autoScroll: _autoScroll,
           onToggleAutoScroll: () {
-            setState(() {
-              _autoScroll = !_autoScroll;
-              if (_autoScroll) _maxVisible = _pageSize;
-            });
+            if (_autoScroll) {
+              _autoScroll = false;
+              _programmaticScroll = false;
+              if (_scrollController.hasClients) {
+                _scrollController.jumpTo(_scrollController.offset);
+              }
+            } else {
+              _autoScroll = true;
+              _visibleCount = _entries.length;
+              _autoScrollIfNeeded();
+            }
+            setState(() {});
           },
           onClear: () {
             ref.read(consoleEntriesProvider.notifier).clear();
-            setState(() {
-              _selectedEntry = null;
-              _maxVisible = _pageSize;
-            });
+            _selectedId.value = null;
+            _entries.clear();
+            _entryCount.value = 0;
+            _visibleCount = 0;
+            setState(() {});
           },
         ),
         const Divider(height: 1),
         Expanded(
-          child: entries.isEmpty
+          child: _entries.isEmpty
               ? const EmptyState(
                   icon: LucideIcons.terminal,
                   title: 'No logs yet',
@@ -173,102 +356,89 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                 )
               : Row(
                   children: [
-                    // Log list
+                    // ── List panel ──
+                    // The list never rebuilds due to selection change.
+                    // PositionRetainedScrollPhysics is ALWAYS used to
+                    // guarantee the user's scroll position is stable when
+                    // new entries arrive.
                     Expanded(
-                      flex: _selectedEntry != null ? 3 : 1,
-                      child: Column(
-                        children: [
-                          if (hasMore && scrollDir == ScrollDirection.bottom)
-                            GestureDetector(
-                              onTap: _loadMore,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 6),
-                                  color: ColorTokens.primary
-                                      .withValues(alpha: 0.05),
-                                  child: Center(
-                                    child: Text(
-                                      '${entries.length - visibleEntries.length} older logs — tap to load more',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: ColorTokens.primary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                      child: StableListView<LogEntry>(
+                        controller: _scrollController,
+                        reverse: isReversed,
+                        generation: _generation,
+                        childCount: _visibleCount,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        entries: _entries,
+                        itemExtent: 64,
+                        idOf: (e) => e.id,
+                        selectedId: _selectedId,
+                        onSelect: (entry) {
+                          final wasSelected = _selectedId.value == entry.id;
+                          _selectedId.value = wasSelected ? null : entry.id;
+                          if (!wasSelected && _autoScroll) {
+                            _autoScroll = false;
+                            _programmaticScroll = false;
+                            if (_scrollController.hasClients) {
+                              _scrollController.jumpTo(_scrollController.offset);
+                            }
+                            setState(() {});
+                          }
+                        },
+                        contentBuilder: (context, entry) {
+                          final devices = ref.read(connectedDevicesProvider);
+                          final device = devices.where((d) => d.deviceId == entry.deviceId).firstOrNull;
+                          return _LogEntryContent(
+                            entry: entry,
+                            platform: device?.platform,
+                          );
+                        },
+                        decorationBuilder: (isSelected, isDark) {
+                          return BoxDecoration(
+                            color: isSelected
+                                ? ColorTokens.selectedBg(isDark)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected
+                                  ? ColorTokens.selectedBorder(isDark)
+                                  : (isDark
+                                      ? Colors.white.withValues(alpha: 0.04)
+                                      : Colors.black.withValues(alpha: 0.04)),
+                              width: 1,
                             ),
-                          Expanded(
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 6),
-                              itemCount: visibleEntries.length,
-                              itemExtent: 64,
-                              itemBuilder: (context, index) {
-                                final entry = visibleEntries[index];
-                                final isSelected =
-                                    _selectedEntry?.id == entry.id;
-                                return _LogEntryCard(
-                                  key: ValueKey(entry.id),
-                                  entry: entry,
-                                  isSelected: isSelected,
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedEntry =
-                                          isSelected ? null : entry;
-                                    });
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-                          if (hasMore && scrollDir == ScrollDirection.top)
-                            GestureDetector(
-                              onTap: _loadMore,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 6),
-                                  color: ColorTokens.primary
-                                      .withValues(alpha: 0.05),
-                                  child: Center(
-                                    child: Text(
-                                      '${entries.length - visibleEntries.length} older logs — tap to load more',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: ColorTokens.primary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
+                          );
+                        },
                       ),
                     ),
-                    // Detail panel
-                    if (_selectedEntry != null) ...[
-                      VerticalDivider(
-                        width: 1,
-                        color: theme.dividerColor,
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: _LogDetailPanel(
-                          entry: _selectedEntry!,
-                          onClose: () =>
-                              setState(() => _selectedEntry = null),
-                        ),
-                      ),
-                    ],
+                    // ── Detail panel ──
+                    // Only the detail panel listens to _selectedId changes,
+                    // preventing list layout from shifting on selection.
+                    ValueListenableBuilder<String?>(
+                      valueListenable: _selectedId,
+                      builder: (context, selectedIdValue, _) {
+                        final selected = _findEntry(selectedIdValue);
+                        if (selected == null) return const SizedBox.shrink();
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            VerticalDivider(
+                              width: 1,
+                              color: theme.dividerColor,
+                            ),
+                            SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.35,
+                              child: _LogDetailPanel(
+                                key: ValueKey(selected.id),
+                                entry: selected,
+                                onClose: () => _selectedId.value = null,
+                                onScreenshot: () =>
+                                    _takeDetailScreenshot(context, selected),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ],
                 ),
         ),
@@ -282,15 +452,13 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
 // ---------------------------------------------------------------------------
 
 class _ConsoleToolbar extends ConsumerWidget {
-  final int entryCount;
-  final int? visibleCount;
+  final ValueNotifier<int> entryCount;
   final bool autoScroll;
   final VoidCallback onToggleAutoScroll;
   final VoidCallback onClear;
 
   const _ConsoleToolbar({
     required this.entryCount,
-    this.visibleCount,
     required this.autoScroll,
     required this.onToggleAutoScroll,
     required this.onClear,
@@ -315,9 +483,9 @@ class _ConsoleToolbar extends ConsumerWidget {
           const SizedBox(width: 8),
           Text('Console', style: theme.textTheme.titleMedium),
           const SizedBox(width: 8),
-          _CountPill(
-            count: entryCount,
-            visibleCount: visibleCount,
+          ValueListenableBuilder<int>(
+            valueListenable: entryCount,
+            builder: (_, count, __) => _CountPill(count: count),
           ),
           const SizedBox(width: 16),
 
@@ -358,25 +526,60 @@ class _ConsoleToolbar extends ConsumerWidget {
               },
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
 
-          // Auto-scroll toggle
-          _ToolbarIconButton(
-            icon: LucideIcons.arrowDownToLine,
-            tooltip: 'Auto-scroll',
-            isActive: autoScroll,
-            onTap: onToggleAutoScroll,
-          ),
-          const SizedBox(width: 4),
-          // Scroll direction toggle
-          const ScrollDirectionButton(),
-          const SizedBox(width: 4),
-
-          // Clear
-          _ToolbarIconButton(
-            icon: LucideIcons.trash2,
-            tooltip: 'Clear console',
-            onTap: onClear,
+          // ── Action group ──
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _IconBtn(
+                  icon: LucideIcons.arrowDownToLine,
+                  tooltip: 'Auto-scroll',
+                  isActive: autoScroll,
+                  onTap: onToggleAutoScroll,
+                ),
+                const SizedBox(width: 2),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final dir = ref.watch(scrollDirectionProvider);
+                    final isTop = dir == ScrollDirection.top;
+                    return _IconBtn(
+                      icon: isTop
+                          ? LucideIcons.arrowUpNarrowWide
+                          : LucideIcons.arrowDownNarrowWide,
+                      tooltip: isTop ? 'Newest first' : 'Oldest first',
+                      isActive: isTop,
+                      onTap: () =>
+                          ref.read(scrollDirectionProvider.notifier).state =
+                              isTop ? ScrollDirection.bottom : ScrollDirection.top,
+                    );
+                  },
+                ),
+                const SizedBox(width: 2),
+                Container(
+                  width: 1,
+                  height: 18,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.08),
+                ),
+                const SizedBox(width: 2),
+                _IconBtn(
+                  icon: LucideIcons.trash2,
+                  tooltip: 'Clear console',
+                  isDanger: true,
+                  onTap: onClear,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -390,9 +593,8 @@ class _ConsoleToolbar extends ConsumerWidget {
 
 class _CountPill extends StatelessWidget {
   final int count;
-  final int? visibleCount;
 
-  const _CountPill({required this.count, this.visibleCount});
+  const _CountPill({required this.count});
 
   @override
   Widget build(BuildContext context) {
@@ -407,7 +609,7 @@ class _CountPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        visibleCount != null ? '$visibleCount / $count' : '$count',
+        '$count',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
@@ -490,33 +692,53 @@ class _LevelFilterChipState extends State<_LevelFilterChip> {
 }
 
 // ---------------------------------------------------------------------------
-// Toolbar icon button
+// Icon button (matches All Events style)
 // ---------------------------------------------------------------------------
 
-class _ToolbarIconButton extends StatefulWidget {
+class _IconBtn extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final bool isActive;
+  final bool isDanger;
   final VoidCallback onTap;
 
-  const _ToolbarIconButton({
+  const _IconBtn({
     required this.icon,
     required this.tooltip,
     this.isActive = false,
+    this.isDanger = false,
     required this.onTap,
   });
 
   @override
-  State<_ToolbarIconButton> createState() => _ToolbarIconButtonState();
+  State<_IconBtn> createState() => _IconBtnState();
 }
 
-class _ToolbarIconButtonState extends State<_ToolbarIconButton> {
+class _IconBtnState extends State<_IconBtn> {
   bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final activeBg = ColorTokens.primary.withValues(alpha: 0.15);
-    final hoverBg = Colors.grey.withValues(alpha: 0.1);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Color iconColor;
+    Color bgColor;
+
+    if (widget.isActive) {
+      iconColor = ColorTokens.primary;
+      bgColor = ColorTokens.primary.withValues(alpha: 0.15);
+    } else if (widget.isDanger && _hovered) {
+      iconColor = ColorTokens.error;
+      bgColor = ColorTokens.error.withValues(alpha: 0.12);
+    } else if (_hovered) {
+      iconColor = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+      bgColor = isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.06);
+    } else {
+      iconColor = Colors.grey[500]!;
+      bgColor = Colors.transparent;
+    }
 
     return Tooltip(
       message: widget.tooltip,
@@ -527,23 +749,17 @@ class _ToolbarIconButtonState extends State<_ToolbarIconButton> {
           onEnter: (_) => setState(() => _hovered = true),
           onExit: (_) => setState(() => _hovered = false),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            width: 30,
-            height: 30,
+            duration: const Duration(milliseconds: 150),
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(
-              color: widget.isActive
-                  ? activeBg
-                  : _hovered
-                      ? hoverBg
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
+              color: bgColor,
+              borderRadius: BorderRadius.circular(7),
             ),
             child: Icon(
               widget.icon,
-              size: 15,
-              color: widget.isActive
-                  ? ColorTokens.primary
-                  : Colors.grey[500],
+              size: 14,
+              color: iconColor,
             ),
           ),
         ),
@@ -556,150 +772,86 @@ class _ToolbarIconButtonState extends State<_ToolbarIconButton> {
 // Log entry card
 // ---------------------------------------------------------------------------
 
-class _LogEntryCard extends ConsumerStatefulWidget {
+class _LogEntryContent extends StatelessWidget {
   final LogEntry entry;
-  final bool isSelected;
-  final VoidCallback onTap;
+  final String? platform;
 
-  const _LogEntryCard({
-    super.key,
+  const _LogEntryContent({
     required this.entry,
-    required this.isSelected,
-    required this.onTap,
+    this.platform,
   });
 
   @override
-  ConsumerState<_LogEntryCard> createState() => _LogEntryCardState();
-}
-
-class _LogEntryCardState extends ConsumerState<_LogEntryCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final entry = widget.entry;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = _levelColor(entry.level);
-
     final time = DateFormat('HH:mm:ss.SSS').format(
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
     );
 
-    // Lookup platform from connected devices
-    final devices = ref.watch(connectedDevicesProvider);
-    final device =
-        devices.where((d) => d.deviceId == entry.deviceId).firstOrNull;
-
-    final cardBg = widget.isSelected
-        ? ColorTokens.primary.withValues(alpha: 0.08)
-        : _hovered
-            ? (isDark
-                ? Colors.white.withValues(alpha: 0.03)
-                : Colors.black.withValues(alpha: 0.02))
-            : Colors.transparent;
-
-    final borderColor = widget.isSelected
-        ? ColorTokens.primary.withValues(alpha: 0.25)
-        : _hovered
-            ? (isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.06))
-            : (isDark
-                ? Colors.white.withValues(alpha: 0.04)
-                : Colors.black.withValues(alpha: 0.04));
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _hovered = true),
-          onExit: (_) => setState(() => _hovered = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 3,
             decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: borderColor, width: 1),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Left color bar
-                    Container(
-                      width: 3,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          bottomLeft: Radius.circular(8),
-                        ),
-                      ),
-                    ),
-                    // Content
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Top row: badges and timestamp
-                            Row(
-                              children: [
-                                Text(
-                                  time,
-                                  style: TextStyle(
-                                    fontFamily: 'JetBrains Mono',
-                                    fontSize: 10,
-                                    color: Colors.grey[500],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                if (device != null) ...[
-                                  PlatformBadge(
-                                      platform: device.platform),
-                                  const SizedBox(width: 6),
-                                ],
-                                LogLevelBadge(level: entry.level.name),
-                                if (entry.tag != null) ...[
-                                  const SizedBox(width: 6),
-                                  _TagBadge(tag: entry.tag!),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            // Message
-                            Text(
-                              entry.message,
-                              style: TextStyle(
-                                fontFamily: 'JetBrains Mono',
-                                fontSize: 12,
-                                height: 1.4,
-                                color: isDark
-                                    ? const Color(0xFFE6EDF3)
-                                    : const Color(0xFF1F2328),
-                              ),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              color: color,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                bottomLeft: Radius.circular(8),
               ),
             ),
           ),
-        ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        time,
+                        style: TextStyle(
+                          fontFamily: 'JetBrains Mono',
+                          fontSize: 10,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (platform != null) ...[
+                        PlatformBadge(platform: platform!),
+                        const SizedBox(width: 6),
+                      ],
+                      LogLevelBadge(level: entry.level.name),
+                      if (entry.tag != null) ...[
+                        const SizedBox(width: 6),
+                        _TagBadge(tag: entry.tag!),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    entry.message,
+                    style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: 12,
+                      height: 1.4,
+                      color: isDark
+                          ? const Color(0xFFE6EDF3)
+                          : const Color(0xFF1F2328),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -751,10 +903,13 @@ class _TagBadge extends StatelessWidget {
 class _LogDetailPanel extends StatelessWidget {
   final LogEntry entry;
   final VoidCallback onClose;
+  final VoidCallback onScreenshot;
 
   const _LogDetailPanel({
+    super.key,
     required this.entry,
     required this.onClose,
+    required this.onScreenshot,
   });
 
   @override
@@ -823,6 +978,29 @@ class _LogDetailPanel extends StatelessWidget {
                         ),
                         child: Icon(
                           LucideIcons.copy,
+                          size: 14,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Screenshot button
+                Tooltip(
+                  message: 'Capture detail as image',
+                  child: GestureDetector(
+                    onTap: onScreenshot,
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Icon(
+                          LucideIcons.camera,
                           size: 14,
                           color: Colors.grey[500],
                         ),

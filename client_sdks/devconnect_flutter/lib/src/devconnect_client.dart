@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 typedef OnConnected = void Function();
@@ -21,6 +23,8 @@ class DevConnectClient {
   /// Send a message safely - queues if init() hasn't completed yet.
   /// Use this instead of instance.xxx() in interceptors/reporters.
   static void safeSend(String type, Map<String, dynamic> payload) {
+    // No-op in release builds — zero overhead
+    if (!kDebugMode) return;
     final inst = _instance;
     if (inst != null) {
       inst._send(type, payload);
@@ -34,6 +38,7 @@ class DevConnectClient {
   final int _port;
   final String _appName;
   final String _appVersion;
+  final String? _versionCode;
   final String _deviceName;
   final String _platform;
   final bool _auto;
@@ -64,17 +69,43 @@ class DevConnectClient {
     required int port,
     required String appName,
     required String appVersion,
+    String? versionCode,
     required String deviceName,
+    required String deviceId,
     String platform = 'flutter',
     bool auto_ = true,
   })  : _host = host,
         _port = port,
         _appName = appName,
         _appVersion = appVersion,
+        _versionCode = versionCode,
         _deviceName = deviceName,
         _platform = platform,
-        _auto = auto_ {
-    _deviceId = _uuid.v4();
+        _auto = auto_,
+        _deviceId = deviceId;
+
+  /// Get a stable device identifier using device_info_plus.
+  /// Android: UUID from androidId + packageName
+  /// iOS: identifierForVendor (already UUID)
+  static Future<String> _getStableDeviceId(String appName) async {
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final android = await deviceInfo.androidInfo;
+        final id = android.id; // ANDROID_ID
+        // Convert to UUID v5 format via Uuid.v5
+        return const Uuid().v5(Namespace.url.value, '$id:$appName');
+      } else if (Platform.isIOS) {
+        final ios = await deviceInfo.iosInfo;
+        return ios.identifierForVendor ?? const Uuid().v5(Namespace.url.value, '$appName:${Platform.localHostname}');
+      } else if (Platform.isMacOS) {
+        final mac = await deviceInfo.macOsInfo;
+        final guid = mac.systemGUID ?? mac.computerName;
+        return const Uuid().v5(Namespace.url.value, '$guid:$appName');
+      }
+    } catch (_) {}
+    // Fallback
+    return const Uuid().v5(Namespace.url.value, '$appName:${Platform.localHostname}:${Platform.operatingSystem}');
   }
 
   /// Initialize DevConnect client.
@@ -89,9 +120,10 @@ class DevConnectClient {
   /// 3. Real device -> tries localhost, then common gateway IPs
   static Future<DevConnectClient> init({
     String? host,
-    int port = 9090,
+    int port = 9091,
     required String appName,
     String appVersion = '1.0.0',
+    String? versionCode,
     String? deviceName,
     String platform = 'flutter',
     bool auto_ = true,
@@ -100,12 +132,16 @@ class DevConnectClient {
         ? await _autoDetectHost(port)
         : host;
 
+    final stableDeviceId = await _getStableDeviceId(appName);
+
     _instance = DevConnectClient._(
       host: resolvedHost,
       port: port,
       appName: appName,
       appVersion: appVersion,
+      versionCode: versionCode,
       deviceName: deviceName ?? _defaultDeviceName(),
+      deviceId: stableDeviceId,
       platform: platform,
       auto_: auto_,
     );
@@ -423,6 +459,7 @@ class DevConnectClient {
         'osVersion': Platform.operatingSystemVersion,
         'appName': _appName,
         'appVersion': _appVersion,
+        if (_versionCode != null) 'versionCode': _versionCode,
         'sdkVersion': '1.0.0',
       },
     });

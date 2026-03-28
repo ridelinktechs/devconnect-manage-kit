@@ -12,15 +12,27 @@ import { Platform, NativeModules } from 'react-native';
 interface DevConnectConfig {
   appName: string;
   appVersion?: string;
+  /** Version code / build number (e.g. "42", "123") */
+  versionCode?: string;
   /** Desktop IP. undefined/'auto' = auto-detect. '192.168.x.x' = manual */
   host?: string;
+  /** WebSocket port (default: 9091) */
   port?: number;
   /** Auto-detect host (default: true) */
   auto?: boolean;
   enabled?: boolean;
+  /** Auto-intercept fetch (default: true in __DEV__, false in production) */
   autoInterceptFetch?: boolean;
+  /** Auto-intercept XMLHttpRequest (default: true in __DEV__, false in production) */
   autoInterceptXHR?: boolean;
+  /** Auto-intercept console.log (default: true in __DEV__, false in production) */
   autoInterceptConsole?: boolean;
+  /** Auto-start performance monitoring (default: true) */
+  autoPerformance?: boolean;
+  /** Auto-start memory leak detection (default: true) */
+  autoMemoryLeak?: boolean;
+  /** Auto-start app benchmark (default: true) */
+  autoBenchmark?: boolean;
 }
 
 interface DCMessage {
@@ -38,6 +50,51 @@ function generateId(): string {
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+}
+
+/**
+ * Convert a seed string to a UUID v5-like format (deterministic).
+ * Uses FNV-1a to produce 128 bits, then formats as UUID with version=5, variant=a.
+ */
+function seedToUUID(seed: string): string {
+  // Generate 4 x 32-bit hashes for 128 bits total
+  const hashes: number[] = [];
+  for (let round = 0; round < 4; round++) {
+    let h = 0x811c9dc5 ^ (round * 0x01000193);
+    for (let i = 0; i < seed.length; i++) {
+      h ^= seed.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    hashes.push(h >>> 0);
+  }
+  const hex = hashes.map(h => h.toString(16).padStart(8, '0')).join('');
+  // Format as UUID: 8-4-4-4-12, set version=5 and variant=a
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+/**
+ * Generate a stable deviceId in UUID format using native platform identifiers.
+ * Same app on same device always produces the same UUID.
+ */
+function generateStableDeviceId(appName: string): string {
+  const os = Platform.OS;
+  const version = String(Platform.Version);
+  let seed = `${appName}:react_native:${os}:${version}`;
+  try {
+    const constants = (Platform.constants || NativeModules.PlatformConstants) as Record<string, any> | undefined;
+    if (os === 'android' && constants) {
+      const pkg = constants.Package?.packageName || '';
+      const fingerprint = constants.Fingerprint || constants.Serial || '';
+      const model = constants.Model || constants.Brand || '';
+      seed = `${pkg}:${model}:${fingerprint}:${appName}`;
+    } else if (os === 'ios' && constants) {
+      const idiom = constants.interfaceIdiom || '';
+      const systemName = constants.systemName || '';
+      const osVersion = constants.osVersion || version;
+      seed = `${idiom}:${systemName}:${osVersion}:${appName}`;
+    }
+  } catch (_) {}
+  return seedToUUID(seed);
 }
 
 // ---- Encrypted host cache (persists via AsyncStorage if available) ----
@@ -244,7 +301,7 @@ function classifyUrl(url: string): string {
 export class DevConnect {
   private static instance: DevConnect | null = null;
   private ws: WebSocket | null = null;
-  private config: Required<DevConnectConfig>;
+  private config: Omit<Required<DevConnectConfig>, 'versionCode'> & { versionCode?: string };
   /** Pre-init queue: messages sent before init() is called */
   private static preInitQueue: Array<{ type: string; payload: Record<string, any> }> = [];
 
@@ -261,15 +318,19 @@ export class DevConnect {
     this.config = {
       appName: config.appName,
       appVersion: config.appVersion ?? '1.0.0',
+      versionCode: config.versionCode ?? undefined,
       host: config.resolvedHost,
-      port: config.port ?? 9090,
+      port: config.port ?? 9091,
       auto: config.auto ?? true,
-      enabled: config.enabled ?? __DEV__,
-      autoInterceptFetch: config.autoInterceptFetch ?? true,
-      autoInterceptXHR: config.autoInterceptXHR ?? true,
-      autoInterceptConsole: config.autoInterceptConsole ?? true,
+      enabled: config.enabled ?? true,
+      autoInterceptFetch: config.autoInterceptFetch ?? __DEV__,
+      autoInterceptXHR: config.autoInterceptXHR ?? __DEV__,
+      autoInterceptConsole: config.autoInterceptConsole ?? __DEV__,
+      autoPerformance: config.autoPerformance ?? true,
+      autoMemoryLeak: config.autoMemoryLeak ?? true,
+      autoBenchmark: config.autoBenchmark ?? true,
     };
-    this.deviceId = generateId();
+    this.deviceId = generateStableDeviceId(config.appName);
   }
 
   /**
@@ -292,7 +353,20 @@ export class DevConnect {
   static async init(config: DevConnectConfig): Promise<DevConnect> {
     if (DevConnect.instance) return DevConnect.instance;
 
-    const port = config.port ?? 9090;
+    // Production kill-switch: completely no-op when disabled.
+    // Default: enabled only in __DEV__ (dev builds).
+    const enabled = config.enabled ?? __DEV__;
+    if (!enabled) {
+      // Create a dummy instance so safeSend/getInstance don't throw,
+      // but do NOTHING: no WebSocket, no host detection, no timers.
+      const dc = new DevConnect({ ...config, resolvedHost: 'disabled' });
+      dc.config.enabled = false;
+      DevConnect.instance = dc;
+      DevConnect.preInitQueue = [];
+      return dc;
+    }
+
+    const port = config.port ?? 9091;
     const shouldAuto = (config.auto ?? true) && (!config.host || config.host === 'auto');
 
     const resolvedHost = shouldAuto
@@ -302,19 +376,44 @@ export class DevConnect {
     const dc = new DevConnect({ ...config, resolvedHost });
     DevConnect.instance = dc;
 
-    if (dc.config.enabled) {
-      dc.connect();
-      if (dc.config.autoInterceptFetch) dc.patchFetch();
-      if (dc.config.autoInterceptXHR) dc.patchXHR();
-      if (dc.config.autoInterceptConsole) dc.patchConsole();
+    dc.connect();
+    if (dc.config.autoInterceptFetch) dc.patchFetch();
+    if (dc.config.autoInterceptXHR) dc.patchXHR();
+    if (dc.config.autoInterceptConsole) dc.patchConsole();
 
-      // Flush pre-init queue (messages from middleware that ran before init)
-      if (DevConnect.preInitQueue.length > 0) {
-        for (const msg of DevConnect.preInitQueue) {
-          dc.send(msg.type, msg.payload);
-        }
-        DevConnect.preInitQueue = [];
+    // Auto-start monitoring plugins
+    // Using dynamic require() to avoid circular dependency at module load time
+    try {
+      if (dc.config.autoPerformance) {
+        const { startPerformanceMonitor } = require('./plugins/performanceMonitor');
+        startPerformanceMonitor();
       }
+      if (dc.config.autoMemoryLeak) {
+        const { startMemoryLeakDetector } = require('./plugins/memoryLeakDetector');
+        startMemoryLeakDetector();
+      }
+      if (dc.config.autoBenchmark) {
+        const { setupAppBenchmark } = require('./plugins/appBenchmark');
+        setupAppBenchmark();
+      }
+    } catch (e) {
+      // Plugins are optional — don't break init if they fail
+    }
+
+    // Migrate pending benchmarks to instance
+    if (DevConnect._pendingBenchmarks.size > 0) {
+      for (const [key, value] of DevConnect._pendingBenchmarks) {
+        dc._benchmarks.set(key, value);
+      }
+      DevConnect._pendingBenchmarks.clear();
+    }
+
+    // Flush pre-init queue (messages from middleware that ran before init)
+    if (DevConnect.preInitQueue.length > 0) {
+      for (const msg of DevConnect.preInitQueue) {
+        dc.send(msg.type, msg.payload);
+      }
+      DevConnect.preInitQueue = [];
     }
 
     return dc;
@@ -337,6 +436,9 @@ export class DevConnect {
     const instance = DevConnect.getInstanceSafe();
     if (instance) {
       instance.send(type, payload);
+    } else if (!__DEV__) {
+      // Production: don't queue anything
+      return;
     } else if (DevConnect.preInitQueue.length < 500) {
       DevConnect.preInitQueue.push({ type, payload });
     }
@@ -345,9 +447,15 @@ export class DevConnect {
   // ---- WebSocket ----
 
   private connect(): void {
+    // Close existing socket before creating a new one to prevent duplicates
+    if (this.ws) {
+      try { this.ws.onclose = null; this.ws.onerror = null; this.ws.close(); } catch (_) {}
+      this.ws = null;
+    }
     try {
       this.ws = new WebSocket(`ws://${this.config.host}:${this.config.port}`);
 
+      let handshakeSent = false;
       this.ws.onopen = () => {
         this.connected = true;
         this.messageQueue.forEach((msg) => this.ws?.send(msg));
@@ -357,7 +465,8 @@ export class DevConnect {
       this.ws.onmessage = (event: WebSocketMessageEvent) => {
         try {
           const msg = JSON.parse(event.data as string);
-          if (msg.type === 'server:hello') {
+          if (msg.type === 'server:hello' && !handshakeSent) {
+            handshakeSent = true;
             this.sendHandshake();
           } else if (msg.type === 'server:redux:dispatch') {
             // Desktop dispatching a Redux action into the app
@@ -429,12 +538,14 @@ export class DevConnect {
         osVersion: `${osLabel} ${version}`,
         appName: this.config.appName,
         appVersion: this.config.appVersion,
+        ...(this.config.versionCode ? { versionCode: this.config.versionCode } : {}),
         sdkVersion: '1.0.0',
       },
     });
   }
 
   private scheduleReconnect(): void {
+    if (!this.config.enabled) return;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = setTimeout(async () => {
       if (!this.connected) {
@@ -447,6 +558,7 @@ export class DevConnect {
   }
 
   send(type: string, payload: Record<string, any>, correlationId?: string): void {
+    if (!this.config.enabled) return;
     const message: DCMessage = {
       id: generateId(),
       type,
@@ -953,25 +1065,25 @@ export class DevConnect {
    * DevConnect.benchmarkStop('loadUserData');
    * ```
    */
+  private static _pendingBenchmarks: Map<string, { title: string; startTime: number; steps: Array<{ title: string; timestamp: number }> }> = new Map();
+
   static benchmark(title: string): void {
     const dc = DevConnect.getInstanceSafe();
-    if (dc) {
-      dc._benchmarks.set(title, { title, startTime: Date.now(), steps: [] });
-    }
+    const map = dc?._benchmarks ?? DevConnect._pendingBenchmarks;
+    map.set(title, { title, startTime: Date.now(), steps: [] });
   }
 
   static benchmarkStep(title: string, stepTitle: string): void {
     const dc = DevConnect.getInstanceSafe();
-    if (dc) {
-      const b = dc._benchmarks.get(title);
-      if (b) b.steps.push({ title: stepTitle, timestamp: Date.now() });
-    }
+    const map = dc?._benchmarks ?? DevConnect._pendingBenchmarks;
+    const b = map.get(title);
+    if (b) b.steps.push({ title: stepTitle, timestamp: Date.now() });
   }
 
   static benchmarkStop(title: string): void {
     const dc = DevConnect.getInstanceSafe();
-    if (!dc) return;
-    const b = dc._benchmarks.get(title);
+    const map = dc?._benchmarks ?? DevConnect._pendingBenchmarks;
+    const b = map.get(title);
     if (b) {
       const endTime = Date.now();
       const steps = b.steps.map((s, i) => ({
@@ -979,7 +1091,8 @@ export class DevConnect {
         delta: i === 0 ? s.timestamp - b.startTime : s.timestamp - b.steps[i - 1].timestamp,
       }));
 
-      dc.send('client:benchmark', {
+      // Send via safeSend so it queues if not connected yet
+      DevConnect.safeSend('client:benchmark', {
         title: b.title,
         startTime: b.startTime,
         endTime,
@@ -987,7 +1100,7 @@ export class DevConnect {
         steps,
       });
 
-      dc._benchmarks.delete(title);
+      map.delete(title);
     }
   }
 
