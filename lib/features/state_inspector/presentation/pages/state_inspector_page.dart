@@ -210,8 +210,8 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                                 isSelected: isSelected,
                                 onTap: () {
                                   ref
-                                      .read(selectedStateChangeProvider.notifier)
-                                      .state = isSelected ? null : entry;
+                                      .read(selectedStateChangeIdProvider.notifier)
+                                      .state = isSelected ? null : entry.id;
                                   if (!isSelected && _autoScroll) {
                                     _autoScroll = false;
                                     _programmaticScroll = false;
@@ -234,7 +234,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                         child: _StateDetailPanel(
                           entry: selected,
                           onClose: () => ref
-                              .read(selectedStateChangeProvider.notifier)
+                              .read(selectedStateChangeIdProvider.notifier)
                               .state = null,
                         ),
                       ),

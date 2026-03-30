@@ -12,6 +12,7 @@ import { AppState } from 'react-native';
 
 let _running = false;
 let _checkTimer: ReturnType<typeof setInterval> | null = null;
+let _appStateSubscription: any = null;
 
 // Track EventEmitter subscriptions
 const _subscriptionCounts = new Map<string, number>();
@@ -73,7 +74,7 @@ export function startMemoryLeakDetector(opts: MemoryLeakDetectorOptions = {}): v
   }, checkInterval);
 
   // ---- Track AppState to detect leaks on background ----
-  AppState.addEventListener('change', (state) => {
+  _appStateSubscription = AppState.addEventListener('change', (state) => {
     if (state === 'background') {
       // Snapshot heap when going to background
       checkHeapGrowth(heapGrowthThreshold, maxSnapshots);
@@ -182,6 +183,8 @@ export function stopMemoryLeakDetector(): void {
     clearInterval(_checkTimer);
     _checkTimer = null;
   }
+  _appStateSubscription?.remove?.();
+  _appStateSubscription = null;
   _heapSnapshots.length = 0;
   _activeTimers.clear();
 }

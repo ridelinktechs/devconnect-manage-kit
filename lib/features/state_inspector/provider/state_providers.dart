@@ -14,8 +14,14 @@ final stateChangesProvider =
   return notifier;
 });
 
-final selectedStateChangeProvider =
-    StateProvider<StateChange?>((ref) => null);
+final selectedStateChangeIdProvider = StateProvider<String?>((ref) => null);
+
+final selectedStateChangeProvider = Provider<StateChange?>((ref) {
+  final id = ref.watch(selectedStateChangeIdProvider);
+  if (id == null) return null;
+  final entries = ref.watch(stateChangesProvider);
+  return entries.where((e) => e.id == id).firstOrNull;
+});
 
 final stateSearchProvider = StateProvider<String>((ref) => '');
 

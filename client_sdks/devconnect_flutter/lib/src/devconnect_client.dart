@@ -326,11 +326,16 @@ class DevConnectClient {
       );
 
       final completer = Completer<String?>();
+      StreamSubscription<RawSocketEvent>? subscription;
+
       final timer = Timer(const Duration(seconds: 3), () {
-        if (!completer.isCompleted) completer.complete(null);
+        if (!completer.isCompleted) {
+          subscription?.cancel();
+          completer.complete(null);
+        }
       });
 
-      udp.listen((event) {
+      subscription = udp.listen((event) {
         if (event == RawSocketEvent.read) {
           final datagram = udp!.receive();
           if (datagram != null && !completer.isCompleted) {
@@ -340,6 +345,7 @@ class DevConnectClient {
                 final serverPort = data['port'] as int?;
                 if (serverPort == expectedPort) {
                   timer.cancel();
+                  subscription?.cancel();
                   completer.complete(datagram.address.address);
                 }
               }
@@ -426,18 +432,20 @@ class DevConnectClient {
               final cmd = msg['payload']?['command'] as String?;
               final args = msg['payload']?['args'] as Map<String, dynamic>?;
               if (cmd != null && _commandHandlers.containsKey(cmd)) {
-                final result = _commandHandlers[cmd]!(args);
-                _send('client:custom:command_result', {
-                  'command': cmd,
-                  'result': result,
-                }, correlationId: msg['correlationId'] as String?);
+                try {
+                  final result = _commandHandlers[cmd]!(args);
+                  _send('client:custom:command_result', {
+                    'command': cmd,
+                    'result': result,
+                  }, correlationId: msg['correlationId'] as String?);
+                } catch (_) {}
               }
             }
           } catch (_) {}
         },
         onDone: () {
           _connected = false;
-          onDisconnected?.call();
+          try { onDisconnected?.call(); } catch (_) {}
           _scheduleReconnect();
         },
         onError: (_) {

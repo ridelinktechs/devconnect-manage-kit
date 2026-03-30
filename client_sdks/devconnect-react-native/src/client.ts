@@ -313,6 +313,9 @@ export class DevConnect {
   private _stateRestoreHandler: ((state: any) => void) | null = null;
   private _customCommandHandlers: Map<string, (args?: any) => any> = new Map();
   private _benchmarks: Map<string, { title: string; startTime: number; steps: Array<{ title: string; timestamp: number }> }> = new Map();
+  private originalFetch: typeof global.fetch | null = null;
+  private originalXHR: typeof global.XMLHttpRequest | null = null;
+  private originalConsole: { log: Function; warn: Function; error: Function; debug: Function; info: Function; trace?: Function } | null = null;
 
   private constructor(config: DevConnectConfig & { resolvedHost: string }) {
     this.config = {
@@ -483,11 +486,18 @@ export class DevConnect {
             const cmd = msg.payload?.command;
             const handler = this._customCommandHandlers.get(cmd);
             if (handler) {
-              const result = handler(msg.payload?.args);
-              this.send('client:custom:command_result', {
-                command: cmd,
-                result,
-              }, msg.correlationId);
+              try {
+                const result = handler(msg.payload?.args);
+                this.send('client:custom:command_result', {
+                  command: cmd,
+                  result,
+                }, msg.correlationId);
+              } catch (cmdErr: any) {
+                this.send('client:custom:command_result', {
+                  command: cmd,
+                  error: cmdErr?.message ?? String(cmdErr),
+                }, msg.correlationId);
+              }
             }
           }
         } catch (_) {}
@@ -579,6 +589,7 @@ export class DevConnect {
 
   private patchFetch(): void {
     const originalFetch = global.fetch;
+    this.originalFetch = originalFetch;
     const dc = this;
 
     global.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -634,6 +645,7 @@ export class DevConnect {
   private patchXHR(): void {
     const dc = this;
     const OriginalXHR = global.XMLHttpRequest;
+    this.originalXHR = OriginalXHR;
 
     function PatchedXHR(this: any) {
       const xhr = new OriginalXHR();
@@ -656,7 +668,8 @@ export class DevConnect {
         return origSend(body);
       };
 
-      xhr.addEventListener('loadend', () => {
+      const handleLoadEnd = () => {
+        xhr.removeEventListener('loadend', handleLoadEnd);
         const resHeaders: Record<string, string> = {};
         try { xhr.getAllResponseHeaders().split('\r\n').forEach((l: string) => { const i = l.indexOf(':'); if (i > 0) resHeaders[l.substring(0, i).trim()] = l.substring(i + 1).trim(); }); } catch (_) {}
         let responseBody: any;
@@ -676,7 +689,8 @@ export class DevConnect {
           source: classifyUrl(url),
           ...(xhr.status === 0 ? { error: 'Network request failed' } : {}),
         });
-      });
+      };
+      xhr.addEventListener('loadend', handleLoadEnd);
       return xhr;
     }
     (global as any).XMLHttpRequest = PatchedXHR;
@@ -691,6 +705,7 @@ export class DevConnect {
       error: console.error.bind(console), debug: console.debug.bind(console),
       info: console.info.bind(console), trace: console.trace?.bind(console),
     };
+    this.originalConsole = orig;
 
     const systemPrefixes = [
       'Running "', 'BUNDLE ', 'nativeRequire ', 'Require cycle:', 'Remote debugger',
@@ -868,6 +883,27 @@ export class DevConnect {
       instance.connected = false;
       try { instance.ws?.close(); } catch (_) {}
       instance.ws = null;
+      instance.restorePatches();
+    }
+  }
+
+  private restorePatches(): void {
+    if (this.originalFetch) {
+      (global as any).fetch = this.originalFetch;
+      this.originalFetch = null;
+    }
+    if (this.originalXHR) {
+      (global as any).XMLHttpRequest = this.originalXHR;
+      this.originalXHR = null;
+    }
+    if (this.originalConsole) {
+      console.log = this.originalConsole.log as any;
+      console.warn = this.originalConsole.warn as any;
+      console.error = this.originalConsole.error as any;
+      console.debug = this.originalConsole.debug as any;
+      console.info = this.originalConsole.info as any;
+      if (this.originalConsole.trace) console.trace = this.originalConsole.trace as any;
+      this.originalConsole = null;
     }
   }
 

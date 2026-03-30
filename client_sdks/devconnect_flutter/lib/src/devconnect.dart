@@ -48,6 +48,7 @@ class DevConnect {
   static DevConnectClient get client => DevConnectClient.instance;
   static DevConnectClient? get clientSafe => DevConnectClient.instanceSafe;
   static bool _initialized = false;
+  static Future<void>? _initFuture;
 
   /// Safe no-op guard for release builds.
   /// Returns true if SDK is active (debug + initialized).
@@ -165,6 +166,33 @@ class DevConnect {
   }) async {
     // Production kill-switch: no-op in release builds by default.
     if (!(enabled ?? kDebugMode) || _initialized) return;
+    _initFuture ??= _doInit(
+      appName: appName,
+      appVersion: appVersion,
+      versionCode: versionCode,
+      host: host,
+      port: port,
+      platform: platform,
+      auto_: auto_,
+      autoPerformance: autoPerformance,
+      autoMemoryLeak: autoMemoryLeak,
+      autoBenchmark: autoBenchmark,
+    );
+    return _initFuture;
+  }
+
+  static Future<void> _doInit({
+    required String appName,
+    String appVersion = '1.0.0',
+    String? versionCode,
+    String? host,
+    int port = 9091,
+    String platform = 'flutter',
+    bool auto_ = true,
+    bool autoPerformance = true,
+    bool autoMemoryLeak = true,
+    bool autoBenchmark = true,
+  }) async {
     _initialized = true;
 
     await DevConnectClient.init(

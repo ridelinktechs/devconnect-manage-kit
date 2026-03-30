@@ -15,7 +15,7 @@ import '../ws_server.dart';
 
 final wsServerProvider = Provider<WsServer>((ref) {
   final server = WsServer();
-  ref.onDispose(() => server.dispose());
+  ref.onDispose(() { server.dispose(); });
   return server;
 });
 
@@ -103,7 +103,7 @@ class ConnectedDevicesNotifier extends StateNotifier<List<DeviceInfo>> {
     // Clear selections
     _ref.read(selectedNetworkIdProvider.notifier).state = null;
     _ref.read(selectedStorageIdProvider.notifier).state = null;
-    _ref.read(selectedStateChangeProvider.notifier).state = null;
+    _ref.read(selectedStateChangeIdProvider.notifier).state = null;
   }
 
   void cancelSubscriptions() {

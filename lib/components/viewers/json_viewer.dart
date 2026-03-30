@@ -369,6 +369,9 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
         _result = result;
         _loading = false;
       });
+    }).catchError((e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
     });
   }
 

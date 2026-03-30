@@ -58,7 +58,7 @@ class WsServer {
 
   /// Broadcast a UDP beacon every 2 seconds on all network interfaces.
   /// Clients listen on [discoveryPort] and extract server IP from datagram source.
-  void _startBeacon(int wsPort) async {
+  Future<void> _startBeacon(int wsPort) async {
     try {
       _udpSocket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -92,7 +92,7 @@ class WsServer {
     }
   }
 
-  void _sendSubnetBroadcasts(List<int> beacon) async {
+  Future<void> _sendSubnetBroadcasts(List<int> beacon) async {
     try {
       final interfaces = await NetworkInterface.list();
       for (final iface in interfaces) {
@@ -266,10 +266,10 @@ class WsServer {
     }
   }
 
-  void dispose() {
+  Future<void> dispose() async {
     _messageController.close();
     _connectionController.close();
     _disconnectionController.close();
-    stop();
+    await stop();
   }
 }

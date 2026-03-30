@@ -2,8 +2,7 @@ package com.devconnect.client
 
 import kotlinx.coroutines.*
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import java.io.BufferedInputStream
 import java.io.PrintWriter
 import java.net.Socket
 import java.security.MessageDigest
@@ -56,11 +55,20 @@ class WebSocketClient(
                 socket!!.getOutputStream().write(handshake.toByteArray())
                 socket!!.getOutputStream().flush()
 
-                // Read handshake response
-                val reader = BufferedReader(InputStreamReader(socket!!.getInputStream()))
-                var line = reader.readLine()
-                while (line != null && line.isNotEmpty()) {
-                    line = reader.readLine()
+                // Read handshake response using BufferedInputStream
+                // (avoids BufferedReader stealing bytes from the WebSocket frame stream)
+                val inputStream = BufferedInputStream(socket!!.getInputStream())
+                val lineBuf = StringBuilder()
+                while (true) {
+                    val b = inputStream.read()
+                    if (b == -1) break
+                    if (b == '\n'.code) {
+                        val line = lineBuf.toString().trimEnd('\r')
+                        lineBuf.clear()
+                        if (line.isEmpty()) break  // end of HTTP headers
+                    } else {
+                        lineBuf.append(b.toChar())
+                    }
                 }
 
                 isConnected = true
@@ -73,7 +81,7 @@ class WebSocketClient(
                 // Wait for server:hello before sending handshake
 
                 // Listen for messages
-                listenForMessages(reader)
+                listenForMessages(inputStream)
             } catch (e: Exception) {
                 isConnected = false
                 scheduleReconnect()
@@ -106,27 +114,27 @@ class WebSocketClient(
         sendRaw(msg.toString())
     }
 
-    private fun listenForMessages(reader: BufferedReader) {
+    private fun listenForMessages(inputStream: BufferedInputStream) {
         scope.launch {
             try {
                 while (isConnected) {
                     // Simplified WebSocket frame reading
-                    val firstByte = socket!!.getInputStream().read()
+                    val firstByte = inputStream.read()
                     if (firstByte == -1) break
 
-                    val secondByte = socket!!.getInputStream().read()
+                    val secondByte = inputStream.read()
                     val payloadLength = secondByte and 0x7F
 
                     val actualLength = when {
                         payloadLength <= 125 -> payloadLength
                         payloadLength == 126 -> {
-                            val b1 = socket!!.getInputStream().read()
-                            val b2 = socket!!.getInputStream().read()
+                            val b1 = inputStream.read()
+                            val b2 = inputStream.read()
                             (b1 shl 8) or b2
                         }
                         else -> {
                             // 8 bytes for length - skip for simplicity
-                            repeat(8) { socket!!.getInputStream().read() }
+                            repeat(8) { inputStream.read() }
                             0
                         }
                     }
@@ -135,7 +143,7 @@ class WebSocketClient(
                         val data = ByteArray(actualLength)
                         var totalRead = 0
                         while (totalRead < actualLength) {
-                            val read = socket!!.getInputStream().read(
+                            val read = inputStream.read(
                                 data, totalRead, actualLength - totalRead
                             )
                             if (read == -1) break
@@ -236,7 +244,9 @@ class WebSocketClient(
     fun disconnect() {
         isConnected = false
         reconnectJob?.cancel()
-        scope.cancel()
+        reconnectJob = null
+        scope.coroutineContext.cancelChildren()  // Cancel children, keep scope alive
         try { socket?.close() } catch (_: Exception) {}
+        socket = null
     }
 }

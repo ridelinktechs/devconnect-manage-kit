@@ -184,6 +184,9 @@ object DevConnect {
             host
         }
 
+        // Disconnect old client to prevent orphaned connections
+        client?.disconnect()
+
         client = WebSocketClient(
             host = resolvedHost,
             port = port,
@@ -215,13 +218,20 @@ object DevConnect {
                         if (handler != null) {
                             val args = payload.optJSONObject("args")
                             val argsMap = if (args != null) jsonObjectToMap(args) else null
-                            val result = handler(argsMap)
-                            val correlationId = json.optString("correlationId", null)
-                            val resultPayload = buildPayload {
-                                put("command", cmd)
-                                if (result != null) put("result", result)
+                            try {
+                                val result = handler(argsMap)
+                                val correlationId = json.optString("correlationId", null)
+                                val resultPayload = buildPayload {
+                                    put("command", cmd)
+                                    if (result != null) put("result", result)
+                                }
+                                send("client:custom:command_result", resultPayload)
+                            } catch (_: Exception) {
+                                // Handler threw — send error result so desktop knows
+                                send("client:custom:command_result", buildPayload {
+                                    put("command", cmd)
+                                })
                             }
-                            send("client:custom:command_result", resultPayload)
                         }
                     }
                 }
