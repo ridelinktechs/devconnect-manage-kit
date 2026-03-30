@@ -162,7 +162,7 @@ function patchTimers(): void {
     origClearTimeout(id);
   };
 
-  (global as any).setInterval = (fn: Function, delay?: number, ...args: any[]) => {
+  (global as any).setInterval = (fn: (...a: any[]) => void, delay?: number, ...args: any[]) => {
     const id = origSetInterval(fn, delay, ...args);
     _activeTimers.add(id);
     return id;

@@ -675,7 +675,7 @@ export class DevConnect {
         let responseBody: any;
         // Only read responseText if responseType allows it (not blob/arraybuffer)
         const rt = xhr.responseType;
-        if (!rt || rt === '' || rt === 'text') {
+        if (!rt || rt === 'text' || (rt as string) === '') {
           try { responseBody = JSON.parse(xhr.responseText); } catch (_) { responseBody = xhr.responseText; }
         } else if (rt === 'json') {
           responseBody = xhr.response;
