@@ -25,14 +25,21 @@ jobs:
       - run: dart run build_runner build --delete-conflicting-outputs
       - run: flutter build windows --release
 
-      - name: Create ZIP
+      - name: Create Application ZIP (full folder with DLLs)
         run: |
           cd build\windows\x64\runner\Release
           Compress-Archive -Path * -DestinationPath DevConnectManageTool-Windows-v1.0.0.zip
         shell: pwsh
 
+      - name: Copy EXE standalone
+        run: |
+          copy build\windows\x64\runner\Release\devconnect_manage_tool.exe build\windows\x64\runner\Release\DevConnectManageTool-Windows-v1.0.0.exe
+        shell: pwsh
+
       - name: Upload to Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload v1.0.0 build/windows/x64/runner/Release/DevConnectManageTool-Windows-v1.0.0.zip --repo ${{ github.repository }} --clobber
+        run: |
+          gh release upload v1.0.0 build/windows/x64/runner/Release/DevConnectManageTool-Windows-v1.0.0.zip --repo ${{ github.repository }} --clobber
+          gh release upload v1.0.0 build/windows/x64/runner/Release/DevConnectManageTool-Windows-v1.0.0.exe --repo ${{ github.repository }} --clobber
         shell: pwsh
