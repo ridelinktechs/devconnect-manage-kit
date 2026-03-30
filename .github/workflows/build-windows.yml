@@ -20,11 +20,11 @@ jobs:
       - name: Create ZIP
         run: |
           cd build\windows\x64\runner\Release
-          Compress-Archive -Path * -DestinationPath DevConnect-Windows-v1.0.0.zip
+          Compress-Archive -Path * -DestinationPath DevConnectManageTool-Windows-v1.0.0.zip
         shell: pwsh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DevConnect-Windows-v1.0.0
-          path: build/windows/x64/runner/Release/DevConnect-Windows-v1.0.0.zip
+          name: DevConnectManageTool-Windows-v1.0.0
+          path: build/windows/x64/runner/Release/DevConnectManageTool-Windows-v1.0.0.zip

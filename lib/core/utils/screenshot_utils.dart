@@ -59,7 +59,7 @@ Future<void> captureWidgetAsImage(
     final pngBytes = byteData.buffer.asUint8List();
 
     final fileName =
-        'devconnect_${DateTime.now().millisecondsSinceEpoch}.png';
+        'dcmt_${DateTime.now().millisecondsSinceEpoch}.png';
     final location = await getSaveLocation(
       suggestedName: fileName,
       acceptedTypeGroups: [

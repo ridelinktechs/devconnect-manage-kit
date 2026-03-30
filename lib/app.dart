@@ -40,7 +40,7 @@ class _DevConnectAppState extends ConsumerState<DevConnectApp> {
     ref.watch(wsMessageHandlerProvider);
 
     return MaterialApp.router(
-      title: 'DevConnect',
+      title: 'DevConnect Manage Tool',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

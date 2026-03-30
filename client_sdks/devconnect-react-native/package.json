@@ -1,7 +1,7 @@
 {
-  "name": "devconnect-react-native",
+  "name": "devconnect-manage-kit",
   "version": "1.0.0",
-  "description": "DevConnect client SDK for React Native - auto-intercepts fetch, axios, console.log, Redux, MobX, AsyncStorage, Firebase, OAuth2, and all popular logging libraries",
+  "description": "DevConnect Manage Kit - React Native SDK for debugging. Auto-intercepts fetch, axios, console.log, Redux, MobX, AsyncStorage, Firebase, OAuth2, and all popular logging libraries",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

@@ -13,7 +13,7 @@ void main() async {
     size: Size(1280, 800),
     minimumSize: Size(900, 600),
     center: true,
-    title: 'DevConnect',
+    title: 'DevConnect Manage Tool',
     titleBarStyle: TitleBarStyle.hidden,
     backgroundColor: Color(0xFF0D1117),
   );

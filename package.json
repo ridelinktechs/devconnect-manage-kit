@@ -1,7 +1,7 @@
 {
-  "name": "devconnect",
+  "name": "devconnect-manage-kit",
   "version": "1.0.0",
-  "description": "DevConnect - Desktop debugging & inspection tool for React Native, Flutter, and Android",
+  "description": "DevConnect Manage Tool - Desktop debugging & inspection tool for React Native, Flutter, and Android",
   "main": "client_sdks/devconnect-react-native/src/index.ts",
   "private": true,
   "exports": {

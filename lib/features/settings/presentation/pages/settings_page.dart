@@ -1136,8 +1136,8 @@ class _QuickStartSection extends StatelessWidget {
               child: _StepCard(
                 number: '1',
                 title: 'Install SDK',
-                code: 'Flutter:  flutter pub add devconnect_flutter\n'
-                    'RN:      yarn add devconnect-react-native\n'
+                code: 'Flutter:  flutter pub add devconnect_manage_kit\n'
+                    'RN:      yarn add devconnect-manage-kit\n'
                     'Android: implementation("com.github...")',
                 codeBg: codeBg,
               ),
@@ -1370,7 +1370,7 @@ class _DonateSection extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'DevConnect is free and open source. If it helps your workflow, consider supporting development.',
+          'DevConnect Manage Tool is free and open source. If it helps your workflow, consider supporting development.',
           style: TextStyle(fontSize: 12, color: Colors.grey[500], height: 1.4),
         ),
         const SizedBox(height: 16),

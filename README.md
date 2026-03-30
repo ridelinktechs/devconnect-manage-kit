@@ -2,14 +2,14 @@
 
 # DevConnect
 
-### A modern, cross-platform alternative to Reactotron and Flipper
+### A modern, cross-platform manage and debug tool — alternative to Reactotron and Flipper
 
 **Debug Flutter, React Native & Android apps — network, state, logs, storage, database — all in one beautiful desktop tool.**
 
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)](https://github.com/ridelinktechs/devconnect/releases)
-[![Flutter](https://img.shields.io/badge/Flutter-SDK-02569B?logo=flutter)](client_sdks/devconnect_flutter)
-[![React Native](https://img.shields.io/badge/React%20Native-SDK-61DAFB?logo=react)](client_sdks/devconnect-react-native)
-[![Android](https://img.shields.io/badge/Android-SDK-3DDC84?logo=android)](client_sdks/devconnect-android)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)](https://github.com/ridelinktechs/devconnect-manage-kit/releases)
+[![Flutter](https://img.shields.io/badge/Flutter-SDK-02569B?logo=flutter)](client_sdks/devconnect_manage_kit)
+[![React Native](https://img.shields.io/badge/React%20Native-SDK-61DAFB?logo=react)](client_sdks/devconnect-manage-kit)
+[![Android](https://img.shields.io/badge/Android-SDK-3DDC84?logo=android)](client_sdks/devconnect-manage-android)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [Features](#features) · [Download](#download) · [Quick Start](#quick-start) · [Desktop Guide](#using-the-desktop-app) · [SDKs](#flutter-sdk) · [Support](#support-devconnect)
@@ -81,7 +81,7 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 | macOS | `DevConnect-macOS-v1.0.0-universal.dmg` | arm64 + x86_64 |
 | Windows | `DevConnect-Windows-v1.0.0.zip` | x64 |
 
-Download from [Releases](https://github.com/ridelinktechs/devconnect/releases).
+Download from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases).
 
 ---
 
@@ -90,7 +90,7 @@ Download from [Releases](https://github.com/ridelinktechs/devconnect/releases).
 ### Flutter — 2 lines
 
 ```dart
-import 'package:devconnect_flutter/devconnect_flutter.dart';
+import 'package:devconnect_manage_kit/devconnect_manage_kit.dart';
 
 void main() async {
   await DevConnect.initAndRunApp(
@@ -104,7 +104,7 @@ void main() async {
 ### React Native — 1 line
 
 ```typescript
-import { DevConnect } from 'devconnect-react-native';
+import { DevConnect } from 'devconnect-manage-kit';
 
 await DevConnect.init({ appName: 'MyApp' });
 // Done. fetch + XHR + console auto-captured.
@@ -132,12 +132,12 @@ That's it. Open DevConnect desktop, run your app, and everything appears.
 | macOS | `DevConnect-macOS-v1.0.0-universal.dmg` | arm64 + x86_64 |
 | Windows | `DevConnect-Windows-v1.0.0.zip` | x64 |
 
-Download from [Releases](https://github.com/ridelinktechs/devconnect/releases).
+Download from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases).
 
 ### Build from source
 
 ```bash
-git clone https://github.com/ridelinktechs/devconnect.git
+git clone https://github.com/ridelinktechs/devconnect-manage-kit.git
 cd devconnect
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
@@ -171,7 +171,7 @@ flutter build windows --release # Windows
 
 ```bash
 # From pub.dev (after published)
-flutter pub add devconnect_flutter
+flutter pub add devconnect_manage_kit
 ```
 
 Or from GitHub:
@@ -179,16 +179,16 @@ Or from GitHub:
 ```yaml
 # pubspec.yaml
 dependencies:
-  devconnect_flutter:
+  devconnect_manage_kit:
     git:
-      url: https://github.com/ridelinktechs/devconnect.git
-      path: client_sdks/devconnect_flutter
+      url: https://github.com/ridelinktechs/devconnect-manage-kit.git
+      path: client_sdks/devconnect_manage_kit
 ```
 
 ### Init
 
 ```dart
-import 'package:devconnect_flutter/devconnect_flutter.dart';
+import 'package:devconnect_manage_kit/devconnect_manage_kit.dart';
 
 void main() async {
   // Auto-detect: captures all HTTP + logs automatically
@@ -525,21 +525,21 @@ GoRouter(observers: [DevConnect.navigationObserver()])
 
 ```bash
 # From npm (after published)
-yarn add devconnect-react-native
+yarn add devconnect-manage-kit
 # or
-npm install devconnect-react-native
+npm install devconnect-manage-kit
 ```
 
 Or from GitHub:
 
 ```bash
-yarn add github:ridelinktechs/devconnect#main
+yarn add github:ridelinktechs/devconnect-manage-kit#main
 ```
 
 ### Init
 
 ```typescript
-import { DevConnect } from 'devconnect-react-native';
+import { DevConnect } from 'devconnect-manage-kit';
 
 await DevConnect.init({ appName: 'MyApp' });
 // Auto-captures: fetch, XHR, console.log/warn/error
@@ -566,7 +566,7 @@ Auto-captured: fetch, XHR, axios, got, ky, superagent, apisauce, Apollo, urql, T
 
 ```typescript
 // Axios (optional, for extra tagging)
-import { setupAxiosInterceptor } from 'devconnect-react-native';
+import { setupAxiosInterceptor } from 'devconnect-manage-kit';
 setupAxiosInterceptor(axios);
 ```
 
@@ -582,25 +582,25 @@ DevConnect.warn('Warning');
 DevConnect.error('Error', 'Tag', stackTrace);
 
 // react-native-logs
-import { devConnectTransport } from 'devconnect-react-native';
+import { devConnectTransport } from 'devconnect-manage-kit';
 const log = logger.createLogger({ transport: [consoleTransport, devConnectTransport] });
 
 // loglevel
-import { patchLoglevel } from 'devconnect-react-native';
+import { patchLoglevel } from 'devconnect-manage-kit';
 patchLoglevel(log);
 
 // pino
-import { pinoDevConnectTransport } from 'devconnect-react-native';
+import { pinoDevConnectTransport } from 'devconnect-manage-kit';
 const logger = pino({}, pinoDevConnectTransport());
 
 // winston
-import { winstonDevConnectTransport } from 'devconnect-react-native';
+import { winstonDevConnectTransport } from 'devconnect-manage-kit';
 
 // bunyan
-import { bunyanDevConnectStream } from 'devconnect-react-native';
+import { bunyanDevConnectStream } from 'devconnect-manage-kit';
 
 // Any custom logger
-import { wrapLogger } from 'devconnect-react-native';
+import { wrapLogger } from 'devconnect-manage-kit';
 const wrapped = wrapLogger(myLogger, 'myLoggerName');
 ```
 
@@ -609,8 +609,8 @@ const wrapped = wrapLogger(myLogger, 'myLoggerName');
 ```typescript
 // Redux - Classic createStore
 import { createStore, applyMiddleware, compose } from 'redux';
-import { devConnectReduxMiddleware } from 'devconnect-react-native';
-import { DevConnect } from 'devconnect-react-native';
+import { devConnectReduxMiddleware } from 'devconnect-manage-kit';
+import { DevConnect } from 'devconnect-manage-kit';
 
 let store;
 if (__DEV__) {
@@ -628,8 +628,8 @@ if (__DEV__) {
 ```typescript
 // Redux Toolkit
 import { configureStore } from '@reduxjs/toolkit';
-import { devConnectReduxMiddleware } from 'devconnect-react-native';
-import { DevConnect } from 'devconnect-react-native';
+import { devConnectReduxMiddleware } from 'devconnect-manage-kit';
+import { DevConnect } from 'devconnect-manage-kit';
 
 const store = configureStore({
   reducer: rootReducer,
@@ -645,7 +645,7 @@ if (__DEV__) DevConnect.connectReduxStore(store);
 ```typescript
 // MobX
 import { spy } from 'mobx';
-import { setupMobxSpy } from 'devconnect-react-native';
+import { setupMobxSpy } from 'devconnect-manage-kit';
 
 if (__DEV__) {
   setupMobxSpy(spy); // reports all observable changes
@@ -655,7 +655,7 @@ if (__DEV__) {
 ```typescript
 // Zustand
 import { create } from 'zustand';
-import { devConnectMiddleware } from 'devconnect-react-native';
+import { devConnectMiddleware } from 'devconnect-manage-kit';
 
 // Wrap your store creator with devConnectMiddleware
 const useStore = create(
@@ -674,7 +674,7 @@ const useStore = create(
 ```typescript
 // Jotai
 import { atom, createStore } from 'jotai';
-import { watchAtom } from 'devconnect-react-native';
+import { watchAtom } from 'devconnect-manage-kit';
 
 const countAtom = atom(0);
 const store = createStore();
@@ -689,7 +689,7 @@ if (__DEV__) {
 ```typescript
 // Valtio
 import { proxy } from 'valtio';
-import { watchValtio } from 'devconnect-react-native';
+import { watchValtio } from 'devconnect-manage-kit';
 
 const state = proxy({ count: 0, user: { name: '' } });
 
@@ -701,7 +701,7 @@ if (__DEV__) {
 ```typescript
 // XState
 import { interpret } from 'xstate';
-import { devConnectXStateInspector } from 'devconnect-react-native';
+import { devConnectXStateInspector } from 'devconnect-manage-kit';
 
 const service = interpret(toggleMachine);
 
@@ -717,11 +717,11 @@ service.start();
 
 ```typescript
 // AsyncStorage
-import { DevConnectAsyncStorage } from 'devconnect-react-native';
+import { DevConnectAsyncStorage } from 'devconnect-manage-kit';
 DevConnectAsyncStorage.patchInPlace(AsyncStorage);
 
 // MMKV
-import { DevConnectMMKV } from 'devconnect-react-native';
+import { DevConnectMMKV } from 'devconnect-manage-kit';
 DevConnectMMKV.wrap(storage);
 ```
 
@@ -864,7 +864,7 @@ DevConnect.disconnect();
 ```gradle
 // From Maven Central (after published)
 dependencies {
-    implementation("com.ridelink:devconnect-android:1.0.0")
+    implementation("com.ridelink:devconnect-manage-android:1.0.0")
 }
 ```
 
@@ -880,15 +880,15 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.ridelinktechs.devconnect:devconnect-android:v1.0.0")
+    implementation("com.github.ridelinktechs.devconnect:devconnect-manage-android:v1.0.0")
 }
 ```
 
-Or AAR file from [Releases](https://github.com/ridelinktechs/devconnect/releases):
+Or AAR file from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases):
 
 ```gradle
 dependencies {
-    implementation(files("libs/devconnect-android-1.0.0.aar"))
+    implementation(files("libs/devconnect-manage-android-1.0.0.aar"))
 }
 ```
 
@@ -1285,7 +1285,7 @@ DevConnect is free and open source. If it saves you debugging time, consider sup
 Contributions welcome! Feel free to open issues or pull requests.
 
 ```bash
-git clone https://github.com/ridelinktechs/devconnect.git
+git clone https://github.com/ridelinktechs/devconnect-manage-kit.git
 cd devconnect
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
@@ -1314,7 +1314,7 @@ MIT - by [buivietphi](https://github.com/buivietphi)
 
 <div align="center">
 
-**DevConnect** — Debug Flutter, React Native & Android apps from one desktop tool.
+**DevConnect Manage Tool** — Debug Flutter, React Native & Android apps from one desktop tool.
 
 *A modern alternative to Reactotron, Flipper, and platform-specific debugging tools.*
 

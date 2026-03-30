@@ -8,7 +8,7 @@
 PRODUCT_NAME = DevConnect
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.ridelink.devconnect
+PRODUCT_BUNDLE_IDENTIFIER = com.ridelink.devconnect-manage-tool
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.ridelink. All rights reserved.
