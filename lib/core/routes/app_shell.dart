@@ -75,7 +75,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   Expanded(
                     child: Column(
                       children: [
-                        if (Platform.isMacOS) const SizedBox(height: 64),
+                        SizedBox(height: Platform.isMacOS ? 64 : Platform.isWindows || Platform.isLinux ? 32 : 0),
                         Expanded(
                           child: isLocked
                               ? const _LockedTabOverlay()
@@ -87,13 +87,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                 ],
               ),
-              // Draggable title bar (macOS)
-              if (Platform.isMacOS)
+              // Draggable title bar (desktop)
+              if (Platform.isMacOS || Platform.isWindows || Platform.isLinux)
                 Positioned(
                   top: 0,
                   left: isCollapsed ? 36 : 68,
                   right: 0,
-                  height: 64,
+                  height: Platform.isMacOS ? 64 : 32,
                   child: GestureDetector(
                     behavior: HitTestBehavior.translucent,
                     onPanStart: (_) => windowManager.startDragging(),

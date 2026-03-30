@@ -2139,39 +2139,92 @@ class _HeaderSection extends StatelessWidget {
                           ),
                         ),
                       ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 180,
-                      child: SelectableText(
-                        e.key,
-                        style: TextStyle(
-                          fontFamily: 'JetBrains Mono',
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? const Color(0xFF9CDCFE)
-                              : const Color(0xFF0451A5),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: SelectableText(
-                        e.value,
-                        style: TextStyle(
-                          fontFamily: 'JetBrains Mono',
-                          fontSize: 11,
-                          color: isDark
-                              ? const Color(0xFFCE9178)
-                              : const Color(0xFFA31515),
-                        ),
-                      ),
-                    ),
-                  ],
+                child: _HeaderRowWithCopy(
+                  headerKey: e.key,
+                  headerValue: e.value,
+                  isDark: isDark,
                 ),
               );
             }),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderRowWithCopy extends StatefulWidget {
+  final String headerKey;
+  final String headerValue;
+  final bool isDark;
+
+  const _HeaderRowWithCopy({
+    required this.headerKey,
+    required this.headerValue,
+    required this.isDark,
+  });
+
+  @override
+  State<_HeaderRowWithCopy> createState() => _HeaderRowWithCopyState();
+}
+
+class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
+  bool _hovered = false;
+  bool _copied = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() { _hovered = false; _copied = false; }),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 180,
+            child: SelectableText(
+              widget.headerKey,
+              style: TextStyle(
+                fontFamily: 'JetBrains Mono',
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: widget.isDark
+                    ? const Color(0xFF9CDCFE)
+                    : const Color(0xFF0451A5),
+              ),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              widget.headerValue,
+              style: TextStyle(
+                fontFamily: 'JetBrains Mono',
+                fontSize: 11,
+                color: widget.isDark
+                    ? const Color(0xFFCE9178)
+                    : const Color(0xFFA31515),
+              ),
+            ),
+          ),
+          if (_hovered)
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: '${widget.headerKey}: ${widget.headerValue}'));
+                setState(() => _copied = true);
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Icon(
+                    _copied ? LucideIcons.check : LucideIcons.copy,
+                    size: 12,
+                    color: _copied
+                        ? ColorTokens.success
+                        : (widget.isDark ? Colors.white38 : Colors.black26),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
