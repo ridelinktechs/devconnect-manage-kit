@@ -276,12 +276,21 @@ class WsMessageHandler {
   PerformanceMetricType _parseMetricType(String type) {
     switch (type) {
       case 'fps': return PerformanceMetricType.fps;
-      case 'frameBuildTime': return PerformanceMetricType.frameBuildTime;
-      case 'frameRasterTime': return PerformanceMetricType.frameRasterTime;
-      case 'memoryUsage': return PerformanceMetricType.memoryUsage;
-      case 'memoryPeak': return PerformanceMetricType.memoryPeak;
-      case 'cpuUsage': return PerformanceMetricType.cpuUsage;
-      case 'jankFrame': return PerformanceMetricType.jankFrame;
+      case 'frameBuildTime': case 'frame_build_time': return PerformanceMetricType.frameBuildTime;
+      case 'frameRasterTime': case 'frame_raster_time': return PerformanceMetricType.frameRasterTime;
+      case 'memoryUsage': case 'memory_usage': return PerformanceMetricType.memoryUsage;
+      case 'memoryPeak': case 'memory_peak': return PerformanceMetricType.memoryPeak;
+      case 'memoryAllocationRate': case 'memory_allocation_rate': return PerformanceMetricType.memoryAllocationRate;
+      case 'cpuUsage': case 'cpu_usage': return PerformanceMetricType.cpuUsage;
+      case 'jankFrame': case 'jank_frame': return PerformanceMetricType.jankFrame;
+      case 'networkActivity': case 'network_activity': return PerformanceMetricType.networkActivity;
+      case 'startupTime': case 'startup_time': return PerformanceMetricType.startupTime;
+      case 'batteryLevel': case 'battery_level': return PerformanceMetricType.batteryLevel;
+      case 'thermalState': case 'thermal_state': return PerformanceMetricType.thermalState;
+      case 'threadCount': case 'thread_count': return PerformanceMetricType.threadCount;
+      case 'diskRead': case 'disk_read': return PerformanceMetricType.diskRead;
+      case 'diskWrite': case 'disk_write': return PerformanceMetricType.diskWrite;
+      case 'anr': return PerformanceMetricType.anr;
       default: return PerformanceMetricType.fps;
     }
   }

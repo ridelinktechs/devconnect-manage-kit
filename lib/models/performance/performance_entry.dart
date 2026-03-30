@@ -25,8 +25,17 @@ enum PerformanceMetricType {
   frameRasterTime,
   memoryUsage,
   memoryPeak,
+  memoryAllocationRate,
   cpuUsage,
   jankFrame,
+  networkActivity,
+  startupTime,
+  batteryLevel,
+  thermalState,
+  threadCount,
+  diskRead,
+  diskWrite,
+  anr,
 }
 
 /// A memory leak warning detected by the SDK

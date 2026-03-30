@@ -5,15 +5,51 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
-import '../../../../core/theme/color_tokens.dart';
+import '../../../../models/network/network_entry.dart';
 import '../../../../models/performance/performance_entry.dart';
 import '../../provider/performance_providers.dart';
 
-class PerformancePage extends ConsumerWidget {
+/// Format bytes/MB value to human-readable with auto unit
+String _formatMemory(double mb) {
+  if (mb >= 1024) return '${(mb / 1024).toStringAsFixed(1)} GB';
+  if (mb >= 1) return '${mb.toStringAsFixed(1)} MB';
+  return '${(mb * 1024).toStringAsFixed(0)} KB';
+}
+
+/// Short value only (for metric card/pill)
+String _formatMemoryValue(double mb) {
+  if (mb >= 1024) return (mb / 1024).toStringAsFixed(1);
+  if (mb >= 1) return mb.toStringAsFixed(1);
+  return (mb * 1024).toStringAsFixed(0);
+}
+
+/// Unit only
+String _formatMemoryUnit(double mb) {
+  if (mb >= 1024) return 'GB';
+  if (mb >= 1) return 'MB';
+  return 'KB';
+}
+
+/// Format bytes/sec to human-readable speed
+String _formatSpeed(double bytesPerSec) {
+  if (bytesPerSec >= 1024 * 1024) return '${(bytesPerSec / 1024 / 1024).toStringAsFixed(1)} MB/s';
+  if (bytesPerSec >= 1024) return '${(bytesPerSec / 1024).toStringAsFixed(1)} KB/s';
+  if (bytesPerSec > 0) return '${bytesPerSec.toStringAsFixed(0)} B/s';
+  return '0';
+}
+
+class PerformancePage extends ConsumerStatefulWidget {
   const PerformancePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PerformancePage> createState() => _PerformancePageState();
+}
+
+class _PerformancePageState extends ConsumerState<PerformancePage> {
+  bool _isRecording = true;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final entries = ref.watch(filteredPerformanceEntriesProvider);
@@ -33,129 +69,272 @@ class PerformancePage extends ConsumerWidget {
     final fpsHistory = ref.watch(fpsHistoryProvider);
     final memoryHistory = ref.watch(memoryHistoryProvider);
     final cpuHistory = ref.watch(cpuHistoryProvider);
+    final networkHistory = ref.watch(networkHistoryProvider);
+    final activeRequests = ref.watch(activeNetworkRequestsProvider);
+    final reqPerSec = ref.watch(networkRequestsPerSecondProvider);
+    final avgResponse = ref.watch(avgResponseTimeProvider);
+    final errorRate = ref.watch(networkErrorRateProvider);
+    // New metrics
+    final buildTimeHistory = ref.watch(frameBuildTimeHistoryProvider);
+    final rasterTimeHistory = ref.watch(frameRasterTimeHistoryProvider);
+    final startupTime = ref.watch(startupTimeProvider);
+    final battery = ref.watch(latestBatteryProvider);
+    final batteryEntry = ref.watch(latestBatteryEntryProvider);
+    final batteryHistory = ref.watch(batteryHistoryProvider);
+    final batteryDrainRate = ref.watch(batteryDrainRateProvider);
+    final batteryTimeRemaining = ref.watch(batteryTimeRemainingProvider);
+    final thermal = ref.watch(latestThermalProvider);
+    final thermalEntry = ref.watch(latestThermalEntryProvider);
+    final threadCount = ref.watch(latestThreadCountProvider);
+    final threadHistory = ref.watch(threadCountHistoryProvider);
+    final diskRead = ref.watch(latestDiskReadProvider);
+    final diskWrite = ref.watch(latestDiskWriteProvider);
+    final memAllocRate = ref.watch(latestMemAllocRateProvider);
+    final anrCount = ref.watch(anrCountProvider);
+    final jankEntries = ref.watch(filteredPerformanceEntriesProvider
+        .select((list) => list.where((e) => e.metricType == PerformanceMetricType.jankFrame).toList()));
 
     return Column(
       children: [
-        // Toolbar
-        _Toolbar(
+        // Profiler toolbar
+        _ProfilerToolbar(
           isDark: isDark,
-          onClear: () => ref.read(performanceEntriesProvider.notifier).clear(),
+          isRecording: _isRecording,
+          fps: fps,
+          memory: memory,
+          cpu: cpu,
+          jankCount: jankCount,
+          onToggleRecording: () => setState(() => _isRecording = !_isRecording),
+          onClear: () {
+            ref.read(performanceEntriesProvider.notifier).clear();
+          },
         ),
-        // Metric cards
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: _MetricCard(
-                  label: 'FPS',
-                  value: fps != null ? fps.toStringAsFixed(1) : '--',
-                  icon: LucideIcons.monitor,
-                  color: _fpsColor(fps),
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricCard(
-                  label: 'Memory',
-                  value: memory != null
-                      ? '${memory.toStringAsFixed(1)} MB'
-                      : '--',
-                  icon: LucideIcons.memoryStick,
-                  color: const Color(0xFF8B5CF6),
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricCard(
-                  label: 'CPU',
-                  value: cpu != null ? '${cpu.toStringAsFixed(1)}%' : '--',
-                  icon: LucideIcons.cpu,
-                  color: const Color(0xFFF59E0B),
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricCard(
-                  label: 'Jank Frames',
-                  value: '$jankCount',
-                  icon: LucideIcons.triangleAlert,
-                  color: jankCount > 0
-                      ? const Color(0xFFEF4444)
-                      : ColorTokens.success,
-                  isDark: isDark,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Charts
+        // Profiler charts stacked vertically like Android Studio
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Column(
-              children: [
-                Expanded(
-                  child: _ChartCard(
-                    title: 'FPS',
-                    entries: fpsHistory,
-                    color: const Color(0xFF10B981),
-                    maxY: 120,
-                    targetLine: 60,
-                    isDark: isDark,
-                  ),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
+            children: [
+              // FPS chart row
+              _ProfilerChartRow(
+                title: 'FPS',
+                icon: LucideIcons.monitor,
+                color: const Color(0xFF10B981),
+                isDark: isDark,
+                currentValue: fps != null ? fps.toStringAsFixed(0) : '--',
+                unit: 'fps',
+                statusColor: _fpsStatusColor(fps),
+                chart: _ProfilerLineChart(
+                  entries: fpsHistory,
+                  color: const Color(0xFF10B981),
+                  isDark: isDark,
+                  maxY: 120,
+                  targetLine: 60,
+                  targetLabel: '60 fps',
+                  unit: 'fps',
                 ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: _ChartCard(
-                    title: 'Memory Usage (MB)',
-                    entries: memoryHistory,
-                    color: const Color(0xFF8B5CF6),
+                badge: jankCount > 0
+                    ? _JankBadge(count: jankCount, isDark: isDark, entries: jankEntries)
+                    : null,
+              ),
+              // Frame Build Time — only show if data exists
+              if (buildTimeHistory.isNotEmpty) ...[
+                _chartDivider(isDark),
+                _ProfilerChartRow(
+                  title: 'Build',
+                  icon: LucideIcons.hammer,
+                  color: const Color(0xFF06B6D4),
+                  isDark: isDark,
+                  currentValue: buildTimeHistory.last.value.toStringAsFixed(1),
+                  unit: 'ms',
+                  statusColor: _frameTimeColor(buildTimeHistory.last.value),
+                  chart: _ProfilerLineChart(
+                    entries: buildTimeHistory,
+                    color: const Color(0xFF06B6D4),
                     isDark: isDark,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: _ChartCard(
-                    title: 'CPU Usage (%)',
-                    entries: cpuHistory,
-                    color: const Color(0xFFF59E0B),
-                    maxY: 100,
-                    isDark: isDark,
+                    targetLine: 16,
+                    unit: 'ms',
                   ),
                 ),
               ],
-            ),
+              // Frame Raster (GPU render) Time — only show if data exists (Flutter SDK only)
+              if (rasterTimeHistory.isNotEmpty) ...[
+                _chartDivider(isDark),
+                _ProfilerChartRow(
+                  title: 'GPU',
+                  icon: LucideIcons.paintbrush,
+                  color: const Color(0xFFEC4899),
+                  isDark: isDark,
+                  currentValue: rasterTimeHistory.last.value.toStringAsFixed(1),
+                  unit: 'ms',
+                  statusColor: _frameTimeColor(rasterTimeHistory.last.value),
+                  chart: _ProfilerLineChart(
+                    entries: rasterTimeHistory,
+                    color: const Color(0xFFEC4899),
+                    isDark: isDark,
+                    targetLine: 16,
+                    unit: 'ms',
+                  ),
+                ),
+              ],
+              _chartDivider(isDark),
+              // CPU chart row
+              _ProfilerChartRow(
+                title: 'CPU',
+                icon: LucideIcons.cpu,
+                color: const Color(0xFFF59E0B),
+                isDark: isDark,
+                currentValue: cpu != null ? cpu.toStringAsFixed(1) : '--',
+                unit: '%',
+                statusColor: _cpuStatusColor(cpu),
+                chart: _ProfilerLineChart(
+                  entries: cpuHistory,
+                  color: const Color(0xFFF59E0B),
+                  isDark: isDark,
+                  maxY: 100,
+                  unit: '%',
+                ),
+              ),
+              _chartDivider(isDark),
+              // Memory chart row
+              _ProfilerChartRow(
+                title: 'Memory',
+                icon: LucideIcons.memoryStick,
+                color: const Color(0xFF8B5CF6),
+                isDark: isDark,
+                currentValue: memory != null
+                    ? _formatMemoryValue(memory)
+                    : '--',
+                unit: memory != null ? _formatMemoryUnit(memory) : 'MB',
+                statusColor: const Color(0xFF8B5CF6),
+                chart: _ProfilerLineChart(
+                  entries: memoryHistory,
+                  color: const Color(0xFF8B5CF6),
+                  isDark: isDark,
+                  fillColor: const Color(0xFF8B5CF6),
+                  showArea: true,
+                  unit: memory != null ? _formatMemoryUnit(memory) : 'MB',
+                ),
+                badge: memAllocRate != null
+                    ? _AllocRateBadge(rate: memAllocRate, isDark: isDark)
+                    : null,
+              ),
+              _chartDivider(isDark),
+              // Network chart row
+              _ProfilerNetworkRow(
+                isDark: isDark,
+                networkHistory: networkHistory,
+                activeRequests: activeRequests,
+                reqPerSec: reqPerSec,
+                avgResponse: avgResponse,
+                errorRate: errorRate,
+                downloadSpeed: ref.watch(networkDownloadSpeedProvider),
+                uploadSpeed: ref.watch(networkUploadSpeedProvider),
+              ),
+              // Thread Count — only show if data exists
+              if (threadHistory.isNotEmpty) ...[
+                _chartDivider(isDark),
+                _ProfilerChartRow(
+                  title: 'Threads',
+                  icon: LucideIcons.gitBranch,
+                  color: const Color(0xFF14B8A6),
+                  isDark: isDark,
+                  currentValue: threadCount?.toString() ?? '--',
+                  unit: '',
+                  statusColor: const Color(0xFF14B8A6),
+                  chart: _ProfilerLineChart(
+                    entries: threadHistory,
+                    color: const Color(0xFF14B8A6),
+                    isDark: isDark,
+                    unit: '',
+                  ),
+                ),
+              ],
+              // System Status — only show if any data available
+              if (startupTime != null || battery != null || thermal != null ||
+                  diskRead != null || diskWrite != null || anrCount > 0) ...[
+                _chartDivider(isDark),
+                _SystemStatusRow(
+                  isDark: isDark,
+                  startupTime: startupTime,
+                  battery: battery,
+                  batteryEntry: batteryEntry,
+                  batteryHistory: batteryHistory,
+                  batteryDrainRate: batteryDrainRate,
+                  batteryTimeRemaining: batteryTimeRemaining,
+                  thermal: thermal,
+                  thermalEntry: thermalEntry,
+                  diskRead: diskRead,
+                  diskWrite: diskWrite,
+                  anrCount: anrCount,
+                ),
+              ],
+            ],
           ),
         ),
       ],
     );
   }
 
-  Color _fpsColor(double? fps) {
+  Widget _chartDivider(bool isDark) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.04)
+          : Colors.black.withValues(alpha: 0.04),
+    );
+  }
+
+  Color _fpsStatusColor(double? fps) {
     if (fps == null) return Colors.grey;
     if (fps >= 55) return const Color(0xFF10B981);
     if (fps >= 30) return const Color(0xFFF59E0B);
     return const Color(0xFFEF4444);
   }
+
+  Color _cpuStatusColor(double? cpu) {
+    if (cpu == null) return Colors.grey;
+    if (cpu <= 30) return const Color(0xFF10B981);
+    if (cpu <= 60) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  Color _frameTimeColor(double? ms) {
+    if (ms == null) return Colors.grey;
+    if (ms <= 8) return const Color(0xFF10B981);
+    if (ms <= 16) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
 }
 
-// ---- Toolbar ----
+// ---- Profiler Toolbar ----
 
-class _Toolbar extends StatelessWidget {
+class _ProfilerToolbar extends StatelessWidget {
   final bool isDark;
+  final bool isRecording;
+  final double? fps;
+  final double? memory;
+  final double? cpu;
+  final int jankCount;
+  final VoidCallback onToggleRecording;
   final VoidCallback onClear;
 
-  const _Toolbar({required this.isDark, required this.onClear});
+  const _ProfilerToolbar({
+    required this.isDark,
+    required this.isRecording,
+    required this.fps,
+    required this.memory,
+    required this.cpu,
+    required this.jankCount,
+    required this.onToggleRecording,
+    required this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF161B22) : const Color(0xFFF6F8FA),
         border: Border(
@@ -168,42 +347,100 @@ class _Toolbar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.gauge, size: 16, color: ColorTokens.primary),
-          const SizedBox(width: 8),
-          Text(
-            'Performance Profiling',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
+          // Recording indicator
+          _ToolbarButton(
+            icon: isRecording ? LucideIcons.circle : LucideIcons.play,
+            tooltip: isRecording ? 'Stop Recording' : 'Start Recording',
+            isDark: isDark,
+            color: isRecording ? const Color(0xFFEF4444) : null,
+            filled: isRecording,
+            onTap: onToggleRecording,
           ),
-          const Spacer(),
-          _MiniButton(
+          const SizedBox(width: 4),
+          _ToolbarButton(
             icon: LucideIcons.trash2,
             tooltip: 'Clear',
             isDark: isDark,
             onTap: onClear,
           ),
+          const SizedBox(width: 12),
+          Container(
+            width: 1,
+            height: 20,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.08),
+          ),
+          const SizedBox(width: 12),
+          // Live metric pills
+          _MetricPill(
+            label: 'FPS',
+            value: fps?.toStringAsFixed(0) ?? '--',
+            color: _fpsColor(fps),
+            isDark: isDark,
+          ),
+          const SizedBox(width: 8),
+          _MetricPill(
+            label: 'MEM',
+            value: memory != null ? _formatMemory(memory!) : '--',
+            color: const Color(0xFF8B5CF6),
+            isDark: isDark,
+          ),
+          const SizedBox(width: 8),
+          _MetricPill(
+            label: 'CPU',
+            value: cpu != null ? '${cpu!.toStringAsFixed(0)}%' : '--',
+            color: const Color(0xFFF59E0B),
+            isDark: isDark,
+          ),
+          if (jankCount > 0) ...[
+            const SizedBox(width: 8),
+            _MetricPill(
+              label: 'SLOW',
+              value: '$jankCount',
+              color: const Color(0xFFEF4444),
+              isDark: isDark,
+            ),
+          ],
+          const Spacer(),
+          Icon(
+            LucideIcons.gauge,
+            size: 14,
+            color: isDark ? Colors.white30 : Colors.black26,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Performance Profiler',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white30 : Colors.black26,
+            ),
+          ),
         ],
       ),
     );
   }
+
+  Color _fpsColor(double? fps) {
+    if (fps == null) return Colors.grey;
+    if (fps >= 55) return const Color(0xFF10B981);
+    if (fps >= 30) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
 }
 
-// ---- Metric Card ----
+// ---- Metric Pill (toolbar) ----
 
-class _MetricCard extends StatelessWidget {
+class _MetricPill extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
   final Color color;
   final bool isDark;
 
-  const _MetricCard({
+  const _MetricPill({
     required this.label,
     required this.value,
-    required this.icon,
     required this.color,
     required this.isDark,
   });
@@ -211,54 +448,30 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 14, color: color),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.white54 : Colors.black45,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
               color: color,
-              letterSpacing: -0.5,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '$label: $value',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -267,93 +480,92 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-// ---- Chart Card ----
+// ---- Profiler Chart Row (stacked like Android Studio) ----
 
-class _ChartCard extends StatelessWidget {
+class _ProfilerChartRow extends StatelessWidget {
   final String title;
-  final List<PerformanceEntry> entries;
+  final IconData icon;
   final Color color;
-  final double? maxY;
-  final double? targetLine;
   final bool isDark;
+  final String currentValue;
+  final String unit;
+  final Color statusColor;
+  final Widget chart;
+  final Widget? badge;
 
-  const _ChartCard({
+  const _ProfilerChartRow({
     required this.title,
-    required this.entries,
+    required this.icon,
     required this.color,
-    this.maxY,
-    this.targetLine,
     required this.isDark,
+    required this.currentValue,
+    required this.unit,
+    required this.chart,
+    required this.statusColor,
+    this.badge,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.06),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      height: 130,
+      color: isDark ? const Color(0xFF0D1117) : Colors.white,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
+          // Left label panel
+          Container(
+            width: 72,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border(
+                right: BorderSide(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : Colors.black.withValues(alpha: 0.04),
                 ),
               ),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white70 : Colors.black54,
-                ),
-              ),
-              const Spacer(),
-              if (entries.isNotEmpty)
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(icon, size: 14, color: color.withValues(alpha: 0.7)),
+                const SizedBox(height: 4),
                 Text(
-                  '${entries.length} samples',
+                  title,
                   style: TextStyle(
                     fontSize: 10,
-                    color: isDark ? Colors.white38 : Colors.black26,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white54 : Colors.black45,
+                    letterSpacing: 0.5,
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: entries.length < 2
-                ? Center(
-                    child: Text(
-                      'Waiting for data...',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? Colors.white30 : Colors.black26,
-                      ),
-                    ),
-                  )
-                : CustomPaint(
-                    size: Size.infinite,
-                    painter: _LineChartPainter(
-                      entries: entries,
-                      color: color,
-                      isDark: isDark,
-                      maxY: maxY,
-                      targetLine: targetLine,
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '$currentValue $unit',
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                      height: 1,
                     ),
                   ),
+                ),
+                if (badge != null) ...[
+                  const Spacer(),
+                  badge!,
+                ],
+              ],
+            ),
+          ),
+          // Chart area
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+              child: chart,
+            ),
           ),
         ],
       ),
@@ -361,30 +573,689 @@ class _ChartCard extends StatelessWidget {
   }
 }
 
-// ---- Line Chart Painter ----
+// ---- Jank Badge with tooltip ----
 
-class _LineChartPainter extends CustomPainter {
+class _JankBadge extends StatelessWidget {
+  final int count;
+  final bool isDark;
+  final List<PerformanceEntry> entries;
+
+  const _JankBadge({required this.count, required this.isDark, required this.entries});
+
+  @override
+  Widget build(BuildContext context) {
+    final avgMs = entries.isEmpty
+        ? 0.0
+        : entries.fold<double>(0, (s, e) => s + e.value) / entries.length;
+    final maxMs = entries.isEmpty
+        ? 0.0
+        : entries.fold<double>(0, (s, e) => math.max(s, e.value));
+    final recent = entries.length > 5 ? entries.sublist(entries.length - 5) : entries;
+
+    final lines = <String>[
+      'Slow Frames: $count',
+      'Avg: ${avgMs.toStringAsFixed(1)}ms  Max: ${maxMs.toStringAsFixed(1)}ms',
+      '',
+      ...recent.reversed.map((e) {
+        final build = e.metadata?['buildDuration'] as num?;
+        final raster = e.metadata?['rasterDuration'] as num?;
+        final parts = <String>['${e.value.toStringAsFixed(1)}ms'];
+        if (build != null) parts.add('B:${build.toStringAsFixed(0)}');
+        if (raster != null) parts.add('R:${raster.toStringAsFixed(0)}');
+        return parts.join('  ');
+      }),
+    ];
+
+    return Tooltip(
+      richMessage: TextSpan(
+        text: lines.join('\n'),
+        style: TextStyle(
+          fontSize: 11,
+          color: isDark ? Colors.white : Colors.black87,
+          height: 1.5,
+        ),
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 12),
+        ],
+      ),
+      waitDuration: const Duration(milliseconds: 200),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(LucideIcons.triangleAlert, size: 8, color: Color(0xFFEF4444)),
+            const SizedBox(width: 3),
+            Text(
+              '$count',
+              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFFEF4444)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---- Alloc Rate Badge ----
+
+class _AllocRateBadge extends StatelessWidget {
+  final double rate;
+  final bool isDark;
+
+  const _AllocRateBadge({required this.rate, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final isPositive = rate >= 0;
+    final color = rate.abs() > 1
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF10B981);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '${isPositive ? '+' : ''}${rate.toStringAsFixed(1)}/s',
+        style: TextStyle(
+          fontSize: 8,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+// ---- System Status Row (battery, thermal, disk, startup, ANR) ----
+
+class _SystemStatusRow extends StatelessWidget {
+  final bool isDark;
+  final double? startupTime;
+  final double? battery;
+  final PerformanceEntry? batteryEntry;
+  final List<PerformanceEntry> batteryHistory;
+  final double? batteryDrainRate;
+  final double? batteryTimeRemaining;
+  final double? thermal;
+  final PerformanceEntry? thermalEntry;
+  final double? diskRead;
+  final double? diskWrite;
+  final int anrCount;
+
+  const _SystemStatusRow({
+    required this.isDark,
+    required this.startupTime,
+    required this.battery,
+    required this.batteryEntry,
+    required this.batteryHistory,
+    required this.batteryDrainRate,
+    required this.batteryTimeRemaining,
+    required this.thermal,
+    required this.thermalEntry,
+    required this.diskRead,
+    required this.diskWrite,
+    required this.anrCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: isDark ? const Color(0xFF0D1117) : Colors.white,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.activity, size: 12,
+                  color: isDark ? Colors.white38 : Colors.black38),
+              const SizedBox(width: 6),
+              Text(
+                'System Status',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white54 : Colors.black45,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (startupTime != null)
+                _SystemChip(
+                  icon: LucideIcons.rocket,
+                  label: 'Startup',
+                  value: startupTime! >= 1000
+                      ? '${(startupTime! / 1000).toStringAsFixed(1)}s'
+                      : '${startupTime!.toInt()}ms',
+                  color: startupTime! < 2000
+                      ? const Color(0xFF10B981)
+                      : startupTime! < 5000
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFFEF4444),
+                  isDark: isDark,
+                ),
+              if (battery != null && battery! < 0)
+                _SystemChip(
+                  icon: LucideIcons.batteryWarning,
+                  label: 'Battery',
+                  value: 'N/A',
+                  detail: 'Emulator',
+                  color: Colors.grey,
+                  isDark: isDark,
+                ),
+              if (battery != null && battery! >= 0)
+                _SystemChip(
+                  icon: battery! > 80
+                      ? LucideIcons.batteryFull
+                      : battery! > 30
+                          ? LucideIcons.batteryMedium
+                          : LucideIcons.batteryLow,
+                  label: 'Battery',
+                  value: '${battery!.toInt()}%',
+                  detail: _batteryDetail(),
+                  color: battery! > 30
+                      ? const Color(0xFF10B981)
+                      : battery! > 15
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFFEF4444),
+                  isDark: isDark,
+                ),
+              if (batteryDrainRate != null && batteryDrainRate! > 0)
+                _SystemChip(
+                  icon: LucideIcons.trendingDown,
+                  label: 'Drain Rate',
+                  value: '${batteryDrainRate!.toStringAsFixed(2)}%/min',
+                  detail: batteryTimeRemaining != null
+                      ? _formatTimeRemaining(batteryTimeRemaining!)
+                      : null,
+                  color: batteryDrainRate! < 0.5
+                      ? const Color(0xFF10B981)
+                      : batteryDrainRate! < 1.5
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFFEF4444),
+                  isDark: isDark,
+                ),
+              if (thermal != null)
+                _SystemChip(
+                  icon: LucideIcons.thermometer,
+                  label: 'Thermal',
+                  value: _thermalLabel(thermal!),
+                  detail: thermalEntry?.metadata?['temperatureC'] != null
+                      ? '${(thermalEntry!.metadata!['temperatureC'] as num).toStringAsFixed(1)}°C'
+                      : null,
+                  color: _thermalColor(thermal!),
+                  isDark: isDark,
+                ),
+              if (diskRead != null)
+                _SystemChip(
+                  icon: LucideIcons.hardDriveDownload,
+                  label: 'Disk Read',
+                  value: '${diskRead!.toStringAsFixed(1)} MB',
+                  color: const Color(0xFF3B82F6),
+                  isDark: isDark,
+                ),
+              if (diskWrite != null)
+                _SystemChip(
+                  icon: LucideIcons.hardDriveUpload,
+                  label: 'Disk Write',
+                  value: '${diskWrite!.toStringAsFixed(1)} MB',
+                  color: const Color(0xFF8B5CF6),
+                  isDark: isDark,
+                ),
+              if (anrCount > 0)
+                _SystemChip(
+                  icon: LucideIcons.octagonAlert,
+                  label: 'ANR',
+                  value: '$anrCount',
+                  color: const Color(0xFFEF4444),
+                  isDark: isDark,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _batteryDetail() {
+    if (batteryEntry?.metadata?['charging'] == true) return 'Charging';
+    if (batteryDrainRate != null && batteryDrainRate! > 0 && batteryTimeRemaining != null) {
+      return '~${_formatTimeRemaining(batteryTimeRemaining!)} left';
+    }
+    return null;
+  }
+
+  String _formatTimeRemaining(double minutes) {
+    if (minutes >= 60) {
+      final h = (minutes / 60).floor();
+      final m = (minutes % 60).round();
+      return '${h}h${m > 0 ? ' ${m}m' : ''}';
+    }
+    return '${minutes.round()}m';
+  }
+
+  String _thermalLabel(double state) {
+    if (state <= 0) return 'Normal';
+    if (state <= 1) return 'Fair';
+    if (state <= 2) return 'Serious';
+    return 'Critical';
+  }
+
+  Color _thermalColor(double state) {
+    if (state <= 0) return const Color(0xFF10B981);
+    if (state <= 1) return const Color(0xFFF59E0B);
+    if (state <= 2) return const Color(0xFFEF4444);
+    return const Color(0xFFDC2626);
+  }
+}
+
+// ---- System Chip ----
+
+class _SystemChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String? detail;
+  final Color color;
+  final bool isDark;
+
+  const _SystemChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.detail,
+    required this.color,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: isDark ? Colors.white38 : Colors.black38,
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
+                  ),
+                  if (detail != null) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      detail!,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: isDark ? Colors.white30 : Colors.black26,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---- Network Row ----
+
+class _ProfilerNetworkRow extends StatelessWidget {
+  final bool isDark;
+  final List<NetworkEntry> networkHistory;
+  final int activeRequests;
+  final double reqPerSec;
+  final double? avgResponse;
+  final double errorRate;
+  final double downloadSpeed;
+  final double uploadSpeed;
+
+  const _ProfilerNetworkRow({
+    required this.isDark,
+    required this.networkHistory,
+    required this.activeRequests,
+    required this.reqPerSec,
+    required this.avgResponse,
+    required this.errorRate,
+    required this.downloadSpeed,
+    required this.uploadSpeed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 150,
+      color: isDark ? const Color(0xFF0D1117) : Colors.white,
+      child: Row(
+        children: [
+          // Left label panel
+          Container(
+            width: 72,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border(
+                right: BorderSide(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : Colors.black.withValues(alpha: 0.04),
+                ),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(LucideIcons.globe, size: 14,
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.7)),
+                const SizedBox(height: 4),
+                Text(
+                  'Network',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white54 : Colors.black45,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '${networkHistory.length} reqs',
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF3B82F6),
+                      height: 1,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (activeRequests > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$activeRequests live',
+                      style: const TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF3B82F6),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // Network chart area
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+              child: Column(
+                children: [
+                  // Network stat pills
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      _NetStatChip(
+                        label: 'req/s',
+                        value: reqPerSec.toStringAsFixed(1),
+                        color: const Color(0xFF3B82F6),
+                        isDark: isDark,
+                      ),
+                      _NetStatChip(
+                        label: 'avg',
+                        value: avgResponse != null
+                            ? '${avgResponse!.toStringAsFixed(0)}ms'
+                            : '--',
+                        color: const Color(0xFF10B981),
+                        isDark: isDark,
+                      ),
+                      _NetStatChip(
+                        label: 'err',
+                        value: '${errorRate.toStringAsFixed(1)}%',
+                        color: errorRate > 0
+                            ? const Color(0xFFEF4444)
+                            : const Color(0xFF10B981),
+                        isDark: isDark,
+                      ),
+                      _NetStatChip(
+                        label: '↓',
+                        value: _formatSpeed(downloadSpeed),
+                        color: const Color(0xFF10B981),
+                        isDark: isDark,
+                      ),
+                      _NetStatChip(
+                        label: '↑',
+                        value: _formatSpeed(uploadSpeed),
+                        color: const Color(0xFF8B5CF6),
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  // Network waterfall chart
+                  Expanded(
+                    child: networkHistory.length < 2
+                        ? Center(
+                            child: Text(
+                              'Waiting for requests...',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark ? Colors.white30 : Colors.black26,
+                              ),
+                            ),
+                          )
+                        : CustomPaint(
+                            size: Size.infinite,
+                            painter: _NetworkWaterfallPainter(
+                              entries: networkHistory,
+                              isDark: isDark,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---- Net Stat Chip ----
+
+class _NetStatChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final bool isDark;
+
+  const _NetStatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label ',
+            style: TextStyle(
+              fontSize: 9,
+              color: isDark ? Colors.white38 : Colors.black38,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---- Profiler Line Chart (shared, with hover tooltip) ----
+
+class _ProfilerLineChart extends StatefulWidget {
   final List<PerformanceEntry> entries;
   final Color color;
   final bool isDark;
   final double? maxY;
   final double? targetLine;
+  final String? targetLabel;
+  final Color? fillColor;
+  final bool showArea;
+  final String unit;
 
-  _LineChartPainter({
+  const _ProfilerLineChart({
     required this.entries,
     required this.color,
     required this.isDark,
     this.maxY,
     this.targetLine,
+    this.targetLabel,
+    this.fillColor,
+    this.showArea = false,
+    this.unit = '',
+  });
+
+  @override
+  State<_ProfilerLineChart> createState() => _ProfilerLineChartState();
+}
+
+class _ProfilerLineChartState extends State<_ProfilerLineChart> {
+  Offset? _hoverPos;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.entries.length < 2) {
+      return Center(
+        child: Text(
+          'Waiting for data...',
+          style: TextStyle(
+            fontSize: 11,
+            color: widget.isDark ? Colors.white30 : Colors.black26,
+          ),
+        ),
+      );
+    }
+    return MouseRegion(
+      onHover: (e) => setState(() => _hoverPos = e.localPosition),
+      onExit: (_) => setState(() => _hoverPos = null),
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _ProfilerLinePainter(
+          entries: widget.entries,
+          color: widget.color,
+          isDark: widget.isDark,
+          maxY: widget.maxY,
+          targetLine: widget.targetLine,
+          fillColor: widget.fillColor ?? widget.color,
+          showArea: widget.showArea,
+          hoverPos: _hoverPos,
+          unit: widget.unit,
+        ),
+      ),
+    );
+  }
+}
+
+// ---- Profiler Line Painter ----
+
+class _ProfilerLinePainter extends CustomPainter {
+  final List<PerformanceEntry> entries;
+  final Color color;
+  final bool isDark;
+  final double? maxY;
+  final double? targetLine;
+  final Color fillColor;
+  final bool showArea;
+  final Offset? hoverPos;
+  final String unit;
+
+  _ProfilerLinePainter({
+    required this.entries,
+    required this.color,
+    required this.isDark,
+    this.maxY,
+    this.targetLine,
+    required this.fillColor,
+    required this.showArea,
+    this.hoverPos,
+    this.unit = '',
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (entries.length < 2) return;
 
-    // Take last 100 points max
-    final data = entries.length > 100
-        ? entries.sublist(entries.length - 100)
+    final data = entries.length > 120
+        ? entries.sublist(entries.length - 120)
         : entries;
 
     final computedMaxY = maxY ??
@@ -395,24 +1266,47 @@ class _LineChartPainter extends CustomPainter {
     final h = size.height;
     final stepX = w / (data.length - 1);
 
-    // Grid lines
+    // Subtle grid lines
     final gridPaint = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05)
+      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.03)
       ..strokeWidth = 0.5;
 
-    for (int i = 0; i <= 4; i++) {
-      final y = h * i / 4;
+    for (int i = 0; i <= 3; i++) {
+      final y = h * i / 3;
       canvas.drawLine(Offset(0, y), Offset(w, y), gridPaint);
     }
 
-    // Target line (e.g., 60 FPS)
+    // Target line
     if (targetLine != null) {
       final targetY = h - (targetLine! / computedMaxY) * h;
-      final targetPaint = Paint()
-        ..color = const Color(0xFF10B981).withValues(alpha: 0.4)
-        ..strokeWidth = 1
-        ..style = PaintingStyle.stroke;
-      canvas.drawLine(Offset(0, targetY), Offset(w, targetY), targetPaint);
+      final dashPaint = Paint()
+        ..color = const Color(0xFF10B981).withValues(alpha: 0.3)
+        ..strokeWidth = 1;
+
+      const dashWidth = 4.0;
+      const dashSpace = 3.0;
+      double startX = 0;
+      while (startX < w) {
+        canvas.drawLine(
+          Offset(startX, targetY),
+          Offset(math.min(startX + dashWidth, w), targetY),
+          dashPaint,
+        );
+        startX += dashWidth + dashSpace;
+      }
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${targetLine!.toInt()}',
+          style: TextStyle(
+            fontSize: 8,
+            color: const Color(0xFF10B981).withValues(alpha: 0.5),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(w - tp.width - 2, targetY - tp.height - 1));
     }
 
     // Build path
@@ -434,80 +1328,286 @@ class _LineChartPainter extends CustomPainter {
     }
 
     // Fill gradient
-    fillPath.lineTo(w, h);
+    fillPath.lineTo((data.length - 1) * stepX, h);
     fillPath.close();
 
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          color.withValues(alpha: 0.25),
-          color.withValues(alpha: 0.02),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: showArea
+          ? [fillColor.withValues(alpha: 0.35), fillColor.withValues(alpha: 0.05)]
+          : [fillColor.withValues(alpha: 0.18), fillColor.withValues(alpha: 0.01)],
+    );
 
-    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(
+      fillPath,
+      Paint()..shader = gradient.createShader(Rect.fromLTWH(0, 0, w, h)),
+    );
 
     // Line
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
 
-    canvas.drawPath(path, linePaint);
-
-    // Latest value dot
+    // Latest value dot with glow
     final lastX = (data.length - 1) * stepX;
-    final lastY =
-        h - (data.last.value / computedMaxY).clamp(0.0, 1.0) * h;
+    final lastY = h - (data.last.value / computedMaxY).clamp(0.0, 1.0) * h;
 
     canvas.drawCircle(
-      Offset(lastX, lastY),
-      4,
+      Offset(lastX, lastY), 5,
+      Paint()..color = color.withValues(alpha: 0.2),
+    );
+    canvas.drawCircle(
+      Offset(lastX, lastY), 3,
       Paint()..color = color,
     );
     canvas.drawCircle(
-      Offset(lastX, lastY),
-      2,
+      Offset(lastX, lastY), 1.5,
       Paint()..color = Colors.white,
     );
+
+    // Min/max labels on right edge
+    final maxVal = data.fold<double>(0, (m, e) => math.max(m, e.value));
+    final minVal = data.fold<double>(maxVal, (m, e) => math.min(m, e.value));
+    _drawEdgeLabel(canvas, w, 2, maxVal.toStringAsFixed(0), isDark);
+    _drawEdgeLabel(canvas, w, h - 10, minVal.toStringAsFixed(0), isDark);
+
+    // ---- Hover crosshair + tooltip ----
+    if (hoverPos != null && hoverPos!.dx >= 0 && hoverPos!.dx <= w) {
+      _drawHoverTooltip(canvas, size, data, stepX, computedMaxY);
+    }
+  }
+
+  void _drawHoverTooltip(
+    Canvas canvas, Size size,
+    List<PerformanceEntry> data, double stepX, double computedMaxY,
+  ) {
+    final w = size.width;
+    final h = size.height;
+    final hx = hoverPos!.dx;
+
+    // Snap to nearest data point
+    int idx = (hx / stepX).round().clamp(0, data.length - 1);
+    final entry = data[idx];
+    final snapX = idx * stepX;
+    final snapY = h - (entry.value / computedMaxY).clamp(0.0, 1.0) * h;
+
+    // Vertical crosshair line
+    canvas.drawLine(
+      Offset(snapX, 0), Offset(snapX, h),
+      Paint()
+        ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15)
+        ..strokeWidth = 1,
+    );
+
+    // Highlight dot
+    canvas.drawCircle(Offset(snapX, snapY), 5, Paint()..color = color.withValues(alpha: 0.3));
+    canvas.drawCircle(Offset(snapX, snapY), 3.5, Paint()..color = color);
+    canvas.drawCircle(Offset(snapX, snapY), 1.5, Paint()..color = Colors.white);
+
+    // Tooltip text
+    final valueStr = entry.value.toStringAsFixed(1);
+    final timeAgo = _formatTimeAgo(entry.timestamp);
+    final label = entry.metadata?['label'] as String?;
+    final tooltipText = '$valueStr${unit.isNotEmpty ? ' $unit' : ''}  $timeAgo';
+
+    final tp = TextPainter(
+      text: TextSpan(
+        text: tooltipText,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: isDark ? Colors.white : Colors.black87,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    // Second line for label/metadata
+    TextPainter? tp2;
+    if (label != null && label.isNotEmpty) {
+      tp2 = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            fontSize: 9,
+            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.5),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    }
+
+    final tooltipW = math.max(tp.width, tp2?.width ?? 0) + 16;
+    final tooltipH = tp.height + (tp2 != null ? tp2.height + 4 : 0) + 12;
+
+    // Position tooltip: prefer right of crosshair, flip if near edge
+    double tx = snapX + 10;
+    if (tx + tooltipW > w - 4) tx = snapX - tooltipW - 10;
+    double ty = snapY - tooltipH - 8;
+    if (ty < 2) ty = snapY + 12;
+
+    // Tooltip background
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(tx, ty, tooltipW, tooltipH),
+      const Radius.circular(6),
+    );
+    canvas.drawRRect(
+      rrect,
+      Paint()..color = (isDark ? const Color(0xFF1C2333) : Colors.white).withValues(alpha: 0.95),
+    );
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..color = color.withValues(alpha: 0.3)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    tp.paint(canvas, Offset(tx + 8, ty + 6));
+    tp2?.paint(canvas, Offset(tx + 8, ty + 6 + tp.height + 2));
+  }
+
+  String _formatTimeAgo(int timestampMs) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final diff = now - timestampMs;
+    if (diff < 1000) return 'now';
+    if (diff < 60000) return '${(diff / 1000).round()}s ago';
+    if (diff < 3600000) return '${(diff / 60000).round()}m ago';
+    return '${(diff / 3600000).round()}h ago';
+  }
+
+  void _drawEdgeLabel(Canvas canvas, double x, double y, String text, bool isDark) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: 8,
+          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.25),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(x - tp.width - 2, y));
   }
 
   @override
-  bool shouldRepaint(covariant _LineChartPainter oldDelegate) =>
-      entries.length != oldDelegate.entries.length ||
-      (entries.isNotEmpty &&
-          oldDelegate.entries.isNotEmpty &&
-          entries.last.value != oldDelegate.entries.last.value);
+  bool shouldRepaint(covariant _ProfilerLinePainter old) =>
+      entries != old.entries ||
+      hoverPos != old.hoverPos;
 }
 
-// ---- Mini Button ----
+// ---- Network Waterfall Painter ----
 
-class _MiniButton extends StatefulWidget {
+class _NetworkWaterfallPainter extends CustomPainter {
+  final List<NetworkEntry> entries;
+  final bool isDark;
+
+  _NetworkWaterfallPainter({required this.entries, required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (entries.isEmpty) return;
+
+    // Show last 60 requests as horizontal bars
+    final data = entries.length > 60
+        ? entries.sublist(entries.length - 60)
+        : entries;
+
+    final w = size.width;
+    final h = size.height;
+    final barH = math.max(2.0, (h / data.length).clamp(2.0, 6.0));
+    final gap = math.max(0.5, ((h - barH * data.length) / data.length).clamp(0.5, 2.0));
+
+    // Find time range for x-axis
+    final minTime = data.first.startTime;
+    final maxTime = data.last.endTime ?? data.last.startTime + 1000;
+    final timeRange = math.max(1, maxTime - minTime);
+
+    for (int i = 0; i < data.length; i++) {
+      final entry = data[i];
+      final y = i * (barH + gap);
+      if (y + barH > h) break;
+
+      final startX = ((entry.startTime - minTime) / timeRange * w).clamp(0.0, w);
+      final endX = entry.endTime != null
+          ? ((entry.endTime! - minTime) / timeRange * w).clamp(startX, w)
+          : w; // Still in-flight
+
+      final barWidth = math.max(2.0, endX - startX);
+
+      Color barColor;
+      if (entry.error != null) {
+        barColor = const Color(0xFFEF4444);
+      } else if (entry.statusCode >= 400) {
+        barColor = const Color(0xFFEF4444);
+      } else if (entry.statusCode >= 300) {
+        barColor = const Color(0xFFF59E0B);
+      } else if (!entry.isComplete) {
+        barColor = const Color(0xFF3B82F6).withValues(alpha: 0.4);
+      } else {
+        barColor = const Color(0xFF3B82F6);
+      }
+
+      // Duration-based opacity (longer = more opaque)
+      final dur = entry.duration ?? 500;
+      final opacity = (dur / 2000.0).clamp(0.3, 1.0);
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(startX, y, barWidth, barH),
+          const Radius.circular(1),
+        ),
+        Paint()..color = barColor.withValues(alpha: opacity),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _NetworkWaterfallPainter old) =>
+      entries.length != old.entries.length;
+}
+
+// ---- Toolbar Button ----
+
+class _ToolbarButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final bool isDark;
+  final Color? color;
+  final bool filled;
   final VoidCallback onTap;
 
-  const _MiniButton({
+  const _ToolbarButton({
     required this.icon,
     required this.tooltip,
     required this.isDark,
+    this.color,
+    this.filled = false,
     required this.onTap,
   });
 
   @override
-  State<_MiniButton> createState() => _MiniButtonState();
+  State<_ToolbarButton> createState() => _ToolbarButtonState();
 }
 
-class _MiniButtonState extends State<_MiniButton> {
+class _ToolbarButtonState extends State<_ToolbarButton> {
   bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
+    final iconColor = widget.color ??
+        (_hovered
+            ? (widget.isDark ? Colors.white70 : Colors.black54)
+            : Colors.grey[500]);
+
     return GestureDetector(
       onTap: widget.onTap,
       child: MouseRegion(
@@ -527,13 +1627,16 @@ class _MiniButtonState extends State<_MiniButton> {
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(
-              widget.icon,
-              size: 14,
-              color: _hovered
-                  ? (widget.isDark ? Colors.white70 : Colors.black54)
-                  : Colors.grey[500],
-            ),
+            child: widget.filled
+                ? Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: widget.color,
+                      shape: BoxShape.circle,
+                    ),
+                  )
+                : Icon(widget.icon, size: 14, color: iconColor),
           ),
         ),
       ),

@@ -790,7 +790,7 @@ export class DevConnect {
    * ```
    */
   static reportPerformanceMetric(opts: {
-    metricType: 'fps' | 'frame_build_time' | 'frame_raster_time' | 'memory_usage' | 'memory_peak' | 'cpu_usage' | 'jank_frame';
+    metricType: 'fps' | 'frame_build_time' | 'frame_raster_time' | 'memory_usage' | 'memory_peak' | 'memory_allocation_rate' | 'cpu_usage' | 'jank_frame' | 'startup_time' | 'battery_level' | 'thermal_state' | 'thread_count' | 'disk_read' | 'disk_write' | 'anr';
     value: number;
     label?: string;
     metadata?: Record<string, any>;
