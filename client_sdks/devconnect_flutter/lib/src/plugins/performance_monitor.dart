@@ -100,6 +100,7 @@ int _cpuFrameCount = 0;
 int _frameCount = 0;
 int _lastFpsReport = 0;
 const _fpsReportInterval = 2000; // ms
+const _frameSampleRate = 5; // report every Nth frame to reduce overhead
 
 void _onFrameTimings(List<FrameTiming> timings) {
   if (!_running) return;
@@ -119,20 +120,21 @@ void _onFrameTimings(List<FrameTiming> timings) {
     _totalRasterMs += rasterMs;
     _cpuFrameCount++;
 
-    // Report frame build time
-    DevConnectClient.safeSend('client:performance:metric', {
-      'metricType': 'frame_build_time',
-      'value': (buildMs * 10).roundToDouble() / 10,
-      'label': 'Build: ${buildMs.round()}ms',
-      'metadata': {'rasterMs': rasterMs, 'totalMs': totalMs},
-    });
+    // Report frame build/raster time (sampled)
+    if (_frameCount % _frameSampleRate == 0) {
+      DevConnectClient.safeSend('client:performance:metric', {
+        'metricType': 'frame_build_time',
+        'value': (buildMs * 10).roundToDouble() / 10,
+        'label': 'Build: ${buildMs.round()}ms',
+        'metadata': {'rasterMs': rasterMs, 'totalMs': totalMs},
+      });
 
-    // Report frame raster time
-    DevConnectClient.safeSend('client:performance:metric', {
-      'metricType': 'frame_raster_time',
-      'value': (rasterMs * 10).roundToDouble() / 10,
-      'label': 'Raster: ${rasterMs.round()}ms',
-    });
+      DevConnectClient.safeSend('client:performance:metric', {
+        'metricType': 'frame_raster_time',
+        'value': (rasterMs * 10).roundToDouble() / 10,
+        'label': 'Raster: ${rasterMs.round()}ms',
+      });
+    }
 
     // Detect jank
     if (totalMs > 32.0) {

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
+import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../../models/performance/performance_entry.dart';
 import '../../provider/performance_providers.dart';
@@ -118,14 +119,14 @@ class _PerformancePageState extends ConsumerState<PerformancePage> {
               _ProfilerChartRow(
                 title: 'FPS',
                 icon: LucideIcons.monitor,
-                color: const Color(0xFF10B981),
+                color: ColorTokens.chartGreen,
                 isDark: isDark,
                 currentValue: fps != null ? fps.toStringAsFixed(0) : '--',
                 unit: 'fps',
                 statusColor: _fpsStatusColor(fps),
                 chart: _ProfilerLineChart(
                   entries: fpsHistory,
-                  color: const Color(0xFF10B981),
+                  color: ColorTokens.chartGreen,
                   isDark: isDark,
                   maxY: 120,
                   targetLine: 60,
@@ -181,14 +182,14 @@ class _PerformancePageState extends ConsumerState<PerformancePage> {
               _ProfilerChartRow(
                 title: 'CPU',
                 icon: LucideIcons.cpu,
-                color: const Color(0xFFF59E0B),
+                color: ColorTokens.chartAmber,
                 isDark: isDark,
                 currentValue: cpu != null ? cpu.toStringAsFixed(1) : '--',
                 unit: '%',
                 statusColor: _cpuStatusColor(cpu),
                 chart: _ProfilerLineChart(
                   entries: cpuHistory,
-                  color: const Color(0xFFF59E0B),
+                  color: ColorTokens.chartAmber,
                   isDark: isDark,
                   maxY: 100,
                   unit: '%',
@@ -287,23 +288,23 @@ class _PerformancePageState extends ConsumerState<PerformancePage> {
 
   Color _fpsStatusColor(double? fps) {
     if (fps == null) return Colors.grey;
-    if (fps >= 55) return const Color(0xFF10B981);
-    if (fps >= 30) return const Color(0xFFF59E0B);
-    return const Color(0xFFEF4444);
+    if (fps >= 55) return ColorTokens.chartGreen;
+    if (fps >= 30) return ColorTokens.chartAmber;
+    return ColorTokens.chartRed;
   }
 
   Color _cpuStatusColor(double? cpu) {
     if (cpu == null) return Colors.grey;
-    if (cpu <= 30) return const Color(0xFF10B981);
-    if (cpu <= 60) return const Color(0xFFF59E0B);
-    return const Color(0xFFEF4444);
+    if (cpu <= 30) return ColorTokens.chartGreen;
+    if (cpu <= 60) return ColorTokens.chartAmber;
+    return ColorTokens.chartRed;
   }
 
   Color _frameTimeColor(double? ms) {
     if (ms == null) return Colors.grey;
-    if (ms <= 8) return const Color(0xFF10B981);
-    if (ms <= 16) return const Color(0xFFF59E0B);
-    return const Color(0xFFEF4444);
+    if (ms <= 8) return ColorTokens.chartGreen;
+    if (ms <= 16) return ColorTokens.chartAmber;
+    return ColorTokens.chartRed;
   }
 }
 
@@ -336,7 +337,7 @@ class _ProfilerToolbar extends StatelessWidget {
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : const Color(0xFFF6F8FA),
+        color: isDark ? ColorTokens.darkBackground : ColorTokens.lightSurface,
         border: Border(
           bottom: BorderSide(
             color: isDark
@@ -352,7 +353,7 @@ class _ProfilerToolbar extends StatelessWidget {
             icon: isRecording ? LucideIcons.circle : LucideIcons.play,
             tooltip: isRecording ? 'Stop Recording' : 'Start Recording',
             isDark: isDark,
-            color: isRecording ? const Color(0xFFEF4444) : null,
+            color: isRecording ? ColorTokens.chartRed : null,
             filled: isRecording,
             onTap: onToggleRecording,
           ),
@@ -390,7 +391,7 @@ class _ProfilerToolbar extends StatelessWidget {
           _MetricPill(
             label: 'CPU',
             value: cpu != null ? '${cpu!.toStringAsFixed(0)}%' : '--',
-            color: const Color(0xFFF59E0B),
+            color: ColorTokens.chartAmber,
             isDark: isDark,
           ),
           if (jankCount > 0) ...[
@@ -398,7 +399,7 @@ class _ProfilerToolbar extends StatelessWidget {
             _MetricPill(
               label: 'SLOW',
               value: '$jankCount',
-              color: const Color(0xFFEF4444),
+              color: ColorTokens.chartRed,
               isDark: isDark,
             ),
           ],
@@ -424,9 +425,9 @@ class _ProfilerToolbar extends StatelessWidget {
 
   Color _fpsColor(double? fps) {
     if (fps == null) return Colors.grey;
-    if (fps >= 55) return const Color(0xFF10B981);
-    if (fps >= 30) return const Color(0xFFF59E0B);
-    return const Color(0xFFEF4444);
+    if (fps >= 55) return ColorTokens.chartGreen;
+    if (fps >= 30) return ColorTokens.chartAmber;
+    return ColorTokens.chartRed;
   }
 }
 
@@ -509,7 +510,7 @@ class _ProfilerChartRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 130,
-      color: isDark ? const Color(0xFF0D1117) : Colors.white,
+      color: isDark ? ColorTokens.darkSurface : Colors.white,
       child: Row(
         children: [
           // Left label panel
@@ -618,7 +619,7 @@ class _JankBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1C2333) : Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.2)),
+        border: Border.all(color: ColorTokens.chartRed.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 12),
         ],
@@ -627,17 +628,17 @@ class _JankBadge extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
         decoration: BoxDecoration(
-          color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+          color: ColorTokens.chartRed.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(LucideIcons.triangleAlert, size: 8, color: Color(0xFFEF4444)),
+            Icon(LucideIcons.triangleAlert, size: 8, color: ColorTokens.chartRed),
             const SizedBox(width: 3),
             Text(
               '$count',
-              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFFEF4444)),
+              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: ColorTokens.chartRed),
             ),
           ],
         ),
@@ -658,8 +659,8 @@ class _AllocRateBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPositive = rate >= 0;
     final color = rate.abs() > 1
-        ? const Color(0xFFF59E0B)
-        : const Color(0xFF10B981);
+        ? ColorTokens.chartAmber
+        : ColorTokens.chartGreen;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
@@ -712,7 +713,7 @@ class _SystemStatusRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: isDark ? const Color(0xFF0D1117) : Colors.white,
+      color: isDark ? ColorTokens.darkSurface : Colors.white,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -746,10 +747,10 @@ class _SystemStatusRow extends StatelessWidget {
                       ? '${(startupTime! / 1000).toStringAsFixed(1)}s'
                       : '${startupTime!.toInt()}ms',
                   color: startupTime! < 2000
-                      ? const Color(0xFF10B981)
+                      ? ColorTokens.chartGreen
                       : startupTime! < 5000
-                          ? const Color(0xFFF59E0B)
-                          : const Color(0xFFEF4444),
+                          ? ColorTokens.chartAmber
+                          : ColorTokens.chartRed,
                   isDark: isDark,
                 ),
               if (battery != null && battery! < 0)
@@ -772,10 +773,10 @@ class _SystemStatusRow extends StatelessWidget {
                   value: '${battery!.toInt()}%',
                   detail: _batteryDetail(),
                   color: battery! > 30
-                      ? const Color(0xFF10B981)
+                      ? ColorTokens.chartGreen
                       : battery! > 15
-                          ? const Color(0xFFF59E0B)
-                          : const Color(0xFFEF4444),
+                          ? ColorTokens.chartAmber
+                          : ColorTokens.chartRed,
                   isDark: isDark,
                 ),
               if (batteryDrainRate != null && batteryDrainRate! > 0)
@@ -787,10 +788,10 @@ class _SystemStatusRow extends StatelessWidget {
                       ? _formatTimeRemaining(batteryTimeRemaining!)
                       : null,
                   color: batteryDrainRate! < 0.5
-                      ? const Color(0xFF10B981)
+                      ? ColorTokens.chartGreen
                       : batteryDrainRate! < 1.5
-                          ? const Color(0xFFF59E0B)
-                          : const Color(0xFFEF4444),
+                          ? ColorTokens.chartAmber
+                          : ColorTokens.chartRed,
                   isDark: isDark,
                 ),
               if (thermal != null)
@@ -809,7 +810,7 @@ class _SystemStatusRow extends StatelessWidget {
                   icon: LucideIcons.hardDriveDownload,
                   label: 'Disk Read',
                   value: '${diskRead!.toStringAsFixed(1)} MB',
-                  color: const Color(0xFF3B82F6),
+                  color: ColorTokens.chartBlue,
                   isDark: isDark,
                 ),
               if (diskWrite != null)
@@ -825,7 +826,7 @@ class _SystemStatusRow extends StatelessWidget {
                   icon: LucideIcons.octagonAlert,
                   label: 'ANR',
                   value: '$anrCount',
-                  color: const Color(0xFFEF4444),
+                  color: ColorTokens.chartRed,
                   isDark: isDark,
                 ),
             ],
@@ -860,9 +861,9 @@ class _SystemStatusRow extends StatelessWidget {
   }
 
   Color _thermalColor(double state) {
-    if (state <= 0) return const Color(0xFF10B981);
-    if (state <= 1) return const Color(0xFFF59E0B);
-    if (state <= 2) return const Color(0xFFEF4444);
+    if (state <= 0) return ColorTokens.chartGreen;
+    if (state <= 1) return ColorTokens.chartAmber;
+    if (state <= 2) return ColorTokens.chartRed;
     return const Color(0xFFDC2626);
   }
 }
@@ -969,7 +970,7 @@ class _ProfilerNetworkRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 150,
-      color: isDark ? const Color(0xFF0D1117) : Colors.white,
+      color: isDark ? ColorTokens.darkSurface : Colors.white,
       child: Row(
         children: [
           // Left label panel
@@ -989,7 +990,7 @@ class _ProfilerNetworkRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Icon(LucideIcons.globe, size: 14,
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.7)),
+                    color: ColorTokens.chartBlue.withValues(alpha: 0.7)),
                 const SizedBox(height: 4),
                 Text(
                   'Network',
@@ -1006,10 +1007,10 @@ class _ProfilerNetworkRow extends StatelessWidget {
                   child: Text(
                     '${networkHistory.length} reqs',
                     maxLines: 1,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF3B82F6),
+                      color: ColorTokens.chartBlue,
                       height: 1,
                     ),
                   ),
@@ -1019,15 +1020,15 @@ class _ProfilerNetworkRow extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                      color: ColorTokens.chartBlue.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       '$activeRequests live',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 8,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF3B82F6),
+                        color: ColorTokens.chartBlue,
                       ),
                     ),
                   ),
@@ -1048,7 +1049,7 @@ class _ProfilerNetworkRow extends StatelessWidget {
                       _NetStatChip(
                         label: 'req/s',
                         value: reqPerSec.toStringAsFixed(1),
-                        color: const Color(0xFF3B82F6),
+                        color: ColorTokens.chartBlue,
                         isDark: isDark,
                       ),
                       _NetStatChip(
@@ -1056,21 +1057,21 @@ class _ProfilerNetworkRow extends StatelessWidget {
                         value: avgResponse != null
                             ? '${avgResponse!.toStringAsFixed(0)}ms'
                             : '--',
-                        color: const Color(0xFF10B981),
+                        color: ColorTokens.chartGreen,
                         isDark: isDark,
                       ),
                       _NetStatChip(
                         label: 'err',
                         value: '${errorRate.toStringAsFixed(1)}%',
                         color: errorRate > 0
-                            ? const Color(0xFFEF4444)
-                            : const Color(0xFF10B981),
+                            ? ColorTokens.chartRed
+                            : ColorTokens.chartGreen,
                         isDark: isDark,
                       ),
                       _NetStatChip(
                         label: '↓',
                         value: _formatSpeed(downloadSpeed),
-                        color: const Color(0xFF10B981),
+                        color: ColorTokens.chartGreen,
                         isDark: isDark,
                       ),
                       _NetStatChip(
@@ -1280,7 +1281,7 @@ class _ProfilerLinePainter extends CustomPainter {
     if (targetLine != null) {
       final targetY = h - (targetLine! / computedMaxY) * h;
       final dashPaint = Paint()
-        ..color = const Color(0xFF10B981).withValues(alpha: 0.3)
+        ..color = ColorTokens.chartGreen.withValues(alpha: 0.3)
         ..strokeWidth = 1;
 
       const dashWidth = 4.0;
@@ -1300,7 +1301,7 @@ class _ProfilerLinePainter extends CustomPainter {
           text: '${targetLine!.toInt()}',
           style: TextStyle(
             fontSize: 8,
-            color: const Color(0xFF10B981).withValues(alpha: 0.5),
+            color: ColorTokens.chartGreen.withValues(alpha: 0.5),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -1545,15 +1546,15 @@ class _NetworkWaterfallPainter extends CustomPainter {
 
       Color barColor;
       if (entry.error != null) {
-        barColor = const Color(0xFFEF4444);
+        barColor = ColorTokens.chartRed;
       } else if (entry.statusCode >= 400) {
-        barColor = const Color(0xFFEF4444);
+        barColor = ColorTokens.chartRed;
       } else if (entry.statusCode >= 300) {
-        barColor = const Color(0xFFF59E0B);
+        barColor = ColorTokens.chartAmber;
       } else if (!entry.isComplete) {
-        barColor = const Color(0xFF3B82F6).withValues(alpha: 0.4);
+        barColor = ColorTokens.chartBlue.withValues(alpha: 0.4);
       } else {
-        barColor = const Color(0xFF3B82F6);
+        barColor = ColorTokens.chartBlue;
       }
 
       // Duration-based opacity (longer = more opaque)

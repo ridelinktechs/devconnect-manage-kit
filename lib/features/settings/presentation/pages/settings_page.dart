@@ -101,8 +101,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final server = ref.watch(wsServerProvider);
     final devices = ref.watch(connectedDevicesProvider);
 
-    final surface = isDark ? const Color(0xFF161B22) : Colors.white;
-    final surfaceAlt = isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA);
+    final surface = isDark ? ColorTokens.darkBackground : Colors.white;
+    final surfaceAlt = isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface;
     final border = isDark
         ? Colors.white.withValues(alpha: 0.06)
         : Colors.black.withValues(alpha: 0.08);
@@ -422,7 +422,7 @@ class _ServerSection extends StatelessWidget {
               child: TextField(
                 controller: portController,
                 style: const TextStyle(
-                  fontFamily: 'JetBrains Mono',
+                  fontFamily: AppConstants.monoFontFamily,
                   fontSize: 13,
                 ),
                 decoration: InputDecoration(
@@ -480,7 +480,7 @@ class _NetworkSection extends StatelessWidget {
                 Text(
                   hostName,
                   style: const TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -536,7 +536,7 @@ class _IpRow extends StatelessWidget {
                 Text(
                   info.ip,
                   style: const TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: ColorTokens.primary,
@@ -548,7 +548,7 @@ class _IpRow extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     color: Colors.grey[500],
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -609,7 +609,7 @@ class _DevicesSection extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: isDark
                       ? Colors.white.withValues(alpha: 0.03)
-                      : const Color(0xFFF6F8FA),
+                      : ColorTokens.lightSurface,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isDark
@@ -770,8 +770,8 @@ class _TabVisibilitySection extends ConsumerWidget {
     (TabKey.state, 'State', LucideIcons.layers, ColorTokens.secondary),
     (TabKey.storage, 'Storage', LucideIcons.database, ColorTokens.warning),
     (TabKey.database, 'Database', LucideIcons.hardDrive, Color(0xFFD2A8FF)),
-    (TabKey.performance, 'Performance', LucideIcons.gauge, Color(0xFF10B981)),
-    (TabKey.memoryLeaks, 'Memory Leaks', LucideIcons.bug, Color(0xFFEF4444)),
+    (TabKey.performance, 'Performance', LucideIcons.gauge, ColorTokens.chartGreen),
+    (TabKey.memoryLeaks, 'Memory Leaks', LucideIcons.bug, ColorTokens.chartRed),
     (TabKey.history, 'History', LucideIcons.history, Colors.grey),
   ];
 
@@ -938,7 +938,7 @@ class _UsbToolsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final codeBg = isDark ? const Color(0xFF0D1117) : const Color(0xFFF0F0F0);
+    final codeBg = isDark ? ColorTokens.darkSurface : const Color(0xFFF0F0F0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1036,7 +1036,7 @@ class _UsbToolsSection extends StatelessWidget {
                         content: Text(
                           result.stdout.toString().trim(),
                           style: const TextStyle(
-                            fontFamily: 'JetBrains Mono',
+                            fontFamily: AppConstants.monoFontFamily,
                             fontSize: 12,
                           ),
                         ),
@@ -1115,7 +1115,7 @@ class _QuickStartSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final codeBg = isDark ? const Color(0xFF0D1117) : const Color(0xFFF0F0F0);
+    final codeBg = isDark ? ColorTokens.darkSurface : const Color(0xFFF0F0F0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1220,7 +1220,7 @@ class _StepCard extends StatelessWidget {
           child: SelectableText(
             code,
             style: TextStyle(
-              fontFamily: 'JetBrains Mono',
+              fontFamily: AppConstants.monoFontFamily,
               fontSize: 10,
               color: isDark ? const Color(0xFF8B949E) : Colors.black87,
               height: 1.6,
@@ -1265,7 +1265,7 @@ class _CodeBlock extends StatelessWidget {
                 child: Text(
                   code,
                   style: const TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 12,
                     color: ColorTokens.secondary,
                   ),

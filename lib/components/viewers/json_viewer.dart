@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/color_tokens.dart';
 
 class JsonViewer extends StatelessWidget {
@@ -157,7 +158,7 @@ class _JsonNodeState extends State<_JsonNode> {
                 Text(
                   '${widget.keyName}: ',
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 12,
                     color: isDark
                         ? const Color(0xFFE06C75)
@@ -169,7 +170,7 @@ class _JsonNodeState extends State<_JsonNode> {
                 child: Text(
                   displayValue,
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 12,
                     color: valueColor,
                   ),
@@ -207,7 +208,7 @@ class _JsonNodeState extends State<_JsonNode> {
                       Text(
                         '${widget.keyName}: ',
                         style: TextStyle(
-                          fontFamily: 'JetBrains Mono',
+                          fontFamily: AppConstants.monoFontFamily,
                           fontSize: 12,
                           color: isDark
                               ? const Color(0xFFE06C75)
@@ -218,7 +219,7 @@ class _JsonNodeState extends State<_JsonNode> {
                     Text(
                       badge,
                       style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 11,
                         color: Colors.grey[500],
                       ),
@@ -461,7 +462,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     color: isDark ? Colors.grey[400] : Colors.grey[600],
                   ),
                 ),
@@ -471,7 +472,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                     '$lineCount lines',
                     style: TextStyle(
                       fontSize: 10,
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                       color: Colors.grey[500],
                     ),
                   ),
@@ -533,7 +534,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                             '${index + 1}',
                             textAlign: TextAlign.right,
                             style: TextStyle(
-                              fontFamily: 'JetBrains Mono',
+                              fontFamily: AppConstants.monoFontFamily,
                               fontSize: 11,
                               height: 1.5,
                               color: Colors.grey[600],
@@ -551,7 +552,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                           child: Text.rich(
                             TextSpan(
                               style: const TextStyle(
-                                fontFamily: 'JetBrains Mono',
+                                fontFamily: AppConstants.monoFontFamily,
                                 fontSize: 12,
                                 height: 1.5,
                               ),

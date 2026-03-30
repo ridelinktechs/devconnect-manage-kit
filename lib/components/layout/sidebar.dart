@@ -105,7 +105,7 @@ class Sidebar extends ConsumerWidget {
     return Container(
       width: 68,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1117) : const Color(0xFFFFFFFF),
+        color: isDark ? ColorTokens.darkSurface : const Color(0xFFFFFFFF),
         border: Border(
           right: BorderSide(
             color: theme.dividerColor,
@@ -211,7 +211,7 @@ class _CollapsedSidebar extends StatelessWidget {
     return Container(
       width: 36,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1117) : Colors.white,
+        color: isDark ? ColorTokens.darkSurface : Colors.white,
         border: Border(
           right: BorderSide(
             color: Theme.of(context).dividerColor,

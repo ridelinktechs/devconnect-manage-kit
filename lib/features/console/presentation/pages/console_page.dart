@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 
 import '../../../../components/inputs/search_field.dart';
@@ -175,7 +176,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
     captureWidgetAsImage(
       context,
       Container(
-        color: isDark ? const Color(0xFF0D1117) : Colors.white,
+        color: isDark ? ColorTokens.darkSurface : Colors.white,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,7 +184,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
             // Header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: isDark ? const Color(0xFF161B22) : const Color(0xFFF6F8FA),
+              color: isDark ? ColorTokens.darkBackground : ColorTokens.lightSurface,
               child: Row(
                 children: [
                   Icon(LucideIcons.terminal, size: 16, color: ColorTokens.primary),
@@ -193,7 +194,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                   Text(
                     time,
                     style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
                       color: Colors.grey[500],
                     ),
@@ -217,7 +218,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                         color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Text(entry.tag!, style: TextStyle(fontFamily: 'JetBrains Mono', fontSize: 10, color: Colors.grey[500])),
+                      child: Text(entry.tag!, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 10, color: Colors.grey[500])),
                     ),
                   ],
                 ),
@@ -234,7 +235,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF161B22) : const Color(0xFFF0F0F0),
+                      color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06),
@@ -243,10 +244,10 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                     child: Text(
                       entry.message,
                       style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 12,
                         height: 1.6,
-                        color: isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1F2328),
+                        color: isDark ? ColorTokens.lightBackground : ColorTokens.darkNeutral,
                       ),
                     ),
                   ),
@@ -266,7 +267,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF161B22) : const Color(0xFFF0F0F0),
+                        color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: JsonViewer(data: entry.metadata, initiallyExpanded: true),
@@ -294,7 +295,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                       child: Text(
                         entry.stackTrace!,
                         style: TextStyle(
-                          fontFamily: 'JetBrains Mono',
+                          fontFamily: AppConstants.monoFontFamily,
                           fontSize: 11,
                           color: color.withValues(alpha: 0.9),
                           height: 1.5,
@@ -474,7 +475,7 @@ class _ConsoleToolbar extends ConsumerWidget {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? ColorTokens.darkBackground : Colors.white,
       ),
       child: Row(
         children: [
@@ -613,7 +614,7 @@ class _CountPill extends StatelessWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          fontFamily: 'JetBrains Mono',
+          fontFamily: AppConstants.monoFontFamily,
           color: isDark ? Colors.grey[400] : Colors.grey[600],
         ),
       ),
@@ -816,7 +817,7 @@ class _LogEntryContent extends StatelessWidget {
                       Text(
                         time,
                         style: TextStyle(
-                          fontFamily: 'JetBrains Mono',
+                          fontFamily: AppConstants.monoFontFamily,
                           fontSize: 10,
                           color: Colors.grey[500],
                         ),
@@ -837,12 +838,12 @@ class _LogEntryContent extends StatelessWidget {
                   Text(
                     entry.message,
                     style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                       fontSize: 12,
                       height: 1.4,
                       color: isDark
-                          ? const Color(0xFFE6EDF3)
-                          : const Color(0xFF1F2328),
+                          ? ColorTokens.lightBackground
+                          : ColorTokens.darkNeutral,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -887,7 +888,7 @@ class _TagBadge extends StatelessWidget {
       child: Text(
         tag,
         style: TextStyle(
-          fontFamily: 'JetBrains Mono',
+          fontFamily: AppConstants.monoFontFamily,
           fontSize: 10,
           color: isDark ? Colors.grey[400] : Colors.grey[600],
         ),
@@ -922,7 +923,7 @@ class _LogDetailPanel extends StatelessWidget {
     );
 
     return Container(
-      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
         children: [
           // Header bar
@@ -930,7 +931,7 @@ class _LogDetailPanel extends StatelessWidget {
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161B22) : Colors.white,
+              color: isDark ? ColorTokens.darkBackground : Colors.white,
               border: Border(
                 bottom: BorderSide(
                   color: theme.dividerColor.withValues(alpha: 0.5),
@@ -946,7 +947,7 @@ class _LogDetailPanel extends StatelessWidget {
                   child: Text(
                     time,
                     style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
                       color: Colors.grey[500],
                     ),
@@ -1057,7 +1058,7 @@ class _LogDetailPanel extends StatelessWidget {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF161B22)
+                          ? ColorTokens.darkBackground
                           : const Color(0xFFF0F0F0),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
@@ -1070,11 +1071,11 @@ class _LogDetailPanel extends StatelessWidget {
                     child: SelectableText(
                       entry.message,
                       style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 12,
                         color: isDark
-                            ? const Color(0xFFE6EDF3)
-                            : const Color(0xFF1F2328),
+                            ? ColorTokens.lightBackground
+                            : ColorTokens.darkNeutral,
                         height: 1.6,
                       ),
                     ),
@@ -1091,7 +1092,7 @@ class _LogDetailPanel extends StatelessWidget {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? const Color(0xFF161B22)
+                            ? ColorTokens.darkBackground
                             : const Color(0xFFF0F0F0),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
@@ -1124,7 +1125,7 @@ class _LogDetailPanel extends StatelessWidget {
                       child: SelectableText(
                         entry.stackTrace!,
                         style: TextStyle(
-                          fontFamily: 'JetBrains Mono',
+                          fontFamily: AppConstants.monoFontFamily,
                           fontSize: 11,
                           color: color.withValues(alpha: 0.9),
                           height: 1.5,

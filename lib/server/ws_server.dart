@@ -178,7 +178,7 @@ class WsServer {
           } else {
             _messageController.add(message);
           }
-        } catch (e) {
+        } catch (_) {
           // ignore malformed messages
         }
       },

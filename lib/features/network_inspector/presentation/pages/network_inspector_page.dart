@@ -11,6 +11,7 @@ import '../../../../core/utils/duration_format.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/misc/status_badge.dart';
@@ -292,7 +293,7 @@ class _Toolbar extends ConsumerWidget {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? ColorTokens.darkBackground : Colors.white,
       ),
       child: Row(
         children: [
@@ -354,7 +355,7 @@ class _Toolbar extends ConsumerWidget {
                     child: Text(
                       m,
                       style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
                         color: isActive
@@ -714,7 +715,7 @@ class _RequestCard extends ConsumerWidget {
                       : !entry.isComplete
                           ? ColorTokens.warning.withValues(alpha: isDark ? 0.08 : 0.05)
                           : isDark
-                              ? const Color(0xFF161B22)
+                              ? ColorTokens.darkBackground
                               : Colors.white,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
@@ -768,14 +769,14 @@ class _RequestCard extends ConsumerWidget {
                                 Text(
                                   displayUrl,
                                   style: TextStyle(
-                                    fontFamily: 'JetBrains Mono',
+                                    fontFamily: AppConstants.monoFontFamily,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                     color: (entry.isComplete && (entry.statusCode <= 0 || entry.statusCode >= 400))
                                         ? ColorTokens.error
                                         : isDark
-                                            ? const Color(0xFFE6EDF3)
-                                            : const Color(0xFF1F2328),
+                                            ? ColorTokens.lightBackground
+                                            : ColorTokens.darkNeutral,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -818,7 +819,7 @@ class _RequestCard extends ConsumerWidget {
                                         style: TextStyle(
                                           fontSize: 9,
                                           color: ColorTokens.warning,
-                                          fontFamily: 'JetBrains Mono',
+                                          fontFamily: AppConstants.monoFontFamily,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -862,7 +863,7 @@ class _RequestCard extends ConsumerWidget {
                                   child: Text(
                                     formatDuration(entry.duration!),
                                     style: TextStyle(
-                                      fontFamily: 'JetBrains Mono',
+                                      fontFamily: AppConstants.monoFontFamily,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
                                       color: _durationColor(entry.duration!),
@@ -873,7 +874,7 @@ class _RequestCard extends ConsumerWidget {
                               Text(
                                 time,
                                 style: TextStyle(
-                                  fontFamily: 'JetBrains Mono',
+                                  fontFamily: AppConstants.monoFontFamily,
                                   fontSize: 10,
                                   color: Colors.grey[600],
                                 ),
@@ -1014,7 +1015,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
       children: [
         // ---- Header bar ----
         Container(
-          color: isDark ? const Color(0xFF161B22) : Colors.white,
+          color: isDark ? ColorTokens.darkBackground : Colors.white,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1066,7 +1067,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
                       child: Text(
                         entry.url,
                         style: TextStyle(
-                          fontFamily: 'JetBrains Mono',
+                          fontFamily: AppConstants.monoFontFamily,
                           fontSize: 12,
                           color: isDark ? Colors.white : Colors.black87,
                         ),
@@ -1190,7 +1191,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
         // ---- Tab views ----
         Expanded(
           child: Container(
-            color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+            color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
             child: TabBarView(
               controller: _tabController,
               children: [
@@ -1412,7 +1413,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                     color: isDark
-                                        ? const Color(0xFFE6EDF3)
+                                        ? ColorTokens.lightBackground
                                         : const Color(0xFF1E293B),
                                     letterSpacing: -0.2,
                                   ),
@@ -1422,7 +1423,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
                                   path.split('/').last,
                                   style: TextStyle(
                                     fontSize: 11,
-                                    fontFamily: 'JetBrains Mono',
+                                    fontFamily: AppConstants.monoFontFamily,
                                     color: isDark
                                         ? Colors.grey[500]
                                         : Colors.grey[600],
@@ -1471,7 +1472,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
                                       LucideIcons.folderOpen,
                                       size: 13,
                                       color: isDark
-                                          ? const Color(0xFFE6EDF3)
+                                          ? ColorTokens.lightBackground
                                           : const Color(0xFF374151),
                                     ),
                                     const SizedBox(width: 6),
@@ -1481,7 +1482,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                         color: isDark
-                                            ? const Color(0xFFE6EDF3)
+                                            ? ColorTokens.lightBackground
                                             : const Color(0xFF374151),
                                       ),
                                     ),
@@ -1558,7 +1559,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
     }
 
     return Container(
-      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1566,7 +1567,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
           // Header
           Container(
             padding: const EdgeInsets.all(12),
-            color: isDark ? const Color(0xFF161B22) : Colors.white,
+            color: isDark ? ColorTokens.darkBackground : Colors.white,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1580,22 +1581,22 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
                     Text(time,
                         style: TextStyle(
                             fontSize: 10,
-                            fontFamily: 'JetBrains Mono',
+                            fontFamily: AppConstants.monoFontFamily,
                             color: Colors.grey[500])),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(entry.url,
                     style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
                       color: (entry.isComplete &&
                               (entry.statusCode <= 0 ||
                                   entry.statusCode >= 400))
                           ? ColorTokens.error
                           : isDark
-                              ? const Color(0xFFE6EDF3)
-                              : const Color(0xFF1F2328),
+                              ? ColorTokens.lightBackground
+                              : ColorTokens.darkNeutral,
                     )),
                 if (entry.duration != null) ...[
                   const SizedBox(height: 6),
@@ -1680,7 +1681,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
               if (entry.duration != null) ...[
                 Text('Duration: ${formatDuration(entry.duration!)}',
                     style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : Colors.black87)),
@@ -1691,14 +1692,14 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
               Text(
                   'Start: ${DateFormat('HH:mm:ss.SSS').format(DateTime.fromMillisecondsSinceEpoch(entry.startTime))}',
                   style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
                       color: Colors.grey[500])),
               if (entry.endTime != null)
                 Text(
                     'End: ${DateFormat('HH:mm:ss.SSS').format(DateTime.fromMillisecondsSinceEpoch(entry.endTime!))}',
                     style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 11,
                         color: Colors.grey[500])),
             ],
@@ -1708,7 +1709,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
     }
 
     return Container(
-      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1716,7 +1717,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
           // Mini header
           Container(
             padding: const EdgeInsets.all(12),
-            color: isDark ? const Color(0xFF161B22) : Colors.white,
+            color: isDark ? ColorTokens.darkBackground : Colors.white,
             child: Row(
               children: [
                 HttpMethodBadge(method: entry.method),
@@ -1727,11 +1728,11 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
                 Expanded(
                   child: Text(entry.url,
                       style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 11,
                         color: isDark
-                            ? const Color(0xFFE6EDF3)
-                            : const Color(0xFF1F2328),
+                            ? ColorTokens.lightBackground
+                            : ColorTokens.darkNeutral,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
@@ -1803,7 +1804,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
             width: 180,
             child: Text(key,
                 style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: isDark
@@ -1813,7 +1814,7 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
           Expanded(
             child: Text(value,
                 style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 11,
                     color: isDark
                         ? const Color(0xFFCE9178)
@@ -1987,7 +1988,7 @@ class _TimingBar extends StatelessWidget {
         Text(
           formatDuration(duration),
           style: TextStyle(
-            fontFamily: 'JetBrains Mono',
+            fontFamily: AppConstants.monoFontFamily,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             color: barColor,
@@ -2059,7 +2060,7 @@ class _HeaderSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? ColorTokens.darkBackground : Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isDark
@@ -2072,7 +2073,7 @@ class _HeaderSection extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C2128) : const Color(0xFFF6F8FA),
+              color: isDark ? const Color(0xFF1C2128) : ColorTokens.lightSurface,
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(10)),
               border: Border(
@@ -2184,7 +2185,7 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
             child: SelectableText(
               widget.headerKey,
               style: TextStyle(
-                fontFamily: 'JetBrains Mono',
+                fontFamily: AppConstants.monoFontFamily,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: widget.isDark
@@ -2197,7 +2198,7 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
             child: SelectableText(
               widget.headerValue,
               style: TextStyle(
-                fontFamily: 'JetBrains Mono',
+                fontFamily: AppConstants.monoFontFamily,
                 fontSize: 11,
                 color: widget.isDark
                     ? const Color(0xFFCE9178)
@@ -2506,7 +2507,7 @@ class _TimingTab extends StatelessWidget {
                       Text(
                         formatDuration(duration),
                         style: TextStyle(
-                          fontFamily: 'JetBrains Mono',
+                          fontFamily: AppConstants.monoFontFamily,
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
                           color: durationColor,
@@ -2604,7 +2605,7 @@ class _TimingTab extends StatelessWidget {
               child: SelectableText(
                 entry.error!,
                 style: TextStyle(
-                  fontFamily: 'JetBrains Mono',
+                  fontFamily: AppConstants.monoFontFamily,
                   fontSize: 11,
                   color: ColorTokens.error.withValues(alpha: 0.9),
                   height: 1.5,
@@ -2627,7 +2628,7 @@ class _TimingInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? ColorTokens.darkBackground : Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isDark
@@ -2691,7 +2692,7 @@ class _TimingInfoRow extends StatelessWidget {
                 Text(
                   value,
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : Colors.black87,
@@ -2701,7 +2702,7 @@ class _TimingInfoRow extends StatelessWidget {
                   Text(
                     subtitle!,
                     style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                       fontSize: 10,
                       color: Colors.grey[500],
                     ),

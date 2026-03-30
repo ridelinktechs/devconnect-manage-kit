@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/color_tokens.dart';
 
 class StatusBadge extends StatelessWidget {
@@ -19,7 +20,7 @@ class StatusBadge extends StatelessWidget {
       child: Text(
         '$statusCode',
         style: TextStyle(
-          fontFamily: 'JetBrains Mono',
+          fontFamily: AppConstants.monoFontFamily,
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: color,
@@ -48,7 +49,7 @@ class HttpMethodBadge extends StatelessWidget {
         child: Text(
           method.toUpperCase(),
           style: TextStyle(
-            fontFamily: 'JetBrains Mono',
+            fontFamily: AppConstants.monoFontFamily,
             fontSize: 10,
             fontWeight: FontWeight.w700,
             color: color,
@@ -96,7 +97,7 @@ class LogLevelBadge extends StatelessWidget {
         child: Text(
           level.toUpperCase(),
           style: TextStyle(
-            fontFamily: 'JetBrains Mono',
+            fontFamily: AppConstants.monoFontFamily,
             fontSize: 9,
             fontWeight: FontWeight.w700,
             color: color,

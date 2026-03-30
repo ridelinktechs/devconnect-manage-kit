@@ -113,6 +113,7 @@ fun stopPerformanceMonitor() {
 
 // ---- Frame monitoring ----
 
+private val frameSampleRate = 5 // report every Nth frame to reduce overhead
 private var frameCount = 0
 private var lastFpsReportTime = 0L
 private var lastFrameTime = 0L
@@ -132,12 +133,14 @@ private fun startFrameMonitor(opts: PerformanceMonitorOptions) {
                 val frameDeltaMs = (now - lastFrameTime) / 1_000_000.0
                 frameCount++
 
-                // Report frame build time (every frame)
-                DevConnect.reportPerformanceMetric(
-                    metricType = "frame_build_time",
-                    value = Math.round(frameDeltaMs * 10.0) / 10.0,
-                    label = "Frame: ${Math.round(frameDeltaMs)}ms"
-                )
+                // Report frame build time (sampled)
+                if (frameCount % frameSampleRate == 0) {
+                    DevConnect.reportPerformanceMetric(
+                        metricType = "frame_build_time",
+                        value = Math.round(frameDeltaMs * 10.0) / 10.0,
+                        label = "Frame: ${Math.round(frameDeltaMs)}ms"
+                    )
+                }
 
                 // Detect jank
                 if (frameDeltaMs > opts.jankThresholdMs) {

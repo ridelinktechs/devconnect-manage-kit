@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/viewers/json_viewer.dart';
@@ -265,7 +266,7 @@ class _Toolbar extends ConsumerWidget {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? ColorTokens.darkBackground : Colors.white,
       ),
       child: Row(
         children: [
@@ -495,7 +496,7 @@ class _StorageEntryTile extends StatelessWidget {
                 child: Text(
                   time,
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 10,
                     color: Colors.grey[500],
                     letterSpacing: -0.3,
@@ -549,11 +550,11 @@ class _StorageEntryTile extends StatelessWidget {
                 child: Text(
                   entry.key,
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 12,
                     color: isDark
-                        ? const Color(0xFFE6EDF3)
-                        : const Color(0xFF1F2328),
+                        ? ColorTokens.lightBackground
+                        : ColorTokens.darkNeutral,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -589,7 +590,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
     final parsedJson = isAlreadyJson ? null : _tryParseJson(entry.value);
 
     final screenshotWidget = Container(
-      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       padding: const EdgeInsets.all(16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -603,7 +604,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
           const SizedBox(height: 4),
           Text(entry.key,
               style: TextStyle(
-                fontFamily: 'JetBrains Mono',
+                fontFamily: AppConstants.monoFontFamily,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: ColorTokens.primary,
@@ -633,7 +634,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
           Text(
               'Type: ${entry.storageType.name}  |  Operation: ${entry.operation}',
               style: TextStyle(
-                  fontFamily: 'JetBrains Mono',
+                  fontFamily: AppConstants.monoFontFamily,
                   fontSize: 11,
                   color: isDark ? Colors.white70 : Colors.black54)),
         ],
@@ -667,7 +668,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
     final tColor = _StorageEntryTile._typeColor(entry.storageType);
 
     return Container(
-      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
         children: [
           // Header
@@ -675,7 +676,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161B22) : Colors.white,
+              color: isDark ? ColorTokens.darkBackground : Colors.white,
               border: Border(
                 bottom: BorderSide(
                   color: isDark
@@ -726,7 +727,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                   child: Text(
                     entry.key,
                     style: TextStyle(
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white : Colors.black87,
@@ -739,7 +740,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                 Text(
                   time,
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 10,
                     color: Colors.grey[500],
                   ),
@@ -950,35 +951,6 @@ class _FormatToggle extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MetaRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _MetaRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 12),
-          ),
-        ],
       ),
     );
   }

@@ -31,8 +31,8 @@ class AppTheme {
       useMaterial3: true,
       fontFamily: GoogleFonts.inter().fontFamily,
     ).copyWith(
-      scaffoldBackgroundColor: const Color(0xFF0D1117),
-      cardColor: const Color(0xFF161B22),
+      scaffoldBackgroundColor: ColorTokens.darkSurface,
+      cardColor: ColorTokens.darkBackground,
       dividerColor: const Color(0xFF21262D),
       textTheme: _buildTextTheme(Brightness.dark),
       tooltipTheme: _tooltipTheme(Brightness.dark),
@@ -65,7 +65,7 @@ class AppTheme {
       useMaterial3: true,
       fontFamily: GoogleFonts.inter().fontFamily,
     ).copyWith(
-      scaffoldBackgroundColor: const Color(0xFFF6F8FA),
+      scaffoldBackgroundColor: ColorTokens.lightSurface,
       cardColor: Colors.white,
       dividerColor: const Color(0xFFD0D7DE),
       textTheme: _buildTextTheme(Brightness.light),
@@ -77,12 +77,12 @@ class AppTheme {
   static SnackBarThemeData _snackBarTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     return SnackBarThemeData(
-      backgroundColor: isDark ? const Color(0xFF2D333B) : const Color(0xFF1F2328),
+      backgroundColor: isDark ? const Color(0xFF2D333B) : ColorTokens.darkNeutral,
       contentTextStyle: TextStyle(
         fontFamily: GoogleFonts.inter().fontFamily,
         fontSize: 13,
         fontWeight: FontWeight.w500,
-        color: isDark ? const Color(0xFFE6EDF3) : Colors.white,
+        color: isDark ? ColorTokens.lightBackground : Colors.white,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       behavior: SnackBarBehavior.floating,
@@ -98,7 +98,7 @@ class AppTheme {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2D333B) : const Color(0xFF1F2328),
+        color: isDark ? const Color(0xFF2D333B) : ColorTokens.darkNeutral,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isDark
@@ -117,14 +117,14 @@ class AppTheme {
         fontFamily: GoogleFonts.inter().fontFamily,
         fontSize: 12,
         fontWeight: FontWeight.w500,
-        color: isDark ? const Color(0xFFE6EDF3) : Colors.white,
+        color: isDark ? ColorTokens.lightBackground : Colors.white,
       ),
     );
   }
 
   static TextTheme _buildTextTheme(Brightness brightness) {
     final baseColor =
-        brightness == Brightness.dark ? Colors.white : const Color(0xFF1F2328);
+        brightness == Brightness.dark ? Colors.white : ColorTokens.darkNeutral;
     final secondaryColor =
         brightness == Brightness.dark
             ? const Color(0xFF8B949E)

@@ -97,7 +97,7 @@ class _Toolbar extends StatelessWidget {
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : const Color(0xFFF6F8FA),
+        color: isDark ? ColorTokens.darkBackground : ColorTokens.lightSurface,
         border: Border(
           bottom: BorderSide(
             color: isDark
@@ -122,21 +122,21 @@ class _Toolbar extends StatelessWidget {
           _SeverityBadge(
             label: 'Critical',
             count: counts[MemoryLeakSeverity.critical] ?? 0,
-            color: const Color(0xFFEF4444),
+            color: ColorTokens.chartRed,
             isDark: isDark,
           ),
           const SizedBox(width: 6),
           _SeverityBadge(
             label: 'Warning',
             count: counts[MemoryLeakSeverity.warning] ?? 0,
-            color: const Color(0xFFF59E0B),
+            color: ColorTokens.chartAmber,
             isDark: isDark,
           ),
           const SizedBox(width: 6),
           _SeverityBadge(
             label: 'Info',
             count: counts[MemoryLeakSeverity.info] ?? 0,
-            color: const Color(0xFF3B82F6),
+            color: ColorTokens.chartBlue,
             isDark: isDark,
           ),
           const Spacer(),
@@ -433,7 +433,7 @@ class _LeakDetail extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFFEF4444),
+                  color: ColorTokens.chartRed,
                 ),
               ),
             ),
@@ -469,8 +469,8 @@ class _LeakDetail extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: isDark
-                      ? const Color(0xFF0D1117)
-                      : const Color(0xFFF6F8FA),
+                      ? ColorTokens.darkSurface
+                      : ColorTokens.lightSurface,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: SelectableText(
@@ -597,7 +597,7 @@ class _DetailSection extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? ColorTokens.darkBackground : Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isDark
@@ -639,11 +639,11 @@ class _DetailSection extends StatelessWidget {
 Color _severityColor(MemoryLeakSeverity severity) {
   switch (severity) {
     case MemoryLeakSeverity.critical:
-      return const Color(0xFFEF4444);
+      return ColorTokens.chartRed;
     case MemoryLeakSeverity.warning:
-      return const Color(0xFFF59E0B);
+      return ColorTokens.chartAmber;
     case MemoryLeakSeverity.info:
-      return const Color(0xFF3B82F6);
+      return ColorTokens.chartBlue;
   }
 }
 

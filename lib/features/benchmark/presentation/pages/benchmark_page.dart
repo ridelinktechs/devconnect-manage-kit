@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/utils/duration_format.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../core/theme/color_tokens.dart';
@@ -131,7 +132,7 @@ class _Toolbar extends ConsumerWidget {
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? ColorTokens.darkBackground : Colors.white,
         border: Border(
           bottom: BorderSide(
             color: isDark
@@ -212,7 +213,7 @@ class _StatsBar extends StatelessWidget {
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+        color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
         border: Border(
           bottom: BorderSide(
             color: isDark
@@ -282,7 +283,7 @@ class _StatChip extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            fontFamily: 'JetBrains Mono',
+            fontFamily: AppConstants.monoFontFamily,
             color: isDark ? color.withValues(alpha: 0.9) : color,
           ),
         ),
@@ -361,7 +362,7 @@ class _BenchmarkRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: isDark ? const Color(0xFFE6EDF3) : Colors.black87,
+                      color: isDark ? ColorTokens.lightBackground : Colors.black87,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -371,7 +372,7 @@ class _BenchmarkRow extends StatelessWidget {
                     '$time  •  ${entry.steps.length} steps',
                     style: TextStyle(
                       fontSize: 10,
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                       color: Colors.grey[500],
                     ),
                   ),
@@ -392,7 +393,7 @@ class _BenchmarkRow extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     color: durationColor,
                   ),
                 ),
@@ -430,7 +431,7 @@ class _BenchmarkDetail extends StatelessWidget {
         : null;
 
     return Container(
-      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
         children: [
           // Header
@@ -438,7 +439,7 @@ class _BenchmarkDetail extends StatelessWidget {
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161B22) : Colors.white,
+              color: isDark ? ColorTokens.darkBackground : Colors.white,
             ),
             child: Row(
               children: [
@@ -468,7 +469,7 @@ class _BenchmarkDetail extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         color:
                             _durationColor(entry.duration!.toDouble()),
                       ),
@@ -522,7 +523,7 @@ class _BenchmarkDetail extends StatelessWidget {
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: isDark
-                            ? const Color(0xFFE6EDF3)
+                            ? ColorTokens.lightBackground
                             : Colors.black87,
                       ),
                     ),
@@ -608,10 +609,10 @@ class _WaterfallChart extends StatelessWidget {
     }
 
     final colors = [
-      const Color(0xFF3B82F6),
-      const Color(0xFF10B981),
-      const Color(0xFFF59E0B),
-      const Color(0xFFEF4444),
+      ColorTokens.chartBlue,
+      ColorTokens.chartGreen,
+      ColorTokens.chartAmber,
+      ColorTokens.chartRed,
       const Color(0xFF8B5CF6),
       const Color(0xFFEC4899),
       const Color(0xFF06B6D4),
@@ -644,7 +645,7 @@ class _WaterfallChart extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
-                          fontFamily: 'JetBrains Mono',
+                          fontFamily: AppConstants.monoFontFamily,
                           color: Colors.white,
                         ),
                         overflow: TextOverflow.clip,
@@ -741,7 +742,7 @@ class _StepRow extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: isDark
-                        ? const Color(0xFFE6EDF3)
+                        ? ColorTokens.lightBackground
                         : Colors.black87,
                   ),
                 ),
@@ -749,7 +750,7 @@ class _StepRow extends StatelessWidget {
                   time,
                   style: TextStyle(
                     fontSize: 10,
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     color: Colors.grey[500],
                   ),
                 ),
@@ -762,7 +763,7 @@ class _StepRow extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              fontFamily: 'JetBrains Mono',
+              fontFamily: AppConstants.monoFontFamily,
               color: _durationColor(delta.toDouble()),
             ),
           ),
@@ -774,7 +775,7 @@ class _StepRow extends StatelessWidget {
               '$pct%',
               style: TextStyle(
                 fontSize: 10,
-                fontFamily: 'JetBrains Mono',
+                fontFamily: AppConstants.monoFontFamily,
                 color: Colors.grey[500],
               ),
               textAlign: TextAlign.right,
@@ -801,7 +802,7 @@ class _InfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? ColorTokens.darkBackground : Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isDark
@@ -846,11 +847,11 @@ class _InfoRow extends StatelessWidget {
               value,
               style: TextStyle(
                 fontSize: 11,
-                fontFamily: 'JetBrains Mono',
+                fontFamily: AppConstants.monoFontFamily,
                 fontWeight: FontWeight.w500,
                 color: valueColor ??
                     (isDark
-                        ? const Color(0xFFE6EDF3)
+                        ? ColorTokens.lightBackground
                         : Colors.black87),
               ),
             ),
@@ -867,8 +868,8 @@ class _InfoRow extends StatelessWidget {
 
 Color _durationColor(double ms) {
   if (ms < 100) return ColorTokens.success;
-  if (ms < 500) return const Color(0xFFF59E0B);
-  if (ms < 1000) return const Color(0xFFEF4444);
+  if (ms < 500) return ColorTokens.chartAmber;
+  if (ms < 1000) return ColorTokens.chartRed;
   return const Color(0xFFDC2626);
 }
 

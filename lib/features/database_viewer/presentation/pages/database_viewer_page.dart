@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../provider/database_providers.dart';
@@ -38,7 +39,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF161B22) : Colors.white,
+            color: isDark ? ColorTokens.darkBackground : Colors.white,
           ),
           child: Row(
             children: [
@@ -66,8 +67,8 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                       width: 220,
                       child: Container(
                         color: isDark
-                            ? const Color(0xFF0D1117)
-                            : const Color(0xFFF6F8FA),
+                            ? ColorTokens.darkSurface
+                            : ColorTokens.lightSurface,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -160,7 +161,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: isDark
-                                  ? const Color(0xFF161B22)
+                                  ? ColorTokens.darkBackground
                                   : Colors.white,
                               border: Border(
                                 bottom: BorderSide(color: theme.dividerColor),
@@ -172,7 +173,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                                   child: TextField(
                                     controller: _queryController,
                                     style: TextStyle(
-                                      fontFamily: 'JetBrains Mono',
+                                      fontFamily: AppConstants.monoFontFamily,
                                       fontSize: 13,
                                       color: isDark
                                           ? Colors.white
@@ -182,7 +183,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                                       hintText:
                                           'SELECT * FROM table_name LIMIT 100',
                                       hintStyle: TextStyle(
-                                        fontFamily: 'JetBrains Mono',
+                                        fontFamily: AppConstants.monoFontFamily,
                                         fontSize: 13,
                                         color: Colors.grey[500],
                                       ),
@@ -271,7 +272,7 @@ class _QueryResultView extends StatelessWidget {
               Text(
                 result.error!,
                 style: TextStyle(
-                  fontFamily: 'JetBrains Mono',
+                  fontFamily: AppConstants.monoFontFamily,
                   fontSize: 12,
                   color: ColorTokens.error,
                 ),
@@ -289,8 +290,8 @@ class _QueryResultView extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           color: isDark
-              ? const Color(0xFF161B22)
-              : const Color(0xFFF6F8FA),
+              ? ColorTokens.darkBackground
+              : ColorTokens.lightSurface,
           child: Row(
             children: [
               Text(
@@ -301,7 +302,7 @@ class _QueryResultView extends StatelessWidget {
               Text(
                 formatDuration(result.executionTimeMs),
                 style: TextStyle(
-                  fontFamily: 'JetBrains Mono',
+                  fontFamily: AppConstants.monoFontFamily,
                   fontSize: 11,
                   color: Colors.grey[500],
                 ),
@@ -320,13 +321,13 @@ class _QueryResultView extends StatelessWidget {
                 dataRowMaxHeight: 32,
                 columnSpacing: 24,
                 headingTextStyle: TextStyle(
-                  fontFamily: 'JetBrains Mono',
+                  fontFamily: AppConstants.monoFontFamily,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: ColorTokens.primary,
                 ),
                 dataTextStyle: TextStyle(
-                  fontFamily: 'JetBrains Mono',
+                  fontFamily: AppConstants.monoFontFamily,
                   fontSize: 11,
                   color: isDark ? Colors.white70 : Colors.black87,
                 ),

@@ -70,6 +70,7 @@ export function startPerformanceMonitor(opts: PerformanceMonitorOptions = {}): v
   let lastTime = performance.now();
   let lastFrameTime = lastTime;
   let totalBuildTime = 0;
+  const frameSampleRate = 5; // report every Nth frame to reduce overhead
 
   const measureFrame = () => {
     if (!_running) return;
@@ -80,12 +81,14 @@ export function startPerformanceMonitor(opts: PerformanceMonitorOptions = {}): v
     frameCount++;
     totalBuildTime += frameDelta;
 
-    // Report individual frame build time (every frame)
-    DevConnect.reportPerformanceMetric({
-      metricType: 'frame_build_time',
-      value: Math.round(frameDelta * 10) / 10,
-      label: `Frame: ${Math.round(frameDelta)}ms`,
-    });
+    // Report individual frame build time (sampled)
+    if (frameCount % frameSampleRate === 0) {
+      DevConnect.reportPerformanceMetric({
+        metricType: 'frame_build_time',
+        value: Math.round(frameDelta * 10) / 10,
+        label: `Frame: ${Math.round(frameDelta)}ms`,
+      });
+    }
 
     // Detect jank frame
     if (frameDelta > jankThreshold) {

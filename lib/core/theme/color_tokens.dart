@@ -39,6 +39,21 @@ class ColorTokens {
     return error;
   }
 
+  // Surface colors — dark theme
+  static const Color darkSurface = Color(0xFF0D1117);
+  static const Color darkBackground = Color(0xFF161B22);
+  static const Color darkNeutral = Color(0xFF1F2328);
+
+  // Surface colors — light theme
+  static const Color lightSurface = Color(0xFFF6F8FA);
+  static const Color lightBackground = Color(0xFFE6EDF3);
+
+  // Chart / data-visualization colors
+  static const Color chartRed = Color(0xFFEF4444);
+  static const Color chartGreen = Color(0xFF10B981);
+  static const Color chartAmber = Color(0xFFF59E0B);
+  static const Color chartBlue = Color(0xFF3B82F6);
+
   // Selection highlight colors
   static Color selectedBg(bool isDark) => isDark
       ? const Color(0xFF0D9488).withValues(alpha: 0.18) // teal

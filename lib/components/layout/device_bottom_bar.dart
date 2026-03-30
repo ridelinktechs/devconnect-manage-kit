@@ -21,7 +21,7 @@ class DeviceBottomBar extends ConsumerWidget {
     return Container(
       height: 44,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1117) : Colors.white,
+        color: isDark ? ColorTokens.darkSurface : Colors.white,
         border: Border(
           top: BorderSide(
             color: isDark
@@ -432,7 +432,7 @@ class _DevicePopupState extends State<_DevicePopup>
                   width: popupWidth,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF161B22) : Colors.white,
+                    color: isDark ? ColorTokens.darkBackground : Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: color.withValues(alpha: 0.25),

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/utils/duration_format.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/misc/status_badge.dart';
 import '../../../../core/theme/color_tokens.dart';
@@ -130,7 +131,7 @@ class _Toolbar extends StatelessWidget {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? ColorTokens.darkBackground : Colors.white,
       ),
       child: Row(
         children: [
@@ -308,7 +309,7 @@ class _SessionTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 9,
                       color: Colors.grey[500],
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: AppConstants.monoFontFamily,
                     ),
                   ),
                 ],
@@ -387,7 +388,7 @@ class _SessionDetailPanel extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF6F8FA),
+      color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
         children: [
           // Header
@@ -395,7 +396,7 @@ class _SessionDetailPanel extends StatelessWidget {
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161B22) : Colors.white,
+              color: isDark ? ColorTokens.darkBackground : Colors.white,
             ),
             child: Row(
               children: [
@@ -418,7 +419,7 @@ class _SessionDetailPanel extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     color: Colors.grey[500],
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -444,7 +445,7 @@ class _SessionDetailPanel extends StatelessWidget {
           // Tab bar
           Container(
             height: 36,
-            color: isDark ? const Color(0xFF161B22) : Colors.white,
+            color: isDark ? ColorTokens.darkBackground : Colors.white,
             child: Row(
               children: [
                 _TabButton('All', 0, selectedTab, onTabChanged,
@@ -678,7 +679,7 @@ class _EventRow extends StatelessWidget {
             child: Text(
               time,
               style: TextStyle(
-                fontFamily: 'JetBrains Mono',
+                fontFamily: AppConstants.monoFontFamily,
                 fontSize: 9,
                 color: Colors.grey[500],
               ),
@@ -712,9 +713,9 @@ class _EventRow extends StatelessWidget {
             child: Text(
               event.title,
               style: TextStyle(
-                fontFamily: 'JetBrains Mono',
+                fontFamily: AppConstants.monoFontFamily,
                 fontSize: 11,
-                color: isDark ? const Color(0xFFE6EDF3) : Colors.black87,
+                color: isDark ? ColorTokens.lightBackground : Colors.black87,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -726,7 +727,7 @@ class _EventRow extends StatelessWidget {
             style: TextStyle(
               fontSize: 9,
               color: Colors.grey[500],
-              fontFamily: 'JetBrains Mono',
+              fontFamily: AppConstants.monoFontFamily,
             ),
           ),
         ],
@@ -774,7 +775,7 @@ class _LogList extends StatelessWidget {
                 width: 80,
                 child: Text(time,
                     style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 9,
                         color: Colors.grey[500])),
               ),
@@ -785,14 +786,14 @@ class _LogList extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 9,
                         color: Colors.grey[500],
-                        fontFamily: 'JetBrains Mono')),
+                        fontFamily: AppConstants.monoFontFamily)),
                 const SizedBox(width: 8),
               ],
               Expanded(
                 child: Text(
                   e.message,
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 11,
                     color: e.level == LogLevel.error
                         ? ColorTokens.error
@@ -848,7 +849,7 @@ class _NetworkList extends StatelessWidget {
                 width: 80,
                 child: Text(time,
                     style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 9,
                         color: Colors.grey[500])),
               ),
@@ -873,7 +874,7 @@ class _NetworkList extends StatelessWidget {
                 child: Text(
                   e.url,
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 11,
                     color: isDark ? Colors.white : Colors.black87,
                   ),
@@ -886,7 +887,7 @@ class _NetworkList extends StatelessWidget {
                 Text(
                   formatDuration(e.duration!),
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 10,
                     color: e.duration! < 200
                         ? ColorTokens.success
@@ -941,7 +942,7 @@ class _StateList extends StatelessWidget {
                 width: 80,
                 child: Text(time,
                     style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 9,
                         color: Colors.grey[500])),
               ),
@@ -966,7 +967,7 @@ class _StateList extends StatelessWidget {
                 child: Text(
                   e.actionName,
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 11,
                     color: isDark ? Colors.white : Colors.black87,
                   ),
@@ -1039,7 +1040,7 @@ class _StorageList extends StatelessWidget {
                 width: 80,
                 child: Text(time,
                     style: TextStyle(
-                        fontFamily: 'JetBrains Mono',
+                        fontFamily: AppConstants.monoFontFamily,
                         fontSize: 9,
                         color: Colors.grey[500])),
               ),
@@ -1064,7 +1065,7 @@ class _StorageList extends StatelessWidget {
                 child: Text(
                   e.key,
                   style: TextStyle(
-                    fontFamily: 'JetBrains Mono',
+                    fontFamily: AppConstants.monoFontFamily,
                     fontSize: 11,
                     color: isDark ? Colors.white : Colors.black87,
                   ),
