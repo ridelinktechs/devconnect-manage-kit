@@ -1,6 +1,6 @@
 <div align="center">
 
-# DevConnect
+# DevConnect Manage Kit
 
 ### A modern, cross-platform manage and debug tool — alternative to Reactotron and Flipper
 
@@ -12,17 +12,17 @@
 [![Android](https://img.shields.io/badge/Android-SDK-3DDC84?logo=android)](client_sdks/devconnect-manage-android)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Features](#features) · [Download](#download) · [Quick Start](#quick-start) · [Desktop Guide](#using-the-desktop-app) · [SDKs](#flutter-sdk) · [Support](#support-devconnect)
+[Features](#features) · [Download](#download) · [Quick Start](#quick-start) · [Desktop Guide](#using-the-desktop-app) · [SDKs](#flutter-sdk) · [Support](#support-devconnect-manage-kit)
 
 </div>
 
 ---
 
-## Why DevConnect?
+## Why DevConnect Manage Kit?
 
-If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know they're powerful but limited to one framework. DevConnect is a **single desktop app** that works with all of them.
+If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know they're powerful but limited to one framework. DevConnect Manage Kit is a **single desktop app** that works with all of them.
 
-| | DevConnect | Reactotron | Flipper | Flutter DevTools |
+| | DevConnect Manage Kit | Reactotron | Flipper | Flutter DevTools |
 |---|:---:|:---:|:---:|:---:|
 | Flutter support | ✅ | ❌ | ⚠️ plugin | ✅ |
 | React Native support | ✅ | ✅ | ✅ | ❌ |
@@ -78,8 +78,8 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 
 | Platform | File | Architecture |
 |----------|------|-------------|
-| macOS | `DevConnect-macOS-v1.0.0-universal.dmg` | arm64 + x86_64 |
-| Windows | `DevConnect-Windows-v1.0.0.zip` | x64 |
+| macOS | `DevConnectManageTool-macOS-v1.0.0-universal.dmg` | arm64 + x86_64 |
+| Windows | `DevConnectManageTool-Windows-v1.0.0.zip` | x64 |
 
 Download from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases).
 
@@ -117,7 +117,7 @@ await DevConnect.init({ appName: 'MyApp' });
 DevConnect.init(context = this, appName = "MyApp")
 ```
 
-That's it. Open DevConnect desktop, run your app, and everything appears.
+That's it. Open DevConnect Manage Tool desktop, run your app, and everything appears.
 
 ---
 
@@ -129,8 +129,8 @@ That's it. Open DevConnect desktop, run your app, and everything appears.
 
 | Platform | File | Architecture |
 |----------|------|-------------|
-| macOS | `DevConnect-macOS-v1.0.0-universal.dmg` | arm64 + x86_64 |
-| Windows | `DevConnect-Windows-v1.0.0.zip` | x64 |
+| macOS | `DevConnectManageTool-macOS-v1.0.0-universal.dmg` | arm64 + x86_64 |
+| Windows | `DevConnectManageTool-Windows-v1.0.0.zip` | x64 |
 
 Download from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases).
 
@@ -143,7 +143,7 @@ flutter pub get
 dart run build_runner build --delete-conflicting-outputs
 flutter build macos --release   # macOS
 flutter build windows --release # Windows
-# Output: build/macos/Build/Products/Release/DevConnect.app
+# Output: build/macos/Build/Products/Release/DevConnectManageTool.app
 ```
 
 ### Features
@@ -221,7 +221,7 @@ await DevConnect.initAndRunApp(
 
 ```dart
 void main() async {
-  // Step 1: Connect to DevConnect desktop (WebSocket)
+  // Step 1: Connect to DevConnect Manage Tool desktop (WebSocket)
   await DevConnect.init(appName: 'MyApp');
 
   // Step 2: Intercept ALL HTTP globally (http, Dio, Chopper, etc.)
@@ -1267,9 +1267,9 @@ DevConnect.init(context = this, appName = "MyApp", enabled = false)  // Android
 
 ---
 
-## Support DevConnect
+## Support DevConnect Manage Kit
 
-DevConnect is free and open source. If it saves you debugging time, consider supporting development:
+DevConnect Manage Kit is free and open source. If it saves you debugging time, consider supporting development:
 
 <div align="center">
 
