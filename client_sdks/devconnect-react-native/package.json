@@ -1,7 +1,7 @@
 {
   "name": "devconnect-manage-kit",
-  "version": "1.0.0",
-  "description": "DevConnect Manage Kit - React Native SDK for debugging. Auto-intercepts fetch, axios, console.log, Redux, MobX, AsyncStorage, Firebase, OAuth2, and all popular logging libraries",
+  "version": "1.0.1",
+  "description": "DevConnect Manage Kit - React Native SDK for debugging. Auto-intercepts fetch, axios, console.log, Redux, MobX, Zustand, Jotai, Valtio, XState, AsyncStorage, MMKV, EncryptedStorage, WatermelonDB, SQLite, Realm, Firebase, OAuth2",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -17,23 +17,45 @@
     "react-native",
     "debugging",
     "devtools",
+    "developer-tools",
     "network-inspector",
+    "state-debugger",
     "redux",
     "mobx",
+    "zustand",
+    "jotai",
+    "valtio",
+    "xstate",
     "asyncstorage",
+    "mmkv",
+    "encrypted-storage",
+    "watermelondb",
+    "sqlite",
+    "realm",
+    "console-log",
+    "performance-monitor",
+    "memory-leak",
+    "benchmark",
     "reactotron-alternative",
-    "flipper-alternative"
+    "flipper-alternative",
+    "flipper-replacement",
+    "mobile-debugger",
+    "api-inspector",
+    "http-inspector",
+    "storage-viewer",
+    "devconnect",
+    "devconnect-manage-kit"
   ],
   "author": "Ridelink Techs",
   "license": "MIT",
-  "homepage": "https://github.com/ridelinktechs/devconnect",
+  "homepage": "https://github.com/ridelinktechs/devconnect-manage-kit",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ridelinktechs/devconnect.git",
+    "url": "https://github.com/ridelinktechs/devconnect-manage-kit.git",
     "directory": "client_sdks/devconnect-react-native"
   },
   "bugs": {
-    "url": "https://github.com/ridelinktechs/devconnect/issues"
+    "url": "https://github.com/ridelinktechs/devconnect-manage-kit/issues"
   },
   "peerDependencies": {
     "react-native": ">=0.68.2"
