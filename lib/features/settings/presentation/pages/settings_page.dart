@@ -429,9 +429,11 @@ class _ServerSection extends StatelessWidget {
               height: 34,
               child: TextField(
                 controller: portController,
-                style: const TextStyle(
+                enabled: !server.isRunning,
+                style: TextStyle(
                   fontFamily: AppConstants.monoFontFamily,
                   fontSize: 13,
+                  color: server.isRunning ? Colors.grey : null,
                 ),
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10),
