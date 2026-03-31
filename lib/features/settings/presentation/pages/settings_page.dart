@@ -1349,6 +1349,35 @@ class _DonateSection extends StatelessWidget {
     }
   }
 
+  void _showQrDialog(BuildContext context, String title, String assetPath) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(assetPath, width: 280, height: 360, fit: BoxFit.contain),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1391,13 +1420,20 @@ class _DonateSection extends StatelessWidget {
               color: const Color(0xFF0070BA),
               onTap: () => _openUrl('https://paypal.me/buivietphi'),
             ),
-            // const SizedBox(width: 10),
-            // _DonateButton(
-            //   label: 'GitHub Sponsors',
-            //   icon: LucideIcons.github,
-            //   color: isDark ? Colors.white70 : Colors.black87,
-            //   onTap: () => _openUrl('https://github.com/sponsors/buivietphi'),
-            // ),
+            const SizedBox(width: 10),
+            _DonateButton(
+              label: 'MoMo',
+              icon: LucideIcons.smartphone,
+              color: const Color(0xFFAE2070),
+              onTap: () => _showQrDialog(context, 'MoMo', 'docs/donate/momo-qr.jpeg'),
+            ),
+            const SizedBox(width: 10),
+            _DonateButton(
+              label: 'ZaloPay',
+              icon: LucideIcons.qrCode,
+              color: const Color(0xFF0068FF),
+              onTap: () => _showQrDialog(context, 'ZaloPay', 'docs/donate/zalopay-qr.jpeg'),
+            ),
           ],
         ),
       ],

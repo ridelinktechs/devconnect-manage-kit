@@ -1288,6 +1288,12 @@ DevConnect Manage Kit is free and open source. If it saves you debugging time, c
 
 </div>
 
+Scan QR code to donate via MoMo or ZaloPay:
+
+| MoMo | ZaloPay |
+|:---:|:---:|
+| <img src="docs/donate/momo-qr.jpeg" width="200"> | <img src="docs/donate/zalopay-qr.jpeg" width="200"> |
+
 ---
 
 ## Contributing
