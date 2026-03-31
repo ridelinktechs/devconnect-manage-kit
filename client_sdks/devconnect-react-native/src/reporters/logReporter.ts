@@ -12,19 +12,19 @@ import { DevConnect } from '../client';
 export class DevConnectLogger {
   constructor(private tag?: string) {}
 
-  debug(message: string, metadata?: Record<string, any>): void {
+  debug(message: any, metadata?: Record<string, any>): void {
     DevConnect.debug(message, this.tag, metadata);
   }
 
-  info(message: string, metadata?: Record<string, any>): void {
+  info(message: any, metadata?: Record<string, any>): void {
     DevConnect.log(message, this.tag, metadata);
   }
 
-  warn(message: string, metadata?: Record<string, any>): void {
+  warn(message: any, metadata?: Record<string, any>): void {
     DevConnect.warn(message, this.tag, metadata);
   }
 
-  error(message: string, stackTrace?: string, metadata?: Record<string, any>): void {
+  error(message: any, stackTrace?: string, metadata?: Record<string, any>): void {
     DevConnect.error(message, this.tag, stackTrace, metadata);
   }
 }

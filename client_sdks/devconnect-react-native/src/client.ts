@@ -749,17 +749,22 @@ export class DevConnect {
 
   // ---- Public API ----
 
-  static log(message: string, tag?: string, metadata?: Record<string, any>): void {
-    DevConnect.safeSend('client:log', { level: 'info', message, ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });
+  private static _toStr(msg: any): string {
+    if (msg === null || msg === undefined) return String(msg);
+    if (typeof msg === 'string') return msg;
+    try { return JSON.stringify(msg, null, 2); } catch (_) { return String(msg); }
   }
-  static debug(message: string, tag?: string, metadata?: Record<string, any>): void {
-    DevConnect.safeSend('client:log', { level: 'debug', message, ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });
+  static log(message: any, tag?: string, metadata?: Record<string, any>): void {
+    DevConnect.safeSend('client:log', { level: 'info', message: DevConnect._toStr(message), ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });
   }
-  static warn(message: string, tag?: string, metadata?: Record<string, any>): void {
-    DevConnect.safeSend('client:log', { level: 'warn', message, ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });
+  static debug(message: any, tag?: string, metadata?: Record<string, any>): void {
+    DevConnect.safeSend('client:log', { level: 'debug', message: DevConnect._toStr(message), ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });
   }
-  static error(message: string, tag?: string, stackTrace?: string, metadata?: Record<string, any>): void {
-    DevConnect.safeSend('client:log', { level: 'error', message, ...(tag ? { tag } : {}), ...(stackTrace ? { stackTrace } : {}), ...(metadata ? { metadata } : {}) });
+  static warn(message: any, tag?: string, metadata?: Record<string, any>): void {
+    DevConnect.safeSend('client:log', { level: 'warn', message: DevConnect._toStr(message), ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });
+  }
+  static error(message: any, tag?: string, stackTrace?: string, metadata?: Record<string, any>): void {
+    DevConnect.safeSend('client:log', { level: 'error', message: DevConnect._toStr(message), ...(tag ? { tag } : {}), ...(stackTrace ? { stackTrace } : {}), ...(metadata ? { metadata } : {}) });
   }
 
   static reportStateChange(opts: { stateManager: string; action: string; previousState?: Record<string, any>; nextState?: Record<string, any>; diff?: Array<Record<string, any>> }): void {
