@@ -1,9 +1,44 @@
-name: devconnect_flutter
+name: devconnect_manage_kit
 description: DevConnect client SDK for Flutter - auto-intercepts HTTP, logs, state, storage. Works with Dio, http, Firebase, OAuth2, logger, talker, fimber, and more.
-version: 1.0.0
+version: 1.0.3
 homepage: https://github.com/ridelinktechs/devconnect
 repository: https://github.com/ridelinktechs/devconnect
 issue_tracker: https://github.com/ridelinktechs/devconnect/issues
+topics:
+  - debug
+  - network
+  - logger
+  - devtools
+  - storage
+keywords:
+  - devconnect
+  - devconnect-manage-kit
+  - debug
+  - debugging
+  - network-inspector
+  - http-inspector
+  - http-interceptor
+  - api-inspector
+  - dio
+  - logger
+  - state-management
+  - state-debugger
+  - storage
+  - storage-viewer
+  - hive
+  - shared-preferences
+  - realm
+  - isar
+  - riverpod
+  - bloc
+  - devtools
+  - developer-tools
+  - performance
+  - benchmark
+  - mobile-debugger
+  - flutter-debug
+  - reactron-alternative
+  - flipper-alternative
 
 environment:
   sdk: ^3.0.0

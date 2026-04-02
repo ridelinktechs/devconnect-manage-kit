@@ -10,10 +10,7 @@ Debug your Flutter app with [DevConnect Manage Tool](https://github.com/ridelink
 ```yaml
 # pubspec.yaml
 dependencies:
-  devconnect_manage_kit:
-    git:
-      url: https://github.com/ridelinktechs/devconnect-manage-kit.git
-      path: client_sdks/devconnect_flutter
+  devconnect_flutter: ^1.0.0
 ```
 
 ## Quick Start

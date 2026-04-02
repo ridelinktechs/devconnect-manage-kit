@@ -1,5 +1,5 @@
 /// DevConnect Flutter SDK - auto-intercepts network, state, storage, Firebase, OAuth2.
-library devconnect_flutter;
+library;
 ///
 /// ## Quick Start (1 line in main.dart):
 /// ```dart
