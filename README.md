@@ -1272,6 +1272,7 @@ DevConnect Manage Kit is free and open source. If it saves you debugging time, c
 
 <div align="center">
 
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-EA4AAA?logo=github&logoColor=white)](https://github.com/sponsors/buivietphi)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/buivietphi)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-0070BA?logo=paypal&logoColor=white)](https://paypal.me/buivietphi)
 
@@ -1332,6 +1333,6 @@ Looking for mobile debugging tools? Here's how DevConnect compares:
 
 *A modern alternative to Reactotron, Flipper, and platform-specific debugging tools.*
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/buivietphi) [![PayPal](https://img.shields.io/badge/PayPal-Donate-0070BA?logo=paypal&logoColor=white)](https://paypal.me/buivietphi)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-EA4AAA?logo=github&logoColor=white)](https://github.com/sponsors/buivietphi) [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/buivietphi) [![PayPal](https://img.shields.io/badge/PayPal-Donate-0070BA?logo=paypal&logoColor=white)](https://paypal.me/buivietphi)
 
 </div>
