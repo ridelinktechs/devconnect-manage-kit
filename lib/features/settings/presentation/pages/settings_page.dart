@@ -94,6 +94,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  String _describeStartError(Object error, int port) {
+    final msg = error.toString();
+    if (msg.contains('Address already in use') ||
+        msg.contains('errno = 48') ||
+        msg.contains('errno = 98')) {
+      return 'Port $port is already in use. '
+          'Close the other app using this port, or enter a different port above and press Start.';
+    }
+    return 'Failed to start server on port $port: $msg';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -142,8 +153,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                     AppConstants.defaultPort;
                                 if (server.isRunning) {
                                   await server.stop();
+                                  ref
+                                      .read(serverStartErrorProvider.notifier)
+                                      .state = null;
                                 } else {
-                                  await server.start(port: p);
+                                  try {
+                                    await server.start(port: p);
+                                    ref
+                                        .read(
+                                            serverStartErrorProvider.notifier)
+                                        .state = null;
+                                  } catch (e) {
+                                    ref
+                                            .read(serverStartErrorProvider
+                                                .notifier)
+                                            .state =
+                                        _describeStartError(e, p);
+                                  }
                                 }
                                 setState(() {});
                               },
@@ -191,6 +217,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             surface: surface,
                             border: border,
                             child: const _TabVisibilitySection(),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Detail View
+                          _Card(
+                            surface: surface,
+                            border: border,
+                            child: const _DetailViewSection(),
                           ),
                           const SizedBox(height: 16),
 
@@ -403,7 +437,7 @@ class _SectionTitle extends StatelessWidget {
 // Server Section
 // ═══════════════════════════════════════════════════════════════════
 
-class _ServerSection extends StatelessWidget {
+class _ServerSection extends ConsumerWidget {
   final TextEditingController portController;
   final dynamic server;
   final VoidCallback onStartStop;
@@ -415,7 +449,9 @@ class _ServerSection extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final startError = ref.watch(serverStartErrorProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -453,6 +489,55 @@ class _ServerSection extends StatelessWidget {
             ),
           ],
         ),
+        if (startError != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: ColorTokens.error.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: ColorTokens.error.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  LucideIcons.triangleAlert,
+                  size: 14,
+                  color: ColorTokens.error,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    startError,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: ColorTokens.error,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => ref
+                      .read(serverStartErrorProvider.notifier)
+                      .state = null,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: Icon(
+                      LucideIcons.x,
+                      size: 14,
+                      color: ColorTokens.error.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -937,6 +1022,158 @@ Future<String?> _resolveAdbPath() async {
   } catch (_) {}
 
   return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Detail View Section — body view mode + tab animation
+// ═══════════════════════════════════════════════════════════════════
+
+class _DetailViewSection extends ConsumerWidget {
+  const _DetailViewSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final viewMode = ref.watch(bodyViewModeProvider);
+    final animEnabled = ref.watch(tabAnimationEnabledProvider);
+    final animMs = ref.watch(tabAnimationDurationProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(
+          icon: LucideIcons.panelRight,
+          title: 'Detail View',
+        ),
+        Text(
+          'Remembers how request/response bodies are shown and controls tab switching animation.',
+          style: TextStyle(fontSize: 11, color: Colors.grey[500], height: 1.4),
+        ),
+        const SizedBox(height: 14),
+
+        // Body view mode
+        Row(
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text('Body view',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+            ),
+            Expanded(
+              child: SegmentedButton<BodyViewMode>(
+                segments: const [
+                  ButtonSegment(
+                    value: BodyViewMode.tree,
+                    icon: Icon(LucideIcons.listTree, size: 14),
+                    label: Text('Tree'),
+                  ),
+                  ButtonSegment(
+                    value: BodyViewMode.json,
+                    icon: Icon(LucideIcons.braces, size: 14),
+                    label: Text('JSON'),
+                  ),
+                  ButtonSegment(
+                    value: BodyViewMode.code,
+                    icon: Icon(LucideIcons.code, size: 14),
+                    label: Text('Code'),
+                  ),
+                ],
+                selected: {viewMode},
+                onSelectionChanged: (value) {
+                  ref
+                      .read(bodyViewModeProvider.notifier)
+                      .set(value.first);
+                },
+                style: ButtonStyle(
+                  textStyle: WidgetStateProperty.all(
+                    const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 100),
+          child: Text(
+            'Code mode exports as TypeScript / Dart / Kotlin based on the connected SDK.',
+            style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Tab animation toggle
+        Row(
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text('Tab animation',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+            ),
+            Switch.adaptive(
+              value: animEnabled,
+              onChanged: (v) =>
+                  ref.read(tabAnimationEnabledProvider.notifier).set(v),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              animEnabled ? 'On' : 'Off',
+              style: TextStyle(
+                fontSize: 12,
+                color: animEnabled
+                    ? ColorTokens.primary
+                    : Colors.grey[500],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // Duration slider (only when enabled)
+        Opacity(
+          opacity: animEnabled ? 1.0 : 0.45,
+          child: IgnorePointer(
+            ignoring: !animEnabled,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 100,
+                  child: Text('Duration',
+                      style:
+                          TextStyle(fontSize: 13, color: Colors.grey[500])),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: animMs.toDouble(),
+                    min: 0,
+                    max: 1000,
+                    divisions: 20,
+                    label: '${animMs}ms',
+                    onChanged: (v) => ref
+                        .read(tabAnimationDurationProvider.notifier)
+                        .set(v.round()),
+                  ),
+                ),
+                SizedBox(
+                  width: 54,
+                  child: Text(
+                    '${animMs}ms',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontFamily: AppConstants.monoFontFamily,
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _UsbToolsSection extends StatelessWidget {

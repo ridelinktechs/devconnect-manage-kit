@@ -88,8 +88,8 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 
 | Platform | File | Architecture |
 |----------|------|-------------|
-| macOS | `DevConnectManageTool-macOS-v1.0.0-universal.dmg` | arm64 + x86_64 |
-| Windows | `DevConnectManageTool-Windows-v1.0.0.zip` | x64 |
+| macOS | `DevConnectManageTool-macOS-v1.0.1-universal.dmg` | arm64 + x86_64 |
+| Windows | `DevConnectManageTool-Windows-v1.0.1.zip` | x64 |
 
 Download from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases).
 

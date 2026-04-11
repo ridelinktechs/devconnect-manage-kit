@@ -18,6 +18,8 @@ import '../../../../components/misc/status_badge.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/providers/tab_visibility_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/utils/code_generator.dart';
 import '../../../../models/display/display_entry.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../models/network/network_entry.dart';
@@ -2672,7 +2674,7 @@ class _LogDetail extends StatelessWidget {
 // Network Detail
 // ═══════════════════════════════════════════════
 
-class _NetworkDetail extends StatefulWidget {
+class _NetworkDetail extends ConsumerStatefulWidget {
   final NetworkEntry entry;
   final ValueChanged<int>? onTabChanged;
   final ValueChanged<bool>? onJsonModeChanged;
@@ -2684,26 +2686,47 @@ class _NetworkDetail extends StatefulWidget {
   });
 
   @override
-  State<_NetworkDetail> createState() => _NetworkDetailState();
+  ConsumerState<_NetworkDetail> createState() => _NetworkDetailState();
 }
 
-class _NetworkDetailState extends State<_NetworkDetail>
+class _NetworkDetailState extends ConsumerState<_NetworkDetail>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        widget.onTabChanged?.call(_tabController.index);
-      }
-    });
+    _tabController = _makeController();
+    _tabController.addListener(_onTabIndexChange);
+  }
+
+  TabController _makeController([int initialIndex = 0]) {
+    return TabController(
+      length: 4,
+      vsync: this,
+      animationDuration: ref.read(tabAnimationProvider),
+      initialIndex: initialIndex,
+    );
+  }
+
+  void _onTabIndexChange() {
+    if (!_tabController.indexIsChanging) {
+      widget.onTabChanged?.call(_tabController.index);
+    }
+  }
+
+  void _rebuildController() {
+    final oldIndex = _tabController.index;
+    _tabController.removeListener(_onTabIndexChange);
+    _tabController.dispose();
+    _tabController = _makeController(oldIndex);
+    _tabController.addListener(_onTabIndexChange);
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabIndexChange);
     _tabController.dispose();
     super.dispose();
   }
@@ -2713,6 +2736,9 @@ class _NetworkDetailState extends State<_NetworkDetail>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    ref.listen(tabAnimationProvider, (prev, next) {
+      if (prev != next) _rebuildController();
+    });
 
     return Column(
         children: [
@@ -2866,11 +2892,13 @@ class _NetworkDetailState extends State<_NetworkDetail>
                 _BodyView(
                   body: entry.requestBody,
                   label: 'Request Body',
+                  deviceId: entry.deviceId,
                   onJsonModeChanged: widget.onJsonModeChanged,
                 ),
                 _BodyView(
                   body: entry.responseBody,
                   label: 'Response Body',
+                  deviceId: entry.deviceId,
                   onJsonModeChanged: widget.onJsonModeChanged,
                 ),
                 _TimingView(entry: entry),
@@ -3270,28 +3298,28 @@ class _HeaderRowCopyState extends State<_HeaderRowCopy> {
   }
 }
 
-class _BodyView extends StatefulWidget {
+class _BodyView extends ConsumerStatefulWidget {
   final dynamic body;
   final String label;
+  final String? deviceId;
   final ValueChanged<bool>? onJsonModeChanged;
 
   const _BodyView({
     required this.body,
     required this.label,
+    this.deviceId,
     this.onJsonModeChanged,
   });
 
   @override
-  State<_BodyView> createState() => _BodyViewState();
+  ConsumerState<_BodyView> createState() => _BodyViewState();
 }
 
-class _BodyViewState extends State<_BodyView> {
-  bool _jsonMode = false;
-  bool _jsonEverOpened = false;
-
+class _BodyViewState extends ConsumerState<_BodyView> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final viewMode = ref.watch(bodyViewModeProvider);
 
     if (widget.body == null) {
       return EmptyState(icon: LucideIcons.fileText, title: 'No ${widget.label}');
@@ -3306,6 +3334,18 @@ class _BodyViewState extends State<_BodyView> {
     }
 
     final canToggle = parsedBody is Map || parsedBody is List;
+    final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
+
+    // Look up the connected device's platform to pick the Code language.
+    final devices = ref.watch(connectedDevicesProvider);
+    final platform = widget.deviceId == null
+        ? 'react_native'
+        : devices
+                .where((d) => d.deviceId == widget.deviceId)
+                .map((d) => d.platform)
+                .firstOrNull ??
+            'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
 
     return Column(
       children: [
@@ -3326,134 +3366,99 @@ class _BodyViewState extends State<_BodyView> {
               _SectionLabel(widget.label),
               const Spacer(),
               if (canToggle) ...[
-                GestureDetector(
+                ViewModeSegment(
+                  label: 'Tree',
+                  active: effectiveMode == BodyViewMode.tree,
+                  position: ViewSegmentPosition.start,
                   onTap: () {
-                    setState(() => _jsonMode = false);
+                    ref
+                        .read(bodyViewModeProvider.notifier)
+                        .set(BodyViewMode.tree);
                     widget.onJsonModeChanged?.call(false);
                   },
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: !_jsonMode
-                            ? ColorTokens.primary.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(5),
-                          bottomLeft: Radius.circular(5),
-                        ),
-                        border: Border.all(
-                          color: !_jsonMode
-                              ? ColorTokens.primary.withValues(alpha: 0.3)
-                              : Colors.grey.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Text(
-                        'Tree',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: !_jsonMode
-                              ? ColorTokens.primary
-                              : Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                  ),
                 ),
-                GestureDetector(
+                ViewModeSegment(
+                  label: 'JSON',
+                  active: effectiveMode == BodyViewMode.json,
+                  position: ViewSegmentPosition.middle,
                   onTap: () {
-                    setState(() {
-                      _jsonMode = true;
-                      _jsonEverOpened = true;
-                    });
+                    ref
+                        .read(bodyViewModeProvider.notifier)
+                        .set(BodyViewMode.json);
                     widget.onJsonModeChanged?.call(true);
                   },
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _jsonMode
-                            ? ColorTokens.primary.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        borderRadius: const BorderRadius.only(
-                          topRight: Radius.circular(5),
-                          bottomRight: Radius.circular(5),
-                        ),
-                        border: Border.all(
-                          color: _jsonMode
-                              ? ColorTokens.primary.withValues(alpha: 0.3)
-                              : Colors.grey.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Text(
-                        'JSON',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: _jsonMode
-                              ? ColorTokens.primary
-                              : Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                  ),
+                ),
+                ViewModeSegment(
+                  label: CodeGenerator.labelFor(codeLang),
+                  active: effectiveMode == BodyViewMode.code,
+                  position: ViewSegmentPosition.end,
+                  onTap: () {
+                    ref
+                        .read(bodyViewModeProvider.notifier)
+                        .set(BodyViewMode.code);
+                    widget.onJsonModeChanged?.call(false);
+                  },
                 ),
               ],
             ],
           ),
         ),
         Expanded(
-          child: Stack(
-            children: [
-              // Tree view — hidden when JSON mode
-              Offstage(
-                offstage: _jsonMode,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: canToggle
-                      ? JsonViewer(data: parsedBody, initiallyExpanded: true)
-                      : JsonPrettyViewer(data: parsedBody),
-                ),
-              ),
-              // JSON view — only built after first click, then kept alive
-              if (canToggle && _jsonEverOpened)
-                Offstage(
-                  offstage: !_jsonMode,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: JsonPrettyViewer(data: parsedBody),
-                  ),
-                ),
-            ],
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: _buildContent(
+              parsedBody: parsedBody,
+              canToggle: canToggle,
+              mode: effectiveMode,
+              codeLang: codeLang,
+            ),
           ),
         ),
       ],
     );
   }
+
+  Widget _buildContent({
+    required dynamic parsedBody,
+    required bool canToggle,
+    required BodyViewMode mode,
+    required CodeLang codeLang,
+  }) {
+    if (!canToggle) {
+      return JsonPrettyViewer(data: parsedBody);
+    }
+    switch (mode) {
+      case BodyViewMode.tree:
+        return JsonViewer(data: parsedBody, initiallyExpanded: true);
+      case BodyViewMode.json:
+        return JsonPrettyViewer(data: parsedBody);
+      case BodyViewMode.code:
+        final generated = CodeGenerator.generate(parsedBody, codeLang);
+        return CodeViewer(
+          generated: generated,
+          lang: codeLang,
+          languageLabel: CodeGenerator.labelFor(codeLang),
+        );
+    }
+  }
 }
 
 /// Inline Tree/JSON toggle for use inside ScrollView (non-tabbed contexts).
-class _InlineJsonView extends StatefulWidget {
+class _InlineJsonView extends ConsumerStatefulWidget {
   final dynamic data;
   final String label;
 
   const _InlineJsonView({required this.data, required this.label});
 
   @override
-  State<_InlineJsonView> createState() => _InlineJsonViewState();
+  ConsumerState<_InlineJsonView> createState() => _InlineJsonViewState();
 }
 
-class _InlineJsonViewState extends State<_InlineJsonView> {
-  bool _jsonMode = false;
-  bool _jsonEverOpened = false;
-
+class _InlineJsonViewState extends ConsumerState<_InlineJsonView> {
   @override
   Widget build(BuildContext context) {
+    final viewMode = ref.watch(bodyViewModeProvider);
+
     dynamic parsed = widget.data;
     if (parsed is String) {
       try {
@@ -3462,6 +3467,10 @@ class _InlineJsonViewState extends State<_InlineJsonView> {
     }
 
     final canToggle = parsed is Map || parsed is List;
+    final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
+
+    // Inline views don't know the device, so Code mode falls back to TS.
+    final codeLang = CodeGenerator.langForPlatform('react_native');
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -3472,93 +3481,64 @@ class _InlineJsonViewState extends State<_InlineJsonView> {
             _SectionLabel(widget.label),
             const Spacer(),
             if (canToggle) ...[
-              GestureDetector(
-                onTap: () => setState(() => _jsonMode = false),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: !_jsonMode
-                          ? ColorTokens.primary.withValues(alpha: 0.12)
-                          : Colors.transparent,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(5),
-                        bottomLeft: Radius.circular(5),
-                      ),
-                      border: Border.all(
-                        color: !_jsonMode
-                            ? ColorTokens.primary.withValues(alpha: 0.3)
-                            : Colors.grey.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Text(
-                      'Tree',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color:
-                            !_jsonMode ? ColorTokens.primary : Colors.grey[500],
-                      ),
-                    ),
-                  ),
-                ),
+              ViewModeSegment(
+                label: 'Tree',
+                active: effectiveMode == BodyViewMode.tree,
+                position: ViewSegmentPosition.start,
+                onTap: () => ref
+                    .read(bodyViewModeProvider.notifier)
+                    .set(BodyViewMode.tree),
               ),
-              GestureDetector(
-                onTap: () => setState(() {
-                  _jsonMode = true;
-                  _jsonEverOpened = true;
-                }),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: _jsonMode
-                          ? ColorTokens.primary.withValues(alpha: 0.12)
-                          : Colors.transparent,
-                      borderRadius: const BorderRadius.only(
-                        topRight: Radius.circular(5),
-                        bottomRight: Radius.circular(5),
-                      ),
-                      border: Border.all(
-                        color: _jsonMode
-                            ? ColorTokens.primary.withValues(alpha: 0.3)
-                            : Colors.grey.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Text(
-                      'JSON',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color:
-                            _jsonMode ? ColorTokens.primary : Colors.grey[500],
-                      ),
-                    ),
-                  ),
-                ),
+              ViewModeSegment(
+                label: 'JSON',
+                active: effectiveMode == BodyViewMode.json,
+                position: ViewSegmentPosition.middle,
+                onTap: () => ref
+                    .read(bodyViewModeProvider.notifier)
+                    .set(BodyViewMode.json),
+              ),
+              ViewModeSegment(
+                label: CodeGenerator.labelFor(codeLang),
+                active: effectiveMode == BodyViewMode.code,
+                position: ViewSegmentPosition.end,
+                onTap: () => ref
+                    .read(bodyViewModeProvider.notifier)
+                    .set(BodyViewMode.code),
               ),
             ],
           ],
         ),
         const SizedBox(height: 8),
-        if (canToggle) ...[
-          Offstage(
-            offstage: _jsonMode,
-            child: JsonViewer(data: parsed, initiallyExpanded: true),
-          ),
-          if (_jsonEverOpened)
-            Offstage(
-              offstage: !_jsonMode,
-              child: JsonPrettyViewer(data: parsed),
-            ),
-        ] else
-          JsonPrettyViewer(data: parsed),
+        _buildInlineContent(
+          parsed: parsed,
+          canToggle: canToggle,
+          mode: effectiveMode,
+          codeLang: codeLang,
+        ),
       ],
     );
+  }
+
+  Widget _buildInlineContent({
+    required dynamic parsed,
+    required bool canToggle,
+    required BodyViewMode mode,
+    required CodeLang codeLang,
+  }) {
+    if (!canToggle) return JsonPrettyViewer(data: parsed);
+    switch (mode) {
+      case BodyViewMode.tree:
+        return JsonViewer(data: parsed, initiallyExpanded: true);
+      case BodyViewMode.json:
+        return JsonPrettyViewer(data: parsed);
+      case BodyViewMode.code:
+        final generated = CodeGenerator.generate(parsed, codeLang);
+        return CodeViewer(
+          generated: generated,
+          lang: codeLang,
+          languageLabel: CodeGenerator.labelFor(codeLang),
+        );
+    }
   }
 }
 
@@ -3962,7 +3942,7 @@ class _GaugePainter extends CustomPainter {
 // State Detail
 // ═══════════════════════════════════════════════
 
-class _StateDetail extends StatefulWidget {
+class _StateDetail extends ConsumerStatefulWidget {
   final StateChange entry;
   final ValueChanged<int>? onTabChanged;
   final ValueChanged<bool>? onJsonModeChanged;
@@ -3974,26 +3954,47 @@ class _StateDetail extends StatefulWidget {
   });
 
   @override
-  State<_StateDetail> createState() => _StateDetailState();
+  ConsumerState<_StateDetail> createState() => _StateDetailState();
 }
 
-class _StateDetailState extends State<_StateDetail>
+class _StateDetailState extends ConsumerState<_StateDetail>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        widget.onTabChanged?.call(_tabController.index);
-      }
-    });
+    _tabController = _makeController();
+    _tabController.addListener(_onTabIndexChange);
+  }
+
+  TabController _makeController([int initialIndex = 0]) {
+    return TabController(
+      length: 3,
+      vsync: this,
+      animationDuration: ref.read(tabAnimationProvider),
+      initialIndex: initialIndex,
+    );
+  }
+
+  void _onTabIndexChange() {
+    if (!_tabController.indexIsChanging) {
+      widget.onTabChanged?.call(_tabController.index);
+    }
+  }
+
+  void _rebuildController() {
+    final oldIndex = _tabController.index;
+    _tabController.removeListener(_onTabIndexChange);
+    _tabController.dispose();
+    _tabController = _makeController(oldIndex);
+    _tabController.addListener(_onTabIndexChange);
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabIndexChange);
     _tabController.dispose();
     super.dispose();
   }
@@ -4003,6 +4004,9 @@ class _StateDetailState extends State<_StateDetail>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    ref.listen(tabAnimationProvider, (prev, next) {
+      if (prev != next) _rebuildController();
+    });
     return Column(
       children: [
         Container(
@@ -4057,6 +4061,7 @@ class _StateDetailState extends State<_StateDetail>
                   : _BodyView(
                       body: entry.previousState,
                       label: 'Previous State',
+                      deviceId: entry.deviceId,
                       onJsonModeChanged: widget.onJsonModeChanged,
                     ),
               entry.nextState.isEmpty
@@ -4066,6 +4071,7 @@ class _StateDetailState extends State<_StateDetail>
                   : _BodyView(
                       body: entry.nextState,
                       label: 'Next State',
+                      deviceId: entry.deviceId,
                       onJsonModeChanged: widget.onJsonModeChanged,
                     ),
             ],

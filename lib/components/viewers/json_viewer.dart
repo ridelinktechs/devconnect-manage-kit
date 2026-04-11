@@ -9,6 +9,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/color_tokens.dart';
+import '../../core/utils/code_generator.dart';
+import '../../core/utils/code_highlighter.dart';
 
 class JsonViewer extends StatelessWidget {
   final dynamic data;
@@ -20,20 +22,110 @@ class JsonViewer extends StatelessWidget {
     this.initiallyExpanded = true,
   });
 
+  String _formatAll() {
+    try {
+      return const JsonEncoder.withIndent('  ').convert(data);
+    } catch (_) {
+      return data?.toString() ?? 'null';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (data == null) {
       return Text('null', style: Theme.of(context).textTheme.labelMedium);
     }
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // SelectionArea lets users drag across multiple rows to select/copy
+    // many fields at once. Individual Text widgets become selectable as
+    // part of a single unified selection scope.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Toolbar with "Copy All" button. Mirrors JsonPrettyViewer's header
+        // so users always have a one-click way to copy the whole tree.
+        _JsonViewerToolbar(
+          isDark: isDark,
+          onCopyAll: () {
+            Clipboard.setData(ClipboardData(text: _formatAll()));
+            final messenger = ScaffoldMessenger.maybeOf(context);
+            messenger?.hideCurrentSnackBar();
+            messenger?.showSnackBar(
+              const SnackBar(
+                content: Text('Copied full tree as JSON',
+                    style: TextStyle(fontSize: 12)),
+                duration: Duration(milliseconds: 900),
+                behavior: SnackBarBehavior.floating,
+                width: 240,
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 6),
+        SelectionArea(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _JsonNode(
+                  keyName: null,
+                  value: data,
+                  depth: 0,
+                  initiallyExpanded: initiallyExpanded,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _JsonViewerToolbar extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onCopyAll;
+
+  const _JsonViewerToolbar({required this.isDark, required this.onCopyAll});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252526) : const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Row(
         children: [
-          _JsonNode(
-            keyName: null,
-            value: data,
-            depth: 0,
-            initiallyExpanded: initiallyExpanded,
+          Icon(
+            LucideIcons.listTree,
+            size: 12,
+            color: isDark ? const Color(0xFF7FD4E4) : const Color(0xFF0451A5),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Tree',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              fontFamily: AppConstants.monoFontFamily,
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+            ),
+          ),
+          const Spacer(),
+          _MiniButton(
+            icon: LucideIcons.copy,
+            tooltip: 'Copy entire tree as JSON',
+            isDark: isDark,
+            onTap: onCopyAll,
           ),
         ],
       ),
@@ -143,41 +235,33 @@ class _JsonNodeState extends State<_JsonNode> {
 
     return Padding(
       padding: EdgeInsets.only(left: indent),
-      child: GestureDetector(
-        onDoubleTap: () {
-          Clipboard.setData(
-            ClipboardData(text: widget.value?.toString() ?? 'null'),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 1),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.keyName != null) ...[
-                Text(
-                  '${widget.keyName}: ',
-                  style: TextStyle(
-                    fontFamily: AppConstants.monoFontFamily,
-                    fontSize: 12,
-                    color: isDark
-                        ? const Color(0xFFE06C75)
-                        : ColorTokens.primary,
-                  ),
-                ),
-              ],
-              Flexible(
-                child: Text(
-                  displayValue,
-                  style: TextStyle(
-                    fontFamily: AppConstants.monoFontFamily,
-                    fontSize: 12,
-                    color: valueColor,
-                  ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 1),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.keyName != null)
+              Text(
+                '${widget.keyName}: ',
+                style: TextStyle(
+                  fontFamily: AppConstants.monoFontFamily,
+                  fontSize: 12,
+                  color: isDark
+                      ? const Color(0xFFE06C75)
+                      : ColorTokens.primary,
                 ),
               ),
-            ],
-          ),
+            Flexible(
+              child: Text(
+                displayValue,
+                style: TextStyle(
+                  fontFamily: AppConstants.monoFontFamily,
+                  fontSize: 12,
+                  color: valueColor,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -189,44 +273,49 @@ class _JsonNodeState extends State<_JsonNode> {
       children: [
         Padding(
           padding: EdgeInsets.only(left: indent),
-          child: GestureDetector(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 1),
-                child: Row(
-                  children: [
-                    Icon(
-                      _expanded
-                          ? Icons.keyboard_arrow_down
-                          : Icons.keyboard_arrow_right,
-                      size: 16,
-                      color: Colors.grey,
-                    ),
-                    if (widget.keyName != null) ...[
-                      Text(
-                        '${widget.keyName}: ',
-                        style: TextStyle(
-                          fontFamily: AppConstants.monoFontFamily,
-                          fontSize: 12,
-                          color: isDark
-                              ? const Color(0xFFE06C75)
-                              : ColorTokens.primary,
-                        ),
-                      ),
-                    ],
-                    Text(
-                      badge,
-                      style: TextStyle(
-                        fontFamily: AppConstants.monoFontFamily,
-                        fontSize: 11,
-                        color: Colors.grey[500],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 1),
+            child: Row(
+              children: [
+                // Only the chevron toggles expand. Excluded from the ambient
+                // SelectionArea so the arrow character isn't dragged into the
+                // copied text when users select across rows.
+                SelectionContainer.disabled(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _expanded = !_expanded),
+                    behavior: HitTestBehavior.opaque,
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Icon(
+                        _expanded
+                            ? Icons.keyboard_arrow_down
+                            : Icons.keyboard_arrow_right,
+                        size: 16,
+                        color: Colors.grey,
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                if (widget.keyName != null)
+                  Text(
+                    '${widget.keyName}: ',
+                    style: TextStyle(
+                      fontFamily: AppConstants.monoFontFamily,
+                      fontSize: 12,
+                      color: isDark
+                          ? const Color(0xFFE06C75)
+                          : ColorTokens.primary,
+                    ),
+                  ),
+                Text(
+                  badge,
+                  style: TextStyle(
+                    fontFamily: AppConstants.monoFontFamily,
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -517,60 +606,72 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
             )
           else
             Flexible(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final bounded = constraints.maxHeight.isFinite;
-                  return ListView.builder(
-                itemCount: lineCount,
-                itemExtent: _lineHeight,
-                shrinkWrap: !bounded,
-                physics: bounded ? null : const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemBuilder: (context, index) {
-                  return SizedBox(
-                    height: _lineHeight,
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: gutterWidth,
-                          child: Text(
-                            '${index + 1}',
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontFamily: AppConstants.monoFontFamily,
-                              fontSize: 11,
-                              height: 1.5,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ),
-                        Container(
-                          width: 1,
-                          margin: const EdgeInsets.symmetric(horizontal: 8),
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.06)
-                              : Colors.black.withValues(alpha: 0.06),
-                        ),
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              style: const TextStyle(
-                                fontFamily: AppConstants.monoFontFamily,
-                                fontSize: 12,
-                                height: 1.5,
+              child: SelectionArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final bounded = constraints.maxHeight.isFinite;
+                    return ListView.builder(
+                      itemCount: lineCount,
+                      itemExtent: _lineHeight,
+                      shrinkWrap: !bounded,
+                      physics: bounded
+                          ? null
+                          : const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemBuilder: (context, index) {
+                        return SizedBox(
+                          height: _lineHeight,
+                          child: Row(
+                            children: [
+                              // Line number gutter is excluded from selection
+                              // so dragging across multiple lines doesn't pull
+                              // the numbers into the copied text.
+                              SelectionContainer.disabled(
+                                child: SizedBox(
+                                  width: gutterWidth,
+                                  child: Text(
+                                    '${index + 1}',
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                      fontFamily: AppConstants.monoFontFamily,
+                                      fontSize: 11,
+                                      height: 1.5,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ),
                               ),
-                              children: _getLineSpans(index),
-                            ),
-                            overflow: TextOverflow.clip,
-                            softWrap: false,
+                              SelectionContainer.disabled(
+                                child: Container(
+                                  width: 1,
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 8),
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.06)
+                                      : Colors.black.withValues(alpha: 0.06),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text.rich(
+                                  TextSpan(
+                                    style: const TextStyle(
+                                      fontFamily: AppConstants.monoFontFamily,
+                                      fontSize: 12,
+                                      height: 1.5,
+                                    ),
+                                    children: _getLineSpans(index),
+                                  ),
+                                  overflow: TextOverflow.clip,
+                                  softWrap: false,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-                },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ),
         ],
@@ -627,6 +728,276 @@ class _MiniButtonState extends State<_MiniButton> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Segmented button used in detail panels for the Tree / JSON / Code
+// toggle. Kept here so it can be reused across feature pages.
+// ═══════════════════════════════════════════════════════════════════
+
+enum ViewSegmentPosition { start, middle, end }
+
+class ViewModeSegment extends StatelessWidget {
+  final String label;
+  final bool active;
+  final ViewSegmentPosition position;
+  final VoidCallback onTap;
+
+  const ViewModeSegment({
+    super.key,
+    required this.label,
+    required this.active,
+    required this.position,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    BorderRadius radius;
+    switch (position) {
+      case ViewSegmentPosition.start:
+        radius = const BorderRadius.only(
+          topLeft: Radius.circular(5),
+          bottomLeft: Radius.circular(5),
+        );
+        break;
+      case ViewSegmentPosition.end:
+        radius = const BorderRadius.only(
+          topRight: Radius.circular(5),
+          bottomRight: Radius.circular(5),
+        );
+        break;
+      case ViewSegmentPosition.middle:
+        radius = BorderRadius.zero;
+        break;
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: active
+                ? ColorTokens.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: radius,
+            border: Border.all(
+              color: active
+                  ? ColorTokens.primary.withValues(alpha: 0.3)
+                  : Colors.grey.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: active ? ColorTokens.primary : Colors.grey[500],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Code viewer — renders the generator's output as two stacked panels:
+//   1. "Types" — a define-file-style block of named type declarations
+//      (TypeScript `interface`, Dart `class`, Kotlin `data class`).
+//   2. "Code"  — the typed initializer for a `body` variable.
+// Both panels share a VSCode-style syntax highlighter and have their
+// own Copy button.
+// ═══════════════════════════════════════════════════════════════════
+
+class CodeViewer extends StatelessWidget {
+  final GeneratedCode generated;
+  final CodeLang lang;
+  final String languageLabel;
+
+  const CodeViewer({
+    super.key,
+    required this.generated,
+    required this.lang,
+    required this.languageLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasTypes =
+        generated.types != null && generated.types!.isNotEmpty;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (hasTypes) ...[
+          _CodePanel(
+            isDark: isDark,
+            icon: LucideIcons.fileCode,
+            title: 'Types',
+            subtitle: languageLabel,
+            code: generated.types!,
+            lang: lang,
+            copyLabel: 'Type definition copied',
+          ),
+          const SizedBox(height: 12),
+        ],
+        _CodePanel(
+          isDark: isDark,
+          icon: LucideIcons.code,
+          title: 'Code',
+          subtitle: languageLabel,
+          code: generated.code,
+          lang: lang,
+          copyLabel: '$languageLabel code copied',
+        ),
+      ],
+    );
+  }
+}
+
+class _CodePanel extends StatelessWidget {
+  final bool isDark;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String code;
+  final CodeLang lang;
+  final String copyLabel;
+
+  const _CodePanel({
+    required this.isDark,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.code,
+    required this.lang,
+    required this.copyLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lineCount = '\n'.allMatches(code).length + 1;
+    final spans = CodeHighlighter.highlight(code, lang, isDark);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFFAFAFA),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Toolbar
+          Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color:
+                  isDark ? const Color(0xFF252526) : const Color(0xFFF0F0F0),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(8)),
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.black.withValues(alpha: 0.06),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 12,
+                  color: isDark
+                      ? const Color(0xFF7FD4E4)
+                      : const Color(0xFF0451A5),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: AppConstants.monoFontFamily,
+                    color: isDark ? Colors.grey[300] : Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '· $subtitle',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontFamily: AppConstants.monoFontFamily,
+                    color: Colors.grey[500],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$lineCount lines',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontFamily: AppConstants.monoFontFamily,
+                    color: Colors.grey[500],
+                  ),
+                ),
+                const Spacer(),
+                _MiniButton(
+                  icon: LucideIcons.copy,
+                  tooltip: 'Copy',
+                  isDark: isDark,
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    final messenger = ScaffoldMessenger.maybeOf(context);
+                    messenger?.hideCurrentSnackBar();
+                    messenger?.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          copyLabel,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        duration: const Duration(milliseconds: 900),
+                        behavior: SnackBarBehavior.floating,
+                        width: 240,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          // Content — syntax-highlighted, selectable
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: SelectionArea(
+              child: Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    fontFamily: AppConstants.monoFontFamily,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
+                  children: spans,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

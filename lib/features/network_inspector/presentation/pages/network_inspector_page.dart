@@ -18,6 +18,7 @@ import '../../../../components/misc/status_badge.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/utils/code_generator.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../components/lists/stable_list_view.dart';
@@ -977,7 +978,7 @@ class _DetailTabBar extends StatelessWidget {
   }
 }
 
-class _RequestDetailPanel extends StatefulWidget {
+class _RequestDetailPanel extends ConsumerStatefulWidget {
   final NetworkEntry entry;
   final VoidCallback onClose;
 
@@ -988,17 +989,22 @@ class _RequestDetailPanel extends StatefulWidget {
   });
 
   @override
-  State<_RequestDetailPanel> createState() => _RequestDetailPanelState();
+  ConsumerState<_RequestDetailPanel> createState() =>
+      _RequestDetailPanelState();
 }
 
-class _RequestDetailPanelState extends State<_RequestDetailPanel>
+class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(
+      length: 4,
+      vsync: this,
+      animationDuration: ref.read(tabAnimationProvider),
+    );
   }
 
   @override
@@ -1007,11 +1013,27 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
     super.dispose();
   }
 
+  void _rebuildController() {
+    final oldIndex = _tabController.index;
+    _tabController.dispose();
+    _tabController = TabController(
+      length: 4,
+      vsync: this,
+      animationDuration: ref.read(tabAnimationProvider),
+      initialIndex: oldIndex,
+    );
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final entry = widget.entry;
+
+    ref.listen(tabAnimationProvider, (prev, next) {
+      if (prev != next) _rebuildController();
+    });
 
     return Column(
       children: [
@@ -1202,8 +1224,16 @@ class _RequestDetailPanelState extends State<_RequestDetailPanel>
               controller: _tabController,
               children: [
                 _HeadersTab(entry: entry),
-                _BodyTab(body: entry.requestBody, label: 'Request Body'),
-                _BodyTab(body: entry.responseBody, label: 'Response Body'),
+                _BodyTab(
+                  body: entry.requestBody,
+                  label: 'Request Body',
+                  deviceId: entry.deviceId,
+                ),
+                _BodyTab(
+                  body: entry.responseBody,
+                  label: 'Response Body',
+                  deviceId: entry.deviceId,
+                ),
                 _TimingTab(entry: entry),
               ],
             ),
@@ -2278,24 +2308,27 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
 // Body tab (request / response)
 // ---------------------------------------------------------------------------
 
-class _BodyTab extends StatefulWidget {
+class _BodyTab extends ConsumerStatefulWidget {
   final dynamic body;
   final String label;
+  final String deviceId;
 
-  const _BodyTab({required this.body, required this.label});
+  const _BodyTab({
+    required this.body,
+    required this.label,
+    required this.deviceId,
+  });
 
   @override
-  State<_BodyTab> createState() => _BodyTabState();
+  ConsumerState<_BodyTab> createState() => _BodyTabState();
 }
 
-class _BodyTabState extends State<_BodyTab> {
-  bool _jsonMode = false;
-  bool _jsonEverOpened = false;
-
+class _BodyTabState extends ConsumerState<_BodyTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final viewMode = ref.watch(bodyViewModeProvider);
 
     if (widget.body == null) {
       return EmptyState(
@@ -2315,10 +2348,23 @@ class _BodyTabState extends State<_BodyTab> {
     }
 
     final canToggle = parsedBody is Map || parsedBody is List;
+    // When the body is a primitive string, Tree mode can't show anything
+    // structured so we implicitly fall back to JSON mode.
+    final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
+
+    // Look up the connected device's platform so Code mode exports the
+    // right language. Falls back to TypeScript (RN) when not connected.
+    final devices = ref.watch(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == widget.deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
 
     return Column(
       children: [
-        // Toggle bar
+        // Toggle bar — 3-way Tree / JSON / Code segmented toggle
         Container(
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2336,76 +2382,29 @@ class _BodyTabState extends State<_BodyTab> {
               Text(widget.label, style: theme.textTheme.titleSmall),
               const Spacer(),
               if (canToggle) ...[
-                GestureDetector(
-                  onTap: () => setState(() => _jsonMode = false),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: !_jsonMode
-                            ? ColorTokens.primary.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(5),
-                          bottomLeft: Radius.circular(5),
-                        ),
-                        border: Border.all(
-                          color: !_jsonMode
-                              ? ColorTokens.primary.withValues(alpha: 0.3)
-                              : Colors.grey.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Text(
-                        'Tree',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: !_jsonMode
-                              ? ColorTokens.primary
-                              : Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                  ),
+                ViewModeSegment(
+                  label: 'Tree',
+                  active: effectiveMode == BodyViewMode.tree,
+                  position: ViewSegmentPosition.start,
+                  onTap: () => ref
+                      .read(bodyViewModeProvider.notifier)
+                      .set(BodyViewMode.tree),
                 ),
-                GestureDetector(
-                  onTap: () => setState(() {
-                    _jsonMode = true;
-                    _jsonEverOpened = true;
-                  }),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _jsonMode
-                            ? ColorTokens.primary.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        borderRadius: const BorderRadius.only(
-                          topRight: Radius.circular(5),
-                          bottomRight: Radius.circular(5),
-                        ),
-                        border: Border.all(
-                          color: _jsonMode
-                              ? ColorTokens.primary.withValues(alpha: 0.3)
-                              : Colors.grey.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Text(
-                        'JSON',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: _jsonMode
-                              ? ColorTokens.primary
-                              : Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                  ),
+                ViewModeSegment(
+                  label: 'JSON',
+                  active: effectiveMode == BodyViewMode.json,
+                  position: ViewSegmentPosition.middle,
+                  onTap: () => ref
+                      .read(bodyViewModeProvider.notifier)
+                      .set(BodyViewMode.json),
+                ),
+                ViewModeSegment(
+                  label: CodeGenerator.labelFor(codeLang),
+                  active: effectiveMode == BodyViewMode.code,
+                  position: ViewSegmentPosition.end,
+                  onTap: () => ref
+                      .read(bodyViewModeProvider.notifier)
+                      .set(BodyViewMode.code),
                 ),
               ],
               const SizedBox(width: 8),
@@ -2437,30 +2436,43 @@ class _BodyTabState extends State<_BodyTab> {
         ),
         // Body content
         Expanded(
-          child: Stack(
-            children: [
-              Offstage(
-                offstage: _jsonMode,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: canToggle
-                      ? JsonViewer(data: parsedBody, initiallyExpanded: true)
-                      : JsonPrettyViewer(data: parsedBody),
-                ),
-              ),
-              if (canToggle && _jsonEverOpened)
-                Offstage(
-                  offstage: !_jsonMode,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: JsonPrettyViewer(data: parsedBody),
-                  ),
-                ),
-            ],
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: _buildContent(
+              parsedBody: parsedBody,
+              canToggle: canToggle,
+              mode: effectiveMode,
+              codeLang: codeLang,
+            ),
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildContent({
+    required dynamic parsedBody,
+    required bool canToggle,
+    required BodyViewMode mode,
+    required CodeLang codeLang,
+  }) {
+    if (!canToggle) {
+      // Primitive / non-JSON body: only the pretty JSON viewer is meaningful.
+      return JsonPrettyViewer(data: parsedBody);
+    }
+    switch (mode) {
+      case BodyViewMode.tree:
+        return JsonViewer(data: parsedBody, initiallyExpanded: true);
+      case BodyViewMode.json:
+        return JsonPrettyViewer(data: parsedBody);
+      case BodyViewMode.code:
+        final generated = CodeGenerator.generate(parsedBody, codeLang);
+        return CodeViewer(
+          generated: generated,
+          lang: codeLang,
+          languageLabel: CodeGenerator.labelFor(codeLang),
+        );
+    }
   }
 }
 
