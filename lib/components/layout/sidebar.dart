@@ -66,6 +66,11 @@ final sidebarItems = [
     routePath: '/benchmark',
   ),
   const SidebarItem(
+    label: 'Errors',
+    icon: LucideIcons.alertTriangle,
+    routePath: '/errors',
+  ),
+  const SidebarItem(
     label: 'History',
     icon: LucideIcons.history,
     routePath: '/history',

@@ -907,6 +907,12 @@ class _EventRow extends StatelessWidget {
               ? (event.rawData as AsyncOperationEntry).status.name.toUpperCase()
               : 'ASYNC',
         );
+      case EventType.error:
+        return _TypeInfo(
+          color: Colors.red,
+          icon: LucideIcons.alertTriangle,
+          label: 'ERROR',
+        );
     }
   }
 
@@ -1620,6 +1626,11 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
         typeIcon = LucideIcons.zap;
         typeLabel = 'Async Operation';
         break;
+      case EventType.error:
+        typeColor = Colors.red;
+        typeIcon = LucideIcons.alertTriangle;
+        typeLabel = 'Error Detail';
+        break;
     }
 
     return Container(
@@ -1694,6 +1705,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
         return _fallbackScreenshot(widget.event, isDark);
       case EventType.display:
       case EventType.asyncOp:
+      case EventType.error:
         return _fallbackScreenshot(widget.event, isDark);
     }
   }
@@ -2357,6 +2369,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
         return _FallbackDetail(event: widget.event);
       case EventType.display:
       case EventType.asyncOp:
+      case EventType.error:
         return _FallbackDetail(event: widget.event);
     }
   }
@@ -2407,6 +2420,8 @@ class _DetailHeader extends ConsumerWidget {
           LucideIcons.zap,
           'Async Operation'
         );
+      case EventType.error:
+        return (Colors.red, LucideIcons.alertTriangle, 'Error Detail');
     }
   }
 
