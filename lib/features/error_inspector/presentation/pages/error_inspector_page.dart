@@ -8,13 +8,10 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/lists/stable_list_view.dart';
-import '../../../../components/misc/status_badge.dart';
-import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../models/log/error_event.dart';
-import '../../../../server/providers/server_providers.dart';
 import '../../provider/error_providers.dart';
 
 Color _severityColor(ErrorSeverity severity) {
@@ -61,6 +58,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
   final _scrollController = ScrollController();
   final _selectedId = ValueNotifier<String?>(null);
   final _entryCount = ValueNotifier<int>(0);
+  final _searchController = TextEditingController();
   bool _autoScroll = true;
   bool _programmaticScroll = false;
   int _visibleCount = 0;
@@ -171,17 +169,13 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
     });
   }
 
-  ErrorEvent? _findEntry(String? id) {
-    if (id == null) return null;
-    return _entries.where((e) => e.id == id).firstOrNull;
-  }
-
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _selectedId.dispose();
     _entryCount.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -275,16 +269,19 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
     final errorCount = ref.watch(errorCountProvider);
     final fatalCount = ref.watch(fatalErrorCountProvider);
+    final activeFilters = ref.watch(errorFilterProvider);
 
     return Column(
       children: [
         // Header bar
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: isDark ? ColorTokens.darkSurface : Colors.white,
+            color: isDark ? ColorTokens.darkBackground : Colors.white,
             border: Border(
               bottom: BorderSide(
                 color: isDark ? Colors.white10 : Colors.black12,
@@ -293,40 +290,110 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
           ),
           child: Row(
             children: [
-              Expanded(
+              // Title section
+              Icon(LucideIcons.alertTriangle, size: 16, color: ColorTokens.logError),
+              const SizedBox(width: 8),
+              Text('Errors', style: theme.textTheme.titleMedium),
+              const SizedBox(width: 8),
+              ValueListenableBuilder<int>(
+                valueListenable: _entryCount,
+                builder: (context, count, _) => _CountPill(count: count),
+              ),
+              const SizedBox(width: 16),
+
+              // Platform filter chips
+              ...ErrorPlatform.values.map((platform) {
+                final isActive = activeFilters.contains(platform);
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: _PlatformFilterChip(
+                    label: _platformLabel(platform),
+                    isActive: isActive,
+                    color: _platformColor(platform),
+                    onTap: () {
+                      final current = ref.read(errorFilterProvider);
+                      if (isActive) {
+                        ref.read(errorFilterProvider.notifier).state =
+                            current.difference({platform});
+                      } else {
+                        ref.read(errorFilterProvider.notifier).state = {
+                          ...current,
+                          platform,
+                        };
+                      }
+                    },
+                  ),
+                );
+              }),
+
+              const Spacer(),
+
+              // Search
+              SizedBox(
+                width: 220,
                 child: SearchField(
                   hintText: 'Search errors...',
+                  controller: _searchController,
+                  onClear: () {
+                    _searchController.clear();
+                    ref.read(errorSearchProvider.notifier).state = '';
+                  },
                   onChanged: (v) => ref.read(errorSearchProvider.notifier).state = v,
                 ),
               ),
               const SizedBox(width: 12),
-              _buildFilterChips(),
-              const SizedBox(width: 12),
-              ValueListenableBuilder<int>(
-                valueListenable: _entryCount,
-                builder: (context, count, _) {
-                  return Text(
-                    '$count errors',
-                    style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 12,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: Icon(
-                  _autoScroll ? LucideIcons.pause : LucideIcons.play,
-                  size: 16,
+
+              // Action group
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : Colors.black.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                onPressed: () => setState(() => _autoScroll = !_autoScroll),
-                tooltip: _autoScroll ? 'Pause auto-scroll' : 'Resume auto-scroll',
-              ),
-              IconButton(
-                icon: const Icon(LucideIcons.trash2, size: 16),
-                onPressed: () => ref.read(errorEntriesProvider.notifier).clear(),
-                tooltip: 'Clear errors',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _IconBtn(
+                      icon: LucideIcons.arrowDownToLine,
+                      tooltip: _autoScroll ? 'Auto-scroll' : 'Pause',
+                      isActive: _autoScroll,
+                      onTap: () => setState(() => _autoScroll = !_autoScroll),
+                    ),
+                    const SizedBox(width: 2),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final dir = ref.watch(scrollDirectionProvider);
+                        final isTop = dir == ScrollDirection.top;
+                        return _IconBtn(
+                          icon: isTop
+                              ? LucideIcons.arrowUpNarrowWide
+                              : LucideIcons.arrowDownNarrowWide,
+                          tooltip: isTop ? 'Newest first' : 'Oldest first',
+                          isActive: isTop,
+                          onTap: () => ref.read(scrollDirectionProvider.notifier).state =
+                              isTop ? ScrollDirection.bottom : ScrollDirection.top,
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 2),
+                    Container(
+                      width: 1,
+                      height: 18,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : Colors.black.withValues(alpha: 0.08),
+                    ),
+                    const SizedBox(width: 2),
+                    _IconBtn(
+                      icon: LucideIcons.trash2,
+                      tooltip: 'Clear errors',
+                      isDanger: true,
+                      onTap: () => ref.read(errorEntriesProvider.notifier).clear(),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -365,28 +432,65 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
               : Row(
                   children: [
                     Expanded(
-                      child: ListView.builder(
+                      child: StableListView<ErrorEvent>(
                         controller: _scrollController,
-                        itemCount: _entries.length,
-                        itemBuilder: (context, index) {
-                          final entry = _entries[index];
+                        reverse: ref.read(scrollDirectionProvider) == ScrollDirection.top,
+                        generation: _generation,
+                        childCount: _visibleCount,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        entries: _entries,
+                        itemExtent: 80,
+                        idOf: (e) => e.id,
+                        selectedId: _selectedId,
+                        onSelect: (entry) {
+                          final wasSelected = _selectedId.value == entry.id;
+                          _selectedId.value = wasSelected ? null : entry.id;
+                          if (!wasSelected && _autoScroll) {
+                            _autoScroll = false;
+                            _programmaticScroll = false;
+                            if (_scrollController.hasClients) {
+                              _scrollController.jumpTo(_scrollController.offset);
+                            }
+                            setState(() {});
+                          }
+                        },
+                        contentBuilder: (context, entry) {
                           return _ErrorListItem(
                             entry: entry,
                             isSelected: _selectedId.value == entry.id,
-                            onTap: () => _selectedId.value = entry.id,
+                            onTap: () {
+                              final wasSelected = _selectedId.value == entry.id;
+                              _selectedId.value = wasSelected ? null : entry.id;
+                            },
                             onCopy: () {
                               Clipboard.setData(ClipboardData(text: entry.stackTrace ?? entry.message));
                             },
                           );
                         },
+                        decorationBuilder: (isSelected, isDark) {
+                          return BoxDecoration(
+                            color: isSelected
+                                ? ColorTokens.selectedBg(isDark)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected
+                                  ? ColorTokens.selectedBorder(isDark)
+                                  : (isDark
+                                      ? Colors.white.withValues(alpha: 0.04)
+                                      : Colors.black.withValues(alpha: 0.04)),
+                              width: 1,
+                            ),
+                          );
+                        },
                       ),
                     ),
                     // Detail panel
-                    Consumer(
-                      builder: (context, ref, _) {
-                        final selectedId = _selectedId.value;
-                        final selected = selectedId != null
-                            ? _entries.where((e) => e.id == selectedId).firstOrNull
+                    ValueListenableBuilder<String?>(
+                      valueListenable: _selectedId,
+                      builder: (context, selectedIdValue, _) {
+                        final selected = selectedIdValue != null
+                            ? _entries.where((e) => e.id == selectedIdValue).firstOrNull
                             : null;
                         if (selected == null) return const SizedBox.shrink();
                         return Row(
@@ -394,8 +498,9 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
                           children: [
                             VerticalDivider(width: 1, color: isDark ? Colors.white10 : Colors.black12),
                             SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.4,
+                              width: MediaQuery.of(context).size.width * 0.35,
                               child: _ErrorDetailPanel(
+                                key: ValueKey(selected.id),
                                 entry: selected,
                                 onClose: () => _selectedId.value = null,
                                 onScreenshot: () => _takeDetailScreenshot(context, selected),
@@ -412,34 +517,6 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
     );
   }
 
-  Widget _buildFilterChips() {
-    return Row(
-      children: [
-        ...ErrorPlatform.values.map((platform) {
-          final selected = ref.watch(errorFilterProvider).contains(platform);
-          return Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: FilterChip(
-              label: Text(_platformLabel(platform)),
-              selected: selected,
-              onSelected: (v) {
-                final current = ref.read(errorFilterProvider);
-                if (v) {
-                  ref.read(errorFilterProvider.notifier).state = {...current, platform};
-                } else {
-                  ref.read(errorFilterProvider.notifier).state = current.difference({platform});
-                }
-              },
-              backgroundColor: _platformColor(platform).withValues(alpha: 0.1),
-              selectedColor: _platformColor(platform).withValues(alpha: 0.3),
-              labelStyle: TextStyle(fontSize: 11, color: _platformColor(platform)),
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
   Widget _buildPlatformCounts() {
     final counts = ref.watch(errorCountByPlatformProvider);
     return Row(
@@ -452,6 +529,187 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
         const SizedBox(width: 8),
         _CountChip(label: 'iOS', count: counts[ErrorPlatform.ios] ?? 0, color: Colors.orange),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Count Pill
+// ---------------------------------------------------------------------------
+
+class _CountPill extends StatelessWidget {
+  final int count;
+
+  const _CountPill({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.black.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        '$count',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          fontFamily: AppConstants.monoFontFamily,
+          color: isDark ? Colors.grey[400] : Colors.grey[600],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Platform filter chip
+// ---------------------------------------------------------------------------
+
+class _PlatformFilterChip extends StatefulWidget {
+  final String label;
+  final bool isActive;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _PlatformFilterChip({
+    required this.label,
+    required this.isActive,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_PlatformFilterChip> createState() => _PlatformFilterChipState();
+}
+
+class _PlatformFilterChipState extends State<_PlatformFilterChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isActive
+        ? widget.color.withValues(alpha: 0.15)
+        : _hovered
+            ? widget.color.withValues(alpha: 0.07)
+            : Colors.transparent;
+
+    final borderColor = widget.isActive
+        ? widget.color.withValues(alpha: 0.4)
+        : _hovered
+            ? widget.color.withValues(alpha: 0.25)
+            : Colors.grey.withValues(alpha: 0.2);
+
+    return Tooltip(
+      message: '${widget.isActive ? "Hide" : "Show"} ${widget.label} errors',
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: borderColor),
+            ),
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: widget.color,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Icon Button
+// ---------------------------------------------------------------------------
+
+class _IconBtn extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool isActive;
+  final bool isDanger;
+  final VoidCallback onTap;
+
+  const _IconBtn({
+    required this.icon,
+    required this.tooltip,
+    this.isActive = false,
+    this.isDanger = false,
+    required this.onTap,
+  });
+
+  @override
+  State<_IconBtn> createState() => _IconBtnState();
+}
+
+class _IconBtnState extends State<_IconBtn> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Color iconColor;
+    Color bgColor;
+
+    if (widget.isActive) {
+      iconColor = ColorTokens.primary;
+      bgColor = ColorTokens.primary.withValues(alpha: 0.15);
+    } else if (widget.isDanger && _hovered) {
+      iconColor = ColorTokens.error;
+      bgColor = ColorTokens.error.withValues(alpha: 0.12);
+    } else if (_hovered) {
+      iconColor = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+      bgColor = isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.06);
+    } else {
+      iconColor = isDark ? Colors.grey[500]! : Colors.grey[500]!;
+      bgColor = Colors.transparent;
+    }
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(
+              widget.icon,
+              size: 14,
+              color: iconColor,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -731,6 +989,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
     _tabController = TabController(
       length: 3,
       vsync: this,
+      animationDuration: ref.read(tabAnimationProvider),
     );
   }
 
@@ -740,12 +999,27 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
     super.dispose();
   }
 
+  void _rebuildController() {
+    final oldIndex = _tabController.index;
+    _tabController.dispose();
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      animationDuration: ref.read(tabAnimationProvider),
+      initialIndex: oldIndex,
+    );
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final theme = Theme.of(context);
     final entry = widget.entry;
     final severityColor = _severityColor(entry.severity);
+
+    ref.listen(tabAnimationProvider, (prev, next) {
+      if (prev != next) _rebuildController();
+    });
 
     return Column(
       children: [
@@ -779,43 +1053,130 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                 ),
               ),
               const Spacer(),
-              IconButton(
-                icon: const Icon(LucideIcons.camera, size: 16),
-                onPressed: widget.onScreenshot,
-                tooltip: 'Screenshot',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              Tooltip(
+                message: 'Capture full detail as image',
+                waitDuration: const Duration(milliseconds: 400),
+                child: GestureDetector(
+                  onTap: _takeFullScreenshot,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        LucideIcons.camera,
+                        size: 14,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(LucideIcons.x, size: 16),
-                onPressed: widget.onClose,
-                tooltip: 'Close',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              const SizedBox(width: 2),
+              Tooltip(
+                message: 'Capture current tab only',
+                waitDuration: const Duration(milliseconds: 400),
+                child: GestureDetector(
+                  onTap: _takeTabScreenshot,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        LucideIcons.scanLine,
+                        size: 14,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Close panel',
+                child: GestureDetector(
+                  onTap: widget.onClose,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        LucideIcons.x,
+                        size: 16,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
         ),
         // Tabs
         Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.all(2),
           decoration: BoxDecoration(
-            color: isDark ? ColorTokens.darkSurface : Colors.white,
-            border: Border(
-              bottom: BorderSide(
-                color: isDark ? Colors.white10 : Colors.black12,
-              ),
-            ),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.black.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: TabBar(
             controller: _tabController,
-            labelColor: theme.colorScheme.primary,
-            unselectedLabelColor: Colors.grey,
-            labelStyle: const TextStyle(fontSize: 12),
+            labelStyle: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+            labelColor: ColorTokens.primary,
+            unselectedLabelColor: isDark ? Colors.grey[500] : Colors.grey[600],
+            indicatorSize: TabBarIndicatorSize.tab,
+            indicator: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isDark
+                    ? ColorTokens.primary.withValues(alpha: 0.25)
+                    : Colors.black.withValues(alpha: 0.06),
+              ),
+              boxShadow: isDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+            ),
+            indicatorPadding: EdgeInsets.zero,
+            dividerHeight: 0,
+            splashFactory: NoSplash.splashFactory,
+            overlayColor: WidgetStateProperty.all(Colors.transparent),
+            padding: EdgeInsets.zero,
+            labelPadding: EdgeInsets.zero,
             tabs: const [
-              Tab(text: 'Message'),
-              Tab(text: 'Stack Trace'),
-              Tab(text: 'Details'),
+              Tab(height: 28, text: 'Message'),
+              Tab(height: 28, text: 'Stack Trace'),
+              Tab(height: 28, text: 'Details'),
             ],
           ),
         ),
@@ -898,6 +1259,266 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
           ),
         ),
       ],
+    );
+  }
+
+  // ---- Screenshot ----
+
+  Future<void> _takeFullScreenshot() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    await captureWidgetAsImage(
+      context,
+      _buildFullScreenshotWidget(isDark),
+    );
+  }
+
+  Future<void> _takeTabScreenshot() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    await captureWidgetAsImage(
+      context,
+      _buildTabScreenshotWidget(isDark, _tabController.index),
+    );
+  }
+
+  Widget _buildFullScreenshotWidget(bool isDark) {
+    final entry = widget.entry;
+    final severityColor = _severityColor(entry.severity);
+    final time = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
+      DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
+    );
+
+    return Container(
+      color: isDark ? ColorTokens.darkSurface : Colors.white,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: isDark ? ColorTokens.darkBackground : Colors.white,
+            child: Row(
+              children: [
+                Icon(LucideIcons.alertTriangle, size: 16, color: severityColor),
+                const SizedBox(width: 8),
+                _SeverityBadge(severity: entry.severity),
+                const SizedBox(width: 8),
+                _PlatformBadge(platform: entry.platform),
+                const SizedBox(width: 8),
+                Text(
+                  time,
+                  style: TextStyle(
+                    fontFamily: AppConstants.monoFontFamily,
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Message section
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Message',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[500],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : Colors.black.withValues(alpha: 0.06),
+                    ),
+                  ),
+                  child: SelectableText(
+                    entry.message,
+                    style: TextStyle(
+                      fontFamily: AppConstants.monoFontFamily,
+                      fontSize: 12,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Stack trace section
+          if (entry.stackTrace != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Stack Trace',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: severityColor.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: severityColor.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: SelectableText(
+                      entry.stackTrace!,
+                      style: TextStyle(
+                        fontFamily: AppConstants.monoFontFamily,
+                        fontSize: 11,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          // Details section
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Details',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[500],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _screenshotDetailRow('Platform', entry.platform.name, isDark),
+                      _screenshotDetailRow('Severity', entry.severity.name, isDark),
+                      _screenshotDetailRow('Source', entry.source ?? 'unknown', isDark),
+                      _screenshotDetailRow('Device ID', entry.deviceId, isDark),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      width: 600,
+    );
+  }
+
+  Widget _buildTabScreenshotWidget(bool isDark, int tabIndex) {
+    final entry = widget.entry;
+    final severityColor = _severityColor(entry.severity);
+    final time = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
+      DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
+    );
+
+    final tabLabels = ['Message', 'Stack Trace', 'Details'];
+    final tabLabel = tabIndex >= 0 && tabIndex < tabLabels.length
+        ? tabLabels[tabIndex]
+        : 'Message';
+
+    return Container(
+      color: isDark ? ColorTokens.darkSurface : Colors.white,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: isDark ? ColorTokens.darkBackground : Colors.white,
+            child: Row(
+              children: [
+                Icon(LucideIcons.alertTriangle, size: 16, color: severityColor),
+                const SizedBox(width: 8),
+                _SeverityBadge(severity: entry.severity),
+                const SizedBox(width: 8),
+                _PlatformBadge(platform: entry.platform),
+                const SizedBox(width: 8),
+                Text(time, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 11, color: Colors.grey[500])),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: ColorTokens.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(tabLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: ColorTokens.primary)),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Tab content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: tabIndex == 0
+                ? SelectableText(entry.message, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 12, color: isDark ? Colors.white : Colors.black87))
+                : tabIndex == 1
+                    ? (entry.stackTrace != null
+                        ? SelectableText(entry.stackTrace!, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 11, color: isDark ? Colors.white70 : Colors.black87))
+                        : const Text('No stack trace available'))
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _screenshotDetailRow('Platform', entry.platform.name, isDark),
+                          _screenshotDetailRow('Severity', entry.severity.name, isDark),
+                          _screenshotDetailRow('Source', entry.source ?? 'unknown', isDark),
+                          _screenshotDetailRow('Device ID', entry.deviceId, isDark),
+                        ],
+                      ),
+          ),
+        ],
+      ),
+      width: 600,
+    );
+  }
+
+  Widget _screenshotDetailRow(String label, String value, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 70,
+            child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+          ),
+          Expanded(
+            child: SelectableText(value, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 10, color: isDark ? Colors.white70 : Colors.black87)),
+          ),
+        ],
+      ),
     );
   }
 }
