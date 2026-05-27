@@ -3,6 +3,7 @@ import 'dart:async';
 import '../core/constants/ws_constants.dart';
 import '../models/device_info.dart';
 import '../models/log/log_entry.dart';
+import '../models/log/error_event.dart';
 import '../models/network/network_entry.dart';
 import '../models/state/state_change.dart';
 import '../models/display/display_entry.dart';
@@ -27,6 +28,7 @@ class WsMessageHandler {
   final _memoryLeakController = StreamController<MemoryLeakEntry>.broadcast();
   final _displayController = StreamController<DisplayEntry>.broadcast();
   final _asyncOpController = StreamController<AsyncOperationEntry>.broadcast();
+  final _errorController = StreamController<ErrorEvent>.broadcast();
 
   Stream<LogEntry> get onLog => _logController.stream;
   Stream<NetworkEntry> get onNetwork => _networkController.stream;
@@ -41,6 +43,7 @@ class WsMessageHandler {
   Stream<MemoryLeakEntry> get onMemoryLeak => _memoryLeakController.stream;
   Stream<DisplayEntry> get onDisplay => _displayController.stream;
   Stream<AsyncOperationEntry> get onAsyncOperation => _asyncOpController.stream;
+  Stream<ErrorEvent> get onError => _errorController.stream;
 
   late final StreamSubscription<DCMessage> _messageSub;
   late final StreamSubscription<DeviceInfo> _connectionSub;
@@ -91,6 +94,10 @@ class WsMessageHandler {
         break;
       case WsMessageTypes.clientAsyncOperation:
         _handleAsyncOperation(message);
+        break;
+      case WsMessageTypes.clientError:
+      case WsMessageTypes.clientCrash:
+        _handleError(message);
         break;
       case WsMessageTypes.clientCustom:
       case WsMessageTypes.clientCustomCommandResult:
@@ -340,6 +347,42 @@ class WsMessageHandler {
     _asyncOpController.add(entry);
   }
 
+  void _handleError(DCMessage message) {
+    final p = message.payload;
+    final entry = ErrorEvent(
+      id: message.id,
+      deviceId: message.deviceId,
+      platform: _parseErrorPlatform(p['platform'] as String? ?? 'js'),
+      severity: _parseErrorSeverity(p['severity'] as String? ?? 'error'),
+      message: p['message'] as String? ?? '',
+      timestamp: message.timestamp,
+      stackTrace: p['stackTrace'] as String?,
+      source: p['source'] as String?,
+      deviceInfo: p['deviceInfo'] as String?,
+      metadata: p['metadata'] as Map<String, dynamic>?,
+    );
+    _errorController.add(entry);
+  }
+
+  ErrorPlatform _parseErrorPlatform(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'android': return ErrorPlatform.android;
+      case 'ios': return ErrorPlatform.ios;
+      case 'native': return ErrorPlatform.native;
+      default: return ErrorPlatform.js;
+    }
+  }
+
+  ErrorSeverity _parseErrorSeverity(String severity) {
+    switch (severity.toLowerCase()) {
+      case 'fatal': return ErrorSeverity.fatal;
+      case 'crash': return ErrorSeverity.crash;
+      case 'warning': return ErrorSeverity.warning;
+      case 'info': return ErrorSeverity.info;
+      default: return ErrorSeverity.error;
+    }
+  }
+
   AsyncOperationType _parseAsyncOpType(String type) {
     switch (type) {
       case 'saga_take': return AsyncOperationType.sagaTake;
@@ -396,5 +439,6 @@ class WsMessageHandler {
     _memoryLeakController.close();
     _displayController.close();
     _asyncOpController.close();
+    _errorController.close();
   }
 }

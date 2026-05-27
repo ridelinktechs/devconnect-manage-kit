@@ -11,6 +11,7 @@ import '../../features/state_inspector/presentation/pages/state_inspector_page.d
 import '../../features/performance/presentation/pages/performance_page.dart';
 import '../../features/performance/presentation/pages/memory_leaks_page.dart';
 import '../../features/benchmark/presentation/pages/benchmark_page.dart';
+import '../../features/error_inspector/presentation/pages/error_inspector_page.dart';
 import '../../features/storage_viewer/presentation/pages/storage_viewer_page.dart';
 import '../routes/app_shell.dart';
 
@@ -82,6 +83,12 @@ final appRouter = GoRouter(
           path: '/benchmark',
           pageBuilder: (context, state) => const NoTransitionPage(
             child: BenchmarkPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/errors',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: ErrorInspectorPage(),
           ),
         ),
         GoRoute(

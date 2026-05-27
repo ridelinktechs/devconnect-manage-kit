@@ -33,6 +33,8 @@ interface DevConnectConfig {
   autoMemoryLeak?: boolean;
   /** Auto-start app benchmark (default: true) */
   autoBenchmark?: boolean;
+  /** Auto-start error/crash monitoring (default: true) */
+  autoError?: boolean;
 }
 
 interface DCMessage {
@@ -332,6 +334,7 @@ export class DevConnect {
       autoPerformance: config.autoPerformance ?? true,
       autoMemoryLeak: config.autoMemoryLeak ?? true,
       autoBenchmark: config.autoBenchmark ?? true,
+      autoError: config.autoError ?? true,
     };
     this.deviceId = generateStableDeviceId(config.appName);
   }
@@ -398,6 +401,10 @@ export class DevConnect {
       if (dc.config.autoBenchmark) {
         const { setupAppBenchmark } = require('./plugins/appBenchmark');
         setupAppBenchmark();
+      }
+      if (dc.config.autoError) {
+        const { startErrorMonitor } = require('./plugins/errorMonitor');
+        startErrorMonitor();
       }
     } catch (e) {
       // Plugins are optional — don't break init if they fail

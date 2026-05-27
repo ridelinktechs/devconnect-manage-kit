@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Keys matching sidebar route paths (without leading /)
-enum TabKey { console, network, state, storage, database, performance, memoryLeaks, history }
+enum TabKey { console, network, state, storage, database, performance, memoryLeaks, history, error }
 
 class TabVisibilityNotifier extends StateNotifier<Set<TabKey>> {
   TabVisibilityNotifier() : super(TabKey.values.toSet());
