@@ -32,6 +32,7 @@ import '../../../network_inspector/provider/network_providers.dart';
 import '../../../state_inspector/provider/state_providers.dart';
 import '../../../storage_viewer/provider/storage_providers.dart';
 import '../../../../components/lists/stable_list_view.dart';
+import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../provider/all_events_provider.dart';
 
 // ═══════════════════════════════════════════════
@@ -220,96 +221,104 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                       ? 'Start your app with DevConnect SDK to see events'
                       : 'Events will appear here in real-time',
                 )
-              : Row(
+              : Stack(
                   children: [
-                    // ── Event List ──
-                    // List never rebuilds due to selection change.
-                    Expanded(
-                      child: ListView.custom(
-                        controller: _scrollController,
-                        itemExtent: 44,
-                        childrenDelegate: StableBuilderDelegate(
-                          generation: _generation,
-                          childCount: _visibleCount,
-                          findChildIndexCallback: (key) {
-                            if (key is ValueKey<String>) {
-                              final idx = _events.indexWhere((e) => e.id == key.value);
-                              return idx == -1 ? null : idx;
-                            }
-                            return null;
-                          },
-                          builder: (context, index) {
-                            final actualIndex = sortOrder == SortOrder.newestFirst
-                                ? _visibleCount - 1 - index
-                                : index;
-                            if (actualIndex < 0 || actualIndex >= _events.length) {
-                              return const SizedBox.shrink();
-                            }
-                            final event = _events[actualIndex];
-                            final device = devices
-                                .where(
-                                    (d) => d.deviceId == event.deviceId)
-                                .firstOrNull;
-                            return RepaintBoundary(
-                              key: ValueKey(event.id),
-                              child: ValueListenableBuilder<String?>(
-                                valueListenable: _selectedEventId,
-                                builder: (context, selectedId, _) {
-                                  final isSelected = selectedId == event.id;
-                                  return _EventRow(
-                                    event: event,
-                                    isSelected: isSelected,
-                                    showDetail: false,
-                                    platform: device?.platform,
-                                    onTap: () {
-                                      _selectedEventId.value =
-                                          isSelected ? null : event.id;
-                                      if (!isSelected && _autoScroll) {
-                                        _autoScroll = false;
-                                        _programmaticScroll = false;
-                                        if (_scrollController.hasClients) {
-                                          _scrollController.jumpTo(_scrollController.offset);
-                                        }
-                                        setState(() {});
-                                      }
+                    Row(
+                      children: [
+                        // ── Event List ──
+                        // List never rebuilds due to selection change.
+                        Expanded(
+                          child: ListView.custom(
+                            controller: _scrollController,
+                            itemExtent: 44,
+                            childrenDelegate: StableBuilderDelegate(
+                              generation: _generation,
+                              childCount: _visibleCount,
+                              findChildIndexCallback: (key) {
+                                if (key is ValueKey<String>) {
+                                  final idx = _events.indexWhere((e) => e.id == key.value);
+                                  return idx == -1 ? null : idx;
+                                }
+                                return null;
+                              },
+                              builder: (context, index) {
+                                final actualIndex = sortOrder == SortOrder.newestFirst
+                                    ? _visibleCount - 1 - index
+                                    : index;
+                                if (actualIndex < 0 || actualIndex >= _events.length) {
+                                  return const SizedBox.shrink();
+                                }
+                                final event = _events[actualIndex];
+                                final device = devices
+                                    .where(
+                                        (d) => d.deviceId == event.deviceId)
+                                    .firstOrNull;
+                                return RepaintBoundary(
+                                  key: ValueKey(event.id),
+                                  child: ValueListenableBuilder<String?>(
+                                    valueListenable: _selectedEventId,
+                                    builder: (context, selectedId, _) {
+                                      final isSelected = selectedId == event.id;
+                                      return _EventRow(
+                                        event: event,
+                                        isSelected: isSelected,
+                                        showDetail: false,
+                                        platform: device?.platform,
+                                        onTap: () {
+                                          _selectedEventId.value =
+                                              isSelected ? null : event.id;
+                                          if (!isSelected && _autoScroll) {
+                                            _autoScroll = false;
+                                            _programmaticScroll = false;
+                                            if (_scrollController.hasClients) {
+                                              _scrollController.jumpTo(_scrollController.offset);
+                                            }
+                                            setState(() {});
+                                          }
+                                        },
+                                        onCopyTitle: () =>
+                                            _copy(context, event.title),
+                                      );
                                     },
-                                    onCopyTitle: () =>
-                                        _copy(context, event.title),
-                                  );
-                                },
-                              ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        // ── Detail Panel ──
+                        // Only the detail panel listens to selection changes.
+                        ValueListenableBuilder<String?>(
+                          valueListenable: _selectedEventId,
+                          builder: (context, selectedId, _) {
+                            final selectedEvent = _findEvent(selectedId);
+                            if (selectedEvent == null) return const SizedBox.shrink();
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                VerticalDivider(
+                                  width: 1,
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.06)
+                                      : Colors.black.withValues(alpha: 0.08),
+                                ),
+                                SizedBox(
+                                  width: MediaQuery.of(context).size.width * 0.45,
+                                  child: _EventDetailPanel(
+                                    key: ValueKey(selectedEvent.id),
+                                    event: selectedEvent,
+                                    onClose: () => _selectedEventId.value = null,
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         ),
-                      ),
+                      ],
                     ),
-                    // ── Detail Panel ──
-                    // Only the detail panel listens to selection changes.
-                    ValueListenableBuilder<String?>(
-                      valueListenable: _selectedEventId,
-                      builder: (context, selectedId, _) {
-                        final selectedEvent = _findEvent(selectedId);
-                        if (selectedEvent == null) return const SizedBox.shrink();
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            VerticalDivider(
-                              width: 1,
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.06)
-                                  : Colors.black.withValues(alpha: 0.08),
-                            ),
-                            SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.45,
-                              child: _EventDetailPanel(
-                                key: ValueKey(selectedEvent.id),
-                                event: selectedEvent,
-                                onClose: () => _selectedEventId.value = null,
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                    PositionedJumpToLatestFab(
+                      scrollController: _scrollController,
+                      reversed: sortOrder == SortOrder.newestFirst,
                     ),
                   ],
                 ),
