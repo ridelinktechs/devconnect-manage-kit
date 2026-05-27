@@ -3,14 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/tab_visibility_provider.dart';
 import '../../../core/utils/duration_format.dart';
 import '../../../models/display/display_entry.dart';
+import '../../../models/log/error_event.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../console/provider/console_providers.dart';
 import '../../display/provider/display_providers.dart';
+import '../../error_inspector/provider/error_providers.dart';
 import '../../network_inspector/provider/network_providers.dart';
 import '../../state_inspector/provider/state_providers.dart';
 import '../../storage_viewer/provider/storage_providers.dart';
 
-enum EventType { log, network, state, storage, display, asyncOp }
+enum EventType { log, network, state, storage, display, asyncOp, error }
 
 class UnifiedEvent {
   final EventType type;
@@ -172,6 +174,32 @@ final allEventsProvider = Provider<List<UnifiedEvent>>((ref) {
       rawData: op,
     )));
     usedIds.add(op.id);
+  }
+
+  // Error events
+  if (enabledTabs.contains(TabKey.error)) {
+    final errors = ref.watch(errorEntriesProvider);
+    for (final err in errors) {
+      final level = switch (err.severity) {
+        ErrorSeverity.fatal => 'error',
+        ErrorSeverity.crash => 'error',
+        ErrorSeverity.error => 'error',
+        ErrorSeverity.warning => 'warn',
+        ErrorSeverity.info => 'info',
+      };
+      events.add(_cached(err.id, err, () => UnifiedEvent(
+        type: EventType.error,
+        id: err.id,
+        deviceId: err.deviceId,
+        platform: err.platform.name,
+        timestamp: err.timestamp,
+        title: err.message,
+        subtitle: '${err.source ?? err.platform.name} - ${err.deviceInfo ?? ''}',
+        level: level,
+        rawData: err,
+      )));
+      usedIds.add(err.id);
+    }
   }
 
   // Clean stale cache entries

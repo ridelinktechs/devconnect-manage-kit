@@ -22,6 +22,7 @@ import '../../../../core/utils/code_generator.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../components/lists/stable_list_view.dart';
+import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../provider/network_providers.dart';
 
@@ -186,79 +187,87 @@ class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
                   title: 'No network requests',
                   subtitle: 'API calls will appear here in real-time',
                 )
-              : Row(
+              : Stack(
                   children: [
-                    Expanded(
-                      child: ListView.custom(
-                        controller: _scrollController,
-                        reverse: isReversed,
-                        physics: isReversed ? const PositionRetainedScrollPhysics() : null,
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        itemExtent: 62,
-                        childrenDelegate: StableBuilderDelegate(
-                          generation: _generation,
-                          childCount: _visibleCount,
-                          findChildIndexCallback: (key) {
-                            if (key is ValueKey<String>) {
-                              final idx = _entries.indexWhere((e) => e.id == key.value);
-                              return idx == -1 ? null : idx;
-                            }
-                            return null;
-                          },
-                          builder: (context, index) {
-                            final entry = _entries[index];
-                            return RepaintBoundary(
-                              key: ValueKey(entry.id),
-                              child: Consumer(
-                                builder: (context, ref, _) {
-                                  final selected = ref.watch(selectedNetworkEntryProvider);
-                                  final isSelected = selected?.id == entry.id;
-                                  return _RequestCard(
-                                    entry: entry,
-                                    isSelected: isSelected,
-                                    onTap: () {
-                                      ref.read(selectedNetworkIdProvider.notifier).state =
-                                          isSelected ? null : entry.id;
-                                      if (!isSelected && _autoScroll) {
-                                        _autoScroll = false;
-              _programmaticScroll = false;
-              if (_scrollController.hasClients) {
-                _scrollController.jumpTo(_scrollController.offset);
-              }
-                                        setState(() {});
-                                      }
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ListView.custom(
+                            controller: _scrollController,
+                            reverse: isReversed,
+                            physics: isReversed ? const PositionRetainedScrollPhysics() : null,
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            itemExtent: 62,
+                            childrenDelegate: StableBuilderDelegate(
+                              generation: _generation,
+                              childCount: _visibleCount,
+                              findChildIndexCallback: (key) {
+                                if (key is ValueKey<String>) {
+                                  final idx = _entries.indexWhere((e) => e.id == key.value);
+                                  return idx == -1 ? null : idx;
+                                }
+                                return null;
+                              },
+                              builder: (context, index) {
+                                final entry = _entries[index];
+                                return RepaintBoundary(
+                                  key: ValueKey(entry.id),
+                                  child: Consumer(
+                                    builder: (context, ref, _) {
+                                      final selected = ref.watch(selectedNetworkEntryProvider);
+                                      final isSelected = selected?.id == entry.id;
+                                      return _RequestCard(
+                                        entry: entry,
+                                        isSelected: isSelected,
+                                        onTap: () {
+                                          ref.read(selectedNetworkIdProvider.notifier).state =
+                                              isSelected ? null : entry.id;
+                                          if (!isSelected && _autoScroll) {
+                                            _autoScroll = false;
+                                            _programmaticScroll = false;
+                                            if (_scrollController.hasClients) {
+                                              _scrollController.jumpTo(_scrollController.offset);
+                                            }
+                                            setState(() {});
+                                          }
+                                        },
+                                      );
                                     },
-                                  );
-                                },
-                              ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        // Detail panel reacts to selection via Consumer,
+                        // without rebuilding the list column.
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final selected = ref.watch(selectedNetworkEntryProvider);
+                            if (selected == null) return const SizedBox.shrink();
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                VerticalDivider(width: 1, color: theme.dividerColor),
+                                SizedBox(
+                                  width: MediaQuery.of(context).size.width * 0.45,
+                                  child: _RequestDetailPanel(
+                                    key: ValueKey(selected.id),
+                                    entry: selected,
+                                    onClose: () {
+                                      ref.read(selectedNetworkIdProvider.notifier).state = null;
+                                    },
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         ),
-                      ),
+                      ],
                     ),
-                    // Detail panel reacts to selection via Consumer,
-                    // without rebuilding the list column.
-                    Consumer(
-                      builder: (context, ref, _) {
-                        final selected = ref.watch(selectedNetworkEntryProvider);
-                        if (selected == null) return const SizedBox.shrink();
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            VerticalDivider(width: 1, color: theme.dividerColor),
-                            SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.45,
-                              child: _RequestDetailPanel(
-                                key: ValueKey(selected.id),
-                                entry: selected,
-                                onClose: () {
-                                  ref.read(selectedNetworkIdProvider.notifier).state = null;
-                                },
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                    PositionedJumpToLatestFab(
+                      scrollController: _scrollController,
+                      reversed: isReversed,
                     ),
                   ],
                 ),

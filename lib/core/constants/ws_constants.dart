@@ -37,4 +37,6 @@ class WsMessageTypes {
   static const String clientMemoryLeak = 'client:memory:leak';
   static const String clientDisplay = 'client:display';
   static const String clientAsyncOperation = 'client:async:operation';
+  static const String clientError = 'client:error';
+  static const String clientCrash = 'client:crash';
 }

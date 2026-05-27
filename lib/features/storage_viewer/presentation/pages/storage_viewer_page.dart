@@ -15,6 +15,7 @@ import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../models/storage/storage_entry.dart';
 import '../../../../components/lists/stable_list_view.dart';
+import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../provider/storage_providers.dart';
 
@@ -175,71 +176,79 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                   subtitle:
                       'SharedPreferences, AsyncStorage, and Hive entries appear here',
                 )
-              : Consumer(
-                  builder: (context, ref, _) {
-                    final selected = ref.watch(selectedStorageEntryProvider);
-                    return Row(
-                      children: [
-                        // Key list
-                        Expanded(
-                          flex: 2,
-                          child: ListView.custom(
-                            controller: _scrollController,
-                            reverse: isReversed,
-                            physics: isReversed ? const PositionRetainedScrollPhysics() : null,
-                            itemExtent: 58,
-                            childrenDelegate: StableBuilderDelegate(
-                              generation: _generation,
-                              childCount: _visibleCount,
-                              findChildIndexCallback: (key) {
-                                if (key is ValueKey<String>) {
-                                  final idx = _entries.indexWhere((e) => e.id == key.value);
-                                  return idx == -1 ? null : idx;
-                                }
-                                return null;
-                              },
-                              builder: (context, index) {
-                                final entry = _entries[index];
-                                final isSelected = selected?.id == entry.id;
-                                return RepaintBoundary(
-                                  key: ValueKey(entry.id),
-                                  child: _StorageEntryTile(
-                                    entry: entry,
-                                    isSelected: isSelected,
-                                    onTap: () {
-                                      ref
-                                          .read(selectedStorageIdProvider.notifier)
-                                          .state = isSelected ? null : entry.id;
-                                      if (!isSelected && _autoScroll) {
-                                        _autoScroll = false;
-                                        _programmaticScroll = false;
-                                        if (_scrollController.hasClients) {
-                                          _scrollController.jumpTo(_scrollController.offset);
-                                        }
-                                        setState(() {});
-                                      }
-                                    },
-                                  ),
-                                );
-                              },
+              : Stack(
+                  children: [
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final selected = ref.watch(selectedStorageEntryProvider);
+                        return Row(
+                          children: [
+                            // Key list
+                            Expanded(
+                              flex: 2,
+                              child: ListView.custom(
+                                controller: _scrollController,
+                                reverse: isReversed,
+                                physics: isReversed ? const PositionRetainedScrollPhysics() : null,
+                                itemExtent: 58,
+                                childrenDelegate: StableBuilderDelegate(
+                                  generation: _generation,
+                                  childCount: _visibleCount,
+                                  findChildIndexCallback: (key) {
+                                    if (key is ValueKey<String>) {
+                                      final idx = _entries.indexWhere((e) => e.id == key.value);
+                                      return idx == -1 ? null : idx;
+                                    }
+                                    return null;
+                                  },
+                                  builder: (context, index) {
+                                    final entry = _entries[index];
+                                    final isSelected = selected?.id == entry.id;
+                                    return RepaintBoundary(
+                                      key: ValueKey(entry.id),
+                                      child: _StorageEntryTile(
+                                        entry: entry,
+                                        isSelected: isSelected,
+                                        onTap: () {
+                                          ref
+                                              .read(selectedStorageIdProvider.notifier)
+                                              .state = isSelected ? null : entry.id;
+                                          if (!isSelected && _autoScroll) {
+                                            _autoScroll = false;
+                                            _programmaticScroll = false;
+                                            if (_scrollController.hasClients) {
+                                              _scrollController.jumpTo(_scrollController.offset);
+                                            }
+                                            setState(() {});
+                                          }
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        if (selected != null) ...[
-                          VerticalDivider(width: 1, color: theme.dividerColor),
-                          Expanded(
-                            flex: 3,
-                            child: _StorageDetailPanel(
-                              entry: selected,
-                              onClose: () => ref
-                                  .read(selectedStorageIdProvider.notifier)
-                                  .state = null,
-                            ),
-                          ),
-                        ],
-                      ],
-                    );
-                  },
+                            if (selected != null) ...[
+                              VerticalDivider(width: 1, color: theme.dividerColor),
+                              Expanded(
+                                flex: 3,
+                                child: _StorageDetailPanel(
+                                  entry: selected,
+                                  onClose: () => ref
+                                      .read(selectedStorageIdProvider.notifier)
+                                      .state = null,
+                                ),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
+                    PositionedJumpToLatestFab(
+                      scrollController: _scrollController,
+                      reversed: isReversed,
+                    ),
+                  ],
                 ),
         ),
       ],

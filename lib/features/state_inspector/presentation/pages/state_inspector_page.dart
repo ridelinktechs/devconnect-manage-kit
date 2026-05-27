@@ -12,6 +12,7 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../models/state/state_change.dart';
 import '../../../../components/lists/stable_list_view.dart';
+import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../provider/state_providers.dart';
 
@@ -180,65 +181,73 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                   subtitle:
                       'Redux, BLoC, Riverpod, and MobX state changes appear here',
                 )
-              : Row(
+              : Stack(
                   children: [
-                    // Timeline — full width when no selection
-                    Expanded(
-                      flex: 2,
-                      child: ListView.custom(
-                        controller: _scrollController,
-                        reverse: isReversed,
-                        physics: isReversed ? const PositionRetainedScrollPhysics() : null,
-                        itemExtent: 44,
-                        childrenDelegate: StableBuilderDelegate(
-                          generation: _generation,
-                          childCount: _visibleCount,
-                          findChildIndexCallback: (key) {
-                            if (key is ValueKey<String>) {
-                              final idx = _entries.indexWhere((e) => e.id == key.value);
-                              return idx == -1 ? null : idx;
-                            }
-                            return null;
-                          },
-                          builder: (context, index) {
-                            final entry = _entries[index];
-                            final isSelected = selected?.id == entry.id;
-                            return RepaintBoundary(
-                              key: ValueKey(entry.id),
-                              child: _StateChangeTile(
-                                entry: entry,
-                                isSelected: isSelected,
-                                onTap: () {
-                                  ref
-                                      .read(selectedStateChangeIdProvider.notifier)
-                                      .state = isSelected ? null : entry.id;
-                                  if (!isSelected && _autoScroll) {
-                                    _autoScroll = false;
-                                    _programmaticScroll = false;
-                                    if (_scrollController.hasClients) {
-                                      _scrollController.jumpTo(_scrollController.offset);
-                                    }
-                                    setState(() {});
-                                  }
-                                },
-                              ),
-                            );
-                          },
+                    Row(
+                      children: [
+                        // Timeline — full width when no selection
+                        Expanded(
+                          flex: 2,
+                          child: ListView.custom(
+                            controller: _scrollController,
+                            reverse: isReversed,
+                            physics: isReversed ? const PositionRetainedScrollPhysics() : null,
+                            itemExtent: 44,
+                            childrenDelegate: StableBuilderDelegate(
+                              generation: _generation,
+                              childCount: _visibleCount,
+                              findChildIndexCallback: (key) {
+                                if (key is ValueKey<String>) {
+                                  final idx = _entries.indexWhere((e) => e.id == key.value);
+                                  return idx == -1 ? null : idx;
+                                }
+                                return null;
+                              },
+                              builder: (context, index) {
+                                final entry = _entries[index];
+                                final isSelected = selected?.id == entry.id;
+                                return RepaintBoundary(
+                                  key: ValueKey(entry.id),
+                                  child: _StateChangeTile(
+                                    entry: entry,
+                                    isSelected: isSelected,
+                                    onTap: () {
+                                      ref
+                                          .read(selectedStateChangeIdProvider.notifier)
+                                          .state = isSelected ? null : entry.id;
+                                      if (!isSelected && _autoScroll) {
+                                        _autoScroll = false;
+                                        _programmaticScroll = false;
+                                        if (_scrollController.hasClients) {
+                                          _scrollController.jumpTo(_scrollController.offset);
+                                        }
+                                        setState(() {});
+                                      }
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                         ),
-                      ),
+                        if (selected != null) ...[
+                          VerticalDivider(width: 1, color: theme.dividerColor),
+                          Expanded(
+                            flex: 3,
+                            child: _StateDetailPanel(
+                              entry: selected,
+                              onClose: () => ref
+                                  .read(selectedStateChangeIdProvider.notifier)
+                                  .state = null,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    if (selected != null) ...[
-                      VerticalDivider(width: 1, color: theme.dividerColor),
-                      Expanded(
-                        flex: 3,
-                        child: _StateDetailPanel(
-                          entry: selected,
-                          onClose: () => ref
-                              .read(selectedStateChangeIdProvider.notifier)
-                              .state = null,
-                        ),
-                      ),
-                    ],
+                    PositionedJumpToLatestFab(
+                      scrollController: _scrollController,
+                      reversed: isReversed,
+                    ),
                   ],
                 ),
         ),

@@ -10,6 +10,7 @@ import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/status_badge.dart';
+import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
@@ -355,90 +356,98 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                   subtitle:
                       'Connect a device and start logging to see entries here',
                 )
-              : Row(
+              : Stack(
                   children: [
-                    // ── List panel ──
-                    // The list never rebuilds due to selection change.
-                    // PositionRetainedScrollPhysics is ALWAYS used to
-                    // guarantee the user's scroll position is stable when
-                    // new entries arrive.
-                    Expanded(
-                      child: StableListView<LogEntry>(
-                        controller: _scrollController,
-                        reverse: isReversed,
-                        generation: _generation,
-                        childCount: _visibleCount,
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        entries: _entries,
-                        itemExtent: 64,
-                        idOf: (e) => e.id,
-                        selectedId: _selectedId,
-                        onSelect: (entry) {
-                          final wasSelected = _selectedId.value == entry.id;
-                          _selectedId.value = wasSelected ? null : entry.id;
-                          if (!wasSelected && _autoScroll) {
-                            _autoScroll = false;
-                            _programmaticScroll = false;
-                            if (_scrollController.hasClients) {
-                              _scrollController.jumpTo(_scrollController.offset);
-                            }
-                            setState(() {});
-                          }
-                        },
-                        contentBuilder: (context, entry) {
-                          final devices = ref.read(connectedDevicesProvider);
-                          final device = devices.where((d) => d.deviceId == entry.deviceId).firstOrNull;
-                          return _LogEntryContent(
-                            entry: entry,
-                            platform: device?.platform,
-                          );
-                        },
-                        decorationBuilder: (isSelected, isDark) {
-                          return BoxDecoration(
-                            color: isSelected
-                                ? ColorTokens.selectedBg(isDark)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isSelected
-                                  ? ColorTokens.selectedBorder(isDark)
-                                  : (isDark
-                                      ? Colors.white.withValues(alpha: 0.04)
-                                      : Colors.black.withValues(alpha: 0.04)),
-                              width: 1,
-                            ),
-                          );
-                        },
-                      ),
+                    Row(
+                      children: [
+                        // ── List panel ──
+                        // The list never rebuilds due to selection change.
+                        // PositionRetainedScrollPhysics is ALWAYS used to
+                        // guarantee the user's scroll position is stable when
+                        // new entries arrive.
+                        Expanded(
+                          child: StableListView<LogEntry>(
+                            controller: _scrollController,
+                            reverse: isReversed,
+                            generation: _generation,
+                            childCount: _visibleCount,
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            entries: _entries,
+                            itemExtent: 64,
+                            idOf: (e) => e.id,
+                            selectedId: _selectedId,
+                            onSelect: (entry) {
+                              final wasSelected = _selectedId.value == entry.id;
+                              _selectedId.value = wasSelected ? null : entry.id;
+                              if (!wasSelected && _autoScroll) {
+                                _autoScroll = false;
+                                _programmaticScroll = false;
+                                if (_scrollController.hasClients) {
+                                  _scrollController.jumpTo(_scrollController.offset);
+                                }
+                                setState(() {});
+                              }
+                            },
+                            contentBuilder: (context, entry) {
+                              final devices = ref.read(connectedDevicesProvider);
+                              final device = devices.where((d) => d.deviceId == entry.deviceId).firstOrNull;
+                              return _LogEntryContent(
+                                entry: entry,
+                                platform: device?.platform,
+                              );
+                            },
+                            decorationBuilder: (isSelected, isDark) {
+                              return BoxDecoration(
+                                color: isSelected
+                                    ? ColorTokens.selectedBg(isDark)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? ColorTokens.selectedBorder(isDark)
+                                      : (isDark
+                                          ? Colors.white.withValues(alpha: 0.04)
+                                          : Colors.black.withValues(alpha: 0.04)),
+                                  width: 1,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        // ── Detail panel ──
+                        // Only the detail panel listens to _selectedId changes,
+                        // preventing list layout from shifting on selection.
+                        ValueListenableBuilder<String?>(
+                          valueListenable: _selectedId,
+                          builder: (context, selectedIdValue, _) {
+                            final selected = _findEntry(selectedIdValue);
+                            if (selected == null) return const SizedBox.shrink();
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                VerticalDivider(
+                                  width: 1,
+                                  color: theme.dividerColor,
+                                ),
+                                SizedBox(
+                                  width: MediaQuery.of(context).size.width * 0.35,
+                                  child: _LogDetailPanel(
+                                    key: ValueKey(selected.id),
+                                    entry: selected,
+                                    onClose: () => _selectedId.value = null,
+                                    onScreenshot: () =>
+                                        _takeDetailScreenshot(context, selected),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                    // ── Detail panel ──
-                    // Only the detail panel listens to _selectedId changes,
-                    // preventing list layout from shifting on selection.
-                    ValueListenableBuilder<String?>(
-                      valueListenable: _selectedId,
-                      builder: (context, selectedIdValue, _) {
-                        final selected = _findEntry(selectedIdValue);
-                        if (selected == null) return const SizedBox.shrink();
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            VerticalDivider(
-                              width: 1,
-                              color: theme.dividerColor,
-                            ),
-                            SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.35,
-                              child: _LogDetailPanel(
-                                key: ValueKey(selected.id),
-                                entry: selected,
-                                onClose: () => _selectedId.value = null,
-                                onScreenshot: () =>
-                                    _takeDetailScreenshot(context, selected),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                    PositionedJumpToLatestFab(
+                      scrollController: _scrollController,
+                      reversed: isReversed,
                     ),
                   ],
                 ),

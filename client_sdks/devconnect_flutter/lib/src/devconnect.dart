@@ -23,6 +23,7 @@ import 'wrappers/realm_wrapper.dart';
 import 'plugins/performance_monitor.dart' as perf_monitor;
 import 'plugins/memory_leak_detector.dart' as memory_detector;
 import 'plugins/app_benchmark.dart' as app_bench;
+import 'plugins/error_monitor.dart' as error_monitor;
 
 /// DevConnect Flutter SDK - Main entry point.
 ///
@@ -105,6 +106,8 @@ class DevConnect {
     bool autoMemoryLeak = true,
     /// Auto-start app benchmark (default: true)
     bool autoBenchmark = true,
+    /// Auto-start error monitoring (default: true)
+    bool autoError = true,
   }) async {
     // Production kill-switch: completely no-op in release builds.
     if (!(enabled ?? kDebugMode)) {
@@ -127,6 +130,7 @@ class DevConnect {
           autoPerformance: autoPerformance,
           autoMemoryLeak: autoMemoryLeak,
           autoBenchmark: autoBenchmark,
+          autoError: autoError,
           appName: appName,
           appVersion: appVersion,
           versionCode: versionCode,
@@ -143,6 +147,7 @@ class DevConnect {
         autoPerformance: autoPerformance,
         autoMemoryLeak: autoMemoryLeak,
         autoBenchmark: autoBenchmark,
+        autoError: autoError,
         appName: appName,
         appVersion: appVersion,
         versionCode: versionCode,
@@ -160,6 +165,7 @@ class DevConnect {
     required bool autoPerformance,
     required bool autoMemoryLeak,
     required bool autoBenchmark,
+    required bool autoError,
     required String appName,
     required String appVersion,
     required String? versionCode,
@@ -173,6 +179,7 @@ class DevConnect {
     if (autoPerformance) perf_monitor.startPerformanceMonitor();
     if (autoMemoryLeak) memory_detector.startMemoryLeakDetector();
     if (autoBenchmark) app_bench.setupAppBenchmark();
+    if (autoError) error_monitor.startErrorMonitor();
 
     await init(
       appName: appName,

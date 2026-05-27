@@ -18,6 +18,7 @@ export { DevConnectRealm } from './reporters/realmReporter';
 // Auto-monitoring plugins
 export { startPerformanceMonitor, stopPerformanceMonitor } from './plugins/performanceMonitor';
 export { startMemoryLeakDetector, stopMemoryLeakDetector, watchCollection } from './plugins/memoryLeakDetector';
+export { startErrorMonitor } from './plugins/errorMonitor';
 export { setupAppBenchmark, benchmarkScreen, benchmarkAsync } from './plugins/appBenchmark';
 export { devConnectThunkTracker, trackAsync } from './plugins/asyncTracker';
 
