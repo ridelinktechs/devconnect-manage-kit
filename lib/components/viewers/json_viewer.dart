@@ -11,6 +11,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/theme/color_tokens.dart';
 import '../../core/utils/code_generator.dart';
 import '../../core/utils/code_highlighter.dart';
+import '../../core/utils/toast_utils.dart';
 
 class JsonViewer extends StatelessWidget {
   final dynamic data;
@@ -575,8 +576,11 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                     icon: LucideIcons.copy,
                     tooltip: 'Copy JSON',
                     isDark: isDark,
-                    onTap: () => Clipboard.setData(
-                        ClipboardData(text: _result!.formatted)),
+                    onTap: () {
+                      Clipboard.setData(
+                          ClipboardData(text: _result!.formatted));
+                      showCopiedToast(context, label: 'JSON copied');
+                    },
                   ),
                   const SizedBox(width: 4),
                   _MiniButton(

@@ -24,6 +24,7 @@ import '../../../../server/providers/server_providers.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../provider/network_providers.dart';
 
 // ---------------------------------------------------------------------------
@@ -2292,6 +2293,7 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
               onTap: () {
                 Clipboard.setData(ClipboardData(text: '${widget.headerKey}: ${widget.headerValue}'));
                 setState(() => _copied = true);
+                showCopiedToast(context);
               },
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,

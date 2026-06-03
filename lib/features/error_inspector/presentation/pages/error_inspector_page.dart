@@ -11,6 +11,7 @@ import '../../../../components/lists/stable_list_view.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../../../models/log/error_event.dart';
 import '../../provider/error_providers.dart';
 
@@ -464,6 +465,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
                             },
                             onCopy: () {
                               Clipboard.setData(ClipboardData(text: entry.stackTrace ?? entry.message));
+                              showCopiedToast(context, label: 'Stack trace copied');
                             },
                           );
                         },

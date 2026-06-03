@@ -33,6 +33,7 @@ import '../../../state_inspector/provider/state_providers.dart';
 import '../../../storage_viewer/provider/storage_providers.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../provider/all_events_provider.dart';
 
 // ═══════════════════════════════════════════════
@@ -3301,6 +3302,7 @@ class _HeaderRowCopyState extends State<_HeaderRowCopy> {
               onTap: () {
                 Clipboard.setData(ClipboardData(text: '${widget.headerKey}: ${widget.headerValue}'));
                 setState(() => _copied = true);
+                showCopiedToast(context);
               },
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,

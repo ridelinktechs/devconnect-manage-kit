@@ -70,6 +70,46 @@ final selectedNetworkEntryProvider = Provider<NetworkEntry?>((ref) {
   return entries.where((e) => e.id == id).firstOrNull;
 });
 
+/// Check if a response body is a real parsed value (not a blob placeholder).
+bool _isBetterBody(dynamic body) {
+  if (body == null) return false;
+  if (body is Map || body is List) return true;
+  if (body is String && !body.startsWith('<blob')) return true;
+  return false;
+}
+
+/// Merge two duplicate network entries, preferring the one with better data.
+NetworkEntry _mergeNetworkEntries(NetworkEntry existing, NetworkEntry incoming) {
+  // Prefer the entry with the more complete response body
+  final useExistingBody = _isBetterBody(existing.responseBody);
+  final useIncomingBody = _isBetterBody(incoming.responseBody);
+
+  final bestBody = useIncomingBody
+      ? incoming.responseBody
+      : (useExistingBody ? existing.responseBody : incoming.responseBody);
+
+  final bestStatusCode = incoming.statusCode != 0 ? incoming.statusCode : existing.statusCode;
+  final bestError = incoming.error ?? existing.error;
+  final bestIsComplete = incoming.isComplete || existing.isComplete;
+  final bestEndTime = incoming.endTime ?? existing.endTime;
+  final bestDuration = incoming.duration ?? existing.duration;
+
+  // Merge request headers from both sources
+  final mergedReqHeaders = {...existing.requestHeaders, ...incoming.requestHeaders};
+  final mergedResHeaders = {...existing.responseHeaders, ...incoming.responseHeaders};
+
+  return existing.copyWith(
+    statusCode: bestStatusCode,
+    requestHeaders: mergedReqHeaders,
+    responseHeaders: mergedResHeaders,
+    responseBody: bestBody,
+    endTime: bestEndTime,
+    duration: bestDuration,
+    error: bestError,
+    isComplete: bestIsComplete,
+  );
+}
+
 class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
   late final StreamSubscription<NetworkEntry> _sub;
 
@@ -82,10 +122,23 @@ class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
         updated[index] = entry;
         state = updated;
       } else {
-        if (state.length > 5000) {
-          state = [...state.skip(500), entry];
+        // Deduplicate: same method+url+device within 500ms = duplicate interceptors
+        final dupeIndex = state.indexWhere((e) =>
+            e.method == entry.method &&
+            e.url == entry.url &&
+            e.deviceId == entry.deviceId &&
+            (e.startTime - entry.startTime).abs() < 500);
+        if (dupeIndex >= 0) {
+          final merged = _mergeNetworkEntries(state[dupeIndex], entry);
+          final updated = List<NetworkEntry>.from(state);
+          updated[dupeIndex] = merged;
+          state = updated;
         } else {
-          state = [...state, entry];
+          if (state.length > 5000) {
+            state = [...state.skip(500), entry];
+          } else {
+            state = [...state, entry];
+          }
         }
       }
     });
