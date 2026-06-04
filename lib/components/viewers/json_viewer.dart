@@ -616,16 +616,16 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                     final bounded = constraints.maxHeight.isFinite;
                     return ListView.builder(
                       itemCount: lineCount,
-                      itemExtent: _lineHeight,
                       shrinkWrap: !bounded,
                       physics: bounded
                           ? null
                           : const NeverScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemBuilder: (context, index) {
-                        return SizedBox(
-                          height: _lineHeight,
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 1),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // Line number gutter is excluded from selection
                               // so dragging across multiple lines doesn't pull
@@ -633,6 +633,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                               SelectionContainer.disabled(
                                 child: SizedBox(
                                   width: gutterWidth,
+                                  height: _lineHeight,
                                   child: Text(
                                     '${index + 1}',
                                     textAlign: TextAlign.right,
@@ -648,6 +649,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                               SelectionContainer.disabled(
                                 child: Container(
                                   width: 1,
+                                  height: _lineHeight,
                                   margin: const EdgeInsets.symmetric(
                                       horizontal: 8),
                                   color: isDark
@@ -665,7 +667,6 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                                     ),
                                     children: _getLineSpans(index),
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                   softWrap: true,
                                 ),
                               ),
