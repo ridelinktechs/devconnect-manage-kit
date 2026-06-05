@@ -1819,12 +1819,40 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
     if (parsed is String) {
       try { parsed = jsonDecode(parsed); } catch (_) {}
     }
+
+    final viewMode = ref.read(bodyViewModeProvider);
+    final canToggle = parsed is Map || parsed is List;
+    final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
+
+    final devices = ref.read(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == widget.entry.deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
+
     return Padding(
       padding: const EdgeInsets.all(12),
-      child: parsed is Map || parsed is List
-          ? JsonViewer(data: parsed, initiallyExpanded: true)
-          : JsonPrettyViewer(data: parsed),
+      child: _buildBodyContent(parsed, canToggle, effectiveMode, codeLang),
     );
+  }
+
+  Widget _buildBodyContent(
+      dynamic parsed, bool canToggle, BodyViewMode mode, CodeLang codeLang) {
+    if (!canToggle) return JsonPrettyViewer(data: parsed);
+    switch (mode) {
+      case BodyViewMode.tree:
+        return JsonViewer(data: parsed, initiallyExpanded: true);
+      case BodyViewMode.json:
+        return JsonPrettyViewer(data: parsed);
+      case BodyViewMode.code:
+        return CodeViewer(
+          generated: CodeGenerator.generate(parsed, codeLang),
+          lang: codeLang,
+          languageLabel: CodeGenerator.labelFor(codeLang),
+        );
+    }
   }
 
   Widget _screenshotSection(String title, bool isDark) {
@@ -1872,14 +1900,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
   }
 
   void _showCopied(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-        width: 180,
-      ),
-    );
+    showCopiedToast(context, label: message);
   }
 
   String _buildCurl(NetworkEntry entry) {
@@ -2427,14 +2448,7 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
                       : const JsonEncoder.withIndent('  ')
                           .convert(parsedBody);
                   Clipboard.setData(ClipboardData(text: text));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${widget.label} copied'),
-                      duration: const Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                      width: 180,
-                    ),
-                  );
+                  showCopiedToast(context, label: '${widget.label} copied');
                 },
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,

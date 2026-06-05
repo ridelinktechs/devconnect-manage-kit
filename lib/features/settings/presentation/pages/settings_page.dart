@@ -10,6 +10,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/tab_visibility_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../../../server/providers/server_providers.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -84,14 +85,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   void _copy(String text, [String? label]) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(label ?? 'Copied'),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-        width: 200,
-      ),
-    );
+    showCopiedToast(context, label: label ?? 'Copied');
   }
 
   String _describeStartError(Object error, int port) {

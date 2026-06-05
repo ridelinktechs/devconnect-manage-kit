@@ -10,8 +10,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/color_tokens.dart';
 import '../../core/utils/code_generator.dart';
-import '../../core/utils/code_highlighter.dart';
 import '../../core/utils/toast_utils.dart';
+import '../../core/utils/code_highlighter.dart';
 
 class JsonViewer extends StatelessWidget {
   final dynamic data;
@@ -50,17 +50,7 @@ class JsonViewer extends StatelessWidget {
           isDark: isDark,
           onCopyAll: () {
             Clipboard.setData(ClipboardData(text: _formatAll()));
-            final messenger = ScaffoldMessenger.maybeOf(context);
-            messenger?.hideCurrentSnackBar();
-            messenger?.showSnackBar(
-              const SnackBar(
-                content: Text('Copied full tree as JSON',
-                    style: TextStyle(fontSize: 12)),
-                duration: Duration(milliseconds: 900),
-                behavior: SnackBarBehavior.floating,
-                width: 240,
-              ),
-            );
+            showCopiedToast(context, label: 'Tree copied as JSON');
           },
         ),
         const SizedBox(height: 6),
@@ -968,19 +958,7 @@ class _CodePanel extends StatelessWidget {
                   isDark: isDark,
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: code));
-                    final messenger = ScaffoldMessenger.maybeOf(context);
-                    messenger?.hideCurrentSnackBar();
-                    messenger?.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          copyLabel,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        duration: const Duration(milliseconds: 900),
-                        behavior: SnackBarBehavior.floating,
-                        width: 240,
-                      ),
-                    );
+                    showCopiedToast(context, label: copyLabel);
                   },
                 ),
               ],

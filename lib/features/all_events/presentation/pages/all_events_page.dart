@@ -330,12 +330,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
 
   void _copy(BuildContext context, String text) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Copied'),
-        duration: Duration(milliseconds: 800),
-      ),
-    );
+    showCopiedToast(context);
   }
 }
 
@@ -4627,10 +4622,5 @@ class _InfoRow extends StatelessWidget {
 
 void _copyText(BuildContext context, String text, String label) {
   Clipboard.setData(ClipboardData(text: text));
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text('$label copied'),
-      duration: const Duration(milliseconds: 800),
-    ),
-  );
+  showCopiedToast(context, label: '$label copied');
 }

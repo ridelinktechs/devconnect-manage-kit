@@ -17,6 +17,7 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../server/providers/server_providers.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../provider/console_providers.dart';
 
 Color _levelColor(LogLevel level) {
@@ -969,14 +970,7 @@ class _LogDetailPanel extends StatelessWidget {
                     onTap: () {
                       Clipboard.setData(
                           ClipboardData(text: entry.message));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Copied to clipboard'),
-                          duration: Duration(seconds: 1),
-                          behavior: SnackBarBehavior.floating,
-                          width: 180,
-                        ),
-                      );
+                      showCopiedToast(context, label: 'Log copied');
                     },
                     child: MouseRegion(
                       cursor: SystemMouseCursors.click,

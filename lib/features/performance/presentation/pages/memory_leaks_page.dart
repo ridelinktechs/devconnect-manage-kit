@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/performance/performance_entry.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../provider/performance_providers.dart';
 
 class MemoryLeaksPage extends ConsumerStatefulWidget {
@@ -448,12 +449,7 @@ class _LeakDetail extends StatelessWidget {
                 onTap: () {
                   Clipboard.setData(
                       ClipboardData(text: entry.stackTrace ?? ''));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Stack trace copied'),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
+                  showCopiedToast(context, label: 'Stack trace copied');
                 },
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
