@@ -10,6 +10,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/color_tokens.dart';
 import '../../core/utils/code_generator.dart';
+import '../../core/utils/toast_utils.dart';
 import '../../core/utils/code_highlighter.dart';
 
 class JsonViewer extends StatelessWidget {
@@ -49,17 +50,7 @@ class JsonViewer extends StatelessWidget {
           isDark: isDark,
           onCopyAll: () {
             Clipboard.setData(ClipboardData(text: _formatAll()));
-            final messenger = ScaffoldMessenger.maybeOf(context);
-            messenger?.hideCurrentSnackBar();
-            messenger?.showSnackBar(
-              const SnackBar(
-                content: Text('Copied full tree as JSON',
-                    style: TextStyle(fontSize: 12)),
-                duration: Duration(milliseconds: 900),
-                behavior: SnackBarBehavior.floating,
-                width: 240,
-              ),
-            );
+            showCopiedToast(context, label: 'Tree copied as JSON');
           },
         ),
         const SizedBox(height: 6),
@@ -575,8 +566,11 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                     icon: LucideIcons.copy,
                     tooltip: 'Copy JSON',
                     isDark: isDark,
-                    onTap: () => Clipboard.setData(
-                        ClipboardData(text: _result!.formatted)),
+                    onTap: () {
+                      Clipboard.setData(
+                          ClipboardData(text: _result!.formatted));
+                      showCopiedToast(context, label: 'JSON copied');
+                    },
                   ),
                   const SizedBox(width: 4),
                   _MiniButton(
@@ -612,16 +606,16 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                     final bounded = constraints.maxHeight.isFinite;
                     return ListView.builder(
                       itemCount: lineCount,
-                      itemExtent: _lineHeight,
                       shrinkWrap: !bounded,
                       physics: bounded
                           ? null
                           : const NeverScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemBuilder: (context, index) {
-                        return SizedBox(
-                          height: _lineHeight,
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 1),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // Line number gutter is excluded from selection
                               // so dragging across multiple lines doesn't pull
@@ -629,6 +623,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                               SelectionContainer.disabled(
                                 child: SizedBox(
                                   width: gutterWidth,
+                                  height: _lineHeight,
                                   child: Text(
                                     '${index + 1}',
                                     textAlign: TextAlign.right,
@@ -644,6 +639,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                               SelectionContainer.disabled(
                                 child: Container(
                                   width: 1,
+                                  height: _lineHeight,
                                   margin: const EdgeInsets.symmetric(
                                       horizontal: 8),
                                   color: isDark
@@ -661,7 +657,6 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                                     ),
                                     children: _getLineSpans(index),
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                   softWrap: true,
                                 ),
                               ),
@@ -963,19 +958,7 @@ class _CodePanel extends StatelessWidget {
                   isDark: isDark,
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: code));
-                    final messenger = ScaffoldMessenger.maybeOf(context);
-                    messenger?.hideCurrentSnackBar();
-                    messenger?.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          copyLabel,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        duration: const Duration(milliseconds: 900),
-                        behavior: SnackBarBehavior.floating,
-                        width: 240,
-                      ),
-                    );
+                    showCopiedToast(context, label: copyLabel);
                   },
                 ),
               ],

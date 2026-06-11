@@ -10,6 +10,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/tab_visibility_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../../../server/providers/server_providers.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -84,14 +85,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   void _copy(String text, [String? label]) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(label ?? 'Copied'),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-        width: 200,
-      ),
-    );
+    showCopiedToast(context, label: label ?? 'Copied');
   }
 
   String _describeStartError(Object error, int port) {
@@ -1586,35 +1580,6 @@ class _DonateSection extends StatelessWidget {
     }
   }
 
-  void _showQrDialog(BuildContext context, String title, String assetPath) {
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.asset(assetPath, width: 280, height: 360, fit: BoxFit.contain),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Close'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1656,20 +1621,6 @@ class _DonateSection extends StatelessWidget {
               icon: LucideIcons.creditCard,
               color: const Color(0xFF0070BA),
               onTap: () => _openUrl('https://paypal.me/buivietphi'),
-            ),
-            const SizedBox(width: 10),
-            _DonateButton(
-              label: 'MoMo',
-              icon: LucideIcons.smartphone,
-              color: const Color(0xFFAE2070),
-              onTap: () => _showQrDialog(context, 'MoMo', 'docs/donate/momo-qr.jpeg'),
-            ),
-            const SizedBox(width: 10),
-            _DonateButton(
-              label: 'ZaloPay',
-              icon: LucideIcons.qrCode,
-              color: const Color(0xFF0068FF),
-              onTap: () => _showQrDialog(context, 'ZaloPay', 'docs/donate/zalopay-qr.jpeg'),
             ),
           ],
         ),

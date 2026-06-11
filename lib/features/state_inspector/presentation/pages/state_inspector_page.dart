@@ -565,8 +565,10 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                         color: Colors.grey[500],
                         letterSpacing: 1)),
                 const SizedBox(height: 8),
-                JsonViewer(
-                    data: entry.previousState, initiallyExpanded: false),
+                _jsonPrettyMode
+                    ? JsonPrettyViewer(data: entry.previousState)
+                    : JsonViewer(
+                        data: entry.previousState, initiallyExpanded: true),
               ],
             ),
           ),
@@ -585,8 +587,10 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                         color: Colors.grey[500],
                         letterSpacing: 1)),
                 const SizedBox(height: 8),
-                JsonViewer(
-                    data: entry.nextState, initiallyExpanded: false),
+                _jsonPrettyMode
+                    ? JsonPrettyViewer(data: entry.nextState)
+                    : JsonViewer(
+                        data: entry.nextState, initiallyExpanded: true),
               ],
             ),
           ),
