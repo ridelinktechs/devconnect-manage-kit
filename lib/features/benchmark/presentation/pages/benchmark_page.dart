@@ -1,8 +1,17 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../../../components/text/text_component.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/utils/toast_utils.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
@@ -409,7 +418,7 @@ class _BenchmarkRow extends StatelessWidget {
 // Benchmark Detail Panel
 // ═══════════════════════════════════════════════
 
-class _BenchmarkDetail extends StatelessWidget {
+class _BenchmarkDetail extends StatefulWidget {
   final BenchmarkEntry entry;
   final bool isDark;
   final VoidCallback onClose;
@@ -422,7 +431,46 @@ class _BenchmarkDetail extends StatelessWidget {
   });
 
   @override
+  State<_BenchmarkDetail> createState() => _BenchmarkDetailState();
+}
+
+class _BenchmarkDetailState extends State<_BenchmarkDetail> {
+  final _contentKey = GlobalKey();
+
+  Future<void> _takeScreenshot() async {
+    try {
+      final boundary = _contentKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final pngBytes = byteData.buffer.asUint8List();
+      final fileName =
+          'devconnect_benchmark_${DateTime.now().millisecondsSinceEpoch}.png';
+      final location = await getSaveLocation(
+        suggestedName: fileName,
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'PNG Image', extensions: ['png']),
+        ],
+      );
+      if (location == null) return;
+
+      final file = File(location.path);
+      await file.writeAsBytes(pngBytes);
+      if (mounted) showScreenshotSavedToast(context, filePath: file.path);
+    } catch (e) {
+      if (mounted) showCopiedToast(context, label: 'Screenshot failed');
+    }
+  }
+
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final isDark = widget.isDark;
     final startTime = DateFormat('yyyy-MM-dd HH:mm:ss.SSS')
         .format(DateTime.fromMillisecondsSinceEpoch(entry.startTime));
     final endTime = entry.endTime != null
@@ -446,7 +494,7 @@ class _BenchmarkDetail extends StatelessWidget {
                 Icon(LucideIcons.timer,
                     size: 14, color: ColorTokens.secondary),
                 const SizedBox(width: 8),
-                Text(
+                TextComponent(
                   entry.title,
                   style: TextStyle(
                     fontSize: 13,
@@ -464,7 +512,7 @@ class _BenchmarkDetail extends StatelessWidget {
                           .withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
+                    child: TextComponent(
                       formatDuration(entry.duration!),
                       style: TextStyle(
                         fontSize: 12,
@@ -476,12 +524,26 @@ class _BenchmarkDetail extends StatelessWidget {
                     ),
                   ),
                 const SizedBox(width: 8),
+                Tooltip(
+                  message: 'Capture as image',
+                  child: IconButton(
+                    icon: Icon(LucideIcons.camera,
+                        size: 14,
+                        color: isDark ? Colors.grey[500] : Colors.grey[600]),
+                    onPressed: _takeScreenshot,
+                    splashRadius: 14,
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+                const SizedBox(width: 2),
                 IconButton(
                   icon: Icon(LucideIcons.x,
                       size: 14,
                       color:
                           isDark ? Colors.grey[500] : Colors.grey[600]),
-                  onPressed: onClose,
+                  onPressed: widget.onClose,
                   splashRadius: 14,
                   constraints:
                       const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -493,7 +555,9 @@ class _BenchmarkDetail extends StatelessWidget {
           const Divider(height: 1),
           // Info
           Expanded(
-            child: SingleChildScrollView(
+            child: RepaintBoundary(
+              key: _contentKey,
+              child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,7 +581,7 @@ class _BenchmarkDetail extends StatelessWidget {
                   const SizedBox(height: 16),
                   // Steps timeline
                   if (entry.steps.isNotEmpty) ...[
-                    Text(
+                    TextComponent(
                       'Steps (${entry.steps.length})',
                       style: TextStyle(
                         fontSize: 12,
@@ -546,7 +610,7 @@ class _BenchmarkDetail extends StatelessWidget {
                   ] else
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(
+                      child: TextComponent(
                         'No intermediate steps recorded',
                         style: TextStyle(
                           fontSize: 12,
@@ -556,6 +620,7 @@ class _BenchmarkDetail extends StatelessWidget {
                     ),
                 ],
               ),
+            ),
             ),
           ),
         ],
@@ -640,7 +705,7 @@ class _WaterfallChart extends StatelessWidget {
                 color: color.withValues(alpha: 0.7),
                 alignment: Alignment.center,
                 child: seg.fraction > 0.08
-                    ? Text(
+                    ? TextComponent(
                         formatDuration(seg.duration),
                         style: const TextStyle(
                           fontSize: 9,
@@ -721,7 +786,7 @@ class _StepRow extends StatelessWidget {
               color: ColorTokens.secondary.withValues(alpha: 0.12),
             ),
             alignment: Alignment.center,
-            child: Text(
+            child: TextComponent(
               '${index + 1}',
               style: TextStyle(
                 fontSize: 10,
@@ -736,7 +801,7 @@ class _StepRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                TextComponent(
                   step.title,
                   style: TextStyle(
                     fontSize: 12,
@@ -746,7 +811,7 @@ class _StepRow extends StatelessWidget {
                         : Colors.black87,
                   ),
                 ),
-                Text(
+                TextComponent(
                   time,
                   style: TextStyle(
                     fontSize: 10,
@@ -758,7 +823,7 @@ class _StepRow extends StatelessWidget {
             ),
           ),
           // Delta
-          Text(
+          TextComponent(
             '+${formatDuration(delta)}',
             style: TextStyle(
               fontSize: 11,
@@ -771,7 +836,7 @@ class _StepRow extends StatelessWidget {
           // Percentage
           SizedBox(
             width: 44,
-            child: Text(
+            child: TextComponent(
               '$pct%',
               style: TextStyle(
                 fontSize: 10,
@@ -837,13 +902,13 @@ class _InfoRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 70,
-            child: Text(
+            child: TextComponent(
               label,
               style: TextStyle(fontSize: 11, color: Colors.grey[500]),
             ),
           ),
           Expanded(
-            child: SelectableText(
+            child: TextComponent(
               value,
               style: TextStyle(
                 fontSize: 11,

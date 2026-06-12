@@ -13,6 +13,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/text/text_component.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/misc/status_badge.dart';
 import '../../../../components/viewers/json_viewer.dart';
@@ -1084,7 +1085,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                               ),
                             ),
                             const SizedBox(width: 5),
-                            Text(
+                            TextComponent(
                               'In Progress...',
                               style: TextStyle(
                                 fontSize: 10,
@@ -1101,7 +1102,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                       child: Tooltip(
                         message: entry.url,
                         waitDuration: const Duration(milliseconds: 300),
-                        child: Text(
+                        child: TextComponent(
                           entry.url,
                           style: TextStyle(
                             fontFamily: AppConstants.monoFontFamily,
@@ -1165,6 +1166,22 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                       onTap: () {
                         Clipboard.setData(ClipboardData(text: entry.url));
                         _showCopied('URL copied');
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _CopyActionChip(
+                      icon: LucideIcons.route,
+                      label: 'Copy Path',
+                      onTap: () {
+                        try {
+                          final uri = Uri.parse(entry.url);
+                          final path = uri.path.isNotEmpty ? uri.path : entry.url;
+                          Clipboard.setData(ClipboardData(text: path));
+                          _showCopied('Path copied');
+                        } catch (_) {
+                          Clipboard.setData(ClipboardData(text: entry.url));
+                          _showCopied('Path copied');
+                        }
                       },
                     ),
                     const SizedBox(width: 6),
@@ -1319,7 +1336,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Screenshot failed: $e'),
+            content: TextComponent('Screenshot failed: $e'),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -1453,7 +1470,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
+                                TextComponent(
                                   'Screenshot saved',
                                   style: TextStyle(
                                     fontSize: 13,
@@ -1465,7 +1482,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
+                                TextComponent(
                                   path.split('/').last,
                                   style: TextStyle(
                                     fontSize: 11,
@@ -1522,7 +1539,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                                           : const Color(0xFF374151),
                                     ),
                                     const SizedBox(width: 6),
-                                    Text(
+                                    TextComponent(
                                       'Reveal',
                                       style: TextStyle(
                                         fontSize: 12,
@@ -1624,7 +1641,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                     if (entry.isComplete)
                       StatusBadge(statusCode: entry.statusCode),
                     const Spacer(),
-                    Text(time,
+                    TextComponent(time,
                         style: TextStyle(
                             fontSize: 10,
                             fontFamily: AppConstants.monoFontFamily,
@@ -1632,7 +1649,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text(entry.url,
+                TextComponent(entry.url,
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
@@ -1725,7 +1742,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (entry.duration != null) ...[
-                Text('Duration: ${formatDuration(entry.duration!)}',
+                TextComponent('Duration: ${formatDuration(entry.duration!)}',
                     style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
                         fontSize: 12,
@@ -1735,14 +1752,14 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                 _TimingBar(duration: entry.duration!),
               ],
               const SizedBox(height: 8),
-              Text(
+              TextComponent(
                   'Start: ${DateFormat('HH:mm:ss.SSS').format(DateTime.fromMillisecondsSinceEpoch(entry.startTime))}',
                   style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
                       color: Colors.grey[500])),
               if (entry.endTime != null)
-                Text(
+                TextComponent(
                     'End: ${DateFormat('HH:mm:ss.SSS').format(DateTime.fromMillisecondsSinceEpoch(entry.endTime!))}',
                     style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
@@ -1772,7 +1789,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                   StatusBadge(statusCode: entry.statusCode),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(entry.url,
+                  child: TextComponent(entry.url,
                       style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
                         fontSize: 11,
@@ -1791,7 +1808,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                     color: ColorTokens.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(tabNames[tabIndex],
+                  child: TextComponent(tabNames[tabIndex],
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
@@ -1811,7 +1828,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
     if (body == null) {
       return Padding(
         padding: const EdgeInsets.all(16),
-        child: Text('No $label',
+        child: TextComponent('No $label',
             style: TextStyle(color: Colors.grey[500], fontSize: 12)),
       );
     }
@@ -1860,7 +1877,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       color: isDark ? const Color(0xFF1C2128) : const Color(0xFFEEF0F2),
-      child: Text(title,
+      child: TextComponent(title,
           style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -1876,7 +1893,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
         children: [
           SizedBox(
             width: 180,
-            child: Text(key,
+            child: TextComponent(key,
                 style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
                     fontSize: 11,
@@ -1886,7 +1903,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                         : const Color(0xFF0451A5))),
           ),
           Expanded(
-            child: Text(value,
+            child: TextComponent(value,
                 style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
                     fontSize: 11,
@@ -1960,7 +1977,7 @@ class _CopyActionChip extends StatelessWidget {
             children: [
               Icon(icon, size: 12, color: Colors.grey[500]),
               const SizedBox(width: 4),
-              Text(
+              TextComponent(
                 label,
                 style: TextStyle(
                   fontSize: 11,
@@ -2052,7 +2069,7 @@ class _TimingBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
+        TextComponent(
           formatDuration(duration),
           style: TextStyle(
             fontFamily: AppConstants.monoFontFamily,
@@ -2155,7 +2172,7 @@ class _HeaderSection extends StatelessWidget {
               children: [
                 Icon(icon, size: 13, color: iconColor),
                 const SizedBox(width: 8),
-                Text(
+                TextComponent(
                   title,
                   style: TextStyle(
                     fontSize: 11,
@@ -2171,7 +2188,7 @@ class _HeaderSection extends StatelessWidget {
                     color: iconColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
+                  child: TextComponent(
                     '$count',
                     style: TextStyle(
                       fontSize: 10,
@@ -2186,7 +2203,7 @@ class _HeaderSection extends StatelessWidget {
           if (headers.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('No headers',
+              child: TextComponent('No headers',
                   style: TextStyle(color: Colors.grey[500], fontSize: 12)),
             )
           else
@@ -2263,7 +2280,7 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
         children: [
           SizedBox(
             width: 180,
-            child: SelectableText(
+            child: TextComponent(
               widget.headerKey,
               style: TextStyle(
                 fontFamily: AppConstants.monoFontFamily,
@@ -2280,9 +2297,9 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_expanded)
-                  SelectableText(widget.headerValue, style: valueStyle)
+                  TextComponent(widget.headerValue, style: valueStyle)
                 else
-                  Text(
+                  TextComponent(
                     widget.headerValue,
                     style: valueStyle,
                     maxLines: _maxCollapsedLines,
@@ -2295,7 +2312,7 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
                       cursor: SystemMouseCursors.click,
                       child: Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(
+                        child: TextComponent(
                           _expanded ? 'Collapse' : 'Show more',
                           style: TextStyle(
                             fontSize: 10,
@@ -2411,7 +2428,7 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
           ),
           child: Row(
             children: [
-              Text(widget.label, style: theme.textTheme.titleSmall),
+              TextComponent(widget.label, style: theme.textTheme.titleSmall),
               const Spacer(),
               if (canToggle) ...[
                 ViewModeSegment(
@@ -2583,7 +2600,7 @@ class _TimingTab extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      TextComponent(
                         formatDuration(duration),
                         style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
@@ -2594,7 +2611,7 @@ class _TimingTab extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      TextComponent(
                         durationLabel,
                         style: TextStyle(
                           fontSize: 11,
@@ -2681,7 +2698,7 @@ class _TimingTab extends StatelessWidget {
                 border: Border.all(
                     color: ColorTokens.error.withValues(alpha: 0.15)),
               ),
-              child: SelectableText(
+              child: TextComponent(
                 entry.error!,
                 style: TextStyle(
                   fontFamily: AppConstants.monoFontFamily,
@@ -2755,7 +2772,7 @@ class _TimingInfoRow extends StatelessWidget {
           const SizedBox(width: 12),
           SizedBox(
             width: 80,
-            child: Text(
+            child: TextComponent(
               label,
               style: TextStyle(
                 fontSize: 11,
@@ -2768,7 +2785,7 @@ class _TimingInfoRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                TextComponent(
                   value,
                   style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
@@ -2778,7 +2795,7 @@ class _TimingInfoRow extends StatelessWidget {
                   ),
                 ),
                 if (subtitle != null)
-                  Text(
+                  TextComponent(
                     subtitle!,
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,

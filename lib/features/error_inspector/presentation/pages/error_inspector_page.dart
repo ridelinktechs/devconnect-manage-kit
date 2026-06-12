@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../components/text/text_component.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
@@ -222,7 +223,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SelectableText(
+                  Text(
                     entry.message,
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
@@ -248,7 +249,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
                         color: isDark ? Colors.black26 : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: SelectableText(
+                      child: Text(
                         entry.stackTrace!,
                         style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
@@ -1044,7 +1045,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
               const SizedBox(width: 8),
               _PlatformBadge(platform: entry.platform),
               const SizedBox(width: 8),
-              Text(
+              TextComponent(
                 DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
                   DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
                 ),
@@ -1190,7 +1191,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
               // Message tab
               SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
-                child: SelectableText(
+                child: TextComponent(
                   entry.message,
                   style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
@@ -1203,7 +1204,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
               entry.stackTrace != null
                   ? SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
-                      child: SelectableText(
+                      child: TextComponent(
                         entry.stackTrace!,
                         style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
@@ -1213,7 +1214,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                       ),
                     )
                   : const Center(
-                      child: Text('No stack trace available'),
+                      child: TextComponent('No stack trace available'),
                     ),
               // Details tab
               SingleChildScrollView(
@@ -1228,7 +1229,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                     _DetailRow(label: 'Device Info', value: entry.deviceInfo ?? 'unknown'),
                     if (entry.metadata != null) ...[
                       const SizedBox(height: 12),
-                      Text(
+                      TextComponent(
                         'Metadata',
                         style: TextStyle(
                           fontSize: 11,
@@ -1244,7 +1245,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                           color: isDark ? Colors.black26 : Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: SelectableText(
+                        child: TextComponent(
                           entry.metadata.toString(),
                           style: TextStyle(
                             fontFamily: AppConstants.monoFontFamily,
@@ -1307,7 +1308,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                 const SizedBox(width: 8),
                 _PlatformBadge(platform: entry.platform),
                 const SizedBox(width: 8),
-                Text(
+                TextComponent(
                   time,
                   style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
@@ -1325,7 +1326,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                TextComponent(
                   'Message',
                   style: TextStyle(
                     fontSize: 11,
@@ -1346,7 +1347,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                           : Colors.black.withValues(alpha: 0.06),
                     ),
                   ),
-                  child: SelectableText(
+                  child: TextComponent(
                     entry.message,
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
@@ -1365,7 +1366,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  TextComponent(
                     'Stack Trace',
                     style: TextStyle(
                       fontSize: 11,
@@ -1384,7 +1385,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                         color: severityColor.withValues(alpha: 0.15),
                       ),
                     ),
-                    child: SelectableText(
+                    child: TextComponent(
                       entry.stackTrace!,
                       style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
@@ -1402,7 +1403,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                TextComponent(
                   'Details',
                   style: TextStyle(
                     fontSize: 11,
@@ -1467,7 +1468,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                 const SizedBox(width: 8),
                 _PlatformBadge(platform: entry.platform),
                 const SizedBox(width: 8),
-                Text(time, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 11, color: Colors.grey[500])),
+                TextComponent(time, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 11, color: Colors.grey[500])),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1475,7 +1476,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                     color: ColorTokens.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(tabLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: ColorTokens.primary)),
+                  child: TextComponent(tabLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: ColorTokens.primary)),
                 ),
               ],
             ),
@@ -1485,11 +1486,11 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
           Padding(
             padding: const EdgeInsets.all(16),
             child: tabIndex == 0
-                ? SelectableText(entry.message, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 12, color: isDark ? Colors.white : Colors.black87))
+                ? TextComponent(entry.message, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 12, color: isDark ? Colors.white : Colors.black87))
                 : tabIndex == 1
                     ? (entry.stackTrace != null
-                        ? SelectableText(entry.stackTrace!, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 11, color: isDark ? Colors.white70 : Colors.black87))
-                        : const Text('No stack trace available'))
+                        ? TextComponent(entry.stackTrace!, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 11, color: isDark ? Colors.white70 : Colors.black87))
+                        : const TextComponent('No stack trace available'))
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1514,10 +1515,10 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
         children: [
           SizedBox(
             width: 70,
-            child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+            child: TextComponent(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey[500])),
           ),
           Expanded(
-            child: SelectableText(value, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 10, color: isDark ? Colors.white70 : Colors.black87)),
+            child: TextComponent(value, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 10, color: isDark ? Colors.white70 : Colors.black87)),
           ),
         ],
       ),
@@ -1541,7 +1542,7 @@ class _DetailRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 80,
-            child: Text(
+            child: TextComponent(
               label,
               style: TextStyle(
                 fontSize: 11,
@@ -1551,7 +1552,7 @@ class _DetailRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: SelectableText(
+            child: TextComponent(
               value,
               style: TextStyle(
                 fontFamily: AppConstants.monoFontFamily,

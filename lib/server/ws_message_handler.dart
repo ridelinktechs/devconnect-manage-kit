@@ -234,7 +234,12 @@ class WsMessageHandler {
   }
 
   StorageType _parseStorageType(String type) {
-    switch (type.toLowerCase()) {
+    final lower = type.toLowerCase();
+
+    // Handle "mmkv:label" format from SDK (e.g. "mmkv:user-storage")
+    if (lower.startsWith('mmkv')) return StorageType.mmkv;
+
+    switch (lower) {
       case 'async_storage':
       case 'asyncstorage':
         return StorageType.asyncStorage;
@@ -245,6 +250,23 @@ class WsMessageHandler {
         return StorageType.hive;
       case 'sqlite':
         return StorageType.sqlite;
+      case 'realm':
+        return StorageType.realm;
+      case 'objectbox':
+        return StorageType.objectbox;
+      case 'floor':
+        return StorageType.floor;
+      case 'sembast':
+        return StorageType.sembast;
+      case 'sqflite':
+        return StorageType.sqflite;
+      case 'watermelondb':
+        return StorageType.watermelondb;
+      case 'encrypted_storage':
+      case 'encryptedstorage':
+        return StorageType.encryptedStorage;
+      case 'sqldelight':
+        return StorageType.sqldelight;
       default:
         return StorageType.sharedPreferences;
     }

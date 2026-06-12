@@ -14,6 +14,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
+import '../../../../components/text/text_component.dart';
 import '../../../../components/misc/status_badge.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/providers/tab_visibility_provider.dart';
@@ -1419,7 +1420,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
+                                TextComponent(
                                   'Screenshot saved',
                                   style: TextStyle(
                                     fontSize: 13,
@@ -1431,7 +1432,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
+                                TextComponent(
                                   path.split('/').last,
                                   style: TextStyle(
                                     fontSize: 11,
@@ -1487,7 +1488,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                                         : const Color(0xFF374151),
                                   ),
                                   const SizedBox(width: 6),
-                                  Text(
+                                  TextComponent(
                                     'Reveal',
                                     style: TextStyle(
                                       fontSize: 12,
@@ -1541,7 +1542,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
   void _showErrorToast(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Screenshot failed: $message'),
+        content: TextComponent('Screenshot failed: $message'),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -1654,7 +1655,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
               children: [
                 Icon(typeIcon, size: 14, color: typeColor),
                 const SizedBox(width: 8),
-                Text(
+                TextComponent(
                   typeLabel,
                   style: TextStyle(
                     fontSize: 13,
@@ -1663,7 +1664,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text(
+                TextComponent(
                   time,
                   style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
@@ -1777,7 +1778,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                 const SizedBox(width: 8),
               ],
               Expanded(
-                child: Text(
+                child: TextComponent(
                   entry.url,
                   style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
@@ -1907,7 +1908,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                   color: ColorTokens.secondary),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: TextComponent(
                   entry.actionName,
                   style: const TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
@@ -2076,13 +2077,13 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
         children: [
           Icon(typeIcon, size: 14, color: typeColor),
           const SizedBox(width: 8),
-          Text(typeLabel,
+          TextComponent(typeLabel,
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: typeColor)),
           const SizedBox(width: 10),
-          Text(time,
+          TextComponent(time,
               style: TextStyle(
                   fontFamily: AppConstants.monoFontFamily,
                   fontSize: 10,
@@ -2116,7 +2117,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
               const SizedBox(width: 8),
             ],
             Expanded(
-              child: Text(entry.url,
+              child: TextComponent(entry.url,
                   style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
@@ -2225,7 +2226,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
           body = entry.diff.isEmpty
               ? const Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('No diff'))
+                  child: TextComponent('No diff'))
               : Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
@@ -2283,7 +2284,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
     if (body == null) {
       return Padding(
         padding: const EdgeInsets.all(16),
-        child: Text('No $label',
+        child: TextComponent('No $label',
             style: TextStyle(color: Colors.grey[500], fontSize: 12)),
       );
     }
@@ -2453,7 +2454,7 @@ class _DetailHeader extends ConsumerWidget {
         children: [
           Icon(typeIcon, size: 14, color: typeColor),
           const SizedBox(width: 8),
-          Text(
+          TextComponent(
             typeLabel,
             style: TextStyle(
               fontSize: 13,
@@ -2466,7 +2467,7 @@ class _DetailHeader extends ConsumerWidget {
             PlatformBadge(platform: device.platform),
             const SizedBox(width: 8),
           ],
-          Text(
+          TextComponent(
             time,
             style: TextStyle(
               fontFamily: AppConstants.monoFontFamily,
@@ -2580,7 +2581,7 @@ class _ActionButton extends StatelessWidget {
           children: [
             Icon(icon, size: 12, color: Colors.grey[500]),
             const SizedBox(width: 4),
-            Text(
+            TextComponent(
               label,
               style: TextStyle(
                 fontSize: 10,
@@ -2807,7 +2808,7 @@ class _NetworkDetailState extends ConsumerState<_NetworkDetail>
                               ),
                             ),
                             const SizedBox(width: 5),
-                            Text(
+                            TextComponent(
                               'In Progress...',
                               style: TextStyle(
                                 fontSize: 10,
@@ -2824,7 +2825,7 @@ class _NetworkDetailState extends ConsumerState<_NetworkDetail>
                       child: Tooltip(
                         message: entry.url,
                         waitDuration: const Duration(milliseconds: 300),
-                        child: Text(
+                        child: TextComponent(
                           entry.url,
                           style: TextStyle(
                             fontFamily: AppConstants.monoFontFamily,
@@ -2854,6 +2855,20 @@ class _NetworkDetailState extends ConsumerState<_NetworkDetail>
                       icon: LucideIcons.link,
                       onTap: () =>
                           _copyText(context, entry.url, 'URL'),
+                    ),
+                    const SizedBox(width: 4),
+                    _CopyButton(
+                      tooltip: 'Copy Path',
+                      icon: LucideIcons.route,
+                      onTap: () {
+                        try {
+                          final uri = Uri.parse(entry.url);
+                          final path = uri.path.isNotEmpty ? uri.path : entry.url;
+                          _copyText(context, path, 'Path');
+                        } catch (_) {
+                          _copyText(context, entry.url, 'Path');
+                        }
+                      },
                     ),
                     const SizedBox(width: 4),
                     _CopyButton(
@@ -2978,7 +2993,7 @@ class _TimingBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
+        TextComponent(
           formatDuration(duration),
           style: TextStyle(
             fontFamily: AppConstants.monoFontFamily,
@@ -3078,7 +3093,7 @@ class _HeaderSection extends StatelessWidget {
               children: [
                 Icon(icon, size: 13, color: iconColor),
                 const SizedBox(width: 8),
-                Text(
+                TextComponent(
                   title,
                   style: TextStyle(
                     fontSize: 11,
@@ -3094,7 +3109,7 @@ class _HeaderSection extends StatelessWidget {
                     color: iconColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
+                  child: TextComponent(
                     '$count',
                     style: TextStyle(
                       fontSize: 10,
@@ -3110,7 +3125,7 @@ class _HeaderSection extends StatelessWidget {
           if (headers.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('No headers',
+              child: TextComponent('No headers',
                   style: TextStyle(color: Colors.grey[500], fontSize: 12)),
             )
           else
@@ -3154,7 +3169,7 @@ class _HeaderTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (headers.isEmpty) {
-      return Text('No headers',
+      return TextComponent('No headers',
           style: TextStyle(color: Colors.grey[500], fontSize: 12));
     }
     return Column(
@@ -3168,7 +3183,7 @@ class _HeaderTable extends StatelessWidget {
               children: [
                 SizedBox(
                   width: 170,
-                  child: Text(e.key,
+                  child: TextComponent(e.key,
                       style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
                           fontSize: 11,
@@ -3178,7 +3193,7 @@ class _HeaderTable extends StatelessWidget {
                               : const Color(0xFF0451A5))),
                 ),
                 Expanded(
-                  child: Text(e.value,
+                  child: TextComponent(e.value,
                       style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
                           fontSize: 11,
@@ -3246,7 +3261,7 @@ class _HeaderRowCopyState extends State<_HeaderRowCopy> {
         children: [
           SizedBox(
             width: 170,
-            child: SelectableText(
+            child: TextComponent(
               widget.headerKey,
               style: TextStyle(
                 fontFamily: AppConstants.monoFontFamily,
@@ -3263,9 +3278,9 @@ class _HeaderRowCopyState extends State<_HeaderRowCopy> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_expanded)
-                  SelectableText(widget.headerValue, style: valueStyle)
+                  TextComponent(widget.headerValue, style: valueStyle)
                 else
-                  Text(
+                  TextComponent(
                     widget.headerValue,
                     style: valueStyle,
                     maxLines: _maxCollapsedLines,
@@ -3278,7 +3293,7 @@ class _HeaderRowCopyState extends State<_HeaderRowCopy> {
                       cursor: SystemMouseCursors.click,
                       child: Padding(
                         padding: const EdgeInsets.only(top: 2),
-                        child: Text(
+                        child: TextComponent(
                           _expanded ? 'Collapse' : 'Show more',
                           style: TextStyle(
                             fontSize: 10,
@@ -3638,7 +3653,7 @@ class _TimingView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
+                  TextComponent(
                     'Waiting for response...',
                     style: TextStyle(
                       fontSize: 14,
@@ -3684,7 +3699,7 @@ class _TimingView extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      TextComponent(
                         formatDuration(duration),
                         style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
@@ -3695,7 +3710,7 @@ class _TimingView extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      TextComponent(
                         durationLabel,
                         style: TextStyle(
                           fontSize: 11,
@@ -3846,7 +3861,7 @@ class _TimingInfoRow extends StatelessWidget {
           const SizedBox(width: 12),
           SizedBox(
             width: 80,
-            child: Text(
+            child: TextComponent(
               label,
               style: TextStyle(
                 fontSize: 11,
@@ -3859,7 +3874,7 @@ class _TimingInfoRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                TextComponent(
                   value,
                   style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
@@ -3869,7 +3884,7 @@ class _TimingInfoRow extends StatelessWidget {
                   ),
                 ),
                 if (subtitle != null)
-                  Text(
+                  TextComponent(
                     subtitle!,
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
@@ -4038,7 +4053,7 @@ class _StateDetailState extends ConsumerState<_StateDetail>
                   color: ColorTokens.secondary),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: TextComponent(
                   entry.actionName,
                   style: const TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
@@ -4141,7 +4156,7 @@ class _DiffRow extends StatelessWidget {
             children: [
               Icon(opIcon, size: 12, color: opColor),
               const SizedBox(width: 6),
-              Text(
+              TextComponent(
                 diff.path,
                 style: TextStyle(
                   fontFamily: AppConstants.monoFontFamily,
@@ -4158,7 +4173,7 @@ class _DiffRow extends StatelessWidget {
                   color: opColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(3),
                 ),
-                child: Text(
+                child: TextComponent(
                   diff.operation.toUpperCase(),
                   style: TextStyle(
                     fontSize: 8,
@@ -4174,13 +4189,13 @@ class _DiffRow extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('- ',
+                TextComponent('- ',
                     style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
                         fontSize: 11,
                         color: ColorTokens.error)),
                 Expanded(
-                  child: Text(
+                  child: TextComponent(
                     '${diff.oldValue}',
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
@@ -4197,13 +4212,13 @@ class _DiffRow extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('+ ',
+                TextComponent('+ ',
                     style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
                         fontSize: 11,
                         color: ColorTokens.success)),
                 Expanded(
-                  child: Text(
+                  child: TextComponent(
                     '${diff.newValue}',
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
@@ -4391,7 +4406,7 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return TextComponent(
       text,
       style: TextStyle(
         fontSize: 11,
@@ -4417,7 +4432,7 @@ class _TagChip extends StatelessWidget {
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(
+      child: TextComponent(
         label,
         style: TextStyle(
           fontFamily: AppConstants.monoFontFamily,
@@ -4498,7 +4513,7 @@ class _FormatToggleButton extends StatelessWidget {
                   color: isFormatted ? ColorTokens.primary : Colors.grey[500],
                 ),
                 const SizedBox(width: 4),
-                Text(
+                TextComponent(
                   isFormatted ? 'Raw' : 'Format',
                   style: TextStyle(
                     fontSize: 10,
@@ -4536,7 +4551,7 @@ class _CodeBlock extends StatelessWidget {
               : Colors.black.withValues(alpha: 0.05),
         ),
       ),
-      child: SelectableText(
+      child: TextComponent(
         text,
         style: TextStyle(
           fontFamily: AppConstants.monoFontFamily,
@@ -4566,7 +4581,7 @@ class _ErrorBlock extends StatelessWidget {
         border:
             Border.all(color: ColorTokens.error.withValues(alpha: 0.15)),
       ),
-      child: SelectableText(
+      child: TextComponent(
         text,
         style: TextStyle(
           fontFamily: AppConstants.monoFontFamily,
@@ -4593,7 +4608,7 @@ class _InfoRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(
+            child: TextComponent(
               label,
               style: TextStyle(
                 fontSize: 11,
@@ -4602,7 +4617,7 @@ class _InfoRow extends StatelessWidget {
               ),
             ),
           ),
-          Text(
+          TextComponent(
             value,
             style: const TextStyle(
               fontFamily: AppConstants.monoFontFamily,

@@ -1264,21 +1264,6 @@ DevConnect.init(context = this, appName = "MyApp", enabled = false)  // Android
 - **Protocol**: JSON over WebSocket (default port 9090)
 - **SDKs**: Flutter (pub.dev / git), React Native (npm / git), Android (Maven / JitPack / AAR)
 
----
-
-## Support DevConnect Manage Kit
-
-DevConnect Manage Kit is free and open source. If it saves you debugging time, consider supporting development:
-
-<div align="center">
-
-[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-EA4AAA?logo=github&logoColor=white)](https://github.com/sponsors/buivietphi)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/buivietphi)
-[![PayPal](https://img.shields.io/badge/PayPal-Donate-0070BA?logo=paypal&logoColor=white)](https://paypal.me/buivietphi)
-
-</div>
-
----
 
 ## Contributing
 
@@ -1326,7 +1311,5 @@ Looking for mobile debugging tools? Here's how DevConnect compares:
 **DevConnect Manage Tool** — Debug Flutter, React Native & Android apps from one desktop tool.
 
 *A modern alternative to Reactotron, Flipper, and platform-specific debugging tools.*
-
-[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-EA4AAA?logo=github&logoColor=white)](https://github.com/sponsors/buivietphi) [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/buivietphi) [![PayPal](https://img.shields.io/badge/PayPal-Donate-0070BA?logo=paypal&logoColor=white)](https://paypal.me/buivietphi)
 
 </div>

@@ -13,6 +13,7 @@ import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../components/text/text_component.dart';
 import '../../../../models/storage/storage_entry.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
@@ -323,13 +324,22 @@ class _Toolbar extends ConsumerWidget {
           const SizedBox(width: 10),
 
           // ── Type segment group ──
-          _SegmentGroup(isDark: isDark, children: [
-            _SegmentChip(label: 'AS', isActive: typeFilter.contains(StorageType.asyncStorage), color: const Color(0xFF61DAFB), isMono: true, onTap: () => _toggleType(ref, StorageType.asyncStorage)),
-            _SegmentChip(label: 'SP', isActive: typeFilter.contains(StorageType.sharedPreferences), color: const Color(0xFF3DDC84), isMono: true, onTap: () => _toggleType(ref, StorageType.sharedPreferences)),
-            _SegmentChip(label: 'HV', isActive: typeFilter.contains(StorageType.hive), color: const Color(0xFFFFC107), isMono: true, onTap: () => _toggleType(ref, StorageType.hive)),
-            _SegmentChip(label: 'SQL', isActive: typeFilter.contains(StorageType.sqlite), color: const Color(0xFF003B57), isMono: true, onTap: () => _toggleType(ref, StorageType.sqlite)),
-            _SegmentChip(label: 'RLM', isActive: typeFilter.contains(StorageType.realm), color: const Color(0xFF39477F), isMono: true, onTap: () => _toggleType(ref, StorageType.realm)),
-          ]),
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: _SegmentGroup(isDark: isDark, children: [
+                _SegmentChip(label: 'AS', isActive: typeFilter.contains(StorageType.asyncStorage), color: const Color(0xFF61DAFB), isMono: true, onTap: () => _toggleType(ref, StorageType.asyncStorage)),
+                _SegmentChip(label: 'SP', isActive: typeFilter.contains(StorageType.sharedPreferences), color: const Color(0xFF3DDC84), isMono: true, onTap: () => _toggleType(ref, StorageType.sharedPreferences)),
+                _SegmentChip(label: 'HV', isActive: typeFilter.contains(StorageType.hive), color: const Color(0xFFFFC107), isMono: true, onTap: () => _toggleType(ref, StorageType.hive)),
+                _SegmentChip(label: 'SQL', isActive: typeFilter.contains(StorageType.sqlite), color: const Color(0xFF003B57), isMono: true, onTap: () => _toggleType(ref, StorageType.sqlite)),
+                _SegmentChip(label: 'RLM', isActive: typeFilter.contains(StorageType.realm), color: const Color(0xFF39477F), isMono: true, onTap: () => _toggleType(ref, StorageType.realm)),
+                _SegmentChip(label: 'MKV', isActive: typeFilter.contains(StorageType.mmkv), color: const Color(0xFFFF6F00), isMono: true, onTap: () => _toggleType(ref, StorageType.mmkv)),
+                _SegmentChip(label: 'OBX', isActive: typeFilter.contains(StorageType.objectbox), color: const Color(0xFF00C853), isMono: true, onTap: () => _toggleType(ref, StorageType.objectbox)),
+                _SegmentChip(label: 'SQF', isActive: typeFilter.contains(StorageType.sqflite), color: const Color(0xFF1565C0), isMono: true, onTap: () => _toggleType(ref, StorageType.sqflite)),
+                _SegmentChip(label: 'ENC', isActive: typeFilter.contains(StorageType.encryptedStorage), color: const Color(0xFFE91E63), isMono: true, onTap: () => _toggleType(ref, StorageType.encryptedStorage)),
+              ]),
+            ),
+          ),
 
           const Spacer(),
 
@@ -810,13 +820,13 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Key',
+          TextComponent('Key',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: Colors.grey[500])),
           const SizedBox(height: 4),
-          Text(entry.key,
+          TextComponent(entry.key,
               style: TextStyle(
                 fontFamily: AppConstants.monoFontFamily,
                 fontSize: 13,
@@ -824,7 +834,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                 color: ColorTokens.primary,
               )),
           const SizedBox(height: 16),
-          Text('Value',
+          TextComponent('Value',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -841,13 +851,13 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
           else
             JsonPrettyViewer(data: entry.value),
           const SizedBox(height: 16),
-          Text('Metadata',
+          TextComponent('Metadata',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: Colors.grey[500])),
           const SizedBox(height: 4),
-          Text(
+          TextComponent(
               'Type: ${entry.storageType.name}  |  Operation: ${entry.operation}',
               style: TextStyle(
                   fontFamily: AppConstants.monoFontFamily,
@@ -912,7 +922,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                     color: opColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(
+                  child: TextComponent(
                     entry.operation.toUpperCase(),
                     style: TextStyle(
                       fontSize: 9,
@@ -929,7 +939,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                     color: tColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(
+                  child: TextComponent(
                     entry.storageType.name,
                     style: TextStyle(
                       fontSize: 9,
@@ -940,7 +950,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
+                  child: TextComponent(
                     entry.key,
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
@@ -953,7 +963,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
+                TextComponent(
                   time,
                   style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
@@ -988,7 +998,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                   // Value section
                   Row(
                     children: [
-                      Text('Value', style: theme.textTheme.titleSmall),
+                      TextComponent('Value', style: theme.textTheme.titleSmall),
                       const Spacer(),
                       if (isAlreadyJson || (canFormat && _formatted && parsedJson != null)) ...[
                         _ViewModeToggle(
@@ -1106,7 +1116,7 @@ class _ViewModeToggle extends StatelessWidget {
                 color: isJsonMode ? ColorTokens.primary : Colors.grey[500],
               ),
               const SizedBox(width: 4),
-              Text(
+              TextComponent(
                 isJsonMode ? 'JSON' : 'Tree',
                 style: TextStyle(
                   fontSize: 10,
@@ -1156,7 +1166,7 @@ class _FormatToggle extends StatelessWidget {
                 color: isFormatted ? ColorTokens.primary : Colors.grey[500],
               ),
               const SizedBox(width: 4),
-              Text(
+              TextComponent(
                 isFormatted ? 'Raw' : 'Format',
                 style: TextStyle(
                   fontSize: 10,

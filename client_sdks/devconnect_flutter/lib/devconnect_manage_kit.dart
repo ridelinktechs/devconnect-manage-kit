@@ -50,6 +50,8 @@ export 'src/reporters/secure_storage_reporter.dart';
 export 'src/reporters/signals_observer.dart';
 export 'src/reporters/storage_reporter.dart';
 export 'src/wrappers/shared_preferences_wrapper.dart';
+export 'src/wrappers/shared_preferences_async_wrapper.dart';
+export 'src/wrappers/shared_preferences_cached_wrapper.dart';
 export 'src/wrappers/hive_box_wrapper.dart';
 export 'src/wrappers/secure_storage_wrapper.dart';
 export 'src/wrappers/mmkv_wrapper.dart';

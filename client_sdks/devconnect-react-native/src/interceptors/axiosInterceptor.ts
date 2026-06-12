@@ -60,9 +60,25 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
       let requestBody: any = undefined;
       if (config.data) {
         try {
-          requestBody = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+          if (typeof config.data === 'string') {
+            try { requestBody = JSON.parse(config.data); } catch (_) { requestBody = config.data; }
+          } else if (config.data instanceof FormData) {
+            const fields: Record<string, any> = {};
+            const files: any[] = [];
+            // @ts-ignore — FormData entries
+            for (const [key, value] of config.data.entries()) {
+              if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
+                files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
+              } else {
+                fields[key] = value;
+              }
+            }
+            requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
+          } else {
+            requestBody = config.data;
+          }
         } catch (_) {
-          requestBody = config.data;
+          requestBody = String(config.data);
         }
       }
 

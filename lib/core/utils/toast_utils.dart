@@ -1,8 +1,244 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../theme/color_tokens.dart';
+import '../../components/text/text_component.dart';
 import '../constants/app_constants.dart';
+import '../theme/color_tokens.dart';
+
+/// Show a screenshot saved toast with "Reveal in Finder" button.
+///
+/// Matches the fancy format used in Network Inspector detail.
+void showScreenshotSavedToast(BuildContext context, {required String filePath}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final overlay = Overlay.of(context);
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => Positioned(
+      bottom: 32,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) => Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, 20 * (1 - value)),
+              child: Transform.scale(
+                scale: 0.92 + 0.08 * value,
+                child: child,
+              ),
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 380),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF131A24) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.black.withValues(alpha: 0.06),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 32,
+                    offset: const Offset(0, 8),
+                  ),
+                  if (isDark)
+                    BoxShadow(
+                      color: ColorTokens.success.withValues(alpha: 0.08),
+                      blurRadius: 40,
+                      spreadRadius: -4,
+                    ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Top accent bar
+                  Container(
+                    height: 3,
+                    margin: const EdgeInsets.symmetric(horizontal: 40),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          ColorTokens.success.withValues(alpha: 0.0),
+                          ColorTokens.success,
+                          ColorTokens.success.withValues(alpha: 0.0),
+                        ],
+                      ),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                    child: Row(
+                      children: [
+                        // Success icon
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                ColorTokens.success.withValues(alpha: 0.2),
+                                ColorTokens.success.withValues(alpha: 0.08),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: ColorTokens.success.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: const Icon(
+                            LucideIcons.checkCheck,
+                            size: 18,
+                            color: ColorTokens.success,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Text
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextComponent(
+                                'Screenshot saved',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? ColorTokens.lightBackground
+                                      : const Color(0xFF1E293B),
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              TextComponent(
+                                filePath.split('/').last,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: AppConstants.monoFontFamily,
+                                  color: isDark
+                                      ? Colors.grey[500]
+                                      : Colors.grey[600],
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Reveal button
+                        GestureDetector(
+                          onTap: () {
+                            entry.remove();
+                            Process.run('open', ['-R', filePath]);
+                          },
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 7),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: isDark
+                                      ? [
+                                          const Color(0xFF1A2332),
+                                          const Color(0xFF1E2A3A),
+                                        ]
+                                      : [
+                                          const Color(0xFFF0F4F8),
+                                          const Color(0xFFE8EDF2),
+                                        ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.1)
+                                      : Colors.black.withValues(alpha: 0.08),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    LucideIcons.folderOpen,
+                                    size: 13,
+                                    color: isDark
+                                        ? ColorTokens.lightBackground
+                                        : const Color(0xFF374151),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  TextComponent(
+                                    'Reveal',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark
+                                          ? ColorTokens.lightBackground
+                                          : const Color(0xFF374151),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        // Close button
+                        GestureDetector(
+                          onTap: () => entry.remove(),
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(6),
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.04)
+                                    : Colors.black.withValues(alpha: 0.04),
+                              ),
+                              child: Icon(LucideIcons.x,
+                                  size: 13,
+                                  color: isDark
+                                      ? Colors.grey[600]
+                                      : Colors.grey[400]),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  overlay.insert(entry);
+  Future.delayed(const Duration(seconds: 4), () {
+    if (entry.mounted) entry.remove();
+  });
+}
 
 /// Show a custom "Copied" toast notification.
 ///

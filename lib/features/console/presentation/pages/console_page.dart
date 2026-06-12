@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../components/text/text_component.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 
@@ -954,7 +955,7 @@ class _LogDetailPanel extends StatelessWidget {
                 LogLevelBadge(level: entry.level.name),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
+                  child: TextComponent(
                     time,
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
@@ -1071,7 +1072,7 @@ class _LogDetailPanel extends StatelessWidget {
                         width: 1,
                       ),
                     ),
-                    child: SelectableText(
+                    child: TextComponent(
                       entry.message,
                       style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
@@ -1125,7 +1126,7 @@ class _LogDetailPanel extends StatelessWidget {
                           width: 1,
                         ),
                       ),
-                      child: SelectableText(
+                      child: TextComponent(
                         entry.stackTrace!,
                         style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
@@ -1157,7 +1158,7 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return TextComponent(
       label,
       style: TextStyle(
         fontSize: 11,
