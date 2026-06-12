@@ -7,6 +7,16 @@ reviews:
     incremental: true
 
   profile: "chill"
+  poem: true
+  path_filters:
+    - "lib/**"
+    - "client_sdks/**"
+    - "android/**"
+    - "ios/**"
+    - "!**/*.g.dart"
+    - "!**/*.freezed.dart"
+    - "!**/build/**"
+    - "!**/.dart_tool/**"
 
   path_instructions:
     - path: "lib/components/**"
