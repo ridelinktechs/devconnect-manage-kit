@@ -1,3 +1,4 @@
+import '../../../../components/text/text_component.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -446,7 +447,7 @@ class _BenchmarkDetail extends StatelessWidget {
                 Icon(LucideIcons.timer,
                     size: 14, color: ColorTokens.secondary),
                 const SizedBox(width: 8),
-                Text(
+                TextComponent(
                   entry.title,
                   style: TextStyle(
                     fontSize: 13,
@@ -464,7 +465,7 @@ class _BenchmarkDetail extends StatelessWidget {
                           .withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
+                    child: TextComponent(
                       formatDuration(entry.duration!),
                       style: TextStyle(
                         fontSize: 12,
@@ -517,7 +518,7 @@ class _BenchmarkDetail extends StatelessWidget {
                   const SizedBox(height: 16),
                   // Steps timeline
                   if (entry.steps.isNotEmpty) ...[
-                    Text(
+                    TextComponent(
                       'Steps (${entry.steps.length})',
                       style: TextStyle(
                         fontSize: 12,
@@ -546,7 +547,7 @@ class _BenchmarkDetail extends StatelessWidget {
                   ] else
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(
+                      child: TextComponent(
                         'No intermediate steps recorded',
                         style: TextStyle(
                           fontSize: 12,
@@ -640,7 +641,7 @@ class _WaterfallChart extends StatelessWidget {
                 color: color.withValues(alpha: 0.7),
                 alignment: Alignment.center,
                 child: seg.fraction > 0.08
-                    ? Text(
+                    ? TextComponent(
                         formatDuration(seg.duration),
                         style: const TextStyle(
                           fontSize: 9,
@@ -721,7 +722,7 @@ class _StepRow extends StatelessWidget {
               color: ColorTokens.secondary.withValues(alpha: 0.12),
             ),
             alignment: Alignment.center,
-            child: Text(
+            child: TextComponent(
               '${index + 1}',
               style: TextStyle(
                 fontSize: 10,
@@ -736,7 +737,7 @@ class _StepRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                TextComponent(
                   step.title,
                   style: TextStyle(
                     fontSize: 12,
@@ -746,7 +747,7 @@ class _StepRow extends StatelessWidget {
                         : Colors.black87,
                   ),
                 ),
-                Text(
+                TextComponent(
                   time,
                   style: TextStyle(
                     fontSize: 10,
@@ -758,7 +759,7 @@ class _StepRow extends StatelessWidget {
             ),
           ),
           // Delta
-          Text(
+          TextComponent(
             '+${formatDuration(delta)}',
             style: TextStyle(
               fontSize: 11,
@@ -771,7 +772,7 @@ class _StepRow extends StatelessWidget {
           // Percentage
           SizedBox(
             width: 44,
-            child: Text(
+            child: TextComponent(
               '$pct%',
               style: TextStyle(
                 fontSize: 10,
@@ -837,13 +838,13 @@ class _InfoRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 70,
-            child: Text(
+            child: TextComponent(
               label,
               style: TextStyle(fontSize: 11, color: Colors.grey[500]),
             ),
           ),
           Expanded(
-            child: SelectableText(
+            child: TextComponent(
               value,
               style: TextStyle(
                 fontSize: 11,

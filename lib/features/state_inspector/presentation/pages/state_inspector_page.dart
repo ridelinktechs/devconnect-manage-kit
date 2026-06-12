@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../components/text/text_component.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
@@ -504,7 +505,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                     size: 16, color: ColorTokens.primary),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
+                  child: TextComponent(
                     entry.actionName,
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
@@ -525,7 +526,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('DIFF',
+                TextComponent('DIFF',
                     style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -533,12 +534,12 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                         letterSpacing: 1)),
                 const SizedBox(height: 8),
                 if (entry.diff.isEmpty)
-                  Text('No changes',
+                  TextComponent('No changes',
                       style: TextStyle(color: Colors.grey[500], fontSize: 12))
                 else
                   ...entry.diff.map((d) => Padding(
                         padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Text(
+                        child: TextComponent(
                           '${d.operation} ${d.path}: ${d.oldValue} → ${d.newValue}',
                           style: TextStyle(
                             fontFamily: AppConstants.monoFontFamily,
@@ -558,7 +559,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('BEFORE',
+                TextComponent('BEFORE',
                     style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -580,7 +581,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('AFTER',
+                TextComponent('AFTER',
                     style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -621,7 +622,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                           size: 16, color: ColorTokens.primary),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
+                        child: TextComponent(
                           entry.actionName,
                           style: TextStyle(
                             fontFamily: AppConstants.monoFontFamily,
@@ -661,7 +662,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                                       : Colors.grey[500],
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
+                                TextComponent(
                                   _jsonPrettyMode ? 'Pretty' : 'Tree',
                                   style: TextStyle(
                                     fontSize: 10,
@@ -828,7 +829,7 @@ class _DiffView extends StatelessWidget {
                 children: [
                   Icon(opIcon, size: 12, color: opColor),
                   const SizedBox(width: 6),
-                  Text(
+                  TextComponent(
                     d.path,
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
@@ -843,7 +844,7 @@ class _DiffView extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text(
+                    TextComponent(
                       '- ',
                       style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
@@ -852,7 +853,7 @@ class _DiffView extends StatelessWidget {
                       ),
                     ),
                     Expanded(
-                      child: Text(
+                      child: TextComponent(
                         '${d.oldValue}',
                         style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
@@ -869,7 +870,7 @@ class _DiffView extends StatelessWidget {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Text(
+                    TextComponent(
                       '+ ',
                       style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
@@ -878,7 +879,7 @@ class _DiffView extends StatelessWidget {
                       ),
                     ),
                     Expanded(
-                      child: Text(
+                      child: TextComponent(
                         '${d.newValue}',
                         style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
