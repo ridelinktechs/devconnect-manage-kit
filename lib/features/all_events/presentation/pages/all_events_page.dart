@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:file_selector/file_selector.dart';
 import '../../../../core/utils/duration_format.dart';
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -217,11 +218,11 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
               ? EmptyState(
                   icon: LucideIcons.layoutDashboard,
                   title: devices.isEmpty
-                      ? 'No devices connected'
-                      : 'No events yet',
+                      ? S.of(context).noDevicesConnected
+                      : S.of(context).noEventsYet,
                   subtitle: devices.isEmpty
-                      ? 'Start your app with DevConnect SDK to see events'
-                      : 'Events will appear here in real-time',
+                      ? S.of(context).startAppToSeeEvents
+                      : S.of(context).eventsAppearHere,
                 )
               : Stack(
                   children: [
@@ -416,7 +417,7 @@ class _Header extends ConsumerWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            serverRunning ? 'Port $port' : 'Stopped',
+            serverRunning ? 'Port $port' : S.of(context).stopped,
             style: TextStyle(
               fontSize: 11,
               fontFamily: AppConstants.monoFontFamily,
@@ -445,7 +446,7 @@ class _Header extends ConsumerWidget {
           SizedBox(
             width: 200,
             child: SearchField(
-              hintText: 'Search events...',
+              hintText: S.of(context).searchEvents,
               onChanged: (v) =>
                   ref.read(allEventsSearchProvider.notifier).state = v,
             ),
@@ -466,7 +467,7 @@ class _Header extends ConsumerWidget {
               children: [
                 _IconBtn(
                   icon: LucideIcons.arrowDownToLine,
-                  tooltip: 'Auto-scroll',
+                  tooltip: S.of(context).autoScroll,
                   isActive: autoScroll,
                   onTap: onToggleAutoScroll,
                 ),
@@ -477,7 +478,7 @@ class _Header extends ConsumerWidget {
                     final isNewest = sort == SortOrder.newestFirst;
                     return _IconBtn(
                       icon: isNewest ? LucideIcons.arrowUpNarrowWide : LucideIcons.arrowDownNarrowWide,
-                      tooltip: isNewest ? 'Newest first' : 'Oldest first',
+                      tooltip: isNewest ? S.of(context).newestFirst : S.of(context).oldestFirst,
                       isActive: isNewest,
                       onTap: () => ref.read(allEventsSortOrderProvider.notifier).state =
                           isNewest ? SortOrder.oldestFirst : SortOrder.newestFirst,
@@ -495,7 +496,7 @@ class _Header extends ConsumerWidget {
                 const SizedBox(width: 2),
                 _IconBtn(
                   icon: LucideIcons.trash2,
-                  tooltip: 'Clear all',
+                  tooltip: S.of(context).clearAll,
                   isDanger: true,
                   onTap: onClear,
                 ),
@@ -817,7 +818,7 @@ class _EventRow extends StatelessWidget {
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      'in progress',
+                      S.of(context).inProgress,
                       style: TextStyle(
                         fontSize: 10,
                         color: ColorTokens.warning,
@@ -1421,7 +1422,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 TextComponent(
-                                  'Screenshot saved',
+                                  S.of(context).screenshotSaved,
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -1489,7 +1490,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                                   ),
                                   const SizedBox(width: 6),
                                   TextComponent(
-                                    'Reveal',
+                                    S.of(context).reveal,
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
@@ -1605,37 +1606,37 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
       case EventType.log:
         typeColor = ColorTokens.logInfo;
         typeIcon = LucideIcons.terminal;
-        typeLabel = 'Log Detail';
+        typeLabel = S.of(context).logDetail;
         break;
       case EventType.network:
         typeColor = ColorTokens.success;
         typeIcon = LucideIcons.globe;
-        typeLabel = 'Network Detail';
+        typeLabel = S.of(context).networkDetail;
         break;
       case EventType.state:
         typeColor = ColorTokens.secondary;
         typeIcon = LucideIcons.layers;
-        typeLabel = 'State Detail';
+        typeLabel = S.of(context).stateDetail;
         break;
       case EventType.storage:
         typeColor = ColorTokens.warning;
         typeIcon = LucideIcons.database;
-        typeLabel = 'Storage Detail';
+        typeLabel = S.of(context).storageDetail;
         break;
       case EventType.display:
         typeColor = const Color(0xFF9B59B6);
         typeIcon = LucideIcons.monitor;
-        typeLabel = 'Display Detail';
+        typeLabel = S.of(context).displayDetail;
         break;
       case EventType.asyncOp:
         typeColor = const Color(0xFFE67E22);
         typeIcon = LucideIcons.zap;
-        typeLabel = 'Async Operation';
+        typeLabel = S.of(context).asyncOperation;
         break;
       case EventType.error:
         typeColor = Colors.red;
         typeIcon = LucideIcons.alertTriangle;
-        typeLabel = 'Error Detail';
+        typeLabel = S.of(context).errorDetail;
         break;
     }
 
@@ -2478,22 +2479,22 @@ class _DetailHeader extends ConsumerWidget {
           const Spacer(),
           // Screenshot buttons
           Tooltip(
-            message: 'Capture full detail panel as image',
+            message: S.of(context).captureFullTooltip,
             waitDuration: const Duration(milliseconds: 400),
             child: _ActionButton(
               icon: LucideIcons.camera,
-              label: 'Full',
+              label: S.of(context).captureFull,
               onTap: onFullScreenshot,
             ),
           ),
           if (hasMultipleTabs && onTabScreenshot != null) ...[
             const SizedBox(width: 4),
             Tooltip(
-              message: 'Capture current tab only',
+              message: S.of(context).captureTabTooltip,
               waitDuration: const Duration(milliseconds: 400),
               child: _ActionButton(
                 icon: LucideIcons.scanLine,
-                label: 'Tab',
+                label: S.of(context).captureTab,
                 onTap: onTabScreenshot!,
               ),
             ),
@@ -4082,7 +4083,7 @@ class _StateDetailState extends ConsumerState<_StateDetail>
             controller: _tabController,
             children: [
               entry.diff.isEmpty
-                  ? const EmptyState(
+                  ? EmptyState(
                       icon: LucideIcons.gitCompare, title: 'No diff')
                   : ListView.builder(
                       padding: const EdgeInsets.all(12),
@@ -4091,7 +4092,7 @@ class _StateDetailState extends ConsumerState<_StateDetail>
                           _DiffRow(diff: entry.diff[index]),
                     ),
               entry.previousState.isEmpty
-                  ? const EmptyState(
+                  ? EmptyState(
                       icon: LucideIcons.layers,
                       title: 'No previous state')
                   : _BodyView(
@@ -4101,7 +4102,7 @@ class _StateDetailState extends ConsumerState<_StateDetail>
                       onJsonModeChanged: widget.onJsonModeChanged,
                     ),
               entry.nextState.isEmpty
-                  ? const EmptyState(
+                  ? EmptyState(
                       icon: LucideIcons.layers,
                       title: 'No next state')
                   : _BodyView(

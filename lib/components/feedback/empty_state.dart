@@ -6,7 +6,7 @@ class EmptyState extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const EmptyState({
+  EmptyState({
     super.key,
     this.icon = LucideIcons.inbox,
     required this.title,

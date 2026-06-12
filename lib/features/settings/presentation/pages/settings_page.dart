@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../../../core/providers/locale_provider.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -65,15 +67,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   String _guessInterfaceType(String name) {
     final lower = name.toLowerCase();
-    if (lower.startsWith('en') || lower.startsWith('eth')) return 'Ethernet';
+    if (lower.startsWith('en') || lower.startsWith('eth')) return S.of(context).ethernet;
     if (lower.startsWith('wl') ||
         lower.contains('wi-fi') ||
-        lower.contains('wifi')) return 'WiFi';
+        lower.contains('wifi')) return S.of(context).wifi;
     if (lower.startsWith('utun') ||
         lower.startsWith('tun') ||
-        lower.startsWith('ipsec')) return 'VPN';
-    if (lower.startsWith('bridge')) return 'Bridge';
-    if (lower.startsWith('lo')) return 'Loopback';
+        lower.startsWith('ipsec')) return S.of(context).vpn;
+    if (lower.startsWith('bridge')) return S.of(context).bridge;
+    if (lower.startsWith('lo')) return S.of(context).loopback;
     return name;
   }
 
@@ -85,7 +87,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   void _copy(String text, [String? label]) {
     Clipboard.setData(ClipboardData(text: text));
-    showCopiedToast(context, label: label ?? 'Copied');
+    showCopiedToast(context, label: label ?? S.of(context).copied);
   }
 
   String _describeStartError(Object error, int port) {
@@ -297,7 +299,7 @@ class _PageHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Settings',
+              S.of(context).settings,
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -313,7 +315,7 @@ class _PageHeader extends StatelessWidget {
         const Spacer(),
         _StatusChip(
           color: server.isRunning ? ColorTokens.success : ColorTokens.error,
-          label: server.isRunning ? 'Server Running' : 'Server Stopped',
+          label: server.isRunning ? S.of(context).serverRunning : S.of(context).serverStopped,
           icon: server.isRunning ? LucideIcons.wifi : LucideIcons.wifiOff,
         ),
         const SizedBox(width: 8),
@@ -404,7 +406,7 @@ class _SectionTitle extends StatelessWidget {
   final IconData icon;
   final String title;
 
-  const _SectionTitle({
+  _SectionTitle({
     required this.icon,
     required this.title,
   });
@@ -449,10 +451,10 @@ class _ServerSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionTitle(icon: LucideIcons.server, title: 'Server'),
+        _SectionTitle(icon: LucideIcons.server, title: S.of(context).server),
         Row(
           children: [
-            Text('Port', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+            Text(S.of(context).port, style: TextStyle(fontSize: 13, color: Colors.grey[500])),
             const SizedBox(width: 12),
             SizedBox(
               width: 90,
@@ -476,7 +478,7 @@ class _ServerSection extends ConsumerWidget {
             ),
             const SizedBox(width: 12),
             _ActionButton(
-              label: server.isRunning ? 'Stop' : 'Start',
+              label: server.isRunning ? S.of(context).stop : S.of(context).start,
               icon: server.isRunning ? LucideIcons.square : LucideIcons.play,
               color: server.isRunning ? ColorTokens.error : ColorTokens.success,
               onTap: onStartStop,
@@ -557,13 +559,13 @@ class _NetworkSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionTitle(icon: LucideIcons.wifi, title: 'Network'),
+        _SectionTitle(icon: LucideIcons.wifi, title: S.of(context).network),
         if (hostName.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
               children: [
-                Text('Hostname',
+                Text(S.of(context).hostname,
                     style: TextStyle(fontSize: 12, color: Colors.grey[500])),
                 const SizedBox(width: 8),
                 Text(
@@ -578,7 +580,7 @@ class _NetworkSection extends StatelessWidget {
             ),
           ),
         if (networkInfos.isEmpty)
-          Text('No network interfaces found',
+          Text(S.of(context).noNetworkInterfaces,
               style: TextStyle(fontSize: 12, color: Colors.grey[500]))
         else
           ...networkInfos.map((info) => _IpRow(info: info, onCopy: onCopy)),
@@ -598,7 +600,7 @@ class _IpRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: GestureDetector(
-        onTap: () => onCopy(info.ip, 'Copied ${info.ip}'),
+        onTap: () => onCopy(info.ip, S.of(context).copiedIp(info.ip)),
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: Container(
@@ -669,7 +671,7 @@ class _DevicesSection extends ConsumerWidget {
       children: [
         _SectionTitle(
           icon: LucideIcons.smartphone,
-          title: 'Connected Devices (${devices.length})',
+          title: S.of(context).connectedDevices(devices.length),
         ),
         if (devices.isEmpty)
           Container(
@@ -685,7 +687,7 @@ class _DevicesSection extends ConsumerWidget {
                 Icon(LucideIcons.monitorOff, size: 16, color: Colors.grey[500]),
                 const SizedBox(width: 10),
                 Text(
-                  'No devices connected',
+                  S.of(context).noDevicesConnected,
                   style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                 ),
               ],
@@ -760,31 +762,32 @@ class _AppearanceSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final scrollDir = ref.watch(scrollDirectionProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionTitle(icon: LucideIcons.palette, title: 'Appearance'),
+        _SectionTitle(icon: LucideIcons.palette, title: S.of(context).appearance),
         // Theme
         Row(
           children: [
             SizedBox(
               width: 100,
-              child: Text('Theme',
+              child: Text(S.of(context).theme,
                   style: TextStyle(fontSize: 13, color: Colors.grey[500])),
             ),
             Expanded(
               child: SegmentedButton<ThemeMode>(
-                segments: const [
+                segments: [
                   ButtonSegment(
                     value: ThemeMode.dark,
                     icon: Icon(LucideIcons.moon, size: 14),
-                    label: Text('Dark'),
+                    label: Text(S.of(context).dark),
                   ),
                   ButtonSegment(
                     value: ThemeMode.light,
                     icon: Icon(LucideIcons.sun, size: 14),
-                    label: Text('Light'),
+                    label: Text(S.of(context).light),
                   ),
                 ],
                 selected: {themeMode},
@@ -811,21 +814,21 @@ class _AppearanceSection extends ConsumerWidget {
           children: [
             SizedBox(
               width: 100,
-              child: Text('Auto-scroll',
+              child: Text(S.of(context).autoScroll,
                   style: TextStyle(fontSize: 13, color: Colors.grey[500])),
             ),
             Expanded(
               child: SegmentedButton<ScrollDirection>(
-                segments: const [
+                segments: [
                   ButtonSegment(
                     value: ScrollDirection.bottom,
                     icon: Icon(LucideIcons.arrowDownToLine, size: 14),
-                    label: Text('Bottom'),
+                    label: Text(S.of(context).bottom),
                   ),
                   ButtonSegment(
                     value: ScrollDirection.top,
                     icon: Icon(LucideIcons.arrowUpToLine, size: 14),
-                    label: Text('Top'),
+                    label: Text(S.of(context).top),
                   ),
                 ],
                 selected: {scrollDir},
@@ -841,7 +844,124 @@ class _AppearanceSection extends ConsumerWidget {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        // Language
+        Row(
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text(S.of(context).language,
+                  style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+            ),
+            Expanded(
+              child: _LanguageDropdown(
+                selected: ref.watch(localeProvider),
+                isDark: isDark,
+                onSelect: (locale) {
+                  ref.read(localeProvider.notifier).setLocale(locale);
+                },
+              ),
+            ),
+          ],
+        ),
       ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Language Dropdown
+// ═══════════════════════════════════════════════════════════════════
+
+class _LanguageDropdown extends StatelessWidget {
+  const _LanguageDropdown({
+    required this.selected,
+    required this.isDark,
+    required this.onSelect,
+  });
+
+  final Locale selected;
+  final bool isDark;
+  final ValueChanged<Locale> onSelect;
+
+  String _selectedLabel() {
+    final key = selected.countryCode != null
+        ? '${selected.languageCode}_${selected.countryCode}'
+        : selected.languageCode;
+    return localeDisplayNames[key] ?? key;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: PopupMenuButton<Locale>(
+        onSelected: onSelect,
+        offset: const Offset(0, 40),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.08),
+          ),
+        ),
+        color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+        itemBuilder: (context) => supportedLocales.map((locale) {
+          final key = locale.countryCode != null
+              ? '${locale.languageCode}_${locale.countryCode}'
+              : locale.languageCode;
+          final label = localeDisplayNames[key] ?? key;
+          final isSelected = locale == selected;
+          return PopupMenuItem<Locale>(
+            value: locale,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              children: [
+                if (isSelected)
+                  Icon(LucideIcons.check, size: 14, color: ColorTokens.primary)
+                else
+                  const SizedBox(width: 14),
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected
+                        ? ColorTokens.primary
+                        : (isDark ? Colors.grey[300] : Colors.grey[700]),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Icon(LucideIcons.languages, size: 15, color: Colors.grey[500]),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _selectedLabel(),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.grey[200] : Colors.grey[800],
+                  ),
+                ),
+              ),
+              Icon(LucideIcons.chevronDown, size: 14, color: Colors.grey[500]),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -853,15 +973,15 @@ class _AppearanceSection extends ConsumerWidget {
 class _TabVisibilitySection extends ConsumerWidget {
   const _TabVisibilitySection();
 
-  static const _tabs = <(TabKey, String, IconData, Color)>[
-    (TabKey.console, 'Console', LucideIcons.terminal, Color(0xFF58A6FF)),
-    (TabKey.network, 'Network', LucideIcons.globe, ColorTokens.success),
-    (TabKey.state, 'State', LucideIcons.layers, ColorTokens.secondary),
-    (TabKey.storage, 'Storage', LucideIcons.database, ColorTokens.warning),
-    (TabKey.database, 'Database', LucideIcons.hardDrive, Color(0xFFD2A8FF)),
-    (TabKey.performance, 'Performance', LucideIcons.gauge, ColorTokens.chartGreen),
-    (TabKey.memoryLeaks, 'Memory Leaks', LucideIcons.bug, ColorTokens.chartRed),
-    (TabKey.history, 'History', LucideIcons.history, Colors.grey),
+  List<(TabKey, String, IconData, Color)> _getTabs(BuildContext context) => [
+    (TabKey.console, S.of(context).console, LucideIcons.terminal, const Color(0xFF58A6FF)),
+    (TabKey.network, S.of(context).network, LucideIcons.globe, ColorTokens.success),
+    (TabKey.state, S.of(context).state, LucideIcons.layers, ColorTokens.secondary),
+    (TabKey.storage, S.of(context).storage, LucideIcons.database, ColorTokens.warning),
+    (TabKey.database, S.of(context).database, LucideIcons.hardDrive, const Color(0xFFD2A8FF)),
+    (TabKey.performance, S.of(context).performance, LucideIcons.gauge, ColorTokens.chartGreen),
+    (TabKey.memoryLeaks, S.of(context).memoryLeaks, LucideIcons.bug, ColorTokens.chartRed),
+    (TabKey.history, S.of(context).history, LucideIcons.history, Colors.grey),
   ];
 
   @override
@@ -872,16 +992,16 @@ class _TabVisibilitySection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionTitle(
+        _SectionTitle(
           icon: LucideIcons.layoutGrid,
-          title: 'Tab Visibility',
+          title: S.of(context).tabVisibility,
         ),
         Text(
-          'Toggle which tabs are visible. Disabled tabs show a lock icon and their data is excluded from All Events.',
+          S.of(context).tabVisibilityDesc,
           style: TextStyle(fontSize: 11, color: Colors.grey[500], height: 1.4),
         ),
         const SizedBox(height: 12),
-        ..._tabs.map((t) {
+        ..._getTabs(context).map((t) {
           final (key, label, icon, color) = t;
           final isEnabled = enabledTabs.contains(key);
 
@@ -1034,12 +1154,12 @@ class _DetailViewSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionTitle(
+        _SectionTitle(
           icon: LucideIcons.panelRight,
-          title: 'Detail View',
+          title: S.of(context).detailView,
         ),
         Text(
-          'Remembers how request/response bodies are shown and controls tab switching animation.',
+          S.of(context).detailViewDesc,
           style: TextStyle(fontSize: 11, color: Colors.grey[500], height: 1.4),
         ),
         const SizedBox(height: 14),
@@ -1049,26 +1169,26 @@ class _DetailViewSection extends ConsumerWidget {
           children: [
             SizedBox(
               width: 100,
-              child: Text('Body view',
+              child: Text(S.of(context).bodyView,
                   style: TextStyle(fontSize: 13, color: Colors.grey[500])),
             ),
             Expanded(
               child: SegmentedButton<BodyViewMode>(
-                segments: const [
+                segments: [
                   ButtonSegment(
                     value: BodyViewMode.tree,
                     icon: Icon(LucideIcons.listTree, size: 14),
-                    label: Text('Tree'),
+                    label: Text(S.of(context).tree),
                   ),
                   ButtonSegment(
                     value: BodyViewMode.json,
                     icon: Icon(LucideIcons.braces, size: 14),
-                    label: Text('JSON'),
+                    label: Text(S.of(context).json),
                   ),
                   ButtonSegment(
                     value: BodyViewMode.code,
                     icon: Icon(LucideIcons.code, size: 14),
-                    label: Text('Code'),
+                    label: Text(S.of(context).code),
                   ),
                 ],
                 selected: {viewMode},
@@ -1090,7 +1210,7 @@ class _DetailViewSection extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.only(left: 100),
           child: Text(
-            'Code mode exports as TypeScript / Dart / Kotlin based on the connected SDK.',
+            S.of(context).codeModeDesc,
             style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
           ),
         ),
@@ -1101,7 +1221,7 @@ class _DetailViewSection extends ConsumerWidget {
           children: [
             SizedBox(
               width: 100,
-              child: Text('Tab animation',
+              child: Text(S.of(context).tabAnimation,
                   style: TextStyle(fontSize: 13, color: Colors.grey[500])),
             ),
             Switch.adaptive(
@@ -1111,7 +1231,7 @@ class _DetailViewSection extends ConsumerWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              animEnabled ? 'On' : 'Off',
+              animEnabled ? S.of(context).on : S.of(context).off,
               style: TextStyle(
                 fontSize: 12,
                 color: animEnabled
@@ -1133,7 +1253,7 @@ class _DetailViewSection extends ConsumerWidget {
               children: [
                 SizedBox(
                   width: 100,
-                  child: Text('Duration',
+                  child: Text(S.of(context).duration,
                       style:
                           TextStyle(fontSize: 13, color: Colors.grey[500])),
                 ),
@@ -1184,10 +1304,10 @@ class _UsbToolsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionTitle(icon: LucideIcons.usb, title: 'USB Connection'),
+        _SectionTitle(icon: LucideIcons.usb, title: S.of(context).usbConnection),
 
         // Android
-        Text('Android',
+        Text(S.of(context).android,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -1203,7 +1323,7 @@ class _UsbToolsSection extends StatelessWidget {
         Row(
           children: [
             _ActionButton(
-              label: 'Run ADB Reverse',
+              label: S.of(context).runAdbReverse,
               icon: LucideIcons.refreshCw,
               color: ColorTokens.secondary,
               onTap: () async {
@@ -1261,7 +1381,7 @@ class _UsbToolsSection extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             _ActionButton(
-              label: 'Devices',
+              label: S.of(context).devices,
               icon: LucideIcons.smartphone,
               color: Colors.grey,
               onTap: () async {
@@ -1273,7 +1393,7 @@ class _UsbToolsSection extends StatelessWidget {
                     showDialog(
                       context: context,
                       builder: (ctx) => AlertDialog(
-                        title: const Text('ADB Devices'),
+                        title: Text(S.of(context).adbDevices),
                         content: Text(
                           result.stdout.toString().trim(),
                           style: const TextStyle(
@@ -1284,7 +1404,7 @@ class _UsbToolsSection extends StatelessWidget {
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(ctx),
-                            child: const Text('OK'),
+                            child: Text(S.of(context).ok),
                           ),
                         ],
                       ),
@@ -1299,7 +1419,7 @@ class _UsbToolsSection extends StatelessWidget {
         const SizedBox(height: 16),
 
         // iOS
-        Text('iOS',
+        Text(S.of(context).ios,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -1320,7 +1440,7 @@ class _UsbToolsSection extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'WiFi auto-connects if same network. USB: install iproxy.',
+                  S.of(context).wifiAutoConnect,
                   style: TextStyle(fontSize: 11, color: ColorTokens.success),
                 ),
               ),
@@ -1361,14 +1481,14 @@ class _QuickStartSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionTitle(icon: LucideIcons.zap, title: 'Quick Start'),
+        _SectionTitle(icon: LucideIcons.zap, title: S.of(context).quickStart),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: _StepCard(
                 number: '1',
-                title: 'Install SDK',
+                title: S.of(context).installSdk,
                 code: 'Flutter:  flutter pub add devconnect_manage_kit\n'
                     'RN:      yarn add devconnect-manage-kit\n'
                     'Android: implementation("com.github...")',
@@ -1379,7 +1499,7 @@ class _QuickStartSection extends StatelessWidget {
             Expanded(
               child: _StepCard(
                 number: '2',
-                title: 'Initialize',
+                title: S.of(context).initialize,
                 code: 'Flutter:  await DevConnect.init(appName: "MyApp");\n'
                     'RN:      await DevConnect.init({ appName: "MyApp" });\n'
                     'Android: DevConnect.init(ctx, appName = "MyApp")',
@@ -1390,7 +1510,7 @@ class _QuickStartSection extends StatelessWidget {
             Expanded(
               child: _StepCard(
                 number: '3',
-                title: 'Connect',
+                title: S.of(context).connect,
                 code: 'Emulator: auto-detect\n'
                     'WiFi:     host: "$ip"\n'
                     'USB:      see USB Tools above',
@@ -1491,7 +1611,7 @@ class _CodeBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => onCopy(code, 'Copied'),
+      onTap: () => onCopy(code, S.of(context).copied),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
@@ -1592,7 +1712,7 @@ class _DonateSection extends StatelessWidget {
             Icon(LucideIcons.heart, size: 16, color: ColorTokens.error),
             const SizedBox(width: 8),
             Text(
-              'Support DevConnect',
+              S.of(context).supportDevConnect,
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -1603,21 +1723,21 @@ class _DonateSection extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'DevConnect Manage Tool is free and open source. If it helps your workflow, consider supporting development.',
+          S.of(context).supportDevConnectDesc,
           style: TextStyle(fontSize: 12, color: Colors.grey[500], height: 1.4),
         ),
         const SizedBox(height: 16),
         Row(
           children: [
             _DonateButton(
-              label: 'Ko-fi',
+              label: S.of(context).kofi,
               icon: LucideIcons.coffee,
               color: const Color(0xFFFF5E5B),
               onTap: () => _openUrl('https://ko-fi.com/buivietphi'),
             ),
             const SizedBox(width: 10),
             _DonateButton(
-              label: 'PayPal',
+              label: S.of(context).paypal,
               icon: LucideIcons.creditCard,
               color: const Color(0xFF0070BA),
               onTap: () => _openUrl('https://paypal.me/buivietphi'),

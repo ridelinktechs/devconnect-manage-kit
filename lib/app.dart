@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/providers/locale_provider.dart';
 import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
+import 'l10n/app_localizations.dart';
 import 'server/providers/server_providers.dart';
 
 class DevConnectApp extends ConsumerStatefulWidget {
@@ -56,12 +59,22 @@ class _DevConnectAppState extends ConsumerState<DevConnectApp> {
     // Keep message handler alive so it processes incoming messages
     ref.watch(wsMessageHandlerProvider);
 
+    final locale = ref.watch(localeProvider);
+
     return MaterialApp.router(
       title: 'DevConnect Manage Tool',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
+      locale: locale,
+      supportedLocales: supportedLocales,
+      localizationsDelegates: [
+        S.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       routerConfig: appRouter,
     );
   }

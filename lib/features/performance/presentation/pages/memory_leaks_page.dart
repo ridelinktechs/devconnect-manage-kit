@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,11 +47,11 @@ class _MemoryLeaksPageState extends ConsumerState<MemoryLeaksPage> {
         // Content
         Expanded(
           child: entries.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: LucideIcons.bug,
-                  title: 'No Memory Leaks Detected',
+                  title: S.of(context).noMemoryLeaksDetected,
                   subtitle:
-                      'Connect an app with DevConnect SDK to monitor memory leaks',
+                      S.of(context).connectAppToMonitorLeaks,
                 )
               : Row(
                   children: [
@@ -119,7 +120,7 @@ class _Toolbar extends StatelessWidget {
           Icon(LucideIcons.bug, size: 16, color: ColorTokens.primary),
           const SizedBox(width: 8),
           Text(
-            'Memory Leak Detection',
+            S.of(context).memoryLeakDetection,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -128,21 +129,21 @@ class _Toolbar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           _SeverityBadge(
-            label: 'Critical',
+            label: S.of(context).critical,
             count: counts[MemoryLeakSeverity.critical] ?? 0,
             color: ColorTokens.chartRed,
             isDark: isDark,
           ),
           const SizedBox(width: 6),
           _SeverityBadge(
-            label: 'Warning',
+            label: S.of(context).warning,
             count: counts[MemoryLeakSeverity.warning] ?? 0,
             color: ColorTokens.chartAmber,
             isDark: isDark,
           ),
           const SizedBox(width: 6),
           _SeverityBadge(
-            label: 'Info',
+            label: S.of(context).info,
             count: counts[MemoryLeakSeverity.info] ?? 0,
             color: ColorTokens.chartBlue,
             isDark: isDark,
@@ -150,7 +151,7 @@ class _Toolbar extends StatelessWidget {
           const Spacer(),
           _MiniButton(
             icon: LucideIcons.trash2,
-            tooltip: 'Clear',
+            tooltip: S.of(context).clear,
             isDark: isDark,
             onTap: onClear,
           ),
@@ -295,7 +296,7 @@ class _LeakList extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      _leakTypeBadge(entry.leakType, isDark),
+                      _leakTypeBadge(context, entry.leakType, isDark),
                       const SizedBox(height: 3),
                       Text(
                         DateFormat('HH:mm:ss').format(
@@ -336,7 +337,7 @@ class _LeakList extends StatelessWidget {
     );
   }
 
-  Widget _leakTypeBadge(MemoryLeakType type, bool isDark) {
+  Widget _leakTypeBadge(BuildContext context, MemoryLeakType type, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -346,7 +347,7 @@ class _LeakList extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        _leakTypeLabel(type),
+        _leakTypeLabel(context, type),
         style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.w600,
@@ -393,7 +394,7 @@ class _LeakDetailState extends State<_LeakDetail> {
       await File(location.path).writeAsBytes(pngBytes);
       if (mounted) showScreenshotSavedToast(context, filePath: location.path);
     } catch (_) {
-      if (mounted) showCopiedToast(context, label: 'Screenshot failed');
+      if (mounted) showCopiedToast(context, label: S.of(context).screenshotFailed);
     }
   }
 
@@ -428,7 +429,7 @@ class _LeakDetailState extends State<_LeakDetail> {
               _severityTag(entry.severity),
               const SizedBox(width: 8),
               Tooltip(
-                message: 'Capture as image',
+                message: S.of(context).captureAsImage,
                 child: IconButton(
                   icon: Icon(LucideIcons.camera,
                       size: 14, color: isDark ? Colors.grey[500] : Colors.grey[600]),
@@ -482,7 +483,7 @@ class _LeakDetailState extends State<_LeakDetail> {
                             ),
                             const SizedBox(height: 2),
                             TextComponent(
-                              _leakTypeLabel(entry.leakType),
+                              _leakTypeLabel(context, entry.leakType),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isDark ? Colors.white54 : Colors.black45,
@@ -497,7 +498,7 @@ class _LeakDetailState extends State<_LeakDetail> {
                   const SizedBox(height: 16),
           // Info cards
           _DetailSection(
-            title: 'Detail',
+            title: S.of(context).detail,
             icon: LucideIcons.fileText,
             isDark: isDark,
             child: TextComponent(
@@ -512,7 +513,7 @@ class _LeakDetailState extends State<_LeakDetail> {
           if (entry.retainedSizeBytes != null) ...[
             const SizedBox(height: 12),
             _DetailSection(
-              title: 'Retained Size',
+              title: S.of(context).retainedSize,
               icon: LucideIcons.hardDrive,
               isDark: isDark,
               child: TextComponent(
@@ -528,14 +529,14 @@ class _LeakDetailState extends State<_LeakDetail> {
           if (entry.stackTrace != null) ...[
             const SizedBox(height: 12),
             _DetailSection(
-              title: 'Stack Trace',
+              title: S.of(context).stackTrace,
               icon: LucideIcons.layers,
               isDark: isDark,
               trailing: GestureDetector(
                 onTap: () {
                   Clipboard.setData(
                       ClipboardData(text: entry.stackTrace ?? ''));
-                  showCopiedToast(context, label: 'Stack trace copied');
+                  showCopiedToast(context, label: S.of(context).stackTraceCopied);
                 },
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
@@ -570,7 +571,7 @@ class _LeakDetailState extends State<_LeakDetail> {
           if (entry.metadata != null && entry.metadata!.isNotEmpty) ...[
             const SizedBox(height: 12),
             _DetailSection(
-              title: 'Metadata',
+              title: S.of(context).metadata,
               icon: LucideIcons.braces,
               isDark: isDark,
               child: Column(
@@ -609,7 +610,7 @@ class _LeakDetailState extends State<_LeakDetail> {
           ],
           const SizedBox(height: 12),
           _DetailSection(
-            title: 'Timestamp',
+            title: S.of(context).timestamp,
             icon: LucideIcons.clock,
             isDark: isDark,
             child: TextComponent(
@@ -733,22 +734,22 @@ Color _severityColor(MemoryLeakSeverity severity) {
   }
 }
 
-String _leakTypeLabel(MemoryLeakType type) {
+String _leakTypeLabel(BuildContext context, MemoryLeakType type) {
   switch (type) {
     case MemoryLeakType.undisposedController:
-      return 'Undisposed Controller';
+      return S.of(context).undisposedController;
     case MemoryLeakType.undisposedStream:
-      return 'Undisposed Stream';
+      return S.of(context).undisposedStream;
     case MemoryLeakType.undisposedTimer:
-      return 'Undisposed Timer';
+      return S.of(context).undisposedTimer;
     case MemoryLeakType.undisposedAnimationController:
-      return 'Undisposed Animation';
+      return S.of(context).undisposedAnimation;
     case MemoryLeakType.widgetLeak:
-      return 'Widget Leak';
+      return S.of(context).widgetLeak;
     case MemoryLeakType.growingCollection:
-      return 'Growing Collection';
+      return S.of(context).growingCollection;
     case MemoryLeakType.custom:
-      return 'Custom';
+      return S.of(context).custom;
   }
 }
 

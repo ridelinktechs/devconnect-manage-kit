@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../components/text/text_component.dart';
@@ -116,7 +117,7 @@ void showScreenshotSavedToast(BuildContext context, {required String filePath}) 
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               TextComponent(
-                                'Screenshot saved',
+                                S.of(context).screenshotSaved,
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -186,7 +187,7 @@ void showScreenshotSavedToast(BuildContext context, {required String filePath}) 
                                   ),
                                   const SizedBox(width: 6),
                                   TextComponent(
-                                    'Reveal',
+                                    S.of(context).reveal,
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
@@ -246,11 +247,11 @@ void showScreenshotSavedToast(BuildContext context, {required String filePath}) 
 /// ```dart
 /// showCopiedToast(context, label: 'JSON copied');
 /// ```
-void showCopiedToast(BuildContext context, {String label = 'Copied'}) {
+void showCopiedToast(BuildContext context, {String? label}) {
   _showCustomToast(
     context,
     icon: LucideIcons.checkCheck,
-    label: label,
+    label: label ?? S.of(context).copied,
     accentColor: ColorTokens.success,
   );
 }

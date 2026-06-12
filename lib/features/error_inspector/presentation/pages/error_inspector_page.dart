@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -234,7 +235,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
                   if (entry.stackTrace != null) ...[
                     const SizedBox(height: 12),
                     Text(
-                      'Stack Trace',
+                      S.of(context).stackTrace,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -334,7 +335,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
               SizedBox(
                 width: 220,
                 child: SearchField(
-                  hintText: 'Search errors...',
+                  hintText: S.of(context).searchErrors,
                   controller: _searchController,
                   onClear: () {
                     _searchController.clear();
@@ -359,7 +360,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
                   children: [
                     _IconBtn(
                       icon: LucideIcons.arrowDownToLine,
-                      tooltip: _autoScroll ? 'Auto-scroll' : 'Pause',
+                      tooltip: _autoScroll ? S.of(context).autoScroll : S.of(context).stop,
                       isActive: _autoScroll,
                       onTap: () => setState(() => _autoScroll = !_autoScroll),
                     ),
@@ -372,7 +373,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
                           icon: isTop
                               ? LucideIcons.arrowUpNarrowWide
                               : LucideIcons.arrowDownNarrowWide,
-                          tooltip: isTop ? 'Newest first' : 'Oldest first',
+                          tooltip: isTop ? S.of(context).newestFirst : S.of(context).oldestFirst,
                           isActive: isTop,
                           onTap: () => ref.read(scrollDirectionProvider.notifier).state =
                               isTop ? ScrollDirection.bottom : ScrollDirection.top,
@@ -390,7 +391,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
                     const SizedBox(width: 2),
                     _IconBtn(
                       icon: LucideIcons.trash2,
-                      tooltip: 'Clear errors',
+                      tooltip: S.of(context).clearErrors,
                       isDanger: true,
                       onTap: () => ref.read(errorEntriesProvider.notifier).clear(),
                     ),
@@ -406,14 +407,14 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
           child: Row(
             children: [
               _SummaryCard(
-                label: 'Total Errors',
+                label: S.of(context).totalErrors,
                 value: errorCount.toString(),
                 icon: LucideIcons.alertTriangle,
                 color: ColorTokens.logError,
               ),
               const SizedBox(width: 12),
               _SummaryCard(
-                label: 'Fatal/Crash',
+                label: S.of(context).fatalCrash,
                 value: fatalCount.toString(),
                 icon: LucideIcons.skull,
                 color: Colors.red,
@@ -426,10 +427,10 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
         // Error list + detail panel
         Expanded(
           child: _entries.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: LucideIcons.checkCircle,
-                  title: 'No errors captured',
-                  subtitle: 'Errors from React Native and Flutter will appear here',
+                  title: S.of(context).noErrorsCaptured,
+                  subtitle: S.of(context).errorsAppearHere,
                 )
               : Row(
                   children: [
@@ -466,7 +467,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
                             },
                             onCopy: () {
                               Clipboard.setData(ClipboardData(text: entry.stackTrace ?? entry.message));
-                              showCopiedToast(context, label: 'Stack trace copied');
+                              showCopiedToast(context, label: S.of(context).stackTraceCopied);
                             },
                           );
                         },
@@ -1176,10 +1177,10 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
             overlayColor: WidgetStateProperty.all(Colors.transparent),
             padding: EdgeInsets.zero,
             labelPadding: EdgeInsets.zero,
-            tabs: const [
-              Tab(height: 28, text: 'Message'),
+            tabs: [
+              Tab(height: 28, text: S.of(context).message),
               Tab(height: 28, text: 'Stack Trace'),
-              Tab(height: 28, text: 'Details'),
+              Tab(height: 28, text: S.of(context).details),
             ],
           ),
         ),
@@ -1213,8 +1214,8 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                         ),
                       ),
                     )
-                  : const Center(
-                      child: TextComponent('No stack trace available'),
+                  : Center(
+                      child: TextComponent(S.of(context).noStackTrace),
                     ),
               // Details tab
               SingleChildScrollView(
@@ -1222,11 +1223,11 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _DetailRow(label: 'Platform', value: entry.platform.name),
-                    _DetailRow(label: 'Severity', value: entry.severity.name),
-                    _DetailRow(label: 'Source', value: entry.source ?? 'unknown'),
-                    _DetailRow(label: 'Device ID', value: entry.deviceId),
-                    _DetailRow(label: 'Device Info', value: entry.deviceInfo ?? 'unknown'),
+                    _DetailRow(label: S.of(context).platform, value: entry.platform.name),
+                    _DetailRow(label: S.of(context).severity, value: entry.severity.name),
+                    _DetailRow(label: S.of(context).source, value: entry.source ?? 'unknown'),
+                    _DetailRow(label: S.of(context).deviceId, value: entry.deviceId),
+                    _DetailRow(label: S.of(context).deviceInfo, value: entry.deviceInfo ?? 'unknown'),
                     if (entry.metadata != null) ...[
                       const SizedBox(height: 12),
                       TextComponent(

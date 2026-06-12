@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -78,7 +79,7 @@ class _PerformancePageState extends ConsumerState<PerformancePage> {
       await File(path).writeAsBytes(pngBytes);
       if (mounted) showScreenshotSavedToast(context, filePath: path);
     } catch (_) {
-      if (mounted) showCopiedToast(context, label: 'Screenshot failed');
+      if (mounted) showCopiedToast(context, label: S.of(context).screenshotFailed);
     }
   }
 
@@ -90,10 +91,10 @@ class _PerformancePageState extends ConsumerState<PerformancePage> {
     final entries = ref.watch(filteredPerformanceEntriesProvider);
 
     if (entries.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: LucideIcons.gauge,
-        title: 'No Performance Data',
-        subtitle: 'Connect an app with DevConnect SDK to start profiling',
+        title: S.of(context).noPerformanceData,
+        subtitle: S.of(context).connectAppToProfile,
       );
     }
 
@@ -391,7 +392,7 @@ class _ProfilerToolbar extends StatelessWidget {
           // Recording indicator
           _ToolbarButton(
             icon: isRecording ? LucideIcons.circle : LucideIcons.play,
-            tooltip: isRecording ? 'Stop Recording' : 'Start Recording',
+            tooltip: isRecording ? S.of(context).stopRecording : S.of(context).startRecording,
             isDark: isDark,
             color: isRecording ? ColorTokens.chartRed : null,
             filled: isRecording,
@@ -400,7 +401,7 @@ class _ProfilerToolbar extends StatelessWidget {
           const SizedBox(width: 4),
           _ToolbarButton(
             icon: LucideIcons.trash2,
-            tooltip: 'Clear',
+            tooltip: S.of(context).clear,
             isDark: isDark,
             onTap: onClear,
           ),
@@ -447,7 +448,7 @@ class _ProfilerToolbar extends StatelessWidget {
           if (onScreenshot != null) ...[
             _ToolbarButton(
               icon: LucideIcons.camera,
-              tooltip: 'Capture as image',
+              tooltip: S.of(context).captureAsImage,
               isDark: isDark,
               onTap: onScreenshot!,
             ),
@@ -773,7 +774,7 @@ class _SystemStatusRow extends StatelessWidget {
                   color: isDark ? Colors.white38 : Colors.black38),
               const SizedBox(width: 6),
               Text(
-                'System Status',
+                S.of(context).systemStatus,
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -791,7 +792,7 @@ class _SystemStatusRow extends StatelessWidget {
               if (startupTime != null)
                 _SystemChip(
                   icon: LucideIcons.rocket,
-                  label: 'Startup',
+                  label: S.of(context).startup,
                   value: startupTime! >= 1000
                       ? '${(startupTime! / 1000).toStringAsFixed(1)}s'
                       : '${startupTime!.toInt()}ms',
@@ -805,9 +806,9 @@ class _SystemStatusRow extends StatelessWidget {
               if (battery != null && battery! < 0)
                 _SystemChip(
                   icon: LucideIcons.batteryWarning,
-                  label: 'Battery',
+                  label: S.of(context).battery,
                   value: 'N/A',
-                  detail: 'Emulator',
+                  detail: S.of(context).emulator,
                   color: Colors.grey,
                   isDark: isDark,
                 ),
@@ -818,9 +819,9 @@ class _SystemStatusRow extends StatelessWidget {
                       : battery! > 30
                           ? LucideIcons.batteryMedium
                           : LucideIcons.batteryLow,
-                  label: 'Battery',
+                  label: S.of(context).battery,
                   value: '${battery!.toInt()}%',
-                  detail: _batteryDetail(),
+                  detail: _batteryDetail(context),
                   color: battery! > 30
                       ? ColorTokens.chartGreen
                       : battery! > 15
@@ -831,7 +832,7 @@ class _SystemStatusRow extends StatelessWidget {
               if (batteryDrainRate != null && batteryDrainRate! > 0)
                 _SystemChip(
                   icon: LucideIcons.trendingDown,
-                  label: 'Drain Rate',
+                  label: S.of(context).drainRate,
                   value: '${batteryDrainRate!.toStringAsFixed(2)}%/min',
                   detail: batteryTimeRemaining != null
                       ? _formatTimeRemaining(batteryTimeRemaining!)
@@ -846,8 +847,8 @@ class _SystemStatusRow extends StatelessWidget {
               if (thermal != null)
                 _SystemChip(
                   icon: LucideIcons.thermometer,
-                  label: 'Thermal',
-                  value: _thermalLabel(thermal!),
+                  label: S.of(context).thermal,
+                  value: _thermalLabel(context, thermal!),
                   detail: thermalEntry?.metadata?['temperatureC'] != null
                       ? '${(thermalEntry!.metadata!['temperatureC'] as num).toStringAsFixed(1)}°C'
                       : null,
@@ -857,7 +858,7 @@ class _SystemStatusRow extends StatelessWidget {
               if (diskRead != null)
                 _SystemChip(
                   icon: LucideIcons.hardDriveDownload,
-                  label: 'Disk Read',
+                  label: S.of(context).diskRead,
                   value: '${diskRead!.toStringAsFixed(1)} MB',
                   color: ColorTokens.chartBlue,
                   isDark: isDark,
@@ -865,7 +866,7 @@ class _SystemStatusRow extends StatelessWidget {
               if (diskWrite != null)
                 _SystemChip(
                   icon: LucideIcons.hardDriveUpload,
-                  label: 'Disk Write',
+                  label: S.of(context).diskWrite,
                   value: '${diskWrite!.toStringAsFixed(1)} MB',
                   color: const Color(0xFF8B5CF6),
                   isDark: isDark,
@@ -873,7 +874,7 @@ class _SystemStatusRow extends StatelessWidget {
               if (anrCount > 0)
                 _SystemChip(
                   icon: LucideIcons.octagonAlert,
-                  label: 'ANR',
+                  label: S.of(context).anr,
                   value: '$anrCount',
                   color: ColorTokens.chartRed,
                   isDark: isDark,
@@ -885,8 +886,8 @@ class _SystemStatusRow extends StatelessWidget {
     );
   }
 
-  String? _batteryDetail() {
-    if (batteryEntry?.metadata?['charging'] == true) return 'Charging';
+  String? _batteryDetail(BuildContext context) {
+    if (batteryEntry?.metadata?['charging'] == true) return S.of(context).charging;
     if (batteryDrainRate != null && batteryDrainRate! > 0 && batteryTimeRemaining != null) {
       return '~${_formatTimeRemaining(batteryTimeRemaining!)} left';
     }
@@ -902,11 +903,11 @@ class _SystemStatusRow extends StatelessWidget {
     return '${minutes.round()}m';
   }
 
-  String _thermalLabel(double state) {
-    if (state <= 0) return 'Normal';
-    if (state <= 1) return 'Fair';
-    if (state <= 2) return 'Serious';
-    return 'Critical';
+  String _thermalLabel(BuildContext context, double state) {
+    if (state <= 0) return S.of(context).normal;
+    if (state <= 1) return S.of(context).fair;
+    if (state <= 2) return S.of(context).serious;
+    return S.of(context).critical;
   }
 
   Color _thermalColor(double state) {
@@ -1042,7 +1043,7 @@ class _ProfilerNetworkRow extends StatelessWidget {
                     color: ColorTokens.chartBlue.withValues(alpha: 0.7)),
                 const SizedBox(height: 4),
                 Text(
-                  'Network',
+                  S.of(context).network,
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
@@ -1137,7 +1138,7 @@ class _ProfilerNetworkRow extends StatelessWidget {
                     child: networkHistory.length < 2
                         ? Center(
                             child: Text(
-                              'Waiting for requests...',
+                              S.of(context).waitingForRequests,
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isDark ? Colors.white30 : Colors.black26,
@@ -1246,7 +1247,7 @@ class _ProfilerLineChartState extends State<_ProfilerLineChart> {
     if (widget.entries.length < 2) {
       return Center(
         child: Text(
-          'Waiting for data...',
+          S.of(context).waitingForData,
           style: TextStyle(
             fontSize: 11,
             color: widget.isDark ? Colors.white30 : Colors.black26,
