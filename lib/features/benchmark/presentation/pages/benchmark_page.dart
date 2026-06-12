@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,11 +65,11 @@ class _BenchmarkPageState extends ConsumerState<BenchmarkPage> {
         // Content
         Expanded(
           child: entries.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: LucideIcons.timer,
-                  title: 'No Benchmarks',
+                  title: S.of(context).noBenchmarks,
                   subtitle:
-                      'Use benchmarkStart/Step/Stop in your SDK to measure performance',
+                      S.of(context).useBenchmarkSdk,
                 )
               : Row(
                   children: [
@@ -183,7 +184,7 @@ class _Toolbar extends ConsumerWidget {
             child: SizedBox(
               height: 30,
               child: SearchField(
-                hintText: 'Search benchmarks...',
+                hintText: S.of(context).searchBenchmarks,
                 onChanged: (v) =>
                     ref.read(benchmarkSearchProvider.notifier).state = v,
               ),
@@ -195,7 +196,7 @@ class _Toolbar extends ConsumerWidget {
                 size: 14,
                 color: isDark ? Colors.grey[500] : Colors.grey[600]),
             onPressed: onClear,
-            tooltip: 'Clear all',
+            tooltip: S.of(context).clearAll,
             splashRadius: 14,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
             padding: EdgeInsets.zero,
@@ -234,28 +235,28 @@ class _StatsBar extends StatelessWidget {
       child: Row(
         children: [
           _StatChip(
-              label: 'Total', value: '${stats.total}', color: Colors.grey),
+              label: S.of(context).total, value: '${stats.total}', color: Colors.grey),
           const SizedBox(width: 16),
           _StatChip(
-            label: 'Avg',
+            label: S.of(context).avg,
             value: formatDuration(stats.avgDuration.toInt()),
             color: ColorTokens.secondary,
           ),
           const SizedBox(width: 16),
           _StatChip(
-            label: 'Min',
+            label: S.of(context).min,
             value: formatDuration(stats.minDuration.toInt()),
             color: ColorTokens.success,
           ),
           const SizedBox(width: 16),
           _StatChip(
-            label: 'Max',
+            label: S.of(context).max,
             value: formatDuration(stats.maxDuration.toInt()),
             color: _durationColor(stats.maxDuration),
           ),
           const SizedBox(width: 16),
           _StatChip(
-            label: 'P50',
+            label: S.of(context).p50,
             value: formatDuration(stats.p50Duration.toInt()),
             color: _durationColor(stats.p50Duration),
           ),
@@ -462,7 +463,7 @@ class _BenchmarkDetailState extends State<_BenchmarkDetail> {
       await file.writeAsBytes(pngBytes);
       if (mounted) showScreenshotSavedToast(context, filePath: file.path);
     } catch (e) {
-      if (mounted) showCopiedToast(context, label: 'Screenshot failed');
+      if (mounted) showCopiedToast(context, label: S.of(context).screenshotFailed);
     }
   }
 
@@ -525,7 +526,7 @@ class _BenchmarkDetailState extends State<_BenchmarkDetail> {
                   ),
                 const SizedBox(width: 8),
                 Tooltip(
-                  message: 'Capture as image',
+                  message: S.of(context).captureAsImage,
                   child: IconButton(
                     icon: Icon(LucideIcons.camera,
                         size: 14,
@@ -566,12 +567,12 @@ class _BenchmarkDetailState extends State<_BenchmarkDetail> {
                   _InfoCard(
                     isDark: isDark,
                     children: [
-                      _InfoRow(label: 'Start', value: startTime),
+                      _InfoRow(label: S.of(context).start, value: startTime),
                       if (endTime != null)
-                        _InfoRow(label: 'End', value: endTime),
+                        _InfoRow(label: S.of(context).end, value: endTime),
                       if (entry.duration != null)
                         _InfoRow(
-                          label: 'Duration',
+                          label: S.of(context).duration,
                           value: formatDuration(entry.duration!),
                           valueColor:
                               _durationColor(entry.duration!.toDouble()),
@@ -611,7 +612,7 @@ class _BenchmarkDetailState extends State<_BenchmarkDetail> {
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: TextComponent(
-                        'No intermediate steps recorded',
+                        S.of(context).noIntermediateSteps,
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[500],

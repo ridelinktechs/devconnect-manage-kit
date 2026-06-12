@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/rendering.dart' hide ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -184,10 +185,10 @@ class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
         const Divider(height: 1),
         Expanded(
           child: _entries.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: LucideIcons.globe,
-                  title: 'No network requests',
-                  subtitle: 'API calls will appear here in real-time',
+                  title: S.of(context).noNetworkRequests,
+                  subtitle: S.of(context).apiCallsAppearHere,
                 )
               : Stack(
                   children: [
@@ -391,7 +392,7 @@ class _Toolbar extends ConsumerWidget {
           SizedBox(
             width: 200,
             child: SearchField(
-              hintText: 'Filter URLs...',
+              hintText: S.of(context).filterUrls,
               onChanged: (v) =>
                   ref.read(networkSearchProvider.notifier).state = v,
             ),
@@ -412,7 +413,7 @@ class _Toolbar extends ConsumerWidget {
               children: [
                 _IconBtn(
                   icon: LucideIcons.arrowDownToLine,
-                  tooltip: 'Auto-scroll',
+                  tooltip: S.of(context).autoScroll,
                   isActive: autoScroll,
                   onTap: onToggleAutoScroll,
                 ),
@@ -425,7 +426,7 @@ class _Toolbar extends ConsumerWidget {
                       icon: isTop
                           ? LucideIcons.arrowUpNarrowWide
                           : LucideIcons.arrowDownNarrowWide,
-                      tooltip: isTop ? 'Newest first' : 'Oldest first',
+                      tooltip: isTop ? S.of(context).newestFirst : S.of(context).oldestFirst,
                       isActive: isTop,
                       onTap: () => ref
                           .read(scrollDirectionProvider.notifier)
@@ -446,7 +447,7 @@ class _Toolbar extends ConsumerWidget {
                 const SizedBox(width: 2),
                 _IconBtn(
                   icon: LucideIcons.trash2,
-                  tooltip: 'Clear',
+                  tooltip: S.of(context).clear,
                   isDanger: true,
                   onTap: () => ref.read(networkEntriesProvider.notifier).clear(),
                 ),
@@ -829,7 +830,7 @@ class _RequestCard extends ConsumerWidget {
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
-                                        'in progress',
+                                        S.of(context).inProgress,
                                         style: TextStyle(
                                           fontSize: 9,
                                           color: ColorTokens.warning,
@@ -1086,7 +1087,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                             ),
                             const SizedBox(width: 5),
                             TextComponent(
-                              'In Progress...',
+                              S.of(context).inProgressDots,
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
@@ -1117,21 +1118,21 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                     const SizedBox(width: 4),
                     // Screenshot buttons
                     Tooltip(
-                      message: 'Capture full detail as image',
+                      message: S.of(context).captureFullTooltip,
                       waitDuration: const Duration(milliseconds: 400),
                       child: _HeaderIconButton(
                         icon: LucideIcons.camera,
-                        tooltip: 'Full',
+                        tooltip: S.of(context).captureFull,
                         onPressed: _takeFullScreenshot,
                       ),
                     ),
                     const SizedBox(width: 2),
                     Tooltip(
-                      message: 'Capture current tab only',
+                      message: S.of(context).captureTabTooltip,
                       waitDuration: const Duration(milliseconds: 400),
                       child: _HeaderIconButton(
                         icon: LucideIcons.scanLine,
-                        tooltip: 'Tab',
+                        tooltip: S.of(context).captureTab,
                         onPressed: _takeTabScreenshot,
                       ),
                     ),
@@ -1139,7 +1140,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                     // Close button
                     _HeaderIconButton(
                       icon: LucideIcons.x,
-                      tooltip: 'Close',
+                      tooltip: S.of(context).close,
                       onPressed: widget.onClose,
                     ),
                   ],
@@ -1162,42 +1163,42 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                   children: [
                     _CopyActionChip(
                       icon: LucideIcons.link,
-                      label: 'Copy URL',
+                      label: S.of(context).copyUrl,
                       onTap: () {
                         Clipboard.setData(ClipboardData(text: entry.url));
-                        _showCopied('URL copied');
+                        _showCopied(S.of(context).urlCopied);
                       },
                     ),
                     const SizedBox(width: 6),
                     _CopyActionChip(
                       icon: LucideIcons.route,
-                      label: 'Copy Path',
+                      label: S.of(context).copyPath,
                       onTap: () {
                         try {
                           final uri = Uri.parse(entry.url);
                           final path = uri.path.isNotEmpty ? uri.path : entry.url;
                           Clipboard.setData(ClipboardData(text: path));
-                          _showCopied('Path copied');
+                          _showCopied(S.of(context).pathCopied);
                         } catch (_) {
                           Clipboard.setData(ClipboardData(text: entry.url));
-                          _showCopied('Path copied');
+                          _showCopied(S.of(context).pathCopied);
                         }
                       },
                     ),
                     const SizedBox(width: 6),
                     _CopyActionChip(
                       icon: LucideIcons.terminal,
-                      label: 'Copy cURL',
+                      label: S.of(context).copyCurl,
                       onTap: () {
                         Clipboard.setData(
                             ClipboardData(text: _buildCurl(entry)));
-                        _showCopied('cURL copied');
+                        _showCopied(S.of(context).curlCopied);
                       },
                     ),
                     const SizedBox(width: 6),
                     _CopyActionChip(
                       icon: LucideIcons.upload,
-                      label: 'Copy Request',
+                      label: S.of(context).copyRequest,
                       onTap: () {
                         final body = entry.requestBody;
                         final text = body is String
@@ -1207,13 +1208,13 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                                     .convert(body)
                                 : '');
                         Clipboard.setData(ClipboardData(text: text));
-                        _showCopied('Request copied');
+                        _showCopied(S.of(context).requestCopied);
                       },
                     ),
                     const SizedBox(width: 6),
                     _CopyActionChip(
                       icon: LucideIcons.download,
-                      label: 'Copy Response',
+                      label: S.of(context).copyResponse,
                       onTap: () {
                         final body = entry.responseBody;
                         final text = body is String
@@ -1223,7 +1224,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                                     .convert(body)
                                 : '');
                         Clipboard.setData(ClipboardData(text: text));
-                        _showCopied('Response copied');
+                        _showCopied(S.of(context).responseCopied);
                       },
                     ),
                   ],
@@ -1237,7 +1238,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                 controller: _tabController,
                 isDark: isDark,
                 accentColor: ColorTokens.primary,
-                tabs: const ['Headers', 'Request', 'Response', 'Timing'],
+                tabs: [S.of(context).headers, S.of(context).request, S.of(context).response, S.of(context).timing],
               ),
             ],
           ),
@@ -1253,12 +1254,12 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                 _HeadersTab(entry: entry),
                 _BodyTab(
                   body: entry.requestBody,
-                  label: 'Request Body',
+                  label: S.of(context).requestBody,
                   deviceId: entry.deviceId,
                 ),
                 _BodyTab(
                   body: entry.responseBody,
-                  label: 'Response Body',
+                  label: S.of(context).responseBody,
                   deviceId: entry.deviceId,
                 ),
                 _TimingTab(entry: entry),
@@ -1471,7 +1472,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 TextComponent(
-                                  'Screenshot saved',
+                                  S.of(context).screenshotSaved,
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -1540,7 +1541,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                                     ),
                                     const SizedBox(width: 6),
                                     TextComponent(
-                                      'Reveal',
+                                      S.of(context).reveal,
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
@@ -1670,17 +1671,17 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
           ),
           const Divider(height: 1),
           // Headers section
-          _screenshotSection('Request Headers', isDark),
+          _screenshotSection(S.of(context).requestHeaders, isDark),
           ...entry.requestHeaders.entries.map((e) =>
               _screenshotHeaderRow(e.key, e.value, isDark)),
           if (entry.responseHeaders.isNotEmpty) ...[
-            _screenshotSection('Response Headers', isDark),
+            _screenshotSection(S.of(context).responseHeaders, isDark),
             ...entry.responseHeaders.entries.map((e) =>
                 _screenshotHeaderRow(e.key, e.value, isDark)),
           ],
           // Request body
           if (parsedReqBody != null) ...[
-            _screenshotSection('Request Body', isDark),
+            _screenshotSection(S.of(context).requestBody, isDark),
             Padding(
               padding: const EdgeInsets.all(12),
               child: parsedReqBody is Map || parsedReqBody is List
@@ -1690,7 +1691,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
           ],
           // Response body
           if (parsedResBody != null) ...[
-            _screenshotSection('Response Body', isDark),
+            _screenshotSection(S.of(context).responseBody, isDark),
             Padding(
               padding: const EdgeInsets.all(12),
               child: parsedResBody is Map || parsedResBody is List
@@ -1705,7 +1706,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
 
   Widget _buildTabScreenshotWidget(bool isDark, int tabIndex) {
     final entry = widget.entry;
-    final tabNames = ['Headers', 'Request', 'Response', 'Timing'];
+    final tabNames = [S.of(context).headers, 'Request', 'Response', 'Timing'];
 
     Widget tabContent;
     switch (tabIndex) {
@@ -1714,11 +1715,11 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _screenshotSection('Request Headers', isDark),
+            _screenshotSection(S.of(context).requestHeaders, isDark),
             ...entry.requestHeaders.entries.map((e) =>
                 _screenshotHeaderRow(e.key, e.value, isDark)),
             if (entry.responseHeaders.isNotEmpty) ...[
-              _screenshotSection('Response Headers', isDark),
+              _screenshotSection(S.of(context).responseHeaders, isDark),
               ...entry.responseHeaders.entries.map((e) =>
                   _screenshotHeaderRow(e.key, e.value, isDark)),
             ],
@@ -2103,7 +2104,7 @@ class _HeadersTab extends StatelessWidget {
           _HeaderSection(
             icon: LucideIcons.arrowUpRight,
             iconColor: ColorTokens.primary,
-            title: 'Request Headers',
+            title: S.of(context).requestHeaders,
             count: entry.requestHeaders.length,
             headers: entry.requestHeaders,
             isDark: isDark,
@@ -2112,7 +2113,7 @@ class _HeadersTab extends StatelessWidget {
           _HeaderSection(
             icon: LucideIcons.arrowDownLeft,
             iconColor: ColorTokens.success,
-            title: 'Response Headers',
+            title: S.of(context).responseHeaders,
             count: entry.responseHeaders.length,
             headers: entry.responseHeaders,
             isDark: isDark,
@@ -2203,7 +2204,7 @@ class _HeaderSection extends StatelessWidget {
           if (headers.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: TextComponent('No headers',
+              child: TextComponent(S.of(context).noHeaders,
                   style: TextStyle(color: Colors.grey[500], fontSize: 12)),
             )
           else
@@ -2313,7 +2314,7 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
                       child: Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: TextComponent(
-                          _expanded ? 'Collapse' : 'Show more',
+                          _expanded ? S.of(context).collapse : S.of(context).showMore,
                           style: TextStyle(
                             fontSize: 10,
                             color: ColorTokens.primary,
@@ -2644,7 +2645,7 @@ class _TimingTab extends StatelessWidget {
               _TimingInfoRow(
                 icon: LucideIcons.play,
                 iconColor: ColorTokens.success,
-                label: 'Start Time',
+                label: S.of(context).startTime,
                 value: DateFormat('HH:mm:ss.SSS').format(startDt),
                 subtitle: DateFormat('yyyy-MM-dd').format(startDt),
                 isDark: isDark,
@@ -2654,7 +2655,7 @@ class _TimingTab extends StatelessWidget {
                 _TimingInfoRow(
                   icon: LucideIcons.square,
                   iconColor: ColorTokens.error,
-                  label: 'End Time',
+                  label: S.of(context).endTime,
                   value: DateFormat('HH:mm:ss.SSS').format(endDt),
                   subtitle: DateFormat('yyyy-MM-dd').format(endDt),
                   isDark: isDark,

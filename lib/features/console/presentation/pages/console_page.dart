@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -213,7 +214,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Tag', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+                    Text(S.of(context).tag, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -232,7 +233,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Message', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+                  Text(S.of(context).message, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
                   const SizedBox(height: 6),
                   Container(
                     width: double.infinity,
@@ -264,7 +265,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Metadata', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+                    Text(S.of(context).metadata, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
@@ -285,7 +286,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Stack Trace', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
+                    Text(S.of(context).stackTrace, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[500])),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
@@ -352,11 +353,11 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
         const Divider(height: 1),
         Expanded(
           child: _entries.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: LucideIcons.terminal,
-                  title: 'No logs yet',
+                  title: S.of(context).noLogsYet,
                   subtitle:
-                      'Connect a device and start logging to see entries here',
+                      S.of(context).connectDeviceToSeeLogs,
                 )
               : Stack(
                   children: [
@@ -532,7 +533,7 @@ class _ConsoleToolbar extends ConsumerWidget {
           SizedBox(
             width: 220,
             child: SearchField(
-              hintText: 'Search logs...',
+              hintText: S.of(context).searchLogs,
               onChanged: (value) {
                 ref.read(consoleSearchProvider.notifier).state = value;
               },
@@ -554,7 +555,7 @@ class _ConsoleToolbar extends ConsumerWidget {
               children: [
                 _IconBtn(
                   icon: LucideIcons.arrowDownToLine,
-                  tooltip: 'Auto-scroll',
+                  tooltip: S.of(context).autoScroll,
                   isActive: autoScroll,
                   onTap: onToggleAutoScroll,
                 ),
@@ -567,7 +568,7 @@ class _ConsoleToolbar extends ConsumerWidget {
                       icon: isTop
                           ? LucideIcons.arrowUpNarrowWide
                           : LucideIcons.arrowDownNarrowWide,
-                      tooltip: isTop ? 'Newest first' : 'Oldest first',
+                      tooltip: isTop ? S.of(context).newestFirst : S.of(context).oldestFirst,
                       isActive: isTop,
                       onTap: () =>
                           ref.read(scrollDirectionProvider.notifier).state =
@@ -586,7 +587,7 @@ class _ConsoleToolbar extends ConsumerWidget {
                 const SizedBox(width: 2),
                 _IconBtn(
                   icon: LucideIcons.trash2,
-                  tooltip: 'Clear console',
+                  tooltip: S.of(context).clearConsole,
                   isDanger: true,
                   onTap: onClear,
                 ),
@@ -966,12 +967,12 @@ class _LogDetailPanel extends StatelessWidget {
                 ),
                 // Copy button
                 Tooltip(
-                  message: 'Copy message',
+                  message: S.of(context).copyMessage,
                   child: GestureDetector(
                     onTap: () {
                       Clipboard.setData(
                           ClipboardData(text: entry.message));
-                      showCopiedToast(context, label: 'Log copied');
+                      showCopiedToast(context, label: S.of(context).logCopied);
                     },
                     child: MouseRegion(
                       cursor: SystemMouseCursors.click,
@@ -1016,7 +1017,7 @@ class _LogDetailPanel extends StatelessWidget {
                 const SizedBox(width: 4),
                 // Close button
                 Tooltip(
-                  message: 'Close panel',
+                  message: S.of(context).closePanel,
                   child: GestureDetector(
                     onTap: onClose,
                     child: MouseRegion(
@@ -1048,14 +1049,14 @@ class _LogDetailPanel extends StatelessWidget {
                 children: [
                   // Tag
                   if (entry.tag != null) ...[
-                    _SectionLabel(label: 'Tag'),
+                    _SectionLabel(label: S.of(context).tag),
                     const SizedBox(height: 6),
                     _TagBadge(tag: entry.tag!),
                     const SizedBox(height: 16),
                   ],
 
                   // Message
-                  _SectionLabel(label: 'Message'),
+                  _SectionLabel(label: S.of(context).message),
                   const SizedBox(height: 6),
                   Container(
                     width: double.infinity,
@@ -1089,7 +1090,7 @@ class _LogDetailPanel extends StatelessWidget {
                   if (entry.metadata != null &&
                       entry.metadata!.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    _SectionLabel(label: 'Metadata'),
+                    _SectionLabel(label: S.of(context).metadata),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
@@ -1113,7 +1114,7 @@ class _LogDetailPanel extends StatelessWidget {
                   // Stack trace
                   if (entry.stackTrace != null) ...[
                     const SizedBox(height: 20),
-                    _SectionLabel(label: 'Stack Trace'),
+                    _SectionLabel(label: S.of(context).stackTrace),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -171,11 +172,11 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
         const Divider(height: 1),
         Expanded(
           child: _entries.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: LucideIcons.database,
-                  title: 'No storage data',
+                  title: S.of(context).noStorageData,
                   subtitle:
-                      'SharedPreferences, AsyncStorage, and Hive entries appear here',
+                      S.of(context).storageEntriesAppearHere,
                 )
               : Stack(
                   children: [
@@ -317,9 +318,9 @@ class _Toolbar extends ConsumerWidget {
 
           // ── Operation segment group ──
           _SegmentGroup(isDark: isDark, children: [
-            _SegmentChip(label: 'READ', isActive: opFilter == 'read', color: ColorTokens.info, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).state = opFilter == 'read' ? null : 'read'),
-            _SegmentChip(label: 'WRITE', isActive: opFilter == 'write', color: ColorTokens.success, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).state = opFilter == 'write' ? null : 'write'),
-            _SegmentChip(label: 'DELETE', isActive: opFilter == 'delete', color: ColorTokens.error, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).state = opFilter == 'delete' ? null : 'delete'),
+            _SegmentChip(label: S.of(context).read, isActive: opFilter == 'read', color: ColorTokens.info, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).state = opFilter == 'read' ? null : 'read'),
+            _SegmentChip(label: S.of(context).write, isActive: opFilter == 'write', color: ColorTokens.success, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).state = opFilter == 'write' ? null : 'write'),
+            _SegmentChip(label: S.of(context).delete, isActive: opFilter == 'delete', color: ColorTokens.error, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).state = opFilter == 'delete' ? null : 'delete'),
           ]),
           const SizedBox(width: 10),
 
@@ -347,7 +348,7 @@ class _Toolbar extends ConsumerWidget {
           SizedBox(
             width: 200,
             child: SearchField(
-              hintText: 'Filter keys...',
+              hintText: S.of(context).filterKeys,
               onChanged: (v) =>
                   ref.read(storageSearchProvider.notifier).state = v,
             ),
@@ -368,7 +369,7 @@ class _Toolbar extends ConsumerWidget {
               children: [
                 _IconBtn(
                   icon: LucideIcons.arrowDownToLine,
-                  tooltip: 'Auto-scroll',
+                  tooltip: S.of(context).autoScroll,
                   isActive: autoScroll,
                   onTap: onToggleAutoScroll,
                 ),
@@ -381,7 +382,7 @@ class _Toolbar extends ConsumerWidget {
                       icon: isTop
                           ? LucideIcons.arrowUpNarrowWide
                           : LucideIcons.arrowDownNarrowWide,
-                      tooltip: isTop ? 'Newest first' : 'Oldest first',
+                      tooltip: isTop ? S.of(context).newestFirst : S.of(context).oldestFirst,
                       isActive: isTop,
                       onTap: () =>
                           ref.read(scrollDirectionProvider.notifier).state =
@@ -400,7 +401,7 @@ class _Toolbar extends ConsumerWidget {
                 const SizedBox(width: 2),
                 _IconBtn(
                   icon: LucideIcons.trash2,
-                  tooltip: 'Clear all',
+                  tooltip: S.of(context).clearAll,
                   isDanger: true,
                   onTap: () =>
                       ref.read(storageEntriesProvider.notifier).clear(),
@@ -820,7 +821,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextComponent('Key',
+          TextComponent(S.of(context).key,
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -834,7 +835,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                 color: ColorTokens.primary,
               )),
           const SizedBox(height: 16),
-          TextComponent('Value',
+          TextComponent(S.of(context).value,
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -851,7 +852,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
           else
             JsonPrettyViewer(data: entry.value),
           const SizedBox(height: 16),
-          TextComponent('Metadata',
+          TextComponent(S.of(context).metadata,
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -974,14 +975,14 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                 const SizedBox(width: 10),
                 _DetailIconBtn(
                   icon: LucideIcons.camera,
-                  tooltip: 'Capture',
+                  tooltip: S.of(context).captureAsImage,
                   isDark: isDark,
                   onTap: () => _takeScreenshot(context, isDark),
                 ),
                 const SizedBox(width: 4),
                 _DetailIconBtn(
                   icon: LucideIcons.x,
-                  tooltip: 'Close',
+                  tooltip: S.of(context).close,
                   isDark: isDark,
                   onTap: widget.onClose,
                 ),
@@ -1117,7 +1118,7 @@ class _ViewModeToggle extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               TextComponent(
-                isJsonMode ? 'JSON' : 'Tree',
+                isJsonMode ? S.of(context).json : S.of(context).tree,
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -1167,7 +1168,7 @@ class _FormatToggle extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               TextComponent(
-                isFormatted ? 'Raw' : 'Format',
+                isFormatted ? S.of(context).raw : S.of(context).format,
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,

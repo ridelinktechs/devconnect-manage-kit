@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -176,11 +177,11 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
         const Divider(height: 1),
         Expanded(
           child: _entries.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: LucideIcons.layers,
-                  title: 'No state changes',
+                  title: S.of(context).noStateChanges,
                   subtitle:
-                      'Redux, BLoC, Riverpod, and MobX state changes appear here',
+                      S.of(context).stateChangesAppearHere,
                 )
               : Stack(
                   children: [
@@ -295,7 +296,7 @@ class _Toolbar extends ConsumerWidget {
           SizedBox(
             width: 200,
             child: SearchField(
-              hintText: 'Filter actions...',
+              hintText: S.of(context).filterActions,
               onChanged: (v) =>
                   ref.read(stateSearchProvider.notifier).state = v,
             ),
@@ -315,14 +316,14 @@ class _Toolbar extends ConsumerWidget {
               children: [
                 _IconBtn(
                   icon: LucideIcons.arrowDownToLine,
-                  tooltip: 'Auto-scroll',
+                  tooltip: S.of(context).autoScroll,
                   isActive: autoScroll,
                   onTap: onToggleAutoScroll,
                 ),
                 const SizedBox(width: 2),
                 _IconBtn(
                   icon: isTop ? LucideIcons.arrowUpNarrowWide : LucideIcons.arrowDownNarrowWide,
-                  tooltip: isTop ? 'Newest at top' : 'Newest at bottom',
+                  tooltip: isTop ? S.of(context).newestAtTop : S.of(context).newestAtBottom,
                   isActive: isTop,
                   onTap: () => ref.read(scrollDirectionProvider.notifier).state =
                       isTop ? ScrollDirection.bottom : ScrollDirection.top,
@@ -338,7 +339,7 @@ class _Toolbar extends ConsumerWidget {
                 const SizedBox(width: 2),
                 _IconBtn(
                   icon: LucideIcons.trash2,
-                  tooltip: 'Clear all',
+                  tooltip: S.of(context).clearAll,
                   isDanger: true,
                   onTap: () => ref.read(stateChangesProvider.notifier).clear(),
                 ),
@@ -534,7 +535,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                         letterSpacing: 1)),
                 const SizedBox(height: 8),
                 if (entry.diff.isEmpty)
-                  TextComponent('No changes',
+                  TextComponent(S.of(context).noChanges,
                       style: TextStyle(color: Colors.grey[500], fontSize: 12))
                 else
                   ...entry.diff.map((d) => Padding(
@@ -663,7 +664,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                                 ),
                                 const SizedBox(width: 4),
                                 TextComponent(
-                                  _jsonPrettyMode ? 'Pretty' : 'Tree',
+                                  _jsonPrettyMode ? S.of(context).pretty : S.of(context).tree,
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
@@ -681,7 +682,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                       // Screenshot button
                       _DetailIconBtn(
                         icon: LucideIcons.camera,
-                        tooltip: 'Capture as image',
+                        tooltip: S.of(context).captureAsImage,
                         isDark: isDark,
                         onTap: () => _takeScreenshot(context, isDark),
                       ),
@@ -689,7 +690,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                       // Close button
                       _DetailIconBtn(
                         icon: LucideIcons.x,
-                        tooltip: 'Close',
+                        tooltip: S.of(context).close,
                         isDark: isDark,
                         onTap: widget.onClose,
                       ),
@@ -699,7 +700,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                 _DetailTabBar(
                   isDark: isDark,
                   accentColor: ColorTokens.secondary,
-                  tabs: const ['Diff', 'Before', 'After'],
+                  tabs: [S.of(context).diff, S.of(context).before, S.of(context).after],
                 ),
               ],
             ),
@@ -787,9 +788,9 @@ class _DiffView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (diff.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: LucideIcons.equal,
-        title: 'No changes detected',
+        title: S.of(context).noChangesDetected,
       );
     }
 

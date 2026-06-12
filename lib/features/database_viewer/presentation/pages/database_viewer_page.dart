@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -54,9 +55,9 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
         // Content
         Expanded(
           child: schemas.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: LucideIcons.hardDrive,
-                  title: 'No database connected',
+                  title: S.of(context).noData,
                   subtitle:
                       'Connect a device with SQLite to browse tables and run queries',
                 )
@@ -225,7 +226,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                           // Results
                           Expanded(
                             child: queryResult == null
-                                ? const EmptyState(
+                                ? EmptyState(
                                     icon: LucideIcons.table2,
                                     title: 'Run a query to see results',
                                     subtitle:

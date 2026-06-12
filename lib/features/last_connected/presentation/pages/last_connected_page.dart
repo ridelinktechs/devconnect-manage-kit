@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -55,7 +56,7 @@ class _LastConnectedPageState extends ConsumerState<LastConnectedPage> {
         const Divider(height: 1),
         Expanded(
           child: sessions.isEmpty
-              ? const EmptyState(
+              ? EmptyState(
                   icon: LucideIcons.history,
                   title: 'No history',
                   subtitle:
@@ -601,9 +602,9 @@ class _AllEventsList extends StatelessWidget {
     events.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     if (events.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: LucideIcons.inbox,
-        title: 'No events',
+        title: S.of(context).noEventsYet,
       );
     }
 
@@ -748,7 +749,7 @@ class _LogList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) {
-      return const EmptyState(icon: LucideIcons.terminal, title: 'No logs');
+      return EmptyState(icon: LucideIcons.terminal, title: S.of(context).noLogsYet);
     }
     return ListView.builder(
       itemCount: entries.length,
@@ -821,8 +822,8 @@ class _NetworkList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) {
-      return const EmptyState(
-          icon: LucideIcons.globe, title: 'No network requests');
+      return EmptyState(
+          icon: LucideIcons.globe, title: S.of(context).noNetworkRequests);
     }
     return ListView.builder(
       itemCount: entries.length,
@@ -914,8 +915,8 @@ class _StateList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) {
-      return const EmptyState(
-          icon: LucideIcons.layers, title: 'No state changes');
+      return EmptyState(
+          icon: LucideIcons.layers, title: S.of(context).noStateChanges);
     }
     return ListView.builder(
       itemCount: entries.length,
@@ -999,7 +1000,7 @@ class _StorageList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
           icon: LucideIcons.database, title: 'No storage operations');
     }
     return ListView.builder(
