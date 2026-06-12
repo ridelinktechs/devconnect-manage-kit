@@ -616,7 +616,20 @@ export class DevConnect {
 
       let requestBody: any;
       if (init?.body) {
-        try { requestBody = JSON.parse(init.body as string); } catch (_) { requestBody = String(init.body); }
+        if (init.body instanceof FormData) {
+          const fields: Record<string, any> = {};
+          const files: any[] = [];
+          for (const [key, value] of (init.body as any).entries()) {
+            if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
+              files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
+            } else {
+              fields[key] = value;
+            }
+          }
+          requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
+        } else {
+          try { requestBody = JSON.parse(init.body as string); } catch (_) { requestBody = String(init.body); }
+        }
       }
 
       const source = classifyUrl(url);
@@ -670,7 +683,22 @@ export class DevConnect {
       const origSend = xhr.send.bind(xhr);
       xhr.send = (body?: any) => {
         startTime = Date.now();
-        if (body) { try { requestBody = JSON.parse(body); } catch (_) { requestBody = body; } }
+        if (body) {
+          if (body instanceof FormData) {
+            const fields: Record<string, any> = {};
+            const files: any[] = [];
+            for (const [key, value] of (body as any).entries()) {
+              if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
+                files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
+              } else {
+                fields[key] = value;
+              }
+            }
+            requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
+          } else {
+            try { requestBody = JSON.parse(body); } catch (_) { requestBody = body; }
+          }
+        }
         dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source: classifyUrl(url) });
         return origSend(body);
       };

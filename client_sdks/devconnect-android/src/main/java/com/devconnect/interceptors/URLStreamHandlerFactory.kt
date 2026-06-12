@@ -104,7 +104,19 @@ object DevConnectURLStreamHandlerFactory {
             }
         }
 
-        override fun getErrorStream(): InputStream? = inner.errorStream
+        override fun getErrorStream(): InputStream? {
+            return try {
+                val stream = inner.errorStream ?: return null
+                val bytes = ByteArrayOutputStream()
+                stream.copyTo(bytes)
+                val data = bytes.toByteArray()
+                reportComplete(data, null)
+                ByteArrayInputStream(data)
+            } catch (e: Exception) {
+                reportComplete(null, e.message)
+                inner.errorStream
+            }
+        }
 
         private fun reportComplete(responseBytes: ByteArray?, error: String?) {
             val resHeaders = mutableMapOf<String, String>()

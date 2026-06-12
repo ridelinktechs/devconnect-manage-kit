@@ -52,13 +52,39 @@ class OkHttpInterceptor : Interceptor {
         var requestBody: Any? = null
         try {
             request.body?.let { body ->
-                val buffer = okio.Buffer()
-                body.writeTo(buffer)
-                val bodyStr = buffer.readUtf8()
-                requestBody = try {
-                    JSONObject(bodyStr)
-                } catch (_: Exception) {
-                    bodyStr
+                if (body is okhttp3.MultipartBody) {
+                    val fields = mutableMapOf<String, Any?>()
+                    val files = mutableListOf<Map<String, Any?>>()
+                    body.parts.forEach { part ->
+                        val contentDisposition = part.headers?.get("Content-Disposition") ?: ""
+                        val nameMatch = Regex("""name="([^"]+)"""").find(contentDisposition)
+                        val filenameMatch = Regex("""filename="([^"]+)"""").find(contentDisposition)
+                        val name = nameMatch?.groupValues?.get(1) ?: "unknown"
+                        if (filenameMatch != null) {
+                            files.add(mapOf(
+                                "key" to name,
+                                "filename" to filenameMatch.groupValues[1],
+                                "contentType" to part.body.contentType()?.toString(),
+                                "length" to part.body.contentLength()
+                            ))
+                        } else {
+                            val buffer = okio.Buffer()
+                            part.body.writeTo(buffer)
+                            fields[name] = buffer.readUtf8()
+                        }
+                    }
+                    val result = mutableMapOf<String, Any?>()
+                    result.putAll(fields)
+                    if (files.isNotEmpty()) {
+                        result["_files"] = files
+                        result["_contentType"] = "multipart/form-data"
+                    }
+                    requestBody = result
+                } else {
+                    val buffer = okio.Buffer()
+                    body.writeTo(buffer)
+                    val bodyStr = buffer.readUtf8()
+                    requestBody = try { JSONObject(bodyStr) } catch (_: Exception) { bodyStr }
                 }
             }
         } catch (_: Exception) {}

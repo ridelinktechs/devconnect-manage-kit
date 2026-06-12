@@ -45,15 +45,7 @@ class DevConnectDioInterceptor {
       dynamic requestBody;
       try {
         final data = options.data;
-        if (data is Map || data is List) {
-          requestBody = data;
-        } else if (data is String) {
-          try {
-            requestBody = jsonDecode(data);
-          } catch (_) {
-            requestBody = data;
-          }
-        }
+        requestBody = _extractBody(data);
       } catch (_) {}
 
       // Store requestId on the options extras for later retrieval
@@ -142,16 +134,7 @@ class DevConnectDioInterceptor {
       // Request body
       dynamic requestBody;
       try {
-        final data = options?.data;
-        if (data is Map || data is List) {
-          requestBody = data;
-        } else if (data is String) {
-          try {
-            requestBody = jsonDecode(data);
-          } catch (_) {
-            requestBody = data;
-          }
-        }
+        requestBody = _extractBody(options?.data);
       } catch (_) {}
 
       DevConnectClient.safeReportNetworkComplete(
@@ -170,6 +153,52 @@ class DevConnectDioInterceptor {
     try {
       handler.next(response);
     } catch (_) {}
+  }
+
+  /// Extract request body from various data types including FormData/multipart.
+  dynamic _extractBody(dynamic data) {
+    if (data == null) return null;
+    if (data is Map || data is List) return data;
+    if (data is String) {
+      try { return jsonDecode(data); } catch (_) { return data; }
+    }
+    // Handle FormData / multipart — duck-typing (no Dio dependency).
+    try {
+      final fields = data.fields;
+      final files = data.files;
+      if (fields is List || files is List) {
+        final result = <String, dynamic>{};
+        // Text fields: List<MapEntry<String, String>>
+        if (fields is List) {
+          for (final entry in fields) {
+            try { result[entry.key.toString()] = entry.value.toString(); }
+            catch (_) {}
+          }
+        }
+        // File fields: List<MapEntry<String, MultipartFile>>
+        if (files is List && files.isNotEmpty) {
+          final fileList = <Map<String, dynamic>>[];
+          for (final entry in files) {
+            try {
+              final file = entry.value;
+              fileList.add({
+                'key': entry.key.toString(),
+                'filename': file.filename?.toString(),
+                'contentType': file.contentType?.toString(),
+                'length': file.length,
+              });
+            } catch (_) {}
+          }
+          result['_files'] = fileList;
+        }
+        if (result.isNotEmpty) {
+          result['_contentType'] = 'multipart/form-data';
+          return result;
+        }
+      }
+    } catch (_) {}
+    // Fallback: toString
+    try { return data.toString(); } catch (_) { return null; }
   }
 
   /// Called when an error occurs.
