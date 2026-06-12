@@ -1,0 +1,75 @@
+name: Manual Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version name (e.g., 1.0.0)"
+        required: true
+        type: string
+      platform:
+        description: "Target platform"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - macos
+          - windows
+
+concurrency:
+  group: release-${{ inputs.version_name }}
+  cancel-in-progress: true
+
+jobs:
+  build-macos:
+    name: Build macOS
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DevConnect-macos-${{ inputs.version_name }}
+          path: build/macos/Build/Products/Release/DevConnect.app
+
+  build-windows:
+    name: Build Windows
+    if: inputs.platform == 'all' || inputs.platform == 'windows'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DevConnect-windows-${{ inputs.version_name }}
+          path: build/windows/x64/runner/Release/
+
+  release-github:
+    name: Create GitHub Release
+    needs: [build-macos, build-windows]
+    if: always() && (needs.build-macos.result == 'success' || needs.build-windows.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version_name }}
+          name: DevConnect v${{ inputs.version_name }}
+          files: artifacts/**/*
+          generate_release_notes: true

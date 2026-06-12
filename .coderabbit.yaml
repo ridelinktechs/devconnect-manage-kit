@@ -1,0 +1,65 @@
+# CodeRabbit Configuration — DevConnect
+# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+
+reviews:
+  auto_review:
+    enabled: true
+    incremental: true
+
+  profile: "chill"
+
+  path_instructions:
+    - path: "lib/components/**"
+      instructions: |
+        - Use TextComponent instead of Text for all selectable text in detail panels
+        - Use ColorTokens for colors, never hardcode hex values
+
+    - path: "lib/features/**/presentation/**"
+      instructions: |
+        - Detail panels must use TextComponent for selectable text
+        - Screenshot should use showScreenshotSavedToast from toast_utils
+        - Follow ConsumerStatefulWidget + Riverpod patterns
+        - Use StableListView for list views
+
+    - path: "lib/core/**"
+      instructions: |
+        - Providers: StateNotifierProvider + AppPreferences persistence
+        - Use AppConstants.monoFontFamily for monospace text
+
+    - path: "lib/server/**"
+      instructions: |
+        - Storage type parser must handle all 12 types + prefixed formats (mmkv:label)
+        - Keep backward compatibility
+
+    - path: "client_sdks/**"
+      instructions: |
+        - Interceptors must handle FormData/multipart with field + file extraction
+        - Use duck-typing for third-party compatibility (no compile-time dependency)
+        - Body extraction: try JSON.parse first, fallback to string
+        - OkHttp: handle MultipartBody structured
+        - HttpURLConnection: capture errorStream
+
+  tone_instructions: |
+    Senior cross-platform reviewer for DevConnect. Focus on:
+    - Cross-platform compatibility (Flutter, React Native, Android)
+    - Body type coverage (JSON, FormData, binary, streaming)
+    - Storage type coverage (all 12 types)
+    - TextComponent in detail panels
+    - Performance (StableListView, RepaintBoundary)
+
+chat:
+  auto_reply: true
+
+tools:
+  ast-grep:
+    enabled: false
+  biome:
+    enabled: false
+  ruff:
+    enabled: false
+  dart-analyze:
+    enabled: true
+
+knowledge:
+  learnings:
+    enabled: true
