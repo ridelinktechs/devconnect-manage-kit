@@ -1,13 +1,20 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../components/text/text_component.dart';
+import '../../../../core/utils/toast_utils.dart';
+
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/performance/performance_entry.dart';
-import '../../../../core/utils/toast_utils.dart';
 import '../../provider/performance_providers.dart';
 
 class MemoryLeaksPage extends ConsumerStatefulWidget {
@@ -352,69 +359,148 @@ class _LeakList extends StatelessWidget {
 
 // ---- Leak Detail ----
 
-class _LeakDetail extends StatelessWidget {
+class _LeakDetail extends StatefulWidget {
   final MemoryLeakEntry entry;
   final bool isDark;
 
   const _LeakDetail({required this.entry, required this.isDark});
 
   @override
+  State<_LeakDetail> createState() => _LeakDetailState();
+}
+
+class _LeakDetailState extends State<_LeakDetail> {
+  final _contentKey = GlobalKey();
+
+  Future<void> _takeScreenshot() async {
+    try {
+      final boundary = _contentKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final pngBytes = byteData.buffer.asUint8List();
+      final fileName =
+          'devconnect_leak_${DateTime.now().millisecondsSinceEpoch}.png';
+      final location = await getSaveLocation(
+        suggestedName: fileName,
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'PNG Image', extensions: ['png']),
+        ],
+      );
+      if (location == null) return;
+      await File(location.path).writeAsBytes(pngBytes);
+      if (mounted) showScreenshotSavedToast(context, filePath: location.path);
+    } catch (_) {
+      if (mounted) showCopiedToast(context, label: 'Screenshot failed');
+    }
+  }
+
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
+    final entry = widget.entry;
+    final isDark = widget.isDark;
+
+    return Column(
+      children: [
+        // Header with screenshot + close
+        Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: isDark ? ColorTokens.darkBackground : Colors.white,
+          ),
+          child: Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: _severityColor(entry.severity).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  LucideIcons.bug,
-                  size: 18,
+              Icon(LucideIcons.bug, size: 14, color: _severityColor(entry.severity)),
+              const SizedBox(width: 8),
+              TextComponent(
+                entry.objectName,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                   color: _severityColor(entry.severity),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.objectName,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _leakTypeLabel(entry.leakType),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? Colors.white54 : Colors.black45,
-                      ),
-                    ),
-                  ],
+              const Spacer(),
+              _severityTag(entry.severity),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'Capture as image',
+                child: IconButton(
+                  icon: Icon(LucideIcons.camera,
+                      size: 14, color: isDark ? Colors.grey[500] : Colors.grey[600]),
+                  onPressed: _takeScreenshot,
+                  splashRadius: 14,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  padding: EdgeInsets.zero,
                 ),
               ),
-              _severityTag(entry.severity),
             ],
           ),
-          const SizedBox(height: 16),
+        ),
+        const Divider(height: 1),
+        // Content
+        Expanded(
+          child: RepaintBoundary(
+            key: _contentKey,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header info
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: _severityColor(entry.severity).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          LucideIcons.bug,
+                          size: 18,
+                          color: _severityColor(entry.severity),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextComponent(
+                              entry.objectName,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            TextComponent(
+                              _leakTypeLabel(entry.leakType),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark ? Colors.white54 : Colors.black45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _severityTag(entry.severity),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
           // Info cards
           _DetailSection(
             title: 'Detail',
             icon: LucideIcons.fileText,
             isDark: isDark,
-            child: Text(
+            child: TextComponent(
               entry.detail,
               style: TextStyle(
                 fontSize: 12,
@@ -429,7 +515,7 @@ class _LeakDetail extends StatelessWidget {
               title: 'Retained Size',
               icon: LucideIcons.hardDrive,
               isDark: isDark,
-              child: Text(
+              child: TextComponent(
                 _formatBytes(entry.retainedSizeBytes!),
                 style: TextStyle(
                   fontSize: 14,
@@ -469,7 +555,7 @@ class _LeakDetail extends StatelessWidget {
                       : ColorTokens.lightSurface,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: SelectableText(
+                child: TextComponent(
                   entry.stackTrace!,
                   style: TextStyle(
                     fontSize: 11,
@@ -494,7 +580,7 @@ class _LeakDetail extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        TextComponent(
                           kv.key,
                           style: TextStyle(
                             fontSize: 11,
@@ -505,7 +591,7 @@ class _LeakDetail extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
+                          child: TextComponent(
                             '${kv.value}',
                             style: TextStyle(
                               fontSize: 11,
@@ -526,7 +612,7 @@ class _LeakDetail extends StatelessWidget {
             title: 'Timestamp',
             icon: LucideIcons.clock,
             isDark: isDark,
-            child: Text(
+            child: TextComponent(
               DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
                 DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
               ),
@@ -536,8 +622,12 @@ class _LeakDetail extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

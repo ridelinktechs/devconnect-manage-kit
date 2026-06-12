@@ -1,11 +1,17 @@
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/text/text_component.dart';
 import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../../models/performance/performance_entry.dart';
 import '../../provider/performance_providers.dart';
@@ -48,6 +54,34 @@ class PerformancePage extends ConsumerStatefulWidget {
 
 class _PerformancePageState extends ConsumerState<PerformancePage> {
   bool _isRecording = true;
+  final _contentKey = GlobalKey();
+
+  Future<void> _takeScreenshot() async {
+    try {
+      final boundary = _contentKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final pngBytes = byteData.buffer.asUint8List();
+      final fileName =
+          'devconnect_performance_${DateTime.now().millisecondsSinceEpoch}.png';
+      final location = await getSaveLocation(
+        suggestedName: fileName,
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'PNG Image', extensions: ['png']),
+        ],
+      );
+      if (location == null) return;
+      final path = location.path;
+      await File(path).writeAsBytes(pngBytes);
+      if (mounted) showScreenshotSavedToast(context, filePath: path);
+    } catch (_) {
+      if (mounted) showCopiedToast(context, label: 'Screenshot failed');
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -109,10 +143,13 @@ class _PerformancePageState extends ConsumerState<PerformancePage> {
           onClear: () {
             ref.read(performanceEntriesProvider.notifier).clear();
           },
+          onScreenshot: _takeScreenshot,
         ),
         // Profiler charts stacked vertically like Android Studio
         Expanded(
-          child: ListView(
+          child: RepaintBoundary(
+            key: _contentKey,
+            child: ListView(
             padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
             children: [
               // FPS chart row
@@ -271,6 +308,7 @@ class _PerformancePageState extends ConsumerState<PerformancePage> {
               ],
             ],
           ),
+          ),
         ),
       ],
     );
@@ -319,6 +357,7 @@ class _ProfilerToolbar extends StatelessWidget {
   final int jankCount;
   final VoidCallback onToggleRecording;
   final VoidCallback onClear;
+  final VoidCallback? onScreenshot;
 
   const _ProfilerToolbar({
     required this.isDark,
@@ -329,6 +368,7 @@ class _ProfilerToolbar extends StatelessWidget {
     required this.jankCount,
     required this.onToggleRecording,
     required this.onClear,
+    this.onScreenshot,
   });
 
   @override
@@ -404,6 +444,15 @@ class _ProfilerToolbar extends StatelessWidget {
             ),
           ],
           const Spacer(),
+          if (onScreenshot != null) ...[
+            _ToolbarButton(
+              icon: LucideIcons.camera,
+              tooltip: 'Capture as image',
+              isDark: isDark,
+              onTap: onScreenshot!,
+            ),
+            const SizedBox(width: 4),
+          ],
           Icon(
             LucideIcons.gauge,
             size: 14,

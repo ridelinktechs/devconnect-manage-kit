@@ -1,9 +1,17 @@
-import '../../../../components/text/text_component.dart';
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../../../components/text/text_component.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/utils/toast_utils.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
@@ -410,7 +418,7 @@ class _BenchmarkRow extends StatelessWidget {
 // Benchmark Detail Panel
 // ═══════════════════════════════════════════════
 
-class _BenchmarkDetail extends StatelessWidget {
+class _BenchmarkDetail extends StatefulWidget {
   final BenchmarkEntry entry;
   final bool isDark;
   final VoidCallback onClose;
@@ -423,7 +431,46 @@ class _BenchmarkDetail extends StatelessWidget {
   });
 
   @override
+  State<_BenchmarkDetail> createState() => _BenchmarkDetailState();
+}
+
+class _BenchmarkDetailState extends State<_BenchmarkDetail> {
+  final _contentKey = GlobalKey();
+
+  Future<void> _takeScreenshot() async {
+    try {
+      final boundary = _contentKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final pngBytes = byteData.buffer.asUint8List();
+      final fileName =
+          'devconnect_benchmark_${DateTime.now().millisecondsSinceEpoch}.png';
+      final location = await getSaveLocation(
+        suggestedName: fileName,
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'PNG Image', extensions: ['png']),
+        ],
+      );
+      if (location == null) return;
+
+      final file = File(location.path);
+      await file.writeAsBytes(pngBytes);
+      if (mounted) showScreenshotSavedToast(context, filePath: file.path);
+    } catch (e) {
+      if (mounted) showCopiedToast(context, label: 'Screenshot failed');
+    }
+  }
+
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final isDark = widget.isDark;
     final startTime = DateFormat('yyyy-MM-dd HH:mm:ss.SSS')
         .format(DateTime.fromMillisecondsSinceEpoch(entry.startTime));
     final endTime = entry.endTime != null
@@ -477,12 +524,26 @@ class _BenchmarkDetail extends StatelessWidget {
                     ),
                   ),
                 const SizedBox(width: 8),
+                Tooltip(
+                  message: 'Capture as image',
+                  child: IconButton(
+                    icon: Icon(LucideIcons.camera,
+                        size: 14,
+                        color: isDark ? Colors.grey[500] : Colors.grey[600]),
+                    onPressed: _takeScreenshot,
+                    splashRadius: 14,
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+                const SizedBox(width: 2),
                 IconButton(
                   icon: Icon(LucideIcons.x,
                       size: 14,
                       color:
                           isDark ? Colors.grey[500] : Colors.grey[600]),
-                  onPressed: onClose,
+                  onPressed: widget.onClose,
                   splashRadius: 14,
                   constraints:
                       const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -494,7 +555,9 @@ class _BenchmarkDetail extends StatelessWidget {
           const Divider(height: 1),
           // Info
           Expanded(
-            child: SingleChildScrollView(
+            child: RepaintBoundary(
+              key: _contentKey,
+              child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -557,6 +620,7 @@ class _BenchmarkDetail extends StatelessWidget {
                     ),
                 ],
               ),
+            ),
             ),
           ),
         ],
