@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/constants/ws_constants.dart';
+import '../core/preferences/app_preferences.dart';
 import '../models/device_info.dart';
 import 'protocol/dc_message.dart';
 import 'ws_connection.dart';
@@ -20,6 +21,12 @@ class WsServer {
   final Map<String, WsConnection> _connections = {};
   final _uuid = const Uuid();
 
+  // Stable identifier for this desktop machine. Generated once on first run
+  // and persisted via AppPreferences so clients can detect when a cached host
+  // points at a different machine (e.g. after switching between Simulator
+  // and a real iPhone on the same network).
+  String? _machineId;
+
   final _messageController = StreamController<DCMessage>.broadcast();
   final _connectionController = StreamController<DeviceInfo>.broadcast();
   final _disconnectionController = StreamController<String>.broadcast();
@@ -31,6 +38,24 @@ class WsServer {
   Map<String, WsConnection> get connections => Map.unmodifiable(_connections);
   bool get isRunning => _server != null;
   int get port => _server?.port ?? 0;
+
+  /// Stable identifier for this desktop — persists across restarts so clients
+  /// can verify that a cached host actually points at *this* machine and not
+  /// some other device that happened to claim the same IP.
+  String get machineId {
+    final cached = _machineId;
+    if (cached != null) return cached;
+    final prefs = AppPreferences().get<String>('machineId');
+    if (prefs != null && prefs.isNotEmpty) {
+      _machineId = prefs;
+      return prefs;
+    }
+    final fresh = _uuid.v4();
+    _machineId = fresh;
+    // Fire-and-forget — AppPreferences persists asynchronously
+    AppPreferences().set('machineId', fresh);
+    return fresh;
+  }
 
   // UDP broadcast beacon
   RawDatagramSocket? _udpSocket;
@@ -69,6 +94,7 @@ class WsServer {
       final beacon = utf8.encode(jsonEncode({
         'type': 'devconnect_beacon',
         'port': wsPort,
+        'machineId': machineId,
         'app': AppConstants.appName,
         'version': AppConstants.appVersion,
       }));
@@ -149,6 +175,7 @@ class WsServer {
         ..write(jsonEncode({
           'app': AppConstants.appName,
           'version': AppConstants.appVersion,
+          'machineId': machineId,
           'connections': _connections.length,
         }));
       await request.response.close();
@@ -156,13 +183,13 @@ class WsServer {
   }
 
   void _handleWebSocket(WebSocket socket, String? clientIp) {
-    // Send hello
+    // Send hello (carries machineId so clients can verify server identity)
     final helloMsg = DCMessage(
       id: _uuid.v4(),
       type: WsMessageTypes.serverHello,
       deviceId: 'server',
       timestamp: DateTime.now().millisecondsSinceEpoch,
-      payload: {'version': AppConstants.appVersion},
+      payload: {'version': AppConstants.appVersion, 'machineId': machineId},
     );
     socket.add(jsonEncode(helloMsg.toJson()));
 

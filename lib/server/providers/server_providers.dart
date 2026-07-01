@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/benchmark/provider/benchmark_providers.dart';
 import '../../features/console/provider/console_providers.dart';
+import '../../features/device_history/provider/device_history_providers.dart';
 import '../../features/display/provider/display_providers.dart';
 import '../../features/network_inspector/provider/network_providers.dart';
 import '../../features/performance/provider/performance_providers.dart';
@@ -32,6 +33,25 @@ final connectedDevicesProvider =
   final notifier = ConnectedDevicesNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscriptions());
   return notifier;
+});
+
+/// Mirrors connect/disconnect events into the persistent device history.
+/// Kept separate from [connectedDevicesProvider] so the in-memory list and
+/// the persisted log can evolve independently.
+final deviceHistoryMirrorProvider = Provider<void>((ref) {
+  final handler = ref.watch(wsMessageHandlerProvider);
+  // Use watch (not read) so the mirror re-subscribes if the history
+  // notifier is ever recreated (e.g., in tests with provider overrides).
+  final history = ref.watch(deviceHistoryProvider.notifier);
+
+  final connectSub = handler.onDeviceConnected.listen(history.onConnected);
+  final disconnectSub =
+      handler.onDeviceDisconnected.listen(history.onDisconnected);
+
+  ref.onDispose(() {
+    connectSub.cancel();
+    disconnectSub.cancel();
+  });
 });
 
 /// null = no selection (show nothing), 'all' = show all, deviceId = filter
@@ -105,6 +125,11 @@ class ConnectedDevicesNotifier extends StateNotifier<List<DeviceInfo>> {
     _ref.read(selectedStorageIdProvider.notifier).state = null;
     _ref.read(selectedStateChangeIdProvider.notifier).state = null;
   }
+
+  /// Public reset — exposed so the Settings "Clear All Cache" button can wipe
+  /// every in-memory log/state/selection without disconnecting devices itself
+  /// (the caller is responsible for stopping the server first if needed).
+  void clearAllData() => _clearAllData();
 
   void cancelSubscriptions() {
     _connectSub.cancel();

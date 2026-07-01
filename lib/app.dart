@@ -59,6 +59,10 @@ class _DevConnectAppState extends ConsumerState<DevConnectApp> {
     // Keep message handler alive so it processes incoming messages
     ref.watch(wsMessageHandlerProvider);
 
+    // Activate the persistent device-history mirror so connect/disconnect
+    // events are recorded even when no Settings page is open.
+    ref.watch(deviceHistoryMirrorProvider);
+
     final locale = ref.watch(localeProvider);
 
     return MaterialApp.router(

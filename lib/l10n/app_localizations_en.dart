@@ -54,6 +54,167 @@ class SEn extends S {
   String get clearAll => 'Clear all';
 
   @override
+  String get maintenance => 'Maintenance';
+
+  @override
+  String get clearAllCache => 'Clear All Cache';
+
+  @override
+  String get clearAllCacheDesc =>
+      'Disconnect every device and clear all in-memory data (logs, network captures, state changes, performance, etc.). Your settings (theme, language, port) are preserved.';
+
+  @override
+  String get clearAllCacheConfirm =>
+      'Clear all caches?\n\nThis will disconnect every connected device and erase every in-memory log, network capture, state change, performance metric, and benchmark result.\n\nYour settings (theme, language, port) will be kept.';
+
+  @override
+  String get cacheCleared => 'All caches cleared. Settings preserved.';
+
+  @override
+  String clearAllCacheFailed(Object error) {
+    return 'Failed to clear cache: $error';
+  }
+
+  @override
+  String get deviceHistory => 'Cached Devices';
+
+  @override
+  String get deviceHistoryDesc =>
+      'Every device that has connected to this desktop. Entries persist across restarts so you can see what was here before.';
+
+  @override
+  String get noDeviceHistory => 'No devices have connected yet';
+
+  @override
+  String get deviceHistoryEmptyHint =>
+      'Connect a device via the SDK and it will appear here. Entries persist across restarts.';
+
+  @override
+  String get restarting => 'Restarting…';
+
+  @override
+  String get online => 'online';
+
+  @override
+  String get offline => 'offline';
+
+  @override
+  String get markOnline => 'Mark online';
+
+  @override
+  String get markOffline => 'Mark offline';
+
+  @override
+  String get deviceOnline => 'Online';
+
+  @override
+  String get deviceOffline => 'Offline';
+
+  @override
+  String lastSeen(Object time) {
+    return 'Last seen $time';
+  }
+
+  @override
+  String firstSeen(Object time) {
+    return 'First seen $time';
+  }
+
+  @override
+  String get forgetDevice => 'Forget';
+
+  @override
+  String get forgetAllOffline => 'Forget All Offline';
+
+  @override
+  String get forgetAllDevices => 'Forget All';
+
+  @override
+  String get forgetDeviceConfirm =>
+      'Forget this device?\n\nIt will be removed from the history. The next time it connects it will appear again as a new entry.';
+
+  @override
+  String get forgetAllOfflineConfirm =>
+      'Forget all offline devices?\n\nThis removes every entry that\'s not currently connected. Online devices are kept.';
+
+  @override
+  String get forgetAllDevicesConfirm =>
+      'Forget all cached devices?\n\nThis wipes the entire history, including online devices. They will reappear when they (re)connect.';
+
+  @override
+  String get deviceForgotten => 'Device forgotten';
+
+  @override
+  String devicesForgotten(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count devices forgotten',
+      one: '1 device forgotten',
+      zero: 'No devices forgotten',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String connectionCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count connections',
+      one: '1 connection',
+      zero: 'never connected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reload => 'Reload';
+
+  @override
+  String portOccupied(Object port) {
+    return 'Port $port occupied';
+  }
+
+  @override
+  String get serverRestarted => 'Server restarted';
+
+  @override
+  String get restartFailed => 'Restart failed';
+
+  @override
+  String portStillInUse(Object port) {
+    return 'Port $port is still in use';
+  }
+
+  @override
+  String couldNotRestart(Object port) {
+    return 'Could not restart on port $port';
+  }
+
+  @override
+  String listeningOnPort(Object port) {
+    return 'Listening on port $port';
+  }
+
+  @override
+  String waitingForReconnect(Object port) {
+    return 'Port $port · waiting for devices';
+  }
+
+  @override
+  String reconnectedCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count devices reconnected',
+      one: '1 device reconnected',
+      zero: '0 reconnected',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get screenshotSaved => 'Screenshot saved';
 
   @override
@@ -314,6 +475,10 @@ class SEn extends S {
 
   @override
   String get quickStart => 'Quick Start';
+
+  @override
+  String get quickStartDesc =>
+      'Three steps to wire up your app. Click any platform tab to see the snippet for that SDK.';
 
   @override
   String get installSdk => 'Install SDK';

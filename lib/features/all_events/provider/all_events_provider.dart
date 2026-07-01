@@ -218,6 +218,11 @@ final allEventsFilterProvider = StateProvider<Set<EventType>>(
   (ref) => EventType.values.toSet(),
 );
 
+/// When true, only events whose `level == 'error'` are shown — independent
+/// of the per-type filter chips. Default false so users see everything by
+/// default and can opt in.
+final allEventsErrorsOnlyProvider = StateProvider<bool>((ref) => false);
+
 enum SortOrder { newestFirst, oldestFirst }
 
 final allEventsSortOrderProvider = StateProvider<SortOrder>(
@@ -231,12 +236,14 @@ final filteredAllEventsProvider = Provider<List<UnifiedEvent>>((ref) {
   final events = ref.watch(allEventsProvider);
   final search = ref.watch(allEventsSearchProvider).toLowerCase();
   final filters = ref.watch(allEventsFilterProvider);
+  final errorsOnly = ref.watch(allEventsErrorsOnlyProvider);
   final selectedDevice = ref.watch(selectedDeviceProvider);
 
   return events.where((e) {
     if (selectedDevice == null) return false;
     if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (!filters.contains(e.type)) return false;
+    if (errorsOnly && e.level != 'error') return false;
     if (search.isNotEmpty) {
       return e.title.toLowerCase().contains(search) ||
           e.subtitle.toLowerCase().contains(search);

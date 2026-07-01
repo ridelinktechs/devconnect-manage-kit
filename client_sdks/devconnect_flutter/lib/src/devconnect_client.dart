@@ -9,6 +9,13 @@ import 'package:uuid/uuid.dart';
 typedef OnConnected = void Function();
 typedef OnDisconnected = void Function();
 
+/// Cached host + the server's stable machineId for identity verification.
+class _CachedHost {
+  final String host;
+  final String machineId;
+  const _CachedHost(this.host, this.machineId);
+}
+
 class DevConnectClient {
   static DevConnectClient? _instance;
   static DevConnectClient get instance => _instance!;
@@ -197,21 +204,35 @@ class DevConnectClient {
     return output.toString();
   }
 
-  /// Save discovered server host to cache file (encrypted).
-  static Future<void> _saveHostCache(String host, int port) async {
+  /// Save discovered server host to cache file (encrypted), keyed by host +
+  /// machineId so stale entries from a different desktop can be invalidated.
+  static Future<void> _saveHostCache(
+      String host, int port, String? machineId) async {
     try {
       final plain = jsonEncode({
         'h': host,
         'p': port,
         't': DateTime.now().millisecondsSinceEpoch,
+        if (machineId != null) 'm': machineId,
       });
       final encrypted = base64Encode(utf8.encode(_xorCipher(plain, _cacheKey)));
       await _cacheFile.writeAsString(encrypted);
     } catch (_) {}
   }
 
-  /// Read cached server host (decrypted). Returns null if expired or missing.
-  static Future<String?> _readHostCache(int port) async {
+  /// Delete cached host entry. Used when verification fails — so the next
+  /// connect falls through to fresh discovery rather than reusing the
+  /// stale entry.
+  static Future<void> _clearHostCache() async {
+    try {
+      if (await _cacheFile.exists()) await _cacheFile.delete();
+    } catch (_) {}
+  }
+
+  /// Read cached server host (decrypted). Returns null if expired, missing,
+  /// or if the cache doesn't carry a machineId (legacy entries are ignored
+  /// since they can't be verified).
+  static Future<_CachedHost?> _readHostCache(int port) async {
     try {
       if (!await _cacheFile.exists()) return null;
       final encrypted = await _cacheFile.readAsString();
@@ -224,9 +245,62 @@ class DevConnectClient {
         return null;
       }
       if (data['p'] != port) return null;
-      return data['h'] as String?;
+      final host = data['h'] as String?;
+      final machineId = data['m'] as String?;
+      // Require machineId — legacy caches without it cannot be verified and
+      // would re-introduce the simulator/device-swap bug we are fixing.
+      if (host == null || machineId == null || machineId.isEmpty) return null;
+      return _CachedHost(host, machineId);
     } catch (_) {}
     return null;
+  }
+
+  /// Verify a cached host by opening a short-lived WebSocket and checking
+  /// that the server announces the machineId we cached. This prevents the
+  /// case where the cached IP now points at a different device or another
+  /// service that just happens to listen on the same port.
+  ///
+  /// Returns true only when the server's `server:hello.machineId` matches
+  /// [expectedMachineId]; false on connect failure, timeout, or mismatch.
+  static Future<bool> _verifyCachedHost(
+      String host, int port, String expectedMachineId) async {
+    WebSocket? probe;
+    try {
+      probe = await WebSocket.connect('ws://$host:$port')
+          .timeout(const Duration(milliseconds: 1500));
+
+      final helloCompleter = Completer<String?>();
+      final sub = probe.listen(
+        (data) {
+          if (helloCompleter.isCompleted) return;
+          try {
+            final msg = jsonDecode(data as String) as Map<String, dynamic>;
+            if (msg['type'] == 'server:hello') {
+              final payload = msg['payload'] as Map<String, dynamic>?;
+              helloCompleter.complete(payload?['machineId'] as String?);
+            }
+          } catch (_) {}
+        },
+        onError: (_) {
+          if (!helloCompleter.isCompleted) helloCompleter.complete(null);
+        },
+        onDone: () {
+          if (!helloCompleter.isCompleted) helloCompleter.complete(null);
+        },
+        cancelOnError: true,
+      );
+
+      final announcedId = await helloCompleter.future
+          .timeout(const Duration(milliseconds: 1500));
+      unawaited(sub.cancel());
+      return announcedId != null && announcedId == expectedMachineId;
+    } catch (_) {
+      return false;
+    } finally {
+      try {
+        await probe?.close();
+      } catch (_) {}
+    }
   }
 
   /// Auto-detect the DevConnect desktop host IP.
@@ -236,10 +310,18 @@ class DevConnectClient {
   /// 2. Scan local subnet (real device WiFi)
   /// 3. Scan common subnets as fallback
   static Future<String> _autoDetectHost(int port) async {
-    // 0. Try cached host from previous session (instant reconnect)
+    // 0. Try cached host from previous session (instant reconnect).
+    //    We verify the server's stable machineId matches what we cached —
+    //    this catches the case where the cached IP now points at a
+    //    different device (e.g. switched from iOS Simulator to a real
+    //    iPhone, or back, after the Mac's address changed).
     final cached = await _readHostCache(port);
-    if (cached != null && await _tryHost(cached, port, 500)) {
-      return cached;
+    if (cached != null) {
+      if (await _verifyCachedHost(cached.host, port, cached.machineId)) {
+        return cached.host;
+      }
+      // Stale or wrong machine — invalidate so the next discovery wins.
+      await _clearHostCache();
     }
 
     // 1. Race: UDP beacon + known hosts in parallel
@@ -265,7 +347,7 @@ class DevConnectClient {
     // Wait for first non-null result, or all to complete
     final raceResult = await _firstNonNull(raceFutures);
     if (raceResult != null) {
-      await _saveHostCache(raceResult, port);
+      await _saveHostCache(raceResult, port, null);
       return raceResult;
     }
 
@@ -280,7 +362,7 @@ class DevConnectClient {
               final subnet = '${parts[0]}.${parts[1]}.${parts[2]}';
               final found = await _scanSubnet(subnet, port);
               if (found != null) {
-                await _saveHostCache(found, port);
+                await _saveHostCache(found, port, null);
                 return found;
               }
             }
@@ -293,7 +375,7 @@ class DevConnectClient {
     for (final subnet in ['192.168.1', '192.168.0', '192.168.2', '10.0.0', '10.0.1', '172.16.0']) {
       final found = await _scanSubnet(subnet, port);
       if (found != null) {
-        await _saveHostCache(found, port);
+        await _saveHostCache(found, port, null);
         return found;
       }
     }
@@ -435,6 +517,15 @@ class DevConnectClient {
             final type = msg['type'] as String?;
 
             if (type == 'server:hello') {
+              // Capture the server's stable machineId so the next launch can
+              // verify the cached host really points at *this* desktop and
+              // not some other device that happened to claim the same IP.
+              final payload = msg['payload'] as Map<String, dynamic>?;
+              final serverMachineId = payload?['machineId'] as String?;
+              if (serverMachineId != null && serverMachineId.isNotEmpty) {
+                unawaited(
+                    _saveHostCache(_host, _port, serverMachineId));
+              }
               _sendHandshake();
             } else if (type == 'server:handshake_ack') {
               onConnected?.call();

@@ -102,7 +102,7 @@ function generateStableDeviceId(appName: string): string {
 // ---- Encrypted host cache (persists via AsyncStorage if available) ----
 
 const CACHE_KEY = 'DcN3t$ecR7!';
-let _cachedHost: string | null = null;
+let _cachedHost: { host: string; machineId: string } | null = null;
 
 function xorCipher(input: string, key: string): string {
   let out = '';
@@ -133,18 +133,88 @@ function decryptCache(encrypted: string): any {
   } catch (_) { return null; }
 }
 
-async function saveHostCache(host: string): Promise<void> {
-  _cachedHost = host;
+async function saveHostCache(host: string, machineId?: string): Promise<void> {
+  _cachedHost = machineId ? { host, machineId } : null;
+  // If we have no machineId to associate the host with, write a minimal entry
+  // (preserves in-memory reconnect for the lifetime of this process).
   try {
     const AsyncStorage = require('@react-native-async-storage/async-storage')?.default;
     if (AsyncStorage) {
-      const encrypted = encryptCache({ h: host, t: Date.now() });
+      const payload: any = { h: host, t: Date.now() };
+      if (machineId) payload.m = machineId;
+      const encrypted = encryptCache(payload);
       await AsyncStorage.setItem('__dc_s', encrypted);
     }
   } catch (_) {}
 }
 
-async function readHostCache(): Promise<string | null> {
+async function clearHostCache(): Promise<void> {
+  _cachedHost = null;
+  try {
+    const AsyncStorage = require('@react-native-async-storage/async-storage')?.default;
+    if (AsyncStorage) {
+      await AsyncStorage.removeItem('__dc_s');
+    }
+  } catch (_) {}
+}
+
+/**
+ * Probe a WebSocket connection just long enough to read the server's
+ * `server:hello` and check that its machineId matches what we cached.
+ * Returns true only on a positive identity match.
+ *
+ * This prevents connecting to the wrong machine when switching between
+ * iOS Simulator and a real device on the same network (where the cached
+ * IP could now point at a different host that just happens to listen on
+ * the same port).
+ */
+async function verifyCachedHost(host: string, port: number, expectedId: string): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    let done = false;
+    // Declare timer/ws as mutable null so they're safely accessible from
+    // `finish` even before `setTimeout` / `new WebSocket` complete.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let ws: WebSocket | null = null;
+    const finish = (ok: boolean) => {
+      if (done) return;
+      done = true;
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (ws) {
+        try { ws.close(); } catch (_) {}
+        ws = null;
+      }
+      resolve(ok);
+    };
+
+    try {
+      ws = new WebSocket(`ws://${host}:${port}`);
+    } catch (_) {
+      return resolve(false);
+    }
+
+    timer = setTimeout(() => finish(false), 1500);
+
+    ws.onopen = () => {
+      // Server should send server:hello immediately on connect
+    };
+    ws.onmessage = (event: WebSocketMessageEvent) => {
+      try {
+        const msg = JSON.parse(event.data as string);
+        if (msg && msg.type === 'server:hello') {
+          const announcedId = msg.payload && msg.payload.machineId;
+          finish(announcedId === expectedId);
+        }
+      } catch (_) {}
+    };
+    ws.onerror = () => finish(false);
+    ws.onclose = () => finish(false);
+  });
+}
+
+async function readHostCache(port: number): Promise<{ host: string; machineId: string } | null> {
   if (_cachedHost) return _cachedHost;
   try {
     const AsyncStorage = require('@react-native-async-storage/async-storage')?.default;
@@ -152,9 +222,12 @@ async function readHostCache(): Promise<string | null> {
       const encrypted = await AsyncStorage.getItem('__dc_s');
       if (encrypted) {
         const data = decryptCache(encrypted);
-        if (data && Date.now() - data.t < 24 * 60 * 60 * 1000) {
-          _cachedHost = data.h;
-          return data.h;
+        // Legacy caches (no machineId) cannot be verified and would re-trigger
+        // the simulator/device-swap bug we are fixing — treat them as absent.
+        if (data && typeof data.h === 'string' && typeof data.m === 'string' &&
+            Date.now() - data.t < 24 * 60 * 60 * 1000) {
+          _cachedHost = { host: data.h, machineId: data.m };
+          return _cachedHost;
         }
       }
     }
@@ -199,9 +272,18 @@ function getDevServerHost(): string | null {
 }
 
 async function autoDetectHost(port: number): Promise<string> {
-  // 0. Try cached host from previous session (instant reconnect)
-  const cached = await readHostCache();
-  if (cached && await tryConnect(cached, port, 600)) return cached;
+  // 0. Try cached host from previous session (instant reconnect).
+  //    Verify the server's stable machineId matches what we cached —
+  //    catches the case where the cached IP now points at a different
+  //    device (e.g. iOS Simulator ↔ real iPhone swap on the same network).
+  const cached = await readHostCache(port);
+  if (cached) {
+    if (await verifyCachedHost(cached.host, port, cached.machineId)) {
+      return cached.host;
+    }
+    // Stale or wrong machine — invalidate so the next discovery wins.
+    await clearHostCache();
+  }
 
   // 1. Race: Metro scriptURL + known hosts in parallel
   //    USB (adb reverse) → localhost/10.0.2.2 responds fast
@@ -225,7 +307,7 @@ async function autoDetectHost(port: number): Promise<string> {
 
   // First non-null wins
   const raceResult = await firstNonNull(raceCandidates);
-  if (raceResult) { saveHostCache(raceResult); return raceResult; }
+  if (raceResult) { await saveHostCache(raceResult); return raceResult; }
 
   // 2. Scan local subnets for real device (WiFi)
   const subnets: string[] = [];
@@ -246,7 +328,7 @@ async function autoDetectHost(port: number): Promise<string> {
     );
     for (const r of results) {
       if (r.status === 'fulfilled' && r.value) {
-        saveHostCache(r.value);
+        await saveHostCache(r.value);
         return r.value;
       }
     }
@@ -477,6 +559,13 @@ export class DevConnect {
           const msg = JSON.parse(event.data as string);
           if (msg.type === 'server:hello' && !handshakeSent) {
             handshakeSent = true;
+            // Capture the server's stable machineId so the next launch can
+            // verify the cached host really points at *this* desktop and not
+            // some other device that happened to claim the same IP.
+            const serverMachineId = msg.payload && msg.payload.machineId;
+            if (typeof serverMachineId === 'string' && serverMachineId.length > 0) {
+              saveHostCache(this.config.host, serverMachineId).catch(() => {});
+            }
             this.sendHandshake();
           } else if (msg.type === 'server:redux:dispatch') {
             // Desktop dispatching a Redux action into the app
@@ -526,14 +615,18 @@ export class DevConnect {
     let deviceModel = `${osLabel} Device`;
     try {
       if (os === 'ios') {
-        // iOS: get model name from PlatformConstants
+        // iOS: prefer interfaceIdiom (iPhone/iPad/tv) over generic systemName
         const constants = (NativeModules.PlatformConstants || NativeModules.DeviceInfo) as Record<string, any> | undefined;
         const iosModel = constants?.interfaceIdiom;
         const systemName = constants?.systemName;
-        if (systemName) {
+        if (iosModel === 'phone') {
+          deviceModel = 'iPhone';
+        } else if (iosModel === 'pad') {
+          deviceModel = 'iPad';
+        } else if (iosModel === 'tv') {
+          deviceModel = 'tvOS Device';
+        } else if (systemName) {
           deviceModel = `${systemName} Device`;
-        } else if (iosModel) {
-          deviceModel = iosModel === 'phone' ? 'iPhone' : iosModel === 'pad' ? 'iPad' : iosModel;
         }
       } else if (os === 'android') {
         // Android: get model from PlatformConstants

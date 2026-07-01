@@ -1,1 +1,96 @@
-{}
+{
+  "fr": [
+    "deviceHistory",
+    "deviceHistoryDesc",
+    "noDeviceHistory",
+    "deviceOnline",
+    "deviceOffline",
+    "lastSeen",
+    "firstSeen",
+    "forgetDevice",
+    "forgetAllOffline",
+    "forgetAllDevices",
+    "forgetDeviceConfirm",
+    "forgetAllOfflineConfirm",
+    "forgetAllDevicesConfirm",
+    "deviceForgotten",
+    "devicesForgotten",
+    "connectionCount"
+  ],
+
+  "ja": [
+    "deviceHistory",
+    "deviceHistoryDesc",
+    "noDeviceHistory",
+    "deviceOnline",
+    "deviceOffline",
+    "lastSeen",
+    "firstSeen",
+    "forgetDevice",
+    "forgetAllOffline",
+    "forgetAllDevices",
+    "forgetDeviceConfirm",
+    "forgetAllOfflineConfirm",
+    "forgetAllDevicesConfirm",
+    "deviceForgotten",
+    "devicesForgotten",
+    "connectionCount"
+  ],
+
+  "zh": [
+    "deviceHistory",
+    "deviceHistoryDesc",
+    "noDeviceHistory",
+    "deviceOnline",
+    "deviceOffline",
+    "lastSeen",
+    "firstSeen",
+    "forgetDevice",
+    "forgetAllOffline",
+    "forgetAllDevices",
+    "forgetDeviceConfirm",
+    "forgetAllOfflineConfirm",
+    "forgetAllDevicesConfirm",
+    "deviceForgotten",
+    "devicesForgotten",
+    "connectionCount"
+  ],
+
+  "zh_CN": [
+    "deviceHistory",
+    "deviceHistoryDesc",
+    "noDeviceHistory",
+    "deviceOnline",
+    "deviceOffline",
+    "lastSeen",
+    "firstSeen",
+    "forgetDevice",
+    "forgetAllOffline",
+    "forgetAllDevices",
+    "forgetDeviceConfirm",
+    "forgetAllOfflineConfirm",
+    "forgetAllDevicesConfirm",
+    "deviceForgotten",
+    "devicesForgotten",
+    "connectionCount"
+  ],
+
+  "zh_TW": [
+    "deviceHistory",
+    "deviceHistoryDesc",
+    "noDeviceHistory",
+    "deviceOnline",
+    "deviceOffline",
+    "lastSeen",
+    "firstSeen",
+    "forgetDevice",
+    "forgetAllOffline",
+    "forgetAllDevices",
+    "forgetDeviceConfirm",
+    "forgetAllOfflineConfirm",
+    "forgetAllDevicesConfirm",
+    "deviceForgotten",
+    "devicesForgotten",
+    "connectionCount"
+  ]
+}

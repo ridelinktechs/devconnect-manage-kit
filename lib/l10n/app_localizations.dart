@@ -195,6 +195,228 @@ abstract class S {
   /// **'Clear all'**
   String get clearAll;
 
+  /// No description provided for @maintenance.
+  ///
+  /// In en, this message translates to:
+  /// **'Maintenance'**
+  String get maintenance;
+
+  /// No description provided for @clearAllCache.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear All Cache'**
+  String get clearAllCache;
+
+  /// No description provided for @clearAllCacheDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect every device and clear all in-memory data (logs, network captures, state changes, performance, etc.). Your settings (theme, language, port) are preserved.'**
+  String get clearAllCacheDesc;
+
+  /// No description provided for @clearAllCacheConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all caches?\n\nThis will disconnect every connected device and erase every in-memory log, network capture, state change, performance metric, and benchmark result.\n\nYour settings (theme, language, port) will be kept.'**
+  String get clearAllCacheConfirm;
+
+  /// No description provided for @cacheCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'All caches cleared. Settings preserved.'**
+  String get cacheCleared;
+
+  /// No description provided for @clearAllCacheFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to clear cache: {error}'**
+  String clearAllCacheFailed(Object error);
+
+  /// No description provided for @deviceHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Cached Devices'**
+  String get deviceHistory;
+
+  /// No description provided for @deviceHistoryDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Every device that has connected to this desktop. Entries persist across restarts so you can see what was here before.'**
+  String get deviceHistoryDesc;
+
+  /// No description provided for @noDeviceHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'No devices have connected yet'**
+  String get noDeviceHistory;
+
+  /// No description provided for @deviceHistoryEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect a device via the SDK and it will appear here. Entries persist across restarts.'**
+  String get deviceHistoryEmptyHint;
+
+  /// No description provided for @restarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Restarting…'**
+  String get restarting;
+
+  /// No description provided for @online.
+  ///
+  /// In en, this message translates to:
+  /// **'online'**
+  String get online;
+
+  /// No description provided for @offline.
+  ///
+  /// In en, this message translates to:
+  /// **'offline'**
+  String get offline;
+
+  /// No description provided for @markOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark online'**
+  String get markOnline;
+
+  /// No description provided for @markOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark offline'**
+  String get markOffline;
+
+  /// No description provided for @deviceOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get deviceOnline;
+
+  /// No description provided for @deviceOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get deviceOffline;
+
+  /// No description provided for @lastSeen.
+  ///
+  /// In en, this message translates to:
+  /// **'Last seen {time}'**
+  String lastSeen(Object time);
+
+  /// No description provided for @firstSeen.
+  ///
+  /// In en, this message translates to:
+  /// **'First seen {time}'**
+  String firstSeen(Object time);
+
+  /// No description provided for @forgetDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget'**
+  String get forgetDevice;
+
+  /// No description provided for @forgetAllOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget All Offline'**
+  String get forgetAllOffline;
+
+  /// No description provided for @forgetAllDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget All'**
+  String get forgetAllDevices;
+
+  /// No description provided for @forgetDeviceConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget this device?\n\nIt will be removed from the history. The next time it connects it will appear again as a new entry.'**
+  String get forgetDeviceConfirm;
+
+  /// No description provided for @forgetAllOfflineConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget all offline devices?\n\nThis removes every entry that\'s not currently connected. Online devices are kept.'**
+  String get forgetAllOfflineConfirm;
+
+  /// No description provided for @forgetAllDevicesConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Forget all cached devices?\n\nThis wipes the entire history, including online devices. They will reappear when they (re)connect.'**
+  String get forgetAllDevicesConfirm;
+
+  /// No description provided for @deviceForgotten.
+  ///
+  /// In en, this message translates to:
+  /// **'Device forgotten'**
+  String get deviceForgotten;
+
+  /// No description provided for @devicesForgotten.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No devices forgotten} =1{1 device forgotten} other{{count} devices forgotten}}'**
+  String devicesForgotten(num count);
+
+  /// No description provided for @connectionCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{never connected} =1{1 connection} other{{count} connections}}'**
+  String connectionCount(num count);
+
+  /// No description provided for @reload.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload'**
+  String get reload;
+
+  /// No description provided for @portOccupied.
+  ///
+  /// In en, this message translates to:
+  /// **'Port {port} occupied'**
+  String portOccupied(Object port);
+
+  /// No description provided for @serverRestarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Server restarted'**
+  String get serverRestarted;
+
+  /// No description provided for @restartFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart failed'**
+  String get restartFailed;
+
+  /// No description provided for @portStillInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Port {port} is still in use'**
+  String portStillInUse(Object port);
+
+  /// No description provided for @couldNotRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not restart on port {port}'**
+  String couldNotRestart(Object port);
+
+  /// No description provided for @listeningOnPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening on port {port}'**
+  String listeningOnPort(Object port);
+
+  /// No description provided for @waitingForReconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Port {port} · waiting for devices'**
+  String waitingForReconnect(Object port);
+
+  /// No description provided for @reconnectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{0 reconnected} =1{1 device reconnected} other{{count} devices reconnected}}'**
+  String reconnectedCount(num count);
+
   /// No description provided for @screenshotSaved.
   ///
   /// In en, this message translates to:
@@ -650,6 +872,12 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Quick Start'**
   String get quickStart;
+
+  /// No description provided for @quickStartDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Three steps to wire up your app. Click any platform tab to see the snippet for that SDK.'**
+  String get quickStartDesc;
 
   /// No description provided for @installSdk.
   ///

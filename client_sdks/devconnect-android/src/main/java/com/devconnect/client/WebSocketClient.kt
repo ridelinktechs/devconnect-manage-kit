@@ -23,6 +23,12 @@ class WebSocketClient(
 ) {
     /** Callback for incoming server messages (type, payload) */
     var onServerMessage: ((String, JSONObject) -> Unit)? = null
+    /**
+     * Fired when the server's first message is `server:hello`. The argument is
+     * the announced machineId (or null when missing) — used by the host cache
+     * for identity verification on subsequent reconnects.
+     */
+    var onServerHello: ((String?) -> Unit)? = null
     var isConnected = false
         private set
 
@@ -167,6 +173,9 @@ class WebSocketClient(
             val type = json.optString("type")
             if (type == "server:hello") {
                 sendHandshake()
+                val payload = json.optJSONObject("payload")
+                val machineId = payload?.optString("machineId", null)
+                onServerHello?.invoke(machineId)
             } else if (type.startsWith("server:")) {
                 val payload = json.optJSONObject("payload") ?: JSONObject()
                 onServerMessage?.invoke(type, json)
