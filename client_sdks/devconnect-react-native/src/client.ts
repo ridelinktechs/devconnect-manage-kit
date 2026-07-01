@@ -396,6 +396,11 @@ export class DevConnect {
   private _reduxStore: any = null;
   private _stateRestoreHandler: ((state: any) => void) | null = null;
   private _customCommandHandlers: Map<string, (args?: any) => any> = new Map();
+  /**
+   * Optional app-supplied reload hook. If set, called instead of the default
+   * `DevSettings.reload()` so apps can wipe in-memory state first.
+   */
+  private _reloadHandler?: () => void;
   private _benchmarks: Map<string, { title: string; startTime: number; steps: Array<{ title: string; timestamp: number }> }> = new Map();
   private originalFetch: typeof global.fetch | null = null;
   private originalXHR: typeof global.XMLHttpRequest | null = null;
@@ -595,6 +600,19 @@ export class DevConnect {
                 }, msg.correlationId);
               }
             }
+          } else if (msg.type === 'server:reload') {
+            // Desktop asking the app to reload itself. Triggers Metro reload
+            // via the official DevSettings module (the same path the RN
+            // dev menu's "Reload" option uses). Works in dev builds only.
+            this._reloadApp();
+          } else if (msg.type === 'server:hot_restart') {
+            // Heavier counterpart — same observable effect as `server:reload`
+            // because RN has no lighter-vs-heavier distinction (DevSettings
+            // already tears down the bridge and reloads the bundle from
+            // Metro, which IS the "restart" semantic). We accept the message
+            // anyway so mixed-platform setups (e.g. Flutter + RN) don't
+            // silently drop the hot_restart signal on RN devices.
+            this._reloadApp();
           }
         } catch (_) {}
       };
@@ -603,6 +621,45 @@ export class DevConnect {
       this.ws.onerror = () => { this.connected = false; this.scheduleReconnect(); };
     } catch (_) {
       this.scheduleReconnect();
+    }
+  }
+
+  /**
+   * Default handler for `server:reload`.
+   *
+   * RN offers a public `DevSettings.reload()` (auto-linked from
+   * `react-native`) that's the same path the dev menu's "Reload" option
+   * uses — it tears down the bridge and re-bootstraps the JS bundle from
+   * Metro. Works in dev builds only; release builds no-op.
+   *
+   * Apps can register a custom reload handler via
+   * `DevConnect.registerReloadHandler(() => { ... })` to wipe in-memory
+   * caches before the reload (e.g. Redux/MobX stores).
+   */
+  private _reloadApp(): void {
+    // Try the custom handler first. If it succeeds we're done — the
+    // handler takes full responsibility for the reload. If it throws,
+    // we DO fall through to the default DevSettings.reload() below,
+    // so the user still gets a reload even when their custom code
+    // crashed mid-execution.
+    if (this._reloadHandler) {
+      try {
+        this._reloadHandler();
+        return;
+      } catch (_) {
+        // handler threw — continue to default below
+      }
+    }
+    try {
+      const DevSettings = (NativeModules as any).DevSettings;
+      if (DevSettings && typeof DevSettings.reload === 'function') {
+        // DevSettings.reload() takes no arguments. Older versions of the
+        // native side may still throw "called with 1 arguments but expects
+        // 0" if you pass anything — keep the call empty to stay compatible.
+        DevSettings.reload();
+      }
+    } catch (_) {
+      // DevSettings not available (release build / not yet initialized)
     }
   }
 
@@ -1387,6 +1444,39 @@ export class DevConnect {
         const dc = DevConnect.getInstanceSafe();
         if (dc) {
           dc._customCommandHandlers.set(name, handler);
+          clearInterval(interval);
+        }
+      }, 100);
+      setTimeout(() => clearInterval(interval), 10000);
+    }
+  }
+
+  /**
+   * Register a custom handler for `server:reload` requests from the desktop.
+   *
+   * By default, the SDK calls `DevSettings.reload()` (the same path the
+   * dev menu's "Reload" uses) — that tears down the bridge and reloads
+   * the JS bundle from Metro. Register a custom handler when you need to
+   * wipe in-memory state before the reload, e.g. clear Redux store and
+   * in-memory caches:
+   *
+   * ```typescript
+   * DevConnect.registerReloadHandler(() => {
+   *   store.dispatch({ type: 'RESET' });
+   *   // falling back to default reload is up to you
+   *   DevSettings.reload('DevConnect reload');
+   * });
+   * ```
+   */
+  static registerReloadHandler(handler: () => void): void {
+    const instance = DevConnect.getInstanceSafe();
+    if (instance) {
+      instance._reloadHandler = handler;
+    } else {
+      const interval = setInterval(() => {
+        const dc = DevConnect.getInstanceSafe();
+        if (dc) {
+          dc._reloadHandler = handler;
           clearInterval(interval);
         }
       }, 100);

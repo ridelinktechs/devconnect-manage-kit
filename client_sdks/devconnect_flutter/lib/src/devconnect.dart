@@ -656,6 +656,53 @@ class DevConnect {
     clientSafe?.onStateRestore = handler;
   }
 
+  /// Set custom handler for "reload" requests from the desktop.
+  ///
+  /// By default, the SDK calls [WidgetsBinding.reassembleApplication] — which
+  /// triggers a full widget rebuild (the same mechanism `flutter run -r`
+  /// uses for hot-reload outside the IDE). Override this when you need
+  /// finer control, e.g. to wipe in-memory caches before the rebuild:
+  ///
+  /// ```dart
+  /// DevConnect.onReloadRequest = () {
+  ///   cache.clear();
+  ///   // default reassemble is *not* called when you set a custom handler
+  ///   WidgetsBinding.instance.reassembleApplication();
+  /// };
+  /// ```
+  static set onReloadRequest(void Function()? handler) {
+    if (!_active) return;
+    clientSafe?.onReloadRequest = handler;
+  }
+
+  /// Set custom handler for "hot restart" requests from the desktop.
+  ///
+  /// Hot restart is the heavier variant of reload — the Flutter IDE
+  /// distinguishes:
+  /// - **Hot reload**  (`server:reload`): re-execute the widget tree,
+  ///   **preserve state**. Wired to [onReloadRequest].
+  /// - **Hot restart** (`server:hot_restart`): tear down every `State`,
+  ///   **reset state**, then re-bootstrap. Wired to this hook.
+  ///
+  /// The default implementation of both calls [WidgetsBinding.reassembleApplication]
+  /// for the same reason (Flutter offers no public kill-and-relaunch API),
+  /// so to get true state-reset semantics — what the IDE does — apps must
+  /// register this hook and remount their root widget themselves:
+  ///
+  /// ```dart
+  /// final appKey = GlobalKey();
+  ///
+  /// // Wrap your root widget in a key you control
+  /// DevConnect.onHotRestartRequest = () {
+  ///   appKey.currentState?.reassemble();
+  ///   // or use a state-version counter to force a rebuild
+  /// };
+  /// ```
+  static set onHotRestartRequest(void Function()? handler) {
+    if (!_active) return;
+    clientSafe?.onHotRestartRequest = handler;
+  }
+
   // ---- Benchmark ----
 
   /// Start a benchmark timer.

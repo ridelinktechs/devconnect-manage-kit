@@ -169,7 +169,7 @@ class SFr extends S {
   }
 
   @override
-  String get reload => 'Recharger';
+  String get restartServer => 'Redémarrer le serveur';
 
   @override
   String portOccupied(Object port) {
@@ -210,6 +210,36 @@ class SFr extends S {
       other: '$count appareils reconnectés',
       one: '1 appareil reconnecté',
       zero: '0 reconnecté',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reloadApp => 'Recharger l\'application';
+
+  @override
+  String get reloadAppHotReload => 'Rechargement à chaud';
+
+  @override
+  String get reloadAppHotRestart => 'Redémarrage à chaud';
+
+  @override
+  String get reloadAppMetro => 'Recharger Metro';
+
+  @override
+  String get reloadAppNoDevices => 'Aucun appareil connecté';
+
+  @override
+  String get reloadSent => 'Rechargement envoyé';
+
+  @override
+  String sentReloadTo(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Rechargement envoyé à $count appareils',
+      one: 'Rechargement envoyé à 1 appareil',
+      zero: 'Aucun appareil ciblé',
     );
     return '$_temp0';
   }

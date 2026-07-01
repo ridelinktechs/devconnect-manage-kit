@@ -9,6 +9,7 @@ import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/preferences/app_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -22,6 +23,7 @@ import '../../../../core/providers/tab_visibility_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/code_generator.dart';
+import '../../../../models/device_info.dart';
 import '../../../../models/display/display_entry.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../models/network/network_entry.dart';
@@ -193,6 +195,79 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
   /// Restart the WebSocket server. Forces every connected SDK into its
   /// reconnect path — useful when you've changed the port, switched WiFi,
   /// or want to verify the machineId handshake from scratch.
+  /// Ask every connected device to reload its own app.
+  ///
+  /// Behaviour on each SDK:
+  /// - **Flutter** → `WidgetsBinding.instance.reassembleApplication()` (full
+  ///   widget tree rebuild — the same mechanism `flutter run -r` uses)
+  /// - **React Native** → `DevSettings.reload()` (Metro reload)
+  /// - **Android** → `Activity.recreate()` on the host activity
+  ///
+  /// We broadcast to ALL devices regardless of platform — the wire message
+  /// is the same, the SDK knows what to do with it. The icon and tooltip on
+  /// the button adapt to the dominant connected platform, but the click
+  /// always sends the reload to every device.
+  bool _reloading = false;
+
+  Future<void> _reloadApp() async {
+    if (_reloading) return;
+    final handler = ref.read(wsMessageHandlerProvider);
+    final devices = ref.read(connectedDevicesProvider);
+    if (devices.isEmpty) {
+      showInfoToast(
+        context,
+        message: S.of(context).reloadApp,
+        subtitle: S.of(context).reloadAppNoDevices,
+      );
+      return;
+    }
+    setState(() => _reloading = true);
+    try {
+      handler.broadcastReload();
+      if (!mounted) return;
+      showSuccessToast(
+        context,
+        message: S.of(context).reloadSent,
+        subtitle: S.of(context).sentReloadTo(devices.length),
+      );
+    } finally {
+      if (mounted) setState(() => _reloading = false);
+    }
+  }
+
+  bool _hotRestarting = false;
+
+  /// Hot restart — the heavier Flutter IDE action. Same broadcast semantics
+  /// as [_reloadApp] but sends `server:hot_restart` so Flutter SDKs can
+  /// branch into their heavy-weight handler (default still
+  /// `reassembleApplication`; apps can register `onHotRestartRequest` to
+  /// actually wipe state).
+  Future<void> _hotRestartApp() async {
+    if (_hotRestarting) return;
+    final handler = ref.read(wsMessageHandlerProvider);
+    final devices = ref.read(connectedDevicesProvider);
+    if (devices.isEmpty) {
+      showInfoToast(
+        context,
+        message: S.of(context).reloadAppHotRestart,
+        subtitle: S.of(context).reloadAppNoDevices,
+      );
+      return;
+    }
+    setState(() => _hotRestarting = true);
+    try {
+      handler.broadcastReload(hotRestart: true);
+      if (!mounted) return;
+      showSuccessToast(
+        context,
+        message: S.of(context).reloadSent,
+        subtitle: S.of(context).sentReloadTo(devices.length),
+      );
+    } finally {
+      if (mounted) setState(() => _hotRestarting = false);
+    }
+  }
+
   Future<void> _restartServer() async {
     if (_restarting) return;
     setState(() => _restarting = true);
@@ -286,19 +361,26 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
 
     final sortOrder = ref.watch(allEventsSortOrderProvider);
 
-    return Column(
+    return Stack(
       children: [
+        Column(
+          children: [
         // ── Header ──
         _Header(
           eventCount: _eventCount,
           serverRunning: server.isRunning,
           port: server.isRunning ? server.port : 9090,
           deviceCount: devices.length,
+          devices: devices,
           autoScroll: _autoScroll,
           onToggleAutoScroll: _toggleAutoScroll,
           onClear: _clearAll,
           restarting: _restarting,
           onReload: _restartServer,
+          reloading: _reloading,
+          hotRestarting: _hotRestarting,
+          onReloadApp: _reloadApp,
+          onHotRestart: _hotRestartApp,
         ),
         // ── Stats + Filters ── (rebuilds via _eventCount, not setState)
         ValueListenableBuilder<int>(
@@ -419,6 +501,20 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                   ],
                 ),
         ),
+          ],
+        ),
+        // Draggable floating action button — sits on top of every panel
+        // (header / filter bar / event list / detail panel / "jump to
+        // latest" pill) so it's always reachable but never blocks data
+        // because it lives at the screen edge by default and the user can
+        // drag it anywhere within the viewport.
+        _DraggableReloadFab(
+          devices: devices,
+          reloading: _reloading,
+          hotRestarting: _hotRestarting,
+          onReload: _reloadApp,
+          onHotRestart: _hotRestartApp,
+        ),
       ],
     );
   }
@@ -438,22 +534,32 @@ class _Header extends ConsumerWidget {
   final bool serverRunning;
   final int port;
   final int deviceCount;
+  final List<DeviceInfo> devices;
   final bool autoScroll;
   final bool restarting;
+  final bool reloading;
+  final bool hotRestarting;
   final VoidCallback onToggleAutoScroll;
   final VoidCallback onClear;
   final VoidCallback onReload;
+  final VoidCallback onReloadApp;
+  final VoidCallback onHotRestart;
 
   const _Header({
     required this.eventCount,
     required this.serverRunning,
     required this.port,
     required this.deviceCount,
+    required this.devices,
     required this.autoScroll,
     required this.onToggleAutoScroll,
     required this.onClear,
     required this.restarting,
     required this.onReload,
+    required this.reloading,
+    required this.hotRestarting,
+    required this.onReloadApp,
+    required this.onHotRestart,
   });
 
   @override
@@ -515,7 +621,7 @@ class _Header extends ConsumerWidget {
           const SizedBox(width: 8),
           _ReloadPill(
             restarting: restarting,
-            tooltip: S.of(context).reload,
+            tooltip: S.of(context).restartServer,
             onTap: restarting ? () {} : onReload,
           ),
 
@@ -543,6 +649,10 @@ class _Header extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Reload-app buttons were here — moved to a draggable
+                // floating FAB (see `_DraggableReloadFab` rendered in the
+                // page-level Stack) so the button stays out of the user's
+                // way during long debug sessions.
                 _IconBtn(
                   icon: LucideIcons.arrowDownToLine,
                   tooltip: S.of(context).autoScroll,
@@ -1614,6 +1724,685 @@ class _FilterChip extends StatelessWidget {
     );
   }
 }
+
+// (old `_ReloadAppBtn` removed — replaced by `_DraggableReloadFab` below)
+
+/// Draggable floating action button — reload-app on connected devices.
+///
+/// Sits in a top-layer [Stack] over the All Events page content. Lives at
+/// the bottom-right by default and snaps to the nearest corner on release,
+/// with the user's last position persisted via [AppPreferences].
+///
+/// Visual treatment per `design-taste-frontend-v1`:
+///
+/// - True frosted glass: [BackdropFilter] blur, 1px inner border +
+///   "1px inner highlight" gradient on top for edge refraction.
+/// - No neon outer glow — drop shadow is tinted to the background hue.
+/// - Idle footprint is a 40px circle, which expands into a pill (40 × N)
+///   on hover when multiple reload actions are available (e.g. Flutter
+///   → Hot Reload + Hot Restart).
+/// - Drag handle is the whole surface; spring-physics snap on release.
+/// - Spin animation while a reload is in flight; per-button independent
+///   so Hot Reload + Hot Restart can run concurrently.
+///
+/// ### Behaviour matrix
+///
+/// | Devices               | Visible actions                              | Icon(s)         |
+/// | --------------------- | -------------------------------------------- | --------------- |
+/// | 0 devices             | (button dimmed, no-op)                       | `zap`           |
+/// | Flutter only          | Hot Reload + Hot Restart                     | `zap`, `refreshCcw` |
+/// | RN only               | Reload Metro                                 | `rocket`        |
+/// | Android only          | Rebuild                                      | `hammer`        |
+/// | Mixed platforms       | Reload app (sends `server:reload` to all)    | `zap`           |
+class _DraggableReloadFab extends StatefulWidget {
+  final List<DeviceInfo> devices;
+  final bool reloading;
+  final bool hotRestarting;
+  final VoidCallback onReload;
+  final VoidCallback onHotRestart;
+
+  const _DraggableReloadFab({
+    required this.devices,
+    required this.reloading,
+    required this.hotRestarting,
+    required this.onReload,
+    required this.onHotRestart,
+  });
+
+  @override
+  State<_DraggableReloadFab> createState() => _DraggableReloadFabState();
+}
+
+class _DraggableReloadFabState extends State<_DraggableReloadFab>
+    with SingleTickerProviderStateMixin {
+  /// Distance from the bottom-right corner of the parent (the All Events
+  /// page content). 20 = default 20px margin from bottom + right edges.
+  double _right = 20;
+  double _bottom = 20;
+
+  bool _hovered = false;
+  bool _dragging = false;
+
+  // Drag tracking — we record the starting screen position and the
+  // starting edge-distances, then compute new distances from the delta.
+  late double _dragStartRight;
+  late double _dragStartBottom;
+  late Offset _dragStartGlobal;
+  // Press feedback: a brief scale-down + opacity dip on the FAB.
+  bool _pressed = false;
+
+  static const double _fabHeight = 44;
+  static const double _collapsedWidth = 44;
+  static const double _actionWidth = 38; // each action button is 38px wide
+  static const double _actionGap = 4;
+  static const double _edgeMargin = 20; // distance from screen edges
+  /// Combined height of the page chrome the FAB must never overlap:
+  ///   • page header (48) — "All Events" title bar
+  ///   • filter bar   (44) — LOG / API / STATE / ... chip row
+  /// Mirrors the `Container(height: 48, ...)` at `_Header` and the
+  /// `Container(height: 44, ...)` at `_FilterBar` in this file; if you
+  /// change either, change the constants here.
+  static const double _headerHeight = 48;
+  static const double _filterBarHeight = 44;
+
+  @override
+  void initState() {
+    super.initState();
+    // Always start at the default position (bottom-right, 20px margin).
+    // Position is NOT persisted across launches — every cold start
+    // resets the FAB so the user always knows where to find it
+    // without hunting around the screen for a previously-dragged ghost.
+    _right = _edgeMargin;
+    _bottom = _edgeMargin;
+    // Eagerly allocate the controller so dispose() never trips over an
+    // uninitialised `late` field. The FAB can be mounted without ever
+    // triggering a reload (e.g. user has no devices), in which case the
+    // old lazy form was never read and dispose() would throw
+    // LateInitializationError.
+    _spinCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+  }
+
+  // ── Drag handlers ────────────────────────────────────────────────────────
+  //
+  // The FAB drops **wherever the user releases it** within a safe area:
+  // never above the header, never outside the viewport, never behind
+  // the dock. Position is intentionally NOT persisted — every launch
+  // starts fresh.
+
+  void _onPanStart(DragStartDetails d) {
+    _dragStartRight = _right;
+    _dragStartBottom = _bottom;
+    _dragStartGlobal = d.globalPosition;
+    setState(() {
+      _dragging = true;
+      _pressed = true;
+    });
+  }
+
+  void _onPanUpdate(DragUpdateDetails d) {
+    final delta = d.globalPosition - _dragStartGlobal;
+    final media = MediaQuery.of(context);
+    final size = media.size;
+
+    // Clamp so the FAB:
+    //   • is at least [_edgeMargin] from each viewport edge,
+    //   • never overlaps the page chrome — its top edge stays at least
+    //     [_edgeMargin] below the filter bar bottom (= header + filter
+    //     bar height from the top of the screen). This ensures the FAB
+    //     can never float on top of the title or chip rows.
+    final minRight = _edgeMargin;
+    final maxRight = (size.width - _collapsedWidth - _edgeMargin)
+        .clamp(minRight, double.infinity);
+    final minBottom = _edgeMargin;
+    final maxBottom = (size.height -
+            _fabHeight -
+            _headerHeight -
+            _filterBarHeight -
+            _edgeMargin -
+            media.padding.bottom)
+        .clamp(minBottom, double.infinity);
+
+    setState(() {
+      _right = (_dragStartRight - delta.dx).clamp(minRight, maxRight);
+      _bottom = (_dragStartBottom - delta.dy).clamp(minBottom, maxBottom);
+    });
+  }
+
+  Future<void> _onPanEnd(DragEndDetails d) async {
+    setState(() {
+      _dragging = false;
+      _pressed = false;
+    });
+    // Stay where the user dropped. Do NOT persist — see initState
+    // for the rationale.
+  }
+
+  /// Dispatch a tap to the right action. We need this on the *outer*
+  /// GestureDetector (alongside the pan handlers) because a nested
+  /// GestureDetector around each action icon would out-compete the pan
+  /// recognizer in the gesture arena and silently break dragging.
+  ///
+  /// For a single-action FAB the whole surface triggers that one action.
+  /// For multi-action FABs (e.g. Flutter = Hot reload + Hot restart) we
+  /// pick the action by horizontal position — each action owns a strip
+  /// of width [_actionWidth] with [_actionGap] between strips.
+  void _onTapUp(TapUpDetails details) {
+    final actions = _actionsFor();
+    if (actions.isEmpty) return;
+
+    if (actions.length == 1) {
+      actions[0].onTap();
+      return;
+    }
+    final localX = details.localPosition.dx;
+    for (var i = 0; i < actions.length; i++) {
+      final start = i * (_actionWidth + _actionGap);
+      final end = start + _actionWidth;
+      if (localX >= start && localX <= end) {
+        actions[i].onTap();
+        return;
+      }
+    }
+  }
+
+  // ── Action discovery ─────────────────────────────────────────────────────
+
+  /// Returns the list of available reload actions for the currently
+  /// connected devices (in a stable, predictable order: hot reload before
+  /// hot restart). Mirrors the per-platform IDE hotkeys:
+  ///
+  ///   Flutter → Hot Reload + Hot Restart
+  ///   RN      → Reload Metro
+  ///   Android → Rebuild
+  ///   Mixed   → single universal "Reload app"
+  List<_FabAction> _actionsFor() {
+    if (widget.devices.isEmpty) return const [];
+    bool isFlutter(String p) => p.toLowerCase() == 'flutter';
+    bool isRN(String p) {
+      final lo = p.toLowerCase();
+      return lo == 'reactnative' || lo == 'react_native' || lo == 'rn';
+    }
+    bool isAndroid(String p) => p.toLowerCase() == 'android';
+
+    final hasFlutter = widget.devices.any((d) => isFlutter(d.platform));
+    final hasRN = widget.devices.any((d) => isRN(d.platform));
+    final hasAndroid = widget.devices.any((d) => isAndroid(d.platform));
+    final platforms = (hasFlutter ? 1 : 0) +
+        (hasRN ? 1 : 0) +
+        (hasAndroid ? 1 : 0);
+
+    if (platforms > 1) {
+      // Mixed: universal reload only.
+      return [
+        _FabAction(
+          icon: LucideIcons.zap,
+          tooltip: S.of(context).reloadApp,
+          spinning: widget.reloading,
+          onTap: widget.onReload,
+        ),
+      ];
+    }
+    if (hasFlutter) {
+      return [
+        _FabAction(
+          icon: LucideIcons.zap,
+          tooltip: S.of(context).reloadAppHotReload,
+          spinning: widget.reloading,
+          onTap: widget.onReload,
+        ),
+        _FabAction(
+          icon: LucideIcons.refreshCcw,
+          tooltip: S.of(context).reloadAppHotRestart,
+          spinning: widget.hotRestarting,
+          onTap: widget.onHotRestart,
+        ),
+      ];
+    }
+    if (hasRN) {
+      return [
+        _FabAction(
+          icon: LucideIcons.rocket,
+          tooltip: S.of(context).reloadAppMetro,
+          spinning: widget.reloading,
+          onTap: widget.onReload,
+        ),
+      ];
+    }
+    if (hasAndroid) {
+      // Android: Activity.recreate() is a runtime state reset — NOT a real
+      // "rebuild" of the APK. We label and icon this the same as Flutter's
+      // "Hot restart" so the UI reflects what actually happens (full state
+      // reset, no code recompile). For the *real* Android rebuild the
+      // developer has to run gradle assembleDebug + reinstall — which is
+      // outside what a runtime SDK can trigger.
+      return [
+        _FabAction(
+          icon: LucideIcons.refreshCcw,
+          tooltip: S.of(context).reloadAppHotRestart,
+          spinning: widget.reloading,
+          onTap: widget.onReload,
+        ),
+      ];
+    }
+    return [
+      _FabAction(
+        icon: LucideIcons.zap,
+        tooltip: S.of(context).reloadApp,
+        spinning: widget.reloading,
+        onTap: widget.onReload,
+      ),
+    ];
+  }
+
+  // ── Sizing ──────────────────────────────────────────────────────────────
+
+  double _currentFabWidth() {
+    final actions = _actionsFor();
+    if (actions.isEmpty) return _collapsedWidth;
+    // When multiple actions exist, the FAB expands on hover to show them.
+    // For single-action platforms it stays the same size (no expand needed).
+    if (actions.length > 1 && _hovered) {
+      return _actionWidth * actions.length +
+          _actionGap * (actions.length - 1);
+    }
+    return _collapsedWidth;
+  }
+
+  // ── Build ───────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final actions = _actionsFor();
+
+    // When the FAB has multiple actions available (Flutter = Hot Reload +
+    // Hot Restart) the *width* animates from 44 → 80 on hover — but the
+    // *Row* underneath still tries to lay out every action. With a 44px
+    // container and an 80px-tall row of two 38px icons + 4px gap, the
+    // second one overflows invisibly until the user hovers. Drop it
+    // until the pill actually expands.
+    final visibleActions = (actions.length > 1 && !_hovered)
+        ? actions.take(1).toList()
+        : actions;
+
+    final fabWidth = _currentFabWidth();
+    final disabled = actions.isEmpty;
+
+    // Shared spinner — whichever reload is in flight, the shared
+    // `_spinCtrl` ticks. Toggled once per build so the multi-action case
+    // doesn't fight itself (the old per-icon helper would reset the
+    // controller while the other icon was still spinning).
+    _syncSpinner(visibleActions.any((a) => a.spinning));
+
+    // Clamp in build() too, not just `_onPanUpdate` — if the user
+    // resizes the window smaller than the dragged position, the
+    // Positioned offsets need to be re-clamped to the new viewport or
+    // the FAB escapes the screen.
+    final media = MediaQuery.of(context);
+    final size = media.size;
+    final maxRight = (size.width - fabWidth - _edgeMargin)
+        .clamp(_edgeMargin, double.infinity);
+    final maxBottom = (size.height -
+            _fabHeight -
+            _headerHeight -
+            _filterBarHeight -
+            _edgeMargin -
+            media.padding.bottom)
+        .clamp(_edgeMargin, double.infinity);
+    final clampedRight = _right.clamp(_edgeMargin, maxRight);
+    final clampedBottom = _bottom.clamp(_edgeMargin, maxBottom);
+
+    return Positioned(
+      // Plain Positioned (no AnimatedPositioned) so the FAB tracks the
+      // cursor instantly during drag. Any animation here would lag behind
+      // the pointer and feel sticky.
+      right: clampedRight,
+      bottom: clampedBottom,
+      child: AnimatedScale(
+        // Press feedback + slight grow while dragging.
+        scale: _pressed ? 0.94 : (_dragging ? 1.04 : 1.0),
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.grab,
+          onEnter: (_) {
+            if (!_dragging) setState(() => _hovered = true);
+          },
+          onExit: (_) {
+            if (!_dragging) setState(() => _hovered = false);
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanStart: _onPanStart,
+            onPanUpdate: _onPanUpdate,
+            onPanEnd: _onPanEnd,
+            // Single tap dispatch lives on the OUTER detector too — that way
+            // the inner per-icon GestureDetectors can't out-compete the
+            // pan recognizer in the gesture arena (which is what blocked
+            // the drag from working). Tap vs. drag is decided by Flutter's
+            // built-in slop: a quick release → onTapUp, a movement past
+            // the touch slop → onPanStart.
+            onTapUp: _onTapUp,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              height: _fabHeight,
+              width: fabWidth,
+              decoration: _decoration(isDark, disabled, _hovered || _dragging),
+              child: Stack(
+                children: [
+                  // Inner top highlight — a 1px-tall gradient line simulating
+                  // the refraction on a glass surface's top edge. Cheaper and
+                  // crisper than a true inset shadow.
+                  Positioned(
+                    top: 0,
+                    left: 10,
+                    right: 10,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              (isDark ? Colors.white : Colors.white)
+                                  .withValues(alpha: isDark ? 0.35 : 0.7),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Action row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (actions.isEmpty)
+                        _fabIcon(
+                          icon: LucideIcons.zap,
+                          tooltip: S.of(context).reloadAppNoDevices,
+                          spinning: false,
+                          disabled: true,
+                          isDark: isDark,
+                        )
+                      else
+                        for (int i = 0; i < visibleActions.length; i++) ...[
+                          if (i > 0) const SizedBox(width: _actionGap),
+                          _fabIcon(
+                            icon: visibleActions[i].icon,
+                            tooltip: visibleActions[i].tooltip,
+                            spinning: visibleActions[i].spinning,
+                            disabled: false,
+                            isDark: isDark,
+                          ),
+                        ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Frosted-glass decoration. Three layers (top to bottom):
+  ///   1. Outer drop shadow — tinted to the background, never pure black,
+  ///      no neon glow.
+  ///   2. Background fill — high-alpha neutral (260 of 255 alpha) so the
+  ///      surface beneath shows through subtly without backdrop-blur cost.
+  ///      For the *true* frosted look we wrap it in BackdropFilter so it
+  ///      actually blurs what's behind when there's content (e.g. event
+  ///      rows); we drop BackdropFilter when content is empty (no perf
+  ///      cost on idle empty states).
+  ///   3. 1px border — translucent white in dark, translucent black in light.
+  BoxDecoration _decoration(bool isDark, bool disabled, bool emphasised) {
+    final surfaceColor = isDark
+        ? const Color(0xFF1B2129)
+        : const Color(0xFFFDFEFF);
+    return BoxDecoration(
+      color: disabled
+          ? surfaceColor.withValues(alpha: 0.72)
+          : surfaceColor.withValues(alpha: 0.92),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.10)
+            : Colors.black.withValues(alpha: 0.06),
+        width: 1,
+      ),
+      boxShadow: [
+        // Drop shadow, tinted to background.
+        BoxShadow(
+          color: isDark
+              ? Colors.black.withValues(alpha: 0.55)
+              : Colors.black.withValues(alpha: 0.18),
+          blurRadius: disabled ? 16 : 22,
+          spreadRadius: 0,
+          offset: const Offset(0, 6),
+        ),
+        // Slight forward "lift" when hovered/dragged — felt, not loud.
+        if (emphasised)
+          BoxShadow(
+            color: ColorTokens.primary.withValues(alpha: 0.18),
+            blurRadius: 20,
+            spreadRadius: -2,
+            offset: const Offset(0, 4),
+          ),
+      ],
+    );
+  }
+
+  /// One icon "slot" inside the pill. Spins while its action is in flight.
+  ///
+  /// IMPORTANT: this widget is purely visual. It does **not** wrap its child
+  /// in a [GestureDetector] — taps are dispatched by the outer FAB-level
+  /// handler via [_onTapUp] using horizontal position. Adding an inner
+  /// `GestureDetector(onTap: ...)` here would out-compete the outer pan
+  /// recognizer in the gesture arena and silently break dragging.
+  Widget _fabIcon({
+    required IconData icon,
+    required String tooltip,
+    required bool spinning,
+    required bool disabled,
+    required bool isDark,
+  }) {
+    final color = disabled
+        ? (isDark ? Colors.grey[700]! : Colors.grey[400]!)
+        : (isDark ? Colors.grey[200]! : Colors.grey[800]!);
+
+    final iconWidget = spinning
+        ? RotationTransition(
+            // Always drive from the shared `_spinCtrl` — whether it's
+            // actually animating or not is decided by `_syncSpinner()` in
+            // `build()`, not per-icon here.
+            turns: _spinCtrl,
+            child: Icon(icon, size: 17, color: color),
+          )
+        : Icon(icon, size: 17, color: color);
+
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: _actionWidth,
+        height: _fabHeight,
+        child: Center(child: iconWidget),
+      ),
+    );
+  }
+
+  // Spinner — one controller, repeats when in flight. Cheap because every
+  // icon uses the same controller (visual only; not part of any layout
+  // pass that affects the parent). Initialised in initState() (not as a
+  // `late final` with an initializer) so dispose() never trips over an
+  // uninitialised controller — the FAB can be mounted without ever
+  // triggering a reload, in which case the old lazy form threw
+  // LateInitializationError when the widget tree was torn down.
+  late AnimationController _spinCtrl;
+
+  /// Single source of truth for the shared spinner: any action currently
+  /// in flight → repeat; otherwise → stop. Called once per build so the
+  /// multi-action case doesn't fight itself (the old `_spinController(bool)`
+  /// helper toggled start/stop per icon and the second action would reset
+  /// the controller while the first was still spinning).
+  void _syncSpinner(bool shouldSpin) {
+    if (shouldSpin && !_spinCtrl.isAnimating) {
+      _spinCtrl.repeat();
+    } else if (!shouldSpin && _spinCtrl.isAnimating) {
+      _spinCtrl.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spinCtrl.dispose();
+    super.dispose();
+  }
+}
+
+class _FabAction {
+  final IconData icon;
+  final String tooltip;
+  final bool spinning;
+  final VoidCallback onTap;
+
+  const _FabAction({
+    required this.icon,
+    required this.tooltip,
+    required this.spinning,
+    required this.onTap,
+  });
+}
+///
+/// Same shape and 28x28 size as every other [_IconBtn] in the action group,
+/// same hover/active visuals, info via tooltip on hover — just with
+/// a spinning icon while the reload is in flight.
+///
+/// The icon + tooltip + callback are passed in from the caller; this widget
+/// only handles the visual state (hover / spin / disabled).
+class _ReloadAppBtn extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool reloading;
+  final bool disabled;
+  final VoidCallback onTap;
+
+  const _ReloadAppBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.reloading,
+    required this.disabled,
+    required this.onTap,
+  });
+
+  @override
+  State<_ReloadAppBtn> createState() => _ReloadAppBtnState();
+}
+
+class _ReloadAppBtnState extends State<_ReloadAppBtn>
+    with SingleTickerProviderStateMixin {
+  bool _hovered = false;
+  late final AnimationController _spinCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _spinCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+    if (widget.reloading) _spinCtrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReloadAppBtn old) {
+    super.didUpdateWidget(old);
+    if (widget.reloading && !_spinCtrl.isAnimating) {
+      _spinCtrl.repeat();
+    } else if (!widget.reloading && _spinCtrl.isAnimating) {
+      _spinCtrl.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spinCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final active = widget.reloading || _hovered;
+
+    // Match `_IconBtn`'s color logic exactly — keeps the action group visually
+    // coherent so this button doesn't stand out as "the odd one".
+    Color iconColor;
+    Color bgColor;
+    if (widget.disabled) {
+      iconColor = isDark ? Colors.grey[700]! : Colors.grey[400]!;
+      bgColor = Colors.transparent;
+    } else if (active) {
+      iconColor = ColorTokens.primary;
+      bgColor = ColorTokens.primary.withValues(alpha: 0.15);
+    } else if (_hovered) {
+      iconColor = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+      bgColor = isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.06);
+    } else {
+      iconColor = isDark ? Colors.grey[500]! : Colors.grey[500]!;
+      bgColor = Colors.transparent;
+    }
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: GestureDetector(
+        onTap: widget.disabled ? null : widget.onTap,
+        child: MouseRegion(
+          cursor: widget.disabled
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: RotationTransition(
+              turns: _spinCtrl,
+              child: Icon(widget.icon, size: 14, color: iconColor),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Decides which reload buttons to render in the action group based on the
+/// connected devices' platforms.
+///
+/// Mirrors what each SDK's IDE offers:
+///   • **Flutter only**           → Hot Reload (`zap`) + Hot Restart (`refreshCcw`)
+///   • **React Native only**      → Reload Metro (`rocket`)
+///   • **Native Android only**    → Rebuild (`hammer`)
+///   • **Mixed platforms**        → single universal Reload (`zap`)
+///   • **No devices**             → no buttons
+///
+/// Each button is icon-only; tooltips appear on hover, like every other
+/// button in this action group. Returns a list of `[btn, gap, btn, gap, ...]`
+/// ready to splice into the action group's child list.
+// (removed — replaced by _DraggableReloadFab)
 
 class _MiniIconButton extends StatelessWidget {
   final IconData icon;

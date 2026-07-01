@@ -165,7 +165,7 @@ class SZh extends S {
   }
 
   @override
-  String get reload => '重新加载';
+  String get restartServer => '重启服务器';
 
   @override
   String portOccupied(Object port) {
@@ -206,6 +206,36 @@ class SZh extends S {
       other: '$count 台设备已重连',
       one: '1 台设备已重连',
       zero: '0 已重连',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reloadApp => '重新加载应用';
+
+  @override
+  String get reloadAppHotReload => '热重载';
+
+  @override
+  String get reloadAppHotRestart => '热重启';
+
+  @override
+  String get reloadAppMetro => '重载 Metro';
+
+  @override
+  String get reloadAppNoDevices => '无设备连接';
+
+  @override
+  String get reloadSent => '已发送重新加载';
+
+  @override
+  String sentReloadTo(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已向 $count 台设备发送重新加载',
+      one: '已向 1 台设备发送重新加载',
+      zero: '未指定任何设备',
     );
     return '$_temp0';
   }
@@ -1129,7 +1159,7 @@ class SZhCn extends SZh {
   }
 
   @override
-  String get reload => '重新加载';
+  String get restartServer => '重启服务器';
 
   @override
   String portOccupied(Object port) {
@@ -1170,6 +1200,36 @@ class SZhCn extends SZh {
       other: '$count 台设备已重连',
       one: '1 台设备已重连',
       zero: '0 已重连',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reloadApp => '重新加载应用';
+
+  @override
+  String get reloadAppHotReload => '热重载';
+
+  @override
+  String get reloadAppHotRestart => '热重启';
+
+  @override
+  String get reloadAppMetro => '重载 Metro';
+
+  @override
+  String get reloadAppNoDevices => '无设备连接';
+
+  @override
+  String get reloadSent => '已发送重新加载';
+
+  @override
+  String sentReloadTo(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已向 $count 台设备发送重新加载',
+      one: '已向 1 台设备发送重新加载',
+      zero: '未指定任何设备',
     );
     return '$_temp0';
   }
@@ -2093,7 +2153,7 @@ class SZhTw extends SZh {
   }
 
   @override
-  String get reload => '重新載入';
+  String get restartServer => '重新啟動伺服器';
 
   @override
   String portOccupied(Object port) {
@@ -2134,6 +2194,36 @@ class SZhTw extends SZh {
       other: '$count 台裝置已重新連線',
       one: '1 台裝置已重新連線',
       zero: '0 已重新連線',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reloadApp => '重新載入應用程式';
+
+  @override
+  String get reloadAppHotReload => '熱重載';
+
+  @override
+  String get reloadAppHotRestart => '熱重啟';
+
+  @override
+  String get reloadAppMetro => '重載 Metro';
+
+  @override
+  String get reloadAppNoDevices => '無裝置連線';
+
+  @override
+  String get reloadSent => '已傳送重新載入';
+
+  @override
+  String sentReloadTo(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已向 $count 台裝置發送重新載入',
+      one: '已向 1 台裝置發送重新載入',
+      zero: '未指定任何裝置',
     );
     return '$_temp0';
   }

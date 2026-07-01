@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 
 typedef OnConnected = void Function();
@@ -78,6 +79,17 @@ class DevConnectClient {
   void Function(Map<String, dynamic> action)? onReduxDispatch;
   /// Called when desktop restores a state snapshot
   void Function(Map<String, dynamic> state)? onStateRestore;
+  /// Called when desktop asks the app to reload itself.
+  /// The default implementation uses Flutter's [WidgetsBinding.reassembleApplication]
+  /// (the same mechanism `flutter run -r` uses for hot-reload outside the IDE).
+  /// Override this to provide a custom reload strategy — e.g. tear down the
+  /// navigator and re-run the app — when the default isn't sufficient.
+  void Function()? onReloadRequest;
+  /// Called when desktop asks the app to perform a *hot restart* (heavier
+  /// than [onReloadRequest] — equivalent to killing and re-launching the
+  /// app while keeping the Dart isolate alive). See [onHotRestartRequest]
+  /// in the public `DevConnect` API for details.
+  void Function()? onHotRestartRequest;
   /// Custom command handlers: command name -> handler
   final Map<String, dynamic Function(Map<String, dynamic>?)> _commandHandlers = {};
   /// Active benchmarks
@@ -547,6 +559,20 @@ class DevConnectClient {
                   }, correlationId: msg['correlationId'] as String?);
                 } catch (_) {}
               }
+            } else if (type == 'server:reload') {
+              // Desktop asking the app to reload itself.
+              // Flutter offers no public hot-reload API outside the IDE, so we
+              // use `reassembleApplication` — the same mechanism Flutter's
+              // own dev tools use — to rebuild the entire widget tree from
+              // scratch. Works in debug mode only.
+              _reloadApp();
+            } else if (type == 'server:hot_restart') {
+              // Heavier counterpart of `server:reload` — the "Hot Restart"
+              // button from the Flutter IDE. By default we still call
+              // `reassembleApplication` (Flutter has no public kill-and-
+              // relaunch API), but apps can register `onHotRestartRequest`
+              // to actually wipe state and remount their root MaterialApp.
+              _hotRestartApp();
             }
           } catch (_) {}
         },
@@ -578,6 +604,44 @@ class DevConnectClient {
         'sdkVersion': '1.0.0',
       },
     });
+  }
+
+  /// Default handler for [WsMessageTypes.serverReload].
+  ///
+  /// Flutter has no public hot-reload API accessible from runtime, but the
+  /// dev tools (and `flutter run -r`) trigger a full widget rebuild by
+  /// calling [WidgetsBinding.reassembleApplication]. We use the same path —
+  /// it fires `didChangeAppLifecycleState`-like notifications down the tree
+  /// so any `StatefulWidget` can re-initialize. Works in debug builds only.
+  void _reloadApp() {
+    if (onReloadRequest != null) {
+      onReloadRequest!();
+      return;
+    }
+    try {
+      WidgetsBinding.instance.reassembleApplication();
+    } catch (_) {
+      // WidgetsBinding not initialized yet (init() called too early) — ignore.
+    }
+  }
+
+  /// Default handler for [WsMessageTypes.serverHotRestart].
+  ///
+  /// The Flutter IDE's "Hot Restart" tears down every `State` and re-runs
+  /// `main()` — we can't do that from a runtime SDK (no public kill-and-
+  /// relaunch API), so by default we just delegate to [reassembleApplication]
+  /// for parity with [server:reload]. Apps that need true state-reset
+  /// semantics register [onHotRestartRequest] to remount their root widget.
+  void _hotRestartApp() {
+    if (onHotRestartRequest != null) {
+      onHotRestartRequest!();
+      return;
+    }
+    try {
+      WidgetsBinding.instance.reassembleApplication();
+    } catch (_) {
+      // WidgetsBinding not initialized yet — ignore.
+    }
   }
 
   void _scheduleReconnect() {

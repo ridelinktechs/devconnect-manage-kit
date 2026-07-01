@@ -1,13 +1,22 @@
 # CodeRabbit Configuration — DevConnect
-# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+# Migrated to current schema: https://docs.coderabbit.ai/reference/configuration
+
+# ── Top-level ──────────────────────────────────────────────────────────────
+
+language: "en-US"
+
+tone_instructions: |
+  Senior cross-platform reviewer for DevConnect. Focus on cross-platform
+  compatibility, body type coverage, storage type coverage, and
+  TextComponent usage in detail panels.
+
+# ── Reviews ────────────────────────────────────────────────────────────────
 
 reviews:
-  auto_review:
-    enabled: true
-    incremental: true
-
   profile: "chill"
   poem: true
+  high_level_summary: true
+
   path_filters:
     - "lib/**"
     - "client_sdks/**"
@@ -49,27 +58,32 @@ reviews:
         - OkHttp: handle MultipartBody structured
         - HttpURLConnection: capture errorStream
 
-  tone_instructions: |
-    Senior cross-platform reviewer for DevConnect. Focus on:
-    - Cross-platform compatibility (Flutter, React Native, Android)
-    - Body type coverage (JSON, FormData, binary, streaming)
-    - Storage type coverage (all 12 types)
-    - TextComponent in detail panels
-    - Performance (StableListView, RepaintBoundary)
+  # Auto-review trigger
+  auto_review:
+    enabled: true
+    auto_incremental_review: true   # was 'incremental: true' in old schema
+    drafts: false
+
+  # Linters / static analysis
+  tools:
+    ast-grep:
+      enabled: false
+    biome:
+      enabled: false
+    ruff:
+      enabled: false
+    dart-analyze:
+      enabled: true
+
+# ── Chat ──────────────────────────────────────────────────────────────────
 
 chat:
   auto_reply: true
 
-tools:
-  ast-grep:
-    enabled: false
-  biome:
-    enabled: false
-  ruff:
-    enabled: false
-  dart-analyze:
-    enabled: true
+# ── Knowledge Base ──────────────────────────────────────────────────────────
 
-knowledge:
+knowledge_base:
   learnings:
+    scope: "auto"
+  code_guidelines:
     enabled: true

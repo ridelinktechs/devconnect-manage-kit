@@ -12,6 +12,15 @@ class WsMessageTypes {
   static const String serverReduxDispatch = 'server:redux:dispatch';
   static const String serverStateRestore = 'server:state:restore';
   static const String serverCustomCommand = 'server:custom:command';
+  /// Generic reload trigger — Flutter calls
+  /// `WidgetsBinding.reassembleApplication()`, RN calls
+  /// `DevSettings.reload()`, Android recreates the Activity.
+  static const String serverReload = 'server:reload';
+  /// Heavier restart trigger — Flutter-only, used for "Hot Restart"
+  /// semantics (full widget tree + state reset). RN and Android treat this
+  /// as a no-op (Android already destroys state on `recreate`; RN has no
+  /// notion of a lighter-vs-heavier reload).
+  static const String serverHotRestart = 'server:hot_restart';
 
   // Client -> Server
   static const String clientHandshake = 'client:handshake';
