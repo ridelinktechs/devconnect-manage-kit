@@ -171,17 +171,31 @@ async function clearHostCache(): Promise<void> {
 async function verifyCachedHost(host: string, port: number, expectedId: string): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     let done = false;
+    // Declare timer/ws as mutable null so they're safely accessible from
+    // `finish` even before `setTimeout` / `new WebSocket` complete.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let ws: WebSocket | null = null;
     const finish = (ok: boolean) => {
       if (done) return;
       done = true;
-      try { ws.close(); } catch (_) {}
-      clearTimeout(timer);
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (ws) {
+        try { ws.close(); } catch (_) {}
+        ws = null;
+      }
       resolve(ok);
     };
-    let ws: WebSocket;
-    try { ws = new WebSocket(`ws://${host}:${port}`); } catch (_) { return resolve(false); }
 
-    const timer = setTimeout(() => finish(false), 1500);
+    try {
+      ws = new WebSocket(`ws://${host}:${port}`);
+    } catch (_) {
+      return resolve(false);
+    }
+
+    timer = setTimeout(() => finish(false), 1500);
 
     ws.onopen = () => {
       // Server should send server:hello immediately on connect

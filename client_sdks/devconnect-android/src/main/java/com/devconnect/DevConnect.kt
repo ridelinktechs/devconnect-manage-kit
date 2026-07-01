@@ -181,24 +181,25 @@ object DevConnect {
      * iPhone, or back, after the desktop's address changed).
      */
     private fun verifyCachedHost(host: String, port: Int, expectedId: String): Boolean {
+        var connection: java.net.HttpURLConnection? = null
         return try {
             val url = java.net.URL("http://$host:$port/")
-            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection = url.openConnection() as java.net.HttpURLConnection
             connection.connectTimeout = 1500
             connection.readTimeout = 1500
             connection.requestMethod = "GET"
             connection.doInput = true
             val code = connection.responseCode
             if (code !in 200..299) {
-                connection.disconnect()
                 return false
             }
             val body = connection.inputStream.bufferedReader().use { it.readText() }
-            connection.disconnect()
             val announced = extractMachineId(body)
             announced == expectedId
         } catch (_: Exception) {
             false
+        } finally {
+            connection?.disconnect()
         }
     }
 

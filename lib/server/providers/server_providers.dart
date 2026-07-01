@@ -40,7 +40,9 @@ final connectedDevicesProvider =
 /// the persisted log can evolve independently.
 final deviceHistoryMirrorProvider = Provider<void>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final history = ref.read(deviceHistoryProvider.notifier);
+  // Use watch (not read) so the mirror re-subscribes if the history
+  // notifier is ever recreated (e.g., in tests with provider overrides).
+  final history = ref.watch(deviceHistoryProvider.notifier);
 
   final connectSub = handler.onDeviceConnected.listen(history.onConnected);
   final disconnectSub =

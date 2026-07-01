@@ -1200,7 +1200,7 @@ class _HeaderActionIconState extends State<_HeaderActionIcon>
     if (widget.spinning && !_spinCtrl.isAnimating) {
       _spinCtrl.repeat();
     } else if (!widget.spinning && _spinCtrl.isAnimating) {
-      _spinCtrl.stop();
+      _spinCtrl.reset();
     }
   }
 
@@ -1455,7 +1455,7 @@ class _ReloadPillState extends State<_ReloadPill>
     if (widget.restarting && !_spinCtrl.isAnimating) {
       _spinCtrl.repeat();
     } else if (!widget.restarting && _spinCtrl.isAnimating) {
-      _spinCtrl.stop();
+      _spinCtrl.reset();
     }
   }
 
