@@ -54,6 +54,148 @@ class SZh extends S {
   String get clearAll => '全部清除';
 
   @override
+  String get maintenance => '维护';
+
+  @override
+  String get clearAllCache => '清除所有缓存';
+
+  @override
+  String get clearAllCacheDesc =>
+      '断开所有设备并清除所有内存数据（日志、网络捕获、状态、性能等）。您的设置（主题、语言、端口）将被保留。';
+
+  @override
+  String get clearAllCacheConfirm =>
+      '清除所有缓存？\n\n这将断开所有已连接的设备并清除内存中的所有日志、网络捕获、状态变更、性能指标和基准测试结果。\n\n您的设置（主题、语言、端口）将被保留。';
+
+  @override
+  String get cacheCleared => '已清除所有缓存。设置已保留。';
+
+  @override
+  String clearAllCacheFailed(Object error) {
+    return '清除缓存失败：$error';
+  }
+
+  @override
+  String get deviceHistory => '已缓存的设备';
+
+  @override
+  String get deviceHistoryDesc => '所有曾连接到此桌面端的设备。条目跨重启持久保存,您可以查看之前有哪些设备连接过。';
+
+  @override
+  String get noDeviceHistory => '尚无设备连接';
+
+  @override
+  String get deviceHistoryEmptyHint => '通过 SDK 连接设备后,设备将显示在此处。条目跨重启持久保存。';
+
+  @override
+  String get deviceOnline => '在线';
+
+  @override
+  String get deviceOffline => '离线';
+
+  @override
+  String lastSeen(Object time) {
+    return '最后在线 $time';
+  }
+
+  @override
+  String firstSeen(Object time) {
+    return '首次连接 $time';
+  }
+
+  @override
+  String get forgetDevice => '忘记';
+
+  @override
+  String get forgetAllOffline => '忘记所有离线';
+
+  @override
+  String get forgetAllDevices => '全部忘记';
+
+  @override
+  String get forgetDeviceConfirm => '忘记此设备?\n\n将从历史记录中删除。下次连接时会作为新条目重新出现。';
+
+  @override
+  String get forgetAllOfflineConfirm => '忘记所有离线设备?\n\n将删除所有未连接的条目。在线设备会保留。';
+
+  @override
+  String get forgetAllDevicesConfirm =>
+      '忘记所有已缓存的设备?\n\n将清除整个历史记录,包括在线设备。它们会在重新连接时再次出现。';
+
+  @override
+  String get deviceForgotten => '设备已忘记';
+
+  @override
+  String devicesForgotten(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已忘记 $count 台设备',
+      one: '已忘记 1 台设备',
+      zero: '未忘记任何设备',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String connectionCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '连接 $count 次',
+      one: '连接 1 次',
+      zero: '从未连接',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reload => '重新加载';
+
+  @override
+  String portOccupied(Object port) {
+    return '端口 $port 已被占用';
+  }
+
+  @override
+  String get serverRestarted => '服务器已重启';
+
+  @override
+  String get restartFailed => '重启失败';
+
+  @override
+  String portStillInUse(Object port) {
+    return '端口 $port 仍被其他进程占用';
+  }
+
+  @override
+  String couldNotRestart(Object port) {
+    return '无法在端口 $port 重启';
+  }
+
+  @override
+  String listeningOnPort(Object port) {
+    return '正在监听端口 $port';
+  }
+
+  @override
+  String waitingForReconnect(Object port) {
+    return '端口 $port · 等待设备重新连接';
+  }
+
+  @override
+  String reconnectedCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台设备已重连',
+      one: '1 台设备已重连',
+      zero: '0 已重连',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get screenshotSaved => '截图已保存';
 
   @override
@@ -309,6 +451,9 @@ class SZh extends S {
 
   @override
   String get quickStart => '快速入门';
+
+  @override
+  String get quickStartDesc => '三步连接您的应用。点击任意平台标签查看对应 SDK 的代码片段。';
 
   @override
   String get installSdk => '安装 SDK';
@@ -858,6 +1003,148 @@ class SZhCn extends SZh {
   String get clearAll => '全部清除';
 
   @override
+  String get maintenance => '维护';
+
+  @override
+  String get clearAllCache => '清除所有缓存';
+
+  @override
+  String get clearAllCacheDesc =>
+      '断开所有设备并清除所有内存数据（日志、网络捕获、状态、性能等）。您的设置（主题、语言、端口）将被保留。';
+
+  @override
+  String get clearAllCacheConfirm =>
+      '清除所有缓存？\n\n这将断开所有已连接的设备并清除内存中的所有日志、网络捕获、状态变更、性能指标和基准测试结果。\n\n您的设置（主题、语言、端口）将被保留。';
+
+  @override
+  String get cacheCleared => '已清除所有缓存。设置已保留。';
+
+  @override
+  String clearAllCacheFailed(Object error) {
+    return '清除缓存失败：$error';
+  }
+
+  @override
+  String get deviceHistory => '已缓存的设备';
+
+  @override
+  String get deviceHistoryDesc => '所有曾连接到此桌面端的设备。条目跨重启持久保存,您可以查看之前有哪些设备连接过。';
+
+  @override
+  String get noDeviceHistory => '尚无设备连接';
+
+  @override
+  String get deviceHistoryEmptyHint => '通过 SDK 连接设备后,设备将显示在此处。条目跨重启持久保存。';
+
+  @override
+  String get deviceOnline => '在线';
+
+  @override
+  String get deviceOffline => '离线';
+
+  @override
+  String lastSeen(Object time) {
+    return '最后在线 $time';
+  }
+
+  @override
+  String firstSeen(Object time) {
+    return '首次连接 $time';
+  }
+
+  @override
+  String get forgetDevice => '忘记';
+
+  @override
+  String get forgetAllOffline => '忘记所有离线';
+
+  @override
+  String get forgetAllDevices => '全部忘记';
+
+  @override
+  String get forgetDeviceConfirm => '忘记此设备?\n\n将从历史记录中删除。下次连接时会作为新条目重新出现。';
+
+  @override
+  String get forgetAllOfflineConfirm => '忘记所有离线设备?\n\n将删除所有未连接的条目。在线设备会保留。';
+
+  @override
+  String get forgetAllDevicesConfirm =>
+      '忘记所有已缓存的设备?\n\n将清除整个历史记录,包括在线设备。它们会在重新连接时再次出现。';
+
+  @override
+  String get deviceForgotten => '设备已忘记';
+
+  @override
+  String devicesForgotten(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已忘记 $count 台设备',
+      one: '已忘记 1 台设备',
+      zero: '未忘记任何设备',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String connectionCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '连接 $count 次',
+      one: '连接 1 次',
+      zero: '从未连接',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reload => '重新加载';
+
+  @override
+  String portOccupied(Object port) {
+    return '端口 $port 已被占用';
+  }
+
+  @override
+  String get serverRestarted => '服务器已重启';
+
+  @override
+  String get restartFailed => '重启失败';
+
+  @override
+  String portStillInUse(Object port) {
+    return '端口 $port 仍被其他进程占用';
+  }
+
+  @override
+  String couldNotRestart(Object port) {
+    return '无法在端口 $port 重启';
+  }
+
+  @override
+  String listeningOnPort(Object port) {
+    return '正在监听端口 $port';
+  }
+
+  @override
+  String waitingForReconnect(Object port) {
+    return '端口 $port · 等待设备重新连接';
+  }
+
+  @override
+  String reconnectedCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台设备已重连',
+      one: '1 台设备已重连',
+      zero: '0 已重连',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get screenshotSaved => '截图已保存';
 
   @override
@@ -1113,6 +1400,9 @@ class SZhCn extends SZh {
 
   @override
   String get quickStart => '快速入门';
+
+  @override
+  String get quickStartDesc => '三步连接您的应用。点击任意平台标签查看对应 SDK 的代码片段。';
 
   @override
   String get installSdk => '安装 SDK';
@@ -1662,6 +1952,148 @@ class SZhTw extends SZh {
   String get clearAll => '全部清除';
 
   @override
+  String get maintenance => '維護';
+
+  @override
+  String get clearAllCache => '清除所有快取';
+
+  @override
+  String get clearAllCacheDesc =>
+      '斷開所有設備並清除所有內存數據（日誌、網絡捕獲、狀態、性能等）。您的設置（主題、語言、端口）將被保留。';
+
+  @override
+  String get clearAllCacheConfirm =>
+      '清除所有快取？\n\n這將斷開所有已連接的設備並清除內存中的所有日誌、網絡捕獲、狀態變更、性能指標和基準測試結果。\n\n您的設置（主題、語言、端口）將被保留。';
+
+  @override
+  String get cacheCleared => '已清除所有快取。設置已保留。';
+
+  @override
+  String clearAllCacheFailed(Object error) {
+    return '清除快取失敗：$error';
+  }
+
+  @override
+  String get deviceHistory => '已快取的裝置';
+
+  @override
+  String get deviceHistoryDesc => '所有曾連線到此桌面端的裝置。條目跨重啟持久保存,您可以查看之前有哪些裝置連線過。';
+
+  @override
+  String get noDeviceHistory => '尚無裝置連線';
+
+  @override
+  String get deviceHistoryEmptyHint => '透過 SDK 連線裝置後,裝置將顯示在此處。條目跨重啟持久保存。';
+
+  @override
+  String get deviceOnline => '線上';
+
+  @override
+  String get deviceOffline => '離線';
+
+  @override
+  String lastSeen(Object time) {
+    return '最後上線 $time';
+  }
+
+  @override
+  String firstSeen(Object time) {
+    return '首次連線 $time';
+  }
+
+  @override
+  String get forgetDevice => '忘記';
+
+  @override
+  String get forgetAllOffline => '忘記所有離線';
+
+  @override
+  String get forgetAllDevices => '全部忘記';
+
+  @override
+  String get forgetDeviceConfirm => '忘記此裝置?\n\n將從歷史記錄中刪除。下次連線時會作為新條目重新出現。';
+
+  @override
+  String get forgetAllOfflineConfirm => '忘記所有離線裝置?\n\n將刪除所有未連線的條目。在線裝置會保留。';
+
+  @override
+  String get forgetAllDevicesConfirm =>
+      '忘記所有已快取的裝置?\n\n將清除整個歷史記錄,包括在線裝置。它們會在重新連線時再次出現。';
+
+  @override
+  String get deviceForgotten => '裝置已忘記';
+
+  @override
+  String devicesForgotten(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已忘記 $count 台裝置',
+      one: '已忘記 1 台裝置',
+      zero: '未忘記任何裝置',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String connectionCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '連線 $count 次',
+      one: '連線 1 次',
+      zero: '從未連線',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reload => '重新載入';
+
+  @override
+  String portOccupied(Object port) {
+    return '連接埠 $port 已被佔用';
+  }
+
+  @override
+  String get serverRestarted => '伺服器已重新啟動';
+
+  @override
+  String get restartFailed => '重新啟動失敗';
+
+  @override
+  String portStillInUse(Object port) {
+    return '連接埠 $port 仍被其他程式佔用';
+  }
+
+  @override
+  String couldNotRestart(Object port) {
+    return '無法在連接埠 $port 重新啟動';
+  }
+
+  @override
+  String listeningOnPort(Object port) {
+    return '正在監聽連接埠 $port';
+  }
+
+  @override
+  String waitingForReconnect(Object port) {
+    return '連接埠 $port · 等待裝置重新連線';
+  }
+
+  @override
+  String reconnectedCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台裝置已重新連線',
+      one: '1 台裝置已重新連線',
+      zero: '0 已重新連線',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get screenshotSaved => '截圖已儲存';
 
   @override
@@ -1917,6 +2349,9 @@ class SZhTw extends SZh {
 
   @override
   String get quickStart => '快速入門';
+
+  @override
+  String get quickStartDesc => '三步連線您的應用。點擊任意平台標籤查看對應 SDK 的程式碼片段。';
 
   @override
   String get installSdk => '安裝 SDK';

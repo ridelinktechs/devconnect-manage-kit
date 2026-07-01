@@ -54,6 +54,152 @@ class SVi extends S {
   String get clearAll => 'Xóa tất cả';
 
   @override
+  String get maintenance => 'Bảo trì';
+
+  @override
+  String get clearAllCache => 'Xóa Toàn Bộ Cache';
+
+  @override
+  String get clearAllCacheDesc =>
+      'Ngắt kết nối tất cả thiết bị và xóa mọi dữ liệu trong bộ nhớ (logs, network captures, state, performance, v.v.). Cài đặt của bạn (theme, ngôn ngữ, port) được giữ nguyên.';
+
+  @override
+  String get clearAllCacheConfirm =>
+      'Xóa toàn bộ cache?\n\nThao tác này sẽ ngắt kết nối mọi thiết bị đang kết nối và xóa toàn bộ log, network capture, state change, performance metric và benchmark trong bộ nhớ.\n\nCài đặt của bạn (theme, ngôn ngữ, port) sẽ được giữ lại.';
+
+  @override
+  String get cacheCleared => 'Đã xóa toàn bộ cache. Cài đặt được giữ nguyên.';
+
+  @override
+  String clearAllCacheFailed(Object error) {
+    return 'Lỗi khi xóa cache: $error';
+  }
+
+  @override
+  String get deviceHistory => 'Thiết bị đã cache';
+
+  @override
+  String get deviceHistoryDesc =>
+      'Mọi thiết bị đã từng kết nối tới desktop. Lưu xuyên suốt các lần restart để bạn thấy được thiết bị nào đã kết nối trước đây.';
+
+  @override
+  String get noDeviceHistory => 'Chưa có thiết bị nào kết nối';
+
+  @override
+  String get deviceHistoryEmptyHint =>
+      'Kết nối thiết bị qua SDK và thiết bị sẽ xuất hiện ở đây. Lưu xuyên suốt các lần restart.';
+
+  @override
+  String get deviceOnline => 'Đang online';
+
+  @override
+  String get deviceOffline => 'Offline';
+
+  @override
+  String lastSeen(Object time) {
+    return 'Lần cuối thấy $time';
+  }
+
+  @override
+  String firstSeen(Object time) {
+    return 'Lần đầu $time';
+  }
+
+  @override
+  String get forgetDevice => 'Quên';
+
+  @override
+  String get forgetAllOffline => 'Quên tất cả offline';
+
+  @override
+  String get forgetAllDevices => 'Quên tất cả';
+
+  @override
+  String get forgetDeviceConfirm =>
+      'Quên thiết bị này?\n\nSẽ bị xóa khỏi lịch sử. Lần kết nối tiếp theo nó sẽ xuất hiện lại như một entry mới.';
+
+  @override
+  String get forgetAllOfflineConfirm =>
+      'Quên tất cả thiết bị đang offline?\n\nXóa mọi entry không đang kết nối. Các thiết bị online được giữ lại.';
+
+  @override
+  String get forgetAllDevicesConfirm =>
+      'Quên tất cả thiết bị đã cache?\n\nXóa toàn bộ lịch sử, kể cả thiết bị đang online. Chúng sẽ xuất hiện lại khi (re)connect.';
+
+  @override
+  String get deviceForgotten => 'Đã quên thiết bị';
+
+  @override
+  String devicesForgotten(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Đã quên $count thiết bị',
+      one: 'Đã quên 1 thiết bị',
+      zero: 'Không quên thiết bị nào',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String connectionCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count lần kết nối',
+      one: '1 lần kết nối',
+      zero: 'chưa từng kết nối',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reload => 'Tải lại';
+
+  @override
+  String portOccupied(Object port) {
+    return 'Cổng $port đang bị chiếm';
+  }
+
+  @override
+  String get serverRestarted => 'Đã khởi động lại server';
+
+  @override
+  String get restartFailed => 'Khởi động lại thất bại';
+
+  @override
+  String portStillInUse(Object port) {
+    return 'Cổng $port vẫn đang bị tiến trình khác chiếm';
+  }
+
+  @override
+  String couldNotRestart(Object port) {
+    return 'Không thể khởi động lại trên cổng $port';
+  }
+
+  @override
+  String listeningOnPort(Object port) {
+    return 'Đang lắng nghe trên cổng $port';
+  }
+
+  @override
+  String waitingForReconnect(Object port) {
+    return 'Cổng $port · đang chờ thiết bị kết nối lại';
+  }
+
+  @override
+  String reconnectedCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count thiết bị kết nối lại',
+      one: '1 thiết bị kết nối lại',
+      zero: '0 kết nối lại',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get screenshotSaved => 'Đã lưu ảnh chụp';
 
   @override
@@ -314,6 +460,10 @@ class SVi extends S {
 
   @override
   String get quickStart => 'Bắt đầu nhanh';
+
+  @override
+  String get quickStartDesc =>
+      'Ba bước để kết nối app của bạn. Nhấn vào tab nền tảng để xem đoạn code tương ứng.';
 
   @override
   String get installSdk => 'Cài đặt SDK';

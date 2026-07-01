@@ -54,6 +54,152 @@ class SFr extends S {
   String get clearAll => 'Tout effacer';
 
   @override
+  String get maintenance => 'Maintenance';
+
+  @override
+  String get clearAllCache => 'Vider tout le cache';
+
+  @override
+  String get clearAllCacheDesc =>
+      'Déconnecter tous les appareils et effacer toutes les données en mémoire (logs, captures réseau, état, performances, etc.). Vos paramètres (thème, langue, port) sont conservés.';
+
+  @override
+  String get clearAllCacheConfirm =>
+      'Vider tout le cache ?\n\nCela déconnectera tous les appareils connectés et effacera tous les logs, captures réseau, changements d\'état, métriques de performance et benchmarks en mémoire.\n\nVos paramètres (thème, langue, port) seront conservés.';
+
+  @override
+  String get cacheCleared => 'Cache vidé. Paramètres conservés.';
+
+  @override
+  String clearAllCacheFailed(Object error) {
+    return 'Échec du vidage du cache : $error';
+  }
+
+  @override
+  String get deviceHistory => 'Appareils en cache';
+
+  @override
+  String get deviceHistoryDesc =>
+      'Tous les appareils qui se sont connectés à ce bureau. Les entrées persistent entre les redémarrages pour que vous puissiez voir ce qui était présent.';
+
+  @override
+  String get noDeviceHistory => 'Aucun appareil ne s\'est encore connecté';
+
+  @override
+  String get deviceHistoryEmptyHint =>
+      'Connectez un appareil via le SDK et il apparaîtra ici. Les entrées persistent entre les redémarrages.';
+
+  @override
+  String get deviceOnline => 'En ligne';
+
+  @override
+  String get deviceOffline => 'Hors ligne';
+
+  @override
+  String lastSeen(Object time) {
+    return 'Vu pour la dernière fois $time';
+  }
+
+  @override
+  String firstSeen(Object time) {
+    return 'Vu pour la première fois $time';
+  }
+
+  @override
+  String get forgetDevice => 'Oublier';
+
+  @override
+  String get forgetAllOffline => 'Oublier tous les hors ligne';
+
+  @override
+  String get forgetAllDevices => 'Tout oublier';
+
+  @override
+  String get forgetDeviceConfirm =>
+      'Oublier cet appareil ?\n\nIl sera supprimé de l\'historique. À la prochaine connexion, il apparaîtra comme une nouvelle entrée.';
+
+  @override
+  String get forgetAllOfflineConfirm =>
+      'Oublier tous les appareils hors ligne ?\n\nCela supprime toutes les entrées non connectées. Les appareils en ligne sont conservés.';
+
+  @override
+  String get forgetAllDevicesConfirm =>
+      'Oublier tous les appareils en cache ?\n\nCela efface tout l\'historique, y compris les appareils en ligne. Ils réapparaîtront à la reconnexion.';
+
+  @override
+  String get deviceForgotten => 'Appareil oublié';
+
+  @override
+  String devicesForgotten(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count appareils oubliés',
+      one: '1 appareil oublié',
+      zero: 'Aucun appareil oublié',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String connectionCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count connexions',
+      one: '1 connexion',
+      zero: 'jamais connecté',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reload => 'Recharger';
+
+  @override
+  String portOccupied(Object port) {
+    return 'Port $port occupé';
+  }
+
+  @override
+  String get serverRestarted => 'Serveur redémarré';
+
+  @override
+  String get restartFailed => 'Échec du redémarrage';
+
+  @override
+  String portStillInUse(Object port) {
+    return 'Le port $port est toujours utilisé';
+  }
+
+  @override
+  String couldNotRestart(Object port) {
+    return 'Impossible de redémarrer sur le port $port';
+  }
+
+  @override
+  String listeningOnPort(Object port) {
+    return 'Écoute sur le port $port';
+  }
+
+  @override
+  String waitingForReconnect(Object port) {
+    return 'Port $port · en attente de reconnexion';
+  }
+
+  @override
+  String reconnectedCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count appareils reconnectés',
+      one: '1 appareil reconnecté',
+      zero: '0 reconnecté',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get screenshotSaved => 'Capture d\'écran enregistrée';
 
   @override
@@ -314,6 +460,10 @@ class SFr extends S {
 
   @override
   String get quickStart => 'Démarrage rapide';
+
+  @override
+  String get quickStartDesc =>
+      'Trois étapes pour connecter votre application. Cliquez sur un onglet de plateforme pour voir l\'extrait correspondant.';
 
   @override
   String get installSdk => 'Installer le SDK';

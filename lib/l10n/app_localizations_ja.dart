@@ -54,6 +54,152 @@ class SJa extends S {
   String get clearAll => 'すべてクリア';
 
   @override
+  String get maintenance => 'メンテナンス';
+
+  @override
+  String get clearAllCache => 'すべてキャッシュをクリア';
+
+  @override
+  String get clearAllCacheDesc =>
+      'すべてのデバイスを切断し、すべてのメモリ内データ（ログ、ネットワークキャプチャ、状態、パフォーマンスなど）を消去します。設定（テーマ、言語、ポート）は保持されます。';
+
+  @override
+  String get clearAllCacheConfirm =>
+      'すべてキャッシュをクリアしますか？\n\n接続されているすべてのデバイスを切断し、メモリ内のすべてのログ、ネットワークキャプチャ、状態変更、パフォーマンス指標、ベンチマークを消去します。\n\n設定（テーマ、言語、ポート）は保持されます。';
+
+  @override
+  String get cacheCleared => 'すべてキャッシュをクリアしました。設定は保持されます。';
+
+  @override
+  String clearAllCacheFailed(Object error) {
+    return 'キャッシュのクリアに失敗しました：$error';
+  }
+
+  @override
+  String get deviceHistory => 'キャッシュされたデバイス';
+
+  @override
+  String get deviceHistoryDesc =>
+      'このデスクトップに接続したすべてのデバイス。エントリは再起動後も保持され、以前に何が接続されていたかを確認できます。';
+
+  @override
+  String get noDeviceHistory => 'まだデバイスが接続されていません';
+
+  @override
+  String get deviceHistoryEmptyHint =>
+      'SDK 経由でデバイスを接続すると、ここに表示されます。エントリは再起動後も保持されます。';
+
+  @override
+  String get deviceOnline => 'オンライン';
+
+  @override
+  String get deviceOffline => 'オフライン';
+
+  @override
+  String lastSeen(Object time) {
+    return '最終確認 $time';
+  }
+
+  @override
+  String firstSeen(Object time) {
+    return '初回確認 $time';
+  }
+
+  @override
+  String get forgetDevice => '削除';
+
+  @override
+  String get forgetAllOffline => 'オフラインをすべて削除';
+
+  @override
+  String get forgetAllDevices => 'すべて削除';
+
+  @override
+  String get forgetDeviceConfirm =>
+      'このデバイスを削除しますか？\n\n履歴から削除されます。次回接続時に新しいエントリとして表示されます。';
+
+  @override
+  String get forgetAllOfflineConfirm =>
+      'オフラインのデバイスをすべて削除しますか？\n\n未接続のエントリがすべて削除されます。オンラインのデバイスは保持されます。';
+
+  @override
+  String get forgetAllDevicesConfirm =>
+      'キャッシュされたすべてのデバイスを削除しますか？\n\nオンラインのデバイスを含む履歴全体が削除されます。再接続時に再表示されます。';
+
+  @override
+  String get deviceForgotten => 'デバイスを削除しました';
+
+  @override
+  String devicesForgotten(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台のデバイスを削除',
+      one: '1 台のデバイスを削除',
+      zero: '0 件削除',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String connectionCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 回接続',
+      one: '1 回接続',
+      zero: '未接続',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reload => '再読み込み';
+
+  @override
+  String portOccupied(Object port) {
+    return 'ポート $port は使用中です';
+  }
+
+  @override
+  String get serverRestarted => 'サーバーを再起動しました';
+
+  @override
+  String get restartFailed => '再起動に失敗しました';
+
+  @override
+  String portStillInUse(Object port) {
+    return 'ポート $port は他のプロセスに使用されています';
+  }
+
+  @override
+  String couldNotRestart(Object port) {
+    return 'ポート $port で再起動できません';
+  }
+
+  @override
+  String listeningOnPort(Object port) {
+    return 'ポート $port でリッスン中';
+  }
+
+  @override
+  String waitingForReconnect(Object port) {
+    return 'ポート $port · デバイスの再接続を待機中';
+  }
+
+  @override
+  String reconnectedCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台のデバイスが再接続',
+      one: '1 台のデバイスが再接続',
+      zero: '0 件再接続',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get screenshotSaved => 'スクリーンショットを保存しました';
 
   @override
@@ -311,6 +457,10 @@ class SJa extends S {
 
   @override
   String get quickStart => 'クイックスタート';
+
+  @override
+  String get quickStartDesc =>
+      'アプリを接続する 3 ステップ。プラットフォームのタブをクリックして、各 SDK のコードを表示します。';
 
   @override
   String get installSdk => 'SDKをインストール';

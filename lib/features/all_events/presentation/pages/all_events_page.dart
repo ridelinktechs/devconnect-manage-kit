@@ -30,7 +30,10 @@ import '../../../../models/storage/storage_entry.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../console/provider/console_providers.dart';
 import '../../../display/provider/display_providers.dart';
+import '../../../error_inspector/provider/error_providers.dart';
 import '../../../network_inspector/provider/network_providers.dart';
+import '../../../performance/provider/performance_providers.dart';
+import '../../../benchmark/provider/benchmark_providers.dart';
 import '../../../state_inspector/provider/state_providers.dart';
 import '../../../storage_viewer/provider/storage_providers.dart';
 import '../../../../components/lists/stable_list_view.dart';
@@ -174,11 +177,88 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
     ref.read(storageEntriesProvider.notifier).clear();
     ref.read(displayEntriesProvider.notifier).clear();
     ref.read(asyncOperationEntriesProvider.notifier).clear();
+    ref.read(errorEntriesProvider.notifier).clear();
+    ref.read(performanceEntriesProvider.notifier).clear();
+    ref.read(memoryLeakEntriesProvider.notifier).clear();
+    ref.read(benchmarkEntriesProvider.notifier).clear();
     _selectedEventId.value = null;
     _events.clear();
     _eventCount.value = 0;
     _visibleCount = 0;
     setState(() {});
+  }
+
+  bool _restarting = false;
+
+  /// Restart the WebSocket server. Forces every connected SDK into its
+  /// reconnect path — useful when you've changed the port, switched WiFi,
+  /// or want to verify the machineId handshake from scratch.
+  Future<void> _restartServer() async {
+    if (_restarting) return;
+    setState(() => _restarting = true);
+    final ws = ref.read(wsServerProvider);
+    final port = ws.isRunning ? ws.port : 9090;
+    final hadDevices = ref.read(connectedDevicesProvider).length;
+
+    try {
+      if (ws.isRunning) {
+        await ws.stop();
+        // Tiny gap so devices see a clean disconnect and reset their
+        // reconnect timer (otherwise they reconnect so fast the user can't
+        // tell anything happened).
+        await Future.delayed(const Duration(milliseconds: 600));
+      }
+      ref.read(serverStartErrorProvider.notifier).state = null;
+
+      try {
+        await ws.start(port: port);
+        ref.read(serverStartErrorProvider.notifier).state = null;
+
+        // Toast: success. Wait one frame so connectedDevicesProvider picks
+        // up any reconnects before we report the count.
+        await Future.delayed(const Duration(milliseconds: 200));
+        final reconnected = ref.read(connectedDevicesProvider).length;
+
+        if (!mounted) return;
+        if (hadDevices > 0 && reconnected == 0) {
+          // Server up but no devices reconnected yet — informational.
+          showInfoToast(
+            context,
+            message: S.of(context).serverRestarted,
+            subtitle: S.of(context).waitingForReconnect(port),
+          );
+        } else if (reconnected > 0) {
+          showSuccessToast(
+            context,
+            message: S.of(context).serverRestarted,
+            subtitle: S.of(context).reconnectedCount(reconnected),
+          );
+        } else {
+          showSuccessToast(
+            context,
+            message: S.of(context).serverRestarted,
+            subtitle: S.of(context).listeningOnPort(port),
+          );
+        }
+      } catch (e) {
+        ref.read(serverStartErrorProvider.notifier).state = e.toString();
+        if (!mounted) return;
+        // Surface the friendly error message when possible.
+        final msg = e.toString();
+        final friendly = msg.contains('Address already in use') ||
+                msg.contains('errno = 48') ||
+                msg.contains('errno = 98')
+            ? S.of(context).portStillInUse(port)
+            : S.of(context).couldNotRestart(port);
+        showErrorToast(
+          context,
+          message: S.of(context).restartFailed,
+          error: friendly,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _restarting = false);
+    }
   }
 
   UnifiedEvent? _findEvent(String? id) {
@@ -206,6 +286,8 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
           autoScroll: _autoScroll,
           onToggleAutoScroll: _toggleAutoScroll,
           onClear: _clearAll,
+          restarting: _restarting,
+          onReload: _restartServer,
         ),
         // ── Stats + Filters ── (rebuilds via _eventCount, not setState)
         ValueListenableBuilder<int>(
@@ -346,8 +428,10 @@ class _Header extends ConsumerWidget {
   final int port;
   final int deviceCount;
   final bool autoScroll;
+  final bool restarting;
   final VoidCallback onToggleAutoScroll;
   final VoidCallback onClear;
+  final VoidCallback onReload;
 
   const _Header({
     required this.eventCount,
@@ -357,12 +441,18 @@ class _Header extends ConsumerWidget {
     required this.autoScroll,
     required this.onToggleAutoScroll,
     required this.onClear,
+    required this.restarting,
+    required this.onReload,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    // Port-occupied detection: server failed to start (typically "Address
+    // already in use") AND is currently not running.
+    final startError = ref.watch(serverStartErrorProvider);
+    final portOccupied = !serverRunning && startError != null;
 
     return Container(
       height: 48,
@@ -398,48 +488,25 @@ class _Header extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          // Server status
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: serverRunning ? ColorTokens.success : ColorTokens.error,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: (serverRunning ? ColorTokens.success : ColorTokens.error)
-                      .withValues(alpha: 0.4),
-                  blurRadius: 4,
-                ),
-              ],
-            ),
+          const SizedBox(width: 14),
+          // Unified server-status pill — port + device count + state
+          _ServerStatusPill(
+            serverRunning: serverRunning,
+            portOccupied: portOccupied,
+            port: port,
+            deviceCount: deviceCount,
+            startError: startError,
           ),
-          const SizedBox(width: 6),
-          Text(
-            serverRunning ? 'Port $port' : S.of(context).stopped,
-            style: TextStyle(
-              fontSize: 11,
-              fontFamily: AppConstants.monoFontFamily,
-              color: Colors.grey[500],
-            ),
+
+          // Reload connection — sits next to the status pill so it's
+          // obvious that this action restarts the server (and therefore
+          // forces every connected SDK into its reconnect path).
+          const SizedBox(width: 8),
+          _ReloadPill(
+            restarting: restarting,
+            tooltip: S.of(context).reload,
+            onTap: restarting ? () {} : onReload,
           ),
-          if (deviceCount > 0) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text('·', style: TextStyle(color: Colors.grey[600])),
-            ),
-            Icon(LucideIcons.smartphone, size: 11, color: Colors.grey[500]),
-            const SizedBox(width: 3),
-            Text(
-              '$deviceCount',
-              style: TextStyle(
-                fontSize: 11,
-                fontFamily: AppConstants.monoFontFamily,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
 
           const Spacer(),
 
@@ -523,6 +590,7 @@ class _FilterBar extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeFilters = ref.watch(allEventsFilterProvider);
     final enabledTabs = ref.watch(tabVisibilityProvider);
+    final errorsOnly = ref.watch(allEventsErrorsOnlyProvider);
 
     final logCount = events.where((e) => e.type == EventType.log).length;
     final netCount = events.where((e) => e.type == EventType.network).length;
@@ -633,8 +701,10 @@ class _FilterBar extends ConsumerWidget {
               count: errorCount,
               icon: LucideIcons.triangleAlert,
               color: ColorTokens.error,
-              isActive: true,
-              onTap: () {},
+              isActive: errorsOnly,
+              onTap: () => ref
+                  .read(allEventsErrorsOnlyProvider.notifier)
+                  .update((v) => !v),
             ),
           ],
           const Spacer(),
@@ -1083,6 +1153,371 @@ class _IconBtnState extends State<_IconBtn> {
               size: 14,
               color: iconColor,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Slightly larger icon button used in the header next to the port/device
+/// counters (the server restart "Reload" button).
+class _HeaderActionIcon extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool spinning;
+  final VoidCallback onTap;
+
+  const _HeaderActionIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.spinning,
+    required this.onTap,
+  });
+
+  @override
+  State<_HeaderActionIcon> createState() => _HeaderActionIconState();
+}
+
+class _HeaderActionIconState extends State<_HeaderActionIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spinCtrl;
+  bool _hovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _spinCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+    if (widget.spinning) _spinCtrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HeaderActionIcon old) {
+    super.didUpdateWidget(old);
+    if (widget.spinning && !_spinCtrl.isAnimating) {
+      _spinCtrl.repeat();
+    } else if (!widget.spinning && _spinCtrl.isAnimating) {
+      _spinCtrl.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spinCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = _hovered || widget.spinning
+        ? ColorTokens.primary
+        : (isDark ? Colors.grey[400]! : Colors.grey[600]!);
+    final bgColor = _hovered || widget.spinning
+        ? ColorTokens.primary.withValues(alpha: 0.12)
+        : Colors.transparent;
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: GestureDetector(
+        onTap: widget.spinning ? null : widget.onTap,
+        child: MouseRegion(
+          cursor:
+              widget.spinning ? SystemMouseCursors.basic : SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: RotationTransition(
+              turns: _spinCtrl,
+              child: Icon(widget.icon, size: 12, color: iconColor),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact status indicator for the All Events header.
+///
+/// Single rounded pill that conveys server state + port + device count.
+/// Dot gently pulses when the server is running (perpetual micro-motion),
+/// turns warning amber if the port is occupied, error red if stopped.
+class _ServerStatusPill extends StatefulWidget {
+  final bool serverRunning;
+  final bool portOccupied;
+  final int port;
+  final int deviceCount;
+  final String? startError;
+
+  const _ServerStatusPill({
+    required this.serverRunning,
+    required this.portOccupied,
+    required this.port,
+    required this.deviceCount,
+    required this.startError,
+  });
+
+  @override
+  State<_ServerStatusPill> createState() => _ServerStatusPillState();
+}
+
+class _ServerStatusPillState extends State<_ServerStatusPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    );
+    if (widget.serverRunning) _pulseCtrl.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ServerStatusPill old) {
+    super.didUpdateWidget(old);
+    if (widget.serverRunning && !_pulseCtrl.isAnimating) {
+      _pulseCtrl.repeat(reverse: true);
+    } else if (!widget.serverRunning && _pulseCtrl.isAnimating) {
+      _pulseCtrl.stop();
+      _pulseCtrl.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  Color _accent() {
+    if (widget.portOccupied) return ColorTokens.warning;
+    if (!widget.serverRunning) return ColorTokens.error;
+    return ColorTokens.success;
+  }
+
+  String _label() {
+    if (widget.portOccupied) return S.of(context).portOccupied(widget.port);
+    if (!widget.serverRunning) return S.of(context).stopped;
+    return 'Port ${widget.port}';
+  }
+
+  IconData _icon() {
+    if (widget.portOccupied) return LucideIcons.triangleAlert;
+    if (!widget.serverRunning) return LucideIcons.circlePause;
+    return LucideIcons.radio;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = _accent();
+    final label = _label();
+    final icon = _icon();
+
+    return Tooltip(
+      message: widget.portOccupied && widget.startError != null
+          ? widget.startError!
+          : label,
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: isDark
+              ? accent.withValues(alpha: 0.08)
+              : accent.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: accent.withValues(alpha: 0.18),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Pulsing dot
+            AnimatedBuilder(
+              animation: _pulseCtrl,
+              builder: (_, __) {
+                final scale = widget.serverRunning
+                    ? 1.0 + 0.4 * _pulseCtrl.value
+                    : 1.0;
+                final alpha = widget.serverRunning
+                    ? 1.0 - 0.5 * _pulseCtrl.value
+                    : 1.0;
+                return Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: alpha),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.45 * alpha),
+                        blurRadius: 6 * scale,
+                        spreadRadius: 1 * scale,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(width: 6),
+            Icon(icon, size: 11, color: accent.withValues(alpha: 0.85)),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: AppConstants.monoFontFamily,
+                color: accent.withValues(alpha: 0.92),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
+              ),
+            ),
+            if (widget.deviceCount > 0) ...[
+              Container(
+                width: 1,
+                height: 12,
+                margin: const EdgeInsets.symmetric(horizontal: 8),
+                color: accent.withValues(alpha: 0.25),
+              ),
+              Text(
+                '${widget.deviceCount}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: AppConstants.monoFontFamily,
+                  color: isDark ? Colors.grey[300] : Colors.grey[700],
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Text(
+                widget.deviceCount == 1 ? 'device' : 'devices',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isDark ? Colors.grey[500] : Colors.grey[600],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Reload connection pill — sits next to the status pill and forces every
+/// connected SDK into its reconnect path. Tactile feedback on press.
+class _ReloadPill extends StatefulWidget {
+  final bool restarting;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _ReloadPill({
+    required this.restarting,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  State<_ReloadPill> createState() => _ReloadPillState();
+}
+
+class _ReloadPillState extends State<_ReloadPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spinCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _spinCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+    if (widget.restarting) _spinCtrl.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReloadPill old) {
+    super.didUpdateWidget(old);
+    if (widget.restarting && !_spinCtrl.isAnimating) {
+      _spinCtrl.repeat();
+    } else if (!widget.restarting && _spinCtrl.isAnimating) {
+      _spinCtrl.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spinCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: widget.tooltip,
+      child: GestureDetector(
+        onTap: widget.restarting ? null : widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: widget.restarting
+                ? ColorTokens.primary.withValues(alpha: isDark ? 0.14 : 0.10)
+                : isDark
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : Colors.black.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: widget.restarting
+                  ? ColorTokens.primary.withValues(alpha: 0.35)
+                  : isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.black.withValues(alpha: 0.06),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RotationTransition(
+                turns: _spinCtrl,
+                child: Icon(
+                  LucideIcons.refreshCw,
+                  size: 12,
+                  color: widget.restarting
+                      ? ColorTokens.primary
+                      : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                widget.restarting ? 'Restarting…' : widget.tooltip,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: widget.restarting
+                      ? ColorTokens.primary
+                      : (isDark ? Colors.grey[300] : Colors.grey[700]),
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ],
           ),
         ),
       ),

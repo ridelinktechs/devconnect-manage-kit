@@ -129,9 +129,13 @@ object DevConnect {
         return UUID.nameUUIDFromBytes(seed.toByteArray()).toString()
     }
 
-    private fun saveHostCache(host: String, port: Int) {
+    /** Cached host + server's stable machineId for identity verification. */
+    private data class CachedHost(val host: String, val machineId: String)
+
+    private fun saveHostCache(host: String, port: Int, machineId: String?) {
         try {
-            val plain = """{"h":"$host","p":$port,"t":${System.currentTimeMillis()}}"""
+            val machineIdField = if (machineId != null) ""","m":"$machineId"""" else ""
+            val plain = """{"h":"$host","p":$port,"t":${System.currentTimeMillis()}$machineIdField}"""
             val encrypted = android.util.Base64.encodeToString(
                 xorCipher(plain, CACHE_KEY).toByteArray(Charsets.ISO_8859_1),
                 android.util.Base64.NO_WRAP
@@ -140,7 +144,14 @@ object DevConnect {
         } catch (_: Exception) {}
     }
 
-    private fun readHostCache(port: Int): String? {
+    /** Invalidate the cached host. Used when verification fails. */
+    private fun clearHostCache() {
+        try {
+            getPrefs()?.edit()?.remove("dc_s")?.apply()
+        } catch (_: Exception) {}
+    }
+
+    private fun readHostCache(port: Int): CachedHost? {
         try {
             val encrypted = getPrefs()?.getString("dc_s", null) ?: return null
             val decoded = android.util.Base64.decode(encrypted, android.util.Base64.NO_WRAP)
@@ -149,9 +160,56 @@ object DevConnect {
             val cachedTime = json.optLong("t", 0)
             if (System.currentTimeMillis() - cachedTime > 24 * 60 * 60 * 1000) return null
             if (json.optInt("p") != port) return null
-            return json.optString("h", null)
+            val host = json.optString("h", null) ?: return null
+            val machineId = json.optString("m", null)
+            // Legacy caches without machineId cannot be verified and would
+            // re-trigger the simulator/device-swap bug we are fixing —
+            // treat them as absent.
+            if (machineId.isNullOrEmpty()) return null
+            return CachedHost(host, machineId)
         } catch (_: Exception) {}
         return null
+    }
+
+    /**
+     * Probe a host via plain HTTP GET / and check that it returns the
+     * expected `machineId` in the JSON response. Cheap and reliable — no
+     * WebSocket frame parsing required.
+     *
+     * Prevents connecting to the wrong machine when the cached IP now points
+     * at a different device (e.g. switched between iOS Simulator and a real
+     * iPhone, or back, after the desktop's address changed).
+     */
+    private fun verifyCachedHost(host: String, port: Int, expectedId: String): Boolean {
+        return try {
+            val url = java.net.URL("http://$host:$port/")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 1500
+            connection.readTimeout = 1500
+            connection.requestMethod = "GET"
+            connection.doInput = true
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                connection.disconnect()
+                return false
+            }
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            connection.disconnect()
+            val announced = extractMachineId(body)
+            announced == expectedId
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** Parse machineId from the server's plain HTTP identify response. */
+    private fun extractMachineId(jsonText: String): String? {
+        return try {
+            val json = JSONObject(jsonText)
+            json.optString("machineId", null)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun init(
@@ -201,6 +259,14 @@ object DevConnect {
             appVersion = appVersion,
             versionCode = versionCode
         ).also { ws ->
+            // Capture the server's stable machineId so the next launch can
+            // verify the cached host really points at *this* desktop and not
+            // some other device that happened to claim the same IP.
+            ws.onServerHello = { machineId ->
+                if (!machineId.isNullOrEmpty()) {
+                    saveHostCache(ws.host, ws.port, machineId)
+                }
+            }
             ws.onServerMessage = { type, json ->
                 val payload = json.optJSONObject("payload") ?: JSONObject()
                 when (type) {
@@ -279,9 +345,18 @@ object DevConnect {
     private const val DISCOVERY_PORT = 41234
 
     private fun autoDetectHost(port: Int): String {
-        // 0. Try cached host from previous session (instant reconnect)
+        // 0. Try cached host from previous session (instant reconnect).
+        //    Verify the server's machineId matches what we cached — this
+        //    catches the case where the cached IP now points at a different
+        //    device (e.g. iOS Simulator ↔ real iPhone swap on the same network).
         val cached = readHostCache(port)
-        if (cached != null && tryHost(cached, port, 500)) return cached
+        if (cached != null) {
+            if (verifyCachedHost(cached.host, port, cached.machineId)) {
+                return cached.host
+            }
+            // Stale or wrong machine — invalidate so the next discovery wins.
+            clearHostCache()
+        }
 
         // 1. Race: UDP beacon + known hosts in parallel
         //    USB (adb reverse) → localhost/10.0.2.2 responds fast
@@ -308,7 +383,7 @@ object DevConnect {
                     if (remaining <= 0) break
                     val result = future.get(remaining, java.util.concurrent.TimeUnit.MILLISECONDS)
                     if (result != null) {
-                        saveHostCache(result, port)
+                        saveHostCache(result, port, null)
                         return result
                     }
                 } catch (_: Exception) {}
@@ -330,7 +405,7 @@ object DevConnect {
                         if (parts.size == 4) {
                             val subnet = "${parts[0]}.${parts[1]}.${parts[2]}"
                             val found = scanSubnet(subnet, port)
-                            if (found != null) { saveHostCache(found, port); return found }
+                            if (found != null) { saveHostCache(found, port, null); return found }
                         }
                     }
                 }
@@ -341,7 +416,7 @@ object DevConnect {
         val commonSubnets = listOf("192.168.1", "192.168.0", "192.168.2", "10.0.0", "10.0.1", "172.16.0")
         for (subnet in commonSubnets) {
             val found = scanSubnet(subnet, port)
-            if (found != null) { saveHostCache(found, port); return found }
+            if (found != null) { saveHostCache(found, port, null); return found }
         }
 
         return "10.0.2.2" // fallback for emulator

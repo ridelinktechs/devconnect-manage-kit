@@ -256,12 +256,62 @@ void showCopiedToast(BuildContext context, {String? label}) {
   );
 }
 
+/// Show a green success toast. Pass an optional subtitle for two-line layout.
+void showSuccessToast(
+  BuildContext context, {
+  required String message,
+  String? subtitle,
+}) {
+  _showCustomToast(
+    context,
+    icon: LucideIcons.checkCheck,
+    label: message,
+    accentColor: ColorTokens.success,
+    subtitle: subtitle,
+    durationMs: 2400,
+  );
+}
+
+/// Show a red error toast. `error` is shown as subtitle if present.
+void showErrorToast(
+  BuildContext context, {
+  required String message,
+  String? error,
+}) {
+  _showCustomToast(
+    context,
+    icon: LucideIcons.triangleAlert,
+    label: message,
+    accentColor: ColorTokens.error,
+    subtitle: error,
+    durationMs: 4000,
+  );
+}
+
+/// Show a blue info toast.
+void showInfoToast(
+  BuildContext context, {
+  required String message,
+  String? subtitle,
+}) {
+  _showCustomToast(
+    context,
+    icon: LucideIcons.info,
+    label: message,
+    accentColor: ColorTokens.primary,
+    subtitle: subtitle,
+    durationMs: 2400,
+  );
+}
+
 /// Internal: show a custom animated toast via Overlay.
 void _showCustomToast(
   BuildContext context, {
   required IconData icon,
   required String label,
   required Color accentColor,
+  String? subtitle,
+  int durationMs = 1500,
 }) {
   final overlay = Overlay.of(context);
   late OverlayEntry entry;
@@ -269,7 +319,9 @@ void _showCustomToast(
     builder: (_) => _ToastWidget(
       icon: icon,
       label: label,
+      subtitle: subtitle,
       accentColor: accentColor,
+      durationMs: durationMs,
       onDismiss: () {
         if (entry.mounted) entry.remove();
       },
@@ -281,14 +333,18 @@ void _showCustomToast(
 class _ToastWidget extends StatefulWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final Color accentColor;
+  final int durationMs;
   final VoidCallback onDismiss;
 
   const _ToastWidget({
     required this.icon,
     required this.label,
     required this.accentColor,
+    required this.durationMs,
     required this.onDismiss,
+    this.subtitle,
   });
 
   @override
@@ -324,8 +380,7 @@ class _ToastWidgetState extends State<_ToastWidget>
 
     _controller.forward();
 
-    // Auto dismiss after 1.5s
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    Future.delayed(Duration(milliseconds: widget.durationMs), () {
       if (mounted) {
         _controller.reverse().then((_) => widget.onDismiss());
       }
@@ -341,6 +396,7 @@ class _ToastWidgetState extends State<_ToastWidget>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasSubtitle = (widget.subtitle ?? '').isNotEmpty;
 
     return Positioned(
       bottom: 32,
@@ -365,7 +421,7 @@ class _ToastWidgetState extends State<_ToastWidget>
             child: Material(
               color: Colors.transparent,
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 320),
+                constraints: BoxConstraints(maxWidth: hasSubtitle ? 420 : 320),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF131A24) : Colors.white,
                   borderRadius: BorderRadius.circular(14),
@@ -407,8 +463,7 @@ class _ToastWidgetState extends State<_ToastWidget>
                       ),
                     ),
                     Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -437,16 +492,38 @@ class _ToastWidgetState extends State<_ToastWidget>
                             ),
                           ),
                           const SizedBox(width: 10),
-                          Text(
-                            widget.label,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              fontFamily: AppConstants.monoFontFamily,
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.9)
-                                  : const Color(0xFF1E293B),
-                              letterSpacing: -0.2,
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  widget.label,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.92)
+                                        : const Color(0xFF1E293B),
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                if (hasSubtitle) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    widget.subtitle!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: AppConstants.monoFontFamily,
+                                      color: isDark
+                                          ? Colors.grey[400]
+                                          : Colors.grey[600],
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 2,
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ],
