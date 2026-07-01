@@ -615,14 +615,18 @@ export class DevConnect {
     let deviceModel = `${osLabel} Device`;
     try {
       if (os === 'ios') {
-        // iOS: get model name from PlatformConstants
+        // iOS: prefer interfaceIdiom (iPhone/iPad/tv) over generic systemName
         const constants = (NativeModules.PlatformConstants || NativeModules.DeviceInfo) as Record<string, any> | undefined;
         const iosModel = constants?.interfaceIdiom;
         const systemName = constants?.systemName;
-        if (systemName) {
+        if (iosModel === 'phone') {
+          deviceModel = 'iPhone';
+        } else if (iosModel === 'pad') {
+          deviceModel = 'iPad';
+        } else if (iosModel === 'tv') {
+          deviceModel = 'tvOS Device';
+        } else if (systemName) {
           deviceModel = `${systemName} Device`;
-        } else if (iosModel) {
-          deviceModel = iosModel === 'phone' ? 'iPhone' : iosModel === 'pad' ? 'iPad' : iosModel;
         }
       } else if (os === 'android') {
         // Android: get model from PlatformConstants

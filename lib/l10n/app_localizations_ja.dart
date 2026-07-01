@@ -90,6 +90,21 @@ class SJa extends S {
       'SDK 経由でデバイスを接続すると、ここに表示されます。エントリは再起動後も保持されます。';
 
   @override
+  String get restarting => '再起動中…';
+
+  @override
+  String get online => 'オンライン';
+
+  @override
+  String get offline => 'オフライン';
+
+  @override
+  String get markOnline => 'オンラインとしてマーク';
+
+  @override
+  String get markOffline => 'オフラインとしてマーク';
+
+  @override
   String get deviceOnline => 'オンライン';
 
   @override

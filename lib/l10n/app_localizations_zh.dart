@@ -88,6 +88,21 @@ class SZh extends S {
   String get deviceHistoryEmptyHint => '通过 SDK 连接设备后,设备将显示在此处。条目跨重启持久保存。';
 
   @override
+  String get restarting => '正在重启…';
+
+  @override
+  String get online => '在线';
+
+  @override
+  String get offline => '离线';
+
+  @override
+  String get markOnline => '标记为在线';
+
+  @override
+  String get markOffline => '标记为离线';
+
+  @override
   String get deviceOnline => '在线';
 
   @override
@@ -1037,6 +1052,21 @@ class SZhCn extends SZh {
   String get deviceHistoryEmptyHint => '通过 SDK 连接设备后,设备将显示在此处。条目跨重启持久保存。';
 
   @override
+  String get restarting => '正在重启…';
+
+  @override
+  String get online => '在线';
+
+  @override
+  String get offline => '离线';
+
+  @override
+  String get markOnline => '标记为在线';
+
+  @override
+  String get markOffline => '标记为离线';
+
+  @override
   String get deviceOnline => '在线';
 
   @override
@@ -1959,14 +1989,14 @@ class SZhTw extends SZh {
 
   @override
   String get clearAllCacheDesc =>
-      '斷開所有設備並清除所有內存數據（日誌、網絡捕獲、狀態、性能等）。您的設置（主題、語言、端口）將被保留。';
+      '斷開所有設備並清除所有記憶體數據（日誌、網路擷取、狀態、效能等）。您的設定（主題、語言、連接埠）將被保留。';
 
   @override
   String get clearAllCacheConfirm =>
-      '清除所有快取？\n\n這將斷開所有已連接的設備並清除內存中的所有日誌、網絡捕獲、狀態變更、性能指標和基準測試結果。\n\n您的設置（主題、語言、端口）將被保留。';
+      '清除所有快取？\n\n這將斷開所有已連接的設備並清除記憶體中的所有日誌、網路擷取、狀態變更、效能指標和基準測試結果。\n\n您的設定（主題、語言、連接埠）將被保留。';
 
   @override
-  String get cacheCleared => '已清除所有快取。設置已保留。';
+  String get cacheCleared => '已清除所有快取。設定已保留。';
 
   @override
   String clearAllCacheFailed(Object error) {
@@ -1984,6 +2014,21 @@ class SZhTw extends SZh {
 
   @override
   String get deviceHistoryEmptyHint => '透過 SDK 連線裝置後,裝置將顯示在此處。條目跨重啟持久保存。';
+
+  @override
+  String get restarting => '正在重新啟動…';
+
+  @override
+  String get online => '線上';
+
+  @override
+  String get offline => '離線';
+
+  @override
+  String get markOnline => '標記為線上';
+
+  @override
+  String get markOffline => '標記為離線';
 
   @override
   String get deviceOnline => '線上';

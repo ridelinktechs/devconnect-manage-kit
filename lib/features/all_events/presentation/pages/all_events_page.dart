@@ -202,11 +202,22 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
 
     try {
       if (ws.isRunning) {
-        await ws.stop();
-        // Tiny gap so devices see a clean disconnect and reset their
-        // reconnect timer (otherwise they reconnect so fast the user can't
-        // tell anything happened).
-        await Future.delayed(const Duration(milliseconds: 600));
+        try {
+          await ws.stop();
+          // Tiny gap so devices see a clean disconnect and reset their
+          // reconnect timer (otherwise they reconnect so fast the user can't
+          // tell anything happened).
+          await Future.delayed(const Duration(milliseconds: 600));
+        } catch (e) {
+          ref.read(serverStartErrorProvider.notifier).state = e.toString();
+          if (!mounted) return;
+          showErrorToast(
+            context,
+            message: S.of(context).restartFailed,
+            error: e.toString(),
+          );
+          return;
+        }
       }
       ref.read(serverStartErrorProvider.notifier).state = null;
 
@@ -1507,7 +1518,7 @@ class _ReloadPillState extends State<_ReloadPill>
               ),
               const SizedBox(width: 5),
               Text(
-                widget.restarting ? 'Restarting…' : widget.tooltip,
+                widget.restarting ? S.of(context).restarting : widget.tooltip,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,

@@ -265,7 +265,7 @@ object DevConnect {
             // some other device that happened to claim the same IP.
             ws.onServerHello = { machineId ->
                 if (!machineId.isNullOrEmpty()) {
-                    saveHostCache(ws.host, ws.port, machineId)
+                    saveHostCache(resolvedHost, port, machineId)
                 }
             }
             ws.onServerMessage = { type, json ->

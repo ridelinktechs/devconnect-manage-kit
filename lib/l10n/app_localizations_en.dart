@@ -90,6 +90,21 @@ class SEn extends S {
       'Connect a device via the SDK and it will appear here. Entries persist across restarts.';
 
   @override
+  String get restarting => 'Restarting…';
+
+  @override
+  String get online => 'online';
+
+  @override
+  String get offline => 'offline';
+
+  @override
+  String get markOnline => 'Mark online';
+
+  @override
+  String get markOffline => 'Mark offline';
+
+  @override
   String get deviceOnline => 'Online';
 
   @override

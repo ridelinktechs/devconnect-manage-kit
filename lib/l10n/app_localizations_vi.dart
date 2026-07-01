@@ -90,6 +90,21 @@ class SVi extends S {
       'Kết nối thiết bị qua SDK và thiết bị sẽ xuất hiện ở đây. Lưu xuyên suốt các lần restart.';
 
   @override
+  String get restarting => 'Đang khởi động lại…';
+
+  @override
+  String get online => 'trực tuyến';
+
+  @override
+  String get offline => 'ngoại tuyến';
+
+  @override
+  String get markOnline => 'Đánh dấu trực tuyến';
+
+  @override
+  String get markOffline => 'Đánh dấu ngoại tuyến';
+
+  @override
   String get deviceOnline => 'Đang online';
 
   @override

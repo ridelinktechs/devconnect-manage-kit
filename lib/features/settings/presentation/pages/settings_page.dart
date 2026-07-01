@@ -1756,33 +1756,74 @@ class _DeviceHistorySection extends ConsumerWidget {
   }
 }
 
-class _DeviceHistoryRow extends StatelessWidget {
+class _DeviceHistoryRow extends ConsumerStatefulWidget {
   final DeviceHistoryEntry entry;
   const _DeviceHistoryRow({required this.entry});
 
+  @override
+  ConsumerState<_DeviceHistoryRow> createState() => _DeviceHistoryRowState();
+}
+
+class _DeviceHistoryRowState extends ConsumerState<_DeviceHistoryRow> {
   Color get _platformColor {
-    switch (entry.platform.toLowerCase()) {
-      case 'ios':
-      case 'flutter':
-        return const Color(0xFF58A6FF);
-      case 'android':
-        return const Color(0xFF3DDC84);
-      default:
-        return Colors.grey;
-    }
+    final p = widget.entry.platform.toLowerCase();
+    if (p == 'ios' || p == 'flutter') return const Color(0xFF58A6FF);
+    if (p == 'android') return const Color(0xFF3DDC84);
+    return Colors.grey;
   }
 
   IconData get _platformIcon {
-    switch (entry.platform.toLowerCase()) {
-      case 'ios':
-        return LucideIcons.apple;
-      case 'android':
-        return LucideIcons.smartphone;
-      case 'flutter':
-      case 'react_native':
-        return LucideIcons.boxes;
-      default:
-        return LucideIcons.monitor;
+    final p = widget.entry.platform.toLowerCase();
+    if (p == 'ios') return LucideIcons.apple;
+    if (p == 'android') return LucideIcons.smartphone;
+    if (p == 'flutter' || p == 'react_native') return LucideIcons.boxes;
+    return LucideIcons.monitor;
+  }
+
+  Future<void> _toggleOnline() async {
+    // Locally flip the flag in the entry — no network call, this is just
+    // a UI hint so the user can mark a stale "online" entry as gone.
+    final history = ref.read(deviceHistoryProvider.notifier);
+    final updated = DeviceHistoryEntry(
+      deviceId: widget.entry.deviceId,
+      deviceName: widget.entry.deviceName,
+      platform: widget.entry.platform,
+      appName: widget.entry.appName,
+      appVersion: widget.entry.appVersion,
+      clientIp: widget.entry.clientIp,
+      firstConnectedAt: widget.entry.firstConnectedAt,
+      lastConnectedAt: widget.entry.lastConnectedAt,
+      isOnline: !widget.entry.isOnline,
+      totalConnections: widget.entry.totalConnections,
+    );
+    await ref
+        .read(deviceHistoryProvider.notifier)
+        .replaceEntry(widget.entry.deviceId, updated);
+  }
+
+  Future<void> _forget() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(S.of(context).forgetDevice),
+        content: Text(S.of(context).forgetDeviceConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(S.of(context).cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: ColorTokens.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(S.of(context).forgetDevice),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref
+          .read(deviceHistoryProvider.notifier)
+          .forget(widget.entry.deviceId);
     }
   }
 
@@ -1790,6 +1831,7 @@ class _DeviceHistoryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = _platformColor;
+    final entry = widget.entry;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -1819,13 +1861,79 @@ class _DeviceHistoryRow extends StatelessWidget {
             ),
           ),
           Text(
-            entry.isOnline ? '● online' : '○ offline',
+            '● ${entry.isOnline ? S.of(context).online : S.of(context).offline}',
             style: TextStyle(
               fontSize: 10,
               color: entry.isOnline ? ColorTokens.success : Colors.grey[500],
             ),
           ),
+          const SizedBox(width: 6),
+          // Toggle online/offline (e.g. mark a stale "online" as gone)
+          _IconAction(
+            icon: entry.isOnline ? LucideIcons.wifiOff : LucideIcons.wifi,
+            tooltip: entry.isOnline
+                ? S.of(context).markOffline
+                : S.of(context).markOnline,
+            color: entry.isOnline ? Colors.grey[500]! : ColorTokens.success,
+            onTap: _toggleOnline,
+          ),
+          const SizedBox(width: 2),
+          // Forget — remove this entry from history
+          _IconAction(
+            icon: LucideIcons.x,
+            tooltip: S.of(context).forgetDevice,
+            color: Colors.grey[500]!,
+            onTap: _forget,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _IconAction extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _IconAction({
+    required this.icon,
+    required this.tooltip,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_IconAction> createState() => _IconActionState();
+}
+
+class _IconActionState extends State<_IconAction> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? widget.color.withValues(alpha: 0.18)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Icon(widget.icon, size: 12, color: widget.color),
+          ),
+        ),
       ),
     );
   }

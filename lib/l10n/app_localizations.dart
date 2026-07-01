@@ -255,6 +255,36 @@ abstract class S {
   /// **'Connect a device via the SDK and it will appear here. Entries persist across restarts.'**
   String get deviceHistoryEmptyHint;
 
+  /// No description provided for @restarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Restarting…'**
+  String get restarting;
+
+  /// No description provided for @online.
+  ///
+  /// In en, this message translates to:
+  /// **'online'**
+  String get online;
+
+  /// No description provided for @offline.
+  ///
+  /// In en, this message translates to:
+  /// **'offline'**
+  String get offline;
+
+  /// No description provided for @markOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark online'**
+  String get markOnline;
+
+  /// No description provided for @markOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark offline'**
+  String get markOffline;
+
   /// No description provided for @deviceOnline.
   ///
   /// In en, this message translates to:

@@ -47,8 +47,14 @@ class DeviceHistoryEntry {
       };
 
   factory DeviceHistoryEntry.fromJson(Map<String, dynamic> json) {
+    final id = json['deviceId'];
+    // Skip entries without a valid deviceId — caller catches the
+    // exception so a single bad row doesn't drop the entire history.
+    if (id is! String || id.isEmpty) {
+      throw FormatException('DeviceHistoryEntry missing deviceId');
+    }
     return DeviceHistoryEntry(
-      deviceId: json['deviceId'] as String,
+      deviceId: id,
       deviceName: (json['deviceName'] as String?) ?? '',
       platform: (json['platform'] as String?) ?? 'unknown',
       appName: (json['appName'] as String?) ?? '',
@@ -75,10 +81,18 @@ class DeviceHistoryNotifier extends StateNotifier<List<DeviceHistoryEntry>> {
       if (raw == null || raw.isEmpty) return;
       final decoded = jsonDecode(raw);
       if (decoded is! List) return;
-      state = decoded
-          .whereType<Map<String, dynamic>>()
-          .map(DeviceHistoryEntry.fromJson)
-          .toList();
+      // Parse each entry independently — one malformed entry must not
+      // wipe the entire history. Bad entries are skipped silently.
+      final loaded = <DeviceHistoryEntry>[];
+      for (final raw in decoded) {
+        if (raw is! Map<String, dynamic>) continue;
+        try {
+          loaded.add(DeviceHistoryEntry.fromJson(raw));
+        } catch (_) {
+          // Skip malformed entry, keep the rest.
+        }
+      }
+      state = loaded;
       // Mark anything that was online at last quit as offline — the new
       // process can't know if it actually reconnected.
       for (final e in state) {
@@ -160,6 +174,16 @@ class DeviceHistoryNotifier extends StateNotifier<List<DeviceHistoryEntry>> {
   /// Drop a single entry.
   Future<void> forget(String deviceId) async {
     state = state.where((e) => e.deviceId != deviceId).toList();
+    await _save();
+  }
+
+  /// Replace one entry in-place (keeps the same deviceId). Used by the
+  /// "mark online/offline" toggle in the cached-devices UI.
+  Future<void> replaceEntry(String deviceId, DeviceHistoryEntry updated) async {
+    state = [
+      for (final e in state)
+        if (e.deviceId == deviceId) updated else e,
+    ];
     await _save();
   }
 

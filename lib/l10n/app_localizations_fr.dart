@@ -90,6 +90,21 @@ class SFr extends S {
       'Connectez un appareil via le SDK et il apparaîtra ici. Les entrées persistent entre les redémarrages.';
 
   @override
+  String get restarting => 'Redémarrage…';
+
+  @override
+  String get online => 'en ligne';
+
+  @override
+  String get offline => 'hors ligne';
+
+  @override
+  String get markOnline => 'Marquer en ligne';
+
+  @override
+  String get markOffline => 'Marquer hors ligne';
+
+  @override
   String get deviceOnline => 'En ligne';
 
   @override
