@@ -237,9 +237,9 @@ class SJa extends S {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count 台のデバイスをリロード',
-      one: '1 台のデバイスをリロード',
-      zero: '0 件リロード',
+      other: '$count 台のデバイスにリロードを送信',
+      one: '1 台のデバイスにリロードを送信',
+      zero: '対象デバイスなし',
     );
     return '$_temp0';
   }

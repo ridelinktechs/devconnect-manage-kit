@@ -280,7 +280,11 @@ object DevConnect {
         // Save context for SharedPreferences
         if (context is android.content.Context) {
             appContext = context.applicationContext
-            installActivityLifecycleTracker(appContext)
+            // `context` is smart-cast to non-null inside this branch;
+            // pass the applicationContext directly so installActivity-
+            // // LifecycleTracker (which expects a non-null Context) doesn't
+            // receive the nullable `appContext` field.
+            installActivityLifecycleTracker(context.applicationContext)
         }
 
         // Generate stable deviceId from app + device info (prevents duplicates on reconnect/hot-reload)
@@ -358,14 +362,22 @@ object DevConnect {
                         // state, and re-launches the activity from onCreate.
                         // If the host has supplied a custom handler, defer to
                         // that and let them call recreate() themselves.
-                        if (reloadHandler != null) {
-                            try { reloadHandler?.invoke() } catch (_: Exception) {}
-                        } else {
-                            try {
-                                val act = trackedActivityRef?.get()
-                                if (act != null && !act.isFinishing) act.recreate()
-                            } catch (_: Exception) {
-                                // Activity gone or in bad state — ignore
+                        //
+                        // Dispatched onto the main thread — the WebSocket
+                        // listener fires on a background thread and any UI
+                        // mutation (Activity.recreate() included) MUST happen
+                        // on the UI thread or ActivityManager throws
+                        // `CalledFromWrongThreadException`.
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            if (reloadHandler != null) {
+                                try { reloadHandler?.invoke() } catch (_: Exception) {}
+                            } else {
+                                try {
+                                    val act = trackedActivityRef?.get()
+                                    if (act != null && !act.isFinishing) act.recreate()
+                                } catch (_: Exception) {
+                                    // Activity gone or in bad state — ignore
+                                }
                             }
                         }
                     }
@@ -377,15 +389,18 @@ object DevConnect {
                         // setups don't silently drop the hot_restart signal
                         // on Android devices when the user clicks the
                         // Hot restart button (visible when a Flutter device
-                        // is also connected).
-                        if (reloadHandler != null) {
-                            try { reloadHandler?.invoke() } catch (_: Exception) {}
-                        } else {
-                            try {
-                                val act = trackedActivityRef?.get()
-                                if (act != null && !act.isFinishing) act.recreate()
-                            } catch (_: Exception) {
-                                // Activity gone or in bad state — ignore
+                        // is also connected). Main-thread dispatch also
+                        // required here (see server:reload comment above).
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            if (reloadHandler != null) {
+                                try { reloadHandler?.invoke() } catch (_: Exception) {}
+                            } else {
+                                try {
+                                    val act = trackedActivityRef?.get()
+                                    if (act != null && !act.isFinishing) act.recreate()
+                                } catch (_: Exception) {
+                                    // Activity gone or in bad state — ignore
+                                }
                             }
                         }
                     }

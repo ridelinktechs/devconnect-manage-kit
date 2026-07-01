@@ -237,9 +237,9 @@ class SVi extends S {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count thiết bị đã tải lại',
-      one: '1 thiết bị đã tải lại',
-      zero: '0 thiết bị đã tải lại',
+      other: 'Đã gửi lệnh tới $count thiết bị',
+      one: 'Đã gửi lệnh tới 1 thiết bị',
+      zero: 'Không có thiết bị nào',
     );
     return '$_temp0';
   }

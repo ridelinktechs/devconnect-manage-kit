@@ -237,9 +237,9 @@ class SFr extends S {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count appareils rechargés',
-      one: '1 appareil rechargé',
-      zero: '0 appareil rechargé',
+      other: 'Rechargement envoyé à $count appareils',
+      one: 'Rechargement envoyé à 1 appareil',
+      zero: 'Aucun appareil ciblé',
     );
     return '$_temp0';
   }

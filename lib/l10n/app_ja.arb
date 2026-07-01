@@ -58,7 +58,7 @@
   "reloadAppMetro": "Metro をリロード",
   "reloadAppNoDevices": "デバイス未接続",
   "reloadSent": "リロードを送信しました",
-  "sentReloadTo": "{count, plural, =0{0 件リロード} =1{1 台のデバイスをリロード} other{{count} 台のデバイスをリロード}}",
+  "sentReloadTo": "{count, plural, =0{対象デバイスなし} =1{1 台のデバイスにリロードを送信} other{{count} 台のデバイスにリロードを送信}}",
   "screenshotSaved": "スクリーンショットを保存しました",
   "screenshotFailed": "スクリーンショット失敗",
   "reveal": "開く",

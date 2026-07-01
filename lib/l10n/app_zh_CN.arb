@@ -58,7 +58,7 @@
   "reloadAppMetro": "重载 Metro",
   "reloadAppNoDevices": "无设备连接",
   "reloadSent": "已发送重新加载",
-  "sentReloadTo": "{count, plural, =0{0 台设备已重新加载} =1{1 台设备已重新加载} other{{count} 台设备已重新加载}}",
+  "sentReloadTo": "{count, plural, =0{未指定任何设备} =1{已向 1 台设备发送重新加载} other{已向 {count} 台设备发送重新加载}}",
   "screenshotSaved": "截图已保存",
   "screenshotFailed": "截图失败",
   "reveal": "打开",

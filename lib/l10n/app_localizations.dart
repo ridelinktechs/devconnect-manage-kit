@@ -456,7 +456,7 @@ abstract class S {
   /// No description provided for @sentReloadTo.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0{0 devices reloaded} =1{1 device reloaded} other{{count} devices reloaded}}'**
+  /// **'{count, plural, =0{No devices targeted} =1{Reload dispatched to 1 device} other{Reload dispatched to {count} devices}}'**
   String sentReloadTo(num count);
 
   /// No description provided for @screenshotSaved.

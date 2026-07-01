@@ -233,9 +233,9 @@ class SZh extends S {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count 台设备已重新加载',
-      one: '1 台设备已重新加载',
-      zero: '0 台设备已重新加载',
+      other: '已向 $count 台设备发送重新加载',
+      one: '已向 1 台设备发送重新加载',
+      zero: '未指定任何设备',
     );
     return '$_temp0';
   }
@@ -1227,9 +1227,9 @@ class SZhCn extends SZh {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count 台设备已重新加载',
-      one: '1 台设备已重新加载',
-      zero: '0 台设备已重新加载',
+      other: '已向 $count 台设备发送重新加载',
+      one: '已向 1 台设备发送重新加载',
+      zero: '未指定任何设备',
     );
     return '$_temp0';
   }
@@ -2221,9 +2221,9 @@ class SZhTw extends SZh {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count 台裝置已重新載入',
-      one: '1 台裝置已重新載入',
-      zero: '0 台裝置已重新載入',
+      other: '已向 $count 台裝置發送重新載入',
+      one: '已向 1 台裝置發送重新載入',
+      zero: '未指定任何裝置',
     );
     return '$_temp0';
   }

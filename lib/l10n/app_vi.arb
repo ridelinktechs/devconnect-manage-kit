@@ -58,7 +58,7 @@
   "reloadAppMetro": "Tải lại Metro",
   "reloadAppNoDevices": "Chưa có thiết bị kết nối",
   "reloadSent": "Đã gửi lệnh tải lại",
-  "sentReloadTo": "{count, plural, =0{0 thiết bị đã tải lại} =1{1 thiết bị đã tải lại} other{{count} thiết bị đã tải lại}}",
+  "sentReloadTo": "{count, plural, =0{Không có thiết bị nào} =1{Đã gửi lệnh tới 1 thiết bị} other{Đã gửi lệnh tới {count} thiết bị}}",
   "screenshotSaved": "Đã lưu ảnh chụp",
   "screenshotFailed": "Chụp ảnh thất bại",
   "reveal": "Mở",

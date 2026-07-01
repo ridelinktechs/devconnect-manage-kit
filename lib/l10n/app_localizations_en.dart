@@ -237,9 +237,9 @@ class SEn extends S {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count devices reloaded',
-      one: '1 device reloaded',
-      zero: '0 devices reloaded',
+      other: 'Reload dispatched to $count devices',
+      one: 'Reload dispatched to 1 device',
+      zero: 'No devices targeted',
     );
     return '$_temp0';
   }

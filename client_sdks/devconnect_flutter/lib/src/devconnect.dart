@@ -664,11 +664,11 @@ class DevConnect {
   /// finer control, e.g. to wipe in-memory caches before the rebuild:
   ///
   /// ```dart
-  /// DevConnect.onReloadRequest(() {
+  /// DevConnect.onReloadRequest = () {
   ///   cache.clear();
   ///   // default reassemble is *not* called when you set a custom handler
   ///   WidgetsBinding.instance.reassembleApplication();
-  /// });
+  /// };
   /// ```
   static set onReloadRequest(void Function()? handler) {
     if (!_active) return;
@@ -693,10 +693,10 @@ class DevConnect {
   /// final appKey = GlobalKey();
   ///
   /// // Wrap your root widget in a key you control
-  /// DevConnect.onHotRestartRequest(() {
+  /// DevConnect.onHotRestartRequest = () {
   ///   appKey.currentState?.reassemble();
   ///   // or use a state-version counter to force a rebuild
-  /// });
+  /// };
   /// ```
   static set onHotRestartRequest(void Function()? handler) {
     if (!_active) return;

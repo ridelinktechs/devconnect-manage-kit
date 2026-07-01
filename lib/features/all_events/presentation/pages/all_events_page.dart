@@ -1774,7 +1774,7 @@ class _DraggableReloadFab extends StatefulWidget {
 }
 
 class _DraggableReloadFabState extends State<_DraggableReloadFab>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   /// Distance from the bottom-right corner of the parent (the All Events
   /// page content). 20 = default 20px margin from bottom + right edges.
   double _right = 20;
@@ -1814,6 +1814,15 @@ class _DraggableReloadFabState extends State<_DraggableReloadFab>
     // without hunting around the screen for a previously-dragged ghost.
     _right = _edgeMargin;
     _bottom = _edgeMargin;
+    // Eagerly allocate the controller so dispose() never trips over an
+    // uninitialised `late` field. The FAB can be mounted without ever
+    // triggering a reload (e.g. user has no devices), in which case the
+    // old lazy form was never read and dispose() would throw
+    // LateInitializationError.
+    _spinCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
   }
 
   // ── Drag handlers ────────────────────────────────────────────────────────
@@ -1930,7 +1939,7 @@ class _DraggableReloadFabState extends State<_DraggableReloadFab>
       return [
         _FabAction(
           icon: LucideIcons.zap,
-          tooltip: 'Reload app',
+          tooltip: S.of(context).reloadApp,
           spinning: widget.reloading,
           onTap: widget.onReload,
         ),
@@ -1940,13 +1949,13 @@ class _DraggableReloadFabState extends State<_DraggableReloadFab>
       return [
         _FabAction(
           icon: LucideIcons.zap,
-          tooltip: 'Hot reload',
+          tooltip: S.of(context).reloadAppHotReload,
           spinning: widget.reloading,
           onTap: widget.onReload,
         ),
         _FabAction(
           icon: LucideIcons.refreshCcw,
-          tooltip: 'Hot restart',
+          tooltip: S.of(context).reloadAppHotRestart,
           spinning: widget.hotRestarting,
           onTap: widget.onHotRestart,
         ),
@@ -1956,7 +1965,7 @@ class _DraggableReloadFabState extends State<_DraggableReloadFab>
       return [
         _FabAction(
           icon: LucideIcons.rocket,
-          tooltip: 'Reload Metro',
+          tooltip: S.of(context).reloadAppMetro,
           spinning: widget.reloading,
           onTap: widget.onReload,
         ),
@@ -1981,7 +1990,7 @@ class _DraggableReloadFabState extends State<_DraggableReloadFab>
     return [
       _FabAction(
         icon: LucideIcons.zap,
-        tooltip: 'Reload app',
+        tooltip: S.of(context).reloadApp,
         spinning: widget.reloading,
         onTap: widget.onReload,
       ),
@@ -2008,15 +2017,50 @@ class _DraggableReloadFabState extends State<_DraggableReloadFab>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final actions = _actionsFor();
+
+    // When the FAB has multiple actions available (Flutter = Hot Reload +
+    // Hot Restart) the *width* animates from 44 → 80 on hover — but the
+    // *Row* underneath still tries to lay out every action. With a 44px
+    // container and an 80px-tall row of two 38px icons + 4px gap, the
+    // second one overflows invisibly until the user hovers. Drop it
+    // until the pill actually expands.
+    final visibleActions = (actions.length > 1 && !_hovered)
+        ? actions.take(1).toList()
+        : actions;
+
     final fabWidth = _currentFabWidth();
     final disabled = actions.isEmpty;
+
+    // Shared spinner — whichever reload is in flight, the shared
+    // `_spinCtrl` ticks. Toggled once per build so the multi-action case
+    // doesn't fight itself (the old per-icon helper would reset the
+    // controller while the other icon was still spinning).
+    _syncSpinner(visibleActions.any((a) => a.spinning));
+
+    // Clamp in build() too, not just `_onPanUpdate` — if the user
+    // resizes the window smaller than the dragged position, the
+    // Positioned offsets need to be re-clamped to the new viewport or
+    // the FAB escapes the screen.
+    final media = MediaQuery.of(context);
+    final size = media.size;
+    final maxRight = (size.width - fabWidth - _edgeMargin)
+        .clamp(_edgeMargin, double.infinity);
+    final maxBottom = (size.height -
+            _fabHeight -
+            _headerHeight -
+            _filterBarHeight -
+            _edgeMargin -
+            media.padding.bottom)
+        .clamp(_edgeMargin, double.infinity);
+    final clampedRight = _right.clamp(_edgeMargin, maxRight);
+    final clampedBottom = _bottom.clamp(_edgeMargin, maxBottom);
 
     return Positioned(
       // Plain Positioned (no AnimatedPositioned) so the FAB tracks the
       // cursor instantly during drag. Any animation here would lag behind
       // the pointer and feel sticky.
-      right: _right,
-      bottom: _bottom,
+      right: clampedRight,
+      bottom: clampedBottom,
       child: AnimatedScale(
         // Press feedback + slight grow while dragging.
         scale: _pressed ? 0.94 : (_dragging ? 1.04 : 1.0),
@@ -2080,18 +2124,18 @@ class _DraggableReloadFabState extends State<_DraggableReloadFab>
                       if (actions.isEmpty)
                         _fabIcon(
                           icon: LucideIcons.zap,
-                          tooltip: 'No devices connected',
+                          tooltip: S.of(context).reloadAppNoDevices,
                           spinning: false,
                           disabled: true,
                           isDark: isDark,
                         )
                       else
-                        for (int i = 0; i < actions.length; i++) ...[
+                        for (int i = 0; i < visibleActions.length; i++) ...[
                           if (i > 0) const SizedBox(width: _actionGap),
                           _fabIcon(
-                            icon: actions[i].icon,
-                            tooltip: actions[i].tooltip,
-                            spinning: actions[i].spinning,
+                            icon: visibleActions[i].icon,
+                            tooltip: visibleActions[i].tooltip,
+                            spinning: visibleActions[i].spinning,
                             disabled: false,
                             isDark: isDark,
                           ),
@@ -2174,7 +2218,10 @@ class _DraggableReloadFabState extends State<_DraggableReloadFab>
 
     final iconWidget = spinning
         ? RotationTransition(
-            turns: _spinController(spinning),
+            // Always drive from the shared `_spinCtrl` — whether it's
+            // actually animating or not is decided by `_syncSpinner()` in
+            // `build()`, not per-icon here.
+            turns: _spinCtrl,
             child: Icon(icon, size: 17, color: color),
           )
         : Icon(icon, size: 17, color: color);
@@ -2191,18 +2238,24 @@ class _DraggableReloadFabState extends State<_DraggableReloadFab>
 
   // Spinner — one controller, repeats when in flight. Cheap because every
   // icon uses the same controller (visual only; not part of any layout
-  // pass that affects the parent).
-  late final AnimationController _spinCtrl = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 1),
-  );
+  // pass that affects the parent). Initialised in initState() (not as a
+  // `late final` with an initializer) so dispose() never trips over an
+  // uninitialised controller — the FAB can be mounted without ever
+  // triggering a reload, in which case the old lazy form threw
+  // LateInitializationError when the widget tree was torn down.
+  late AnimationController _spinCtrl;
 
-  /// Returns the rotation `Animation<double>` shared by every spinner.
-  /// Rebuilt-on-mount only; doesn't drive any animation itself.
-  Animation<double> _spinController(bool active) {
-    if (active && !_spinCtrl.isAnimating) _spinCtrl.repeat();
-    if (!active && _spinCtrl.isAnimating) _spinCtrl.reset();
-    return _spinCtrl;
+  /// Single source of truth for the shared spinner: any action currently
+  /// in flight → repeat; otherwise → stop. Called once per build so the
+  /// multi-action case doesn't fight itself (the old `_spinController(bool)`
+  /// helper toggled start/stop per icon and the second action would reset
+  /// the controller while the first was still spinning).
+  void _syncSpinner(bool shouldSpin) {
+    if (shouldSpin && !_spinCtrl.isAnimating) {
+      _spinCtrl.repeat();
+    } else if (!shouldSpin && _spinCtrl.isAnimating) {
+      _spinCtrl.stop();
+    }
   }
 
   @override

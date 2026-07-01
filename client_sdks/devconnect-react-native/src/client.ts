@@ -637,13 +637,18 @@ export class DevConnect {
    * caches before the reload (e.g. Redux/MobX stores).
    */
   private _reloadApp(): void {
+    // Try the custom handler first. If it succeeds we're done — the
+    // handler takes full responsibility for the reload. If it throws,
+    // we DO fall through to the default DevSettings.reload() below,
+    // so the user still gets a reload even when their custom code
+    // crashed mid-execution.
     if (this._reloadHandler) {
       try {
         this._reloadHandler();
+        return;
       } catch (_) {
-        // fall through to default
+        // handler threw — continue to default below
       }
-      return;
     }
     try {
       const DevSettings = (NativeModules as any).DevSettings;
