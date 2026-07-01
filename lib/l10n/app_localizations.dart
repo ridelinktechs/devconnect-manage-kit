@@ -363,11 +363,11 @@ abstract class S {
   /// **'{count, plural, =0{never connected} =1{1 connection} other{{count} connections}}'**
   String connectionCount(num count);
 
-  /// No description provided for @reload.
+  /// No description provided for @restartServer.
   ///
   /// In en, this message translates to:
-  /// **'Reload'**
-  String get reload;
+  /// **'Restart server'**
+  String get restartServer;
 
   /// No description provided for @portOccupied.
   ///
@@ -416,6 +416,48 @@ abstract class S {
   /// In en, this message translates to:
   /// **'{count, plural, =0{0 reconnected} =1{1 device reconnected} other{{count} devices reconnected}}'**
   String reconnectedCount(num count);
+
+  /// No description provided for @reloadApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload app'**
+  String get reloadApp;
+
+  /// No description provided for @reloadAppHotReload.
+  ///
+  /// In en, this message translates to:
+  /// **'Hot reload'**
+  String get reloadAppHotReload;
+
+  /// No description provided for @reloadAppHotRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Hot restart'**
+  String get reloadAppHotRestart;
+
+  /// No description provided for @reloadAppMetro.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload Metro'**
+  String get reloadAppMetro;
+
+  /// No description provided for @reloadAppNoDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'No devices connected'**
+  String get reloadAppNoDevices;
+
+  /// No description provided for @reloadSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload sent'**
+  String get reloadSent;
+
+  /// No description provided for @sentReloadTo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{0 devices reloaded} =1{1 device reloaded} other{{count} devices reloaded}}'**
+  String sentReloadTo(num count);
 
   /// No description provided for @screenshotSaved.
   ///

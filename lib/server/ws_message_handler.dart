@@ -145,6 +145,50 @@ class WsMessageHandler {
     ));
   }
 
+  /// Ask the connected device app to reload itself.
+  /// On Flutter: triggers full widget rebuild (`reassembleApplication`).
+  /// On React Native: triggers Metro reload (`DevSettings.reload()`).
+  /// On Android: recreates the host activity.
+  void triggerReload(String deviceId) {
+    server.sendToDevice(deviceId, DCMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: WsMessageTypes.serverReload,
+      deviceId: 'server',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      payload: const {},
+    ));
+  }
+
+  /// "Hot restart" — a heavier variant of [triggerReload].
+  /// Primarily a Flutter-only concept: the official hot-restart tears down
+  /// every `State` (the same way killing and re-launching the app does)
+  /// without losing the Dart isolate. We surface it on the wire so the UI
+  /// can offer the same Hot Reload / Hot Restart pair that the Flutter IDE
+  /// does. Non-Flutter SDKs fall back to the same behaviour as
+  /// [triggerReload] (RN reloads Metro, Android recreates the activity).
+  void triggerHotRestart(String deviceId) {
+    server.sendToDevice(deviceId, DCMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: WsMessageTypes.serverHotRestart,
+      deviceId: 'server',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      payload: const {},
+    ));
+  }
+
+  /// Broadcast reload to every connected device.
+  /// Pass [hotRestart] = true to send the heavier `server:hot_restart`
+  /// message instead of the standard `server:reload`.
+  void broadcastReload({bool hotRestart = false}) {
+    for (final conn in server.connections.values) {
+      if (hotRestart) {
+        triggerHotRestart(conn.deviceInfo.deviceId);
+      } else {
+        triggerReload(conn.deviceInfo.deviceId);
+      }
+    }
+  }
+
   void _handleLog(DCMessage message) {
     final entry = LogEntry(
       id: message.id,

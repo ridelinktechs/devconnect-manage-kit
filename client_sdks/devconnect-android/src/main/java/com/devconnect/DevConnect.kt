@@ -102,6 +102,48 @@ object DevConnect {
     private var appContext: android.content.Context? = null
     private const val CACHE_KEY = "DcN3t\$ecR7!"
 
+    /**
+     * Tracks the topmost (or last-resumed) Activity in this process. Set
+     * automatically via [android.app.Application.ActivityLifecycleCallbacks]
+     * installed during [init]. Used by the `server:reload` handler to call
+     * [android.app.Activity.recreate] on the current activity.
+     *
+     * Activities are weakly referenced so a recreated activity doesn't
+     * leak through this field after [recreate] runs.
+     */
+    private var trackedActivityRef: java.lang.ref.WeakReference<android.app.Activity>? = null
+    private var lifecycleCallbacks: android.app.Application.ActivityLifecycleCallbacks? = null
+
+    /**
+     * Installs an [android.app.Application.ActivityLifecycleCallbacks] that
+     * keeps [trackedActivityRef] pointed at the topmost resumed Activity.
+     * The callback is installed once per process — repeat calls are no-ops —
+     * and uninstalled automatically when the tracked activity is destroyed.
+     */
+    private fun installActivityLifecycleTracker(app: android.content.Context) {
+        if (lifecycleCallbacks != null) return
+        val appCtx = app.applicationContext as? android.app.Application ?: return
+
+        val callbacks = object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) {
+                trackedActivityRef = java.lang.ref.WeakReference(a)
+            }
+            override fun onActivityStarted(a: android.app.Activity) {}
+            override fun onActivityResumed(a: android.app.Activity) {
+                trackedActivityRef = java.lang.ref.WeakReference(a)
+            }
+            override fun onActivityPaused(a: android.app.Activity) {}
+            override fun onActivityStopped(a: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(a: android.app.Activity, b: android.os.Bundle) {}
+            override fun onActivityDestroyed(a: android.app.Activity) {
+                val current = trackedActivityRef?.get()
+                if (current === a) trackedActivityRef = null
+            }
+        }
+        lifecycleCallbacks = callbacks
+        appCtx.registerActivityLifecycleCallbacks(callbacks)
+    }
+
     private fun getPrefs(): android.content.SharedPreferences? {
         return appContext?.getSharedPreferences("dc_session", android.content.Context.MODE_PRIVATE)
     }
@@ -238,6 +280,7 @@ object DevConnect {
         // Save context for SharedPreferences
         if (context is android.content.Context) {
             appContext = context.applicationContext
+            installActivityLifecycleTracker(appContext)
         }
 
         // Generate stable deviceId from app + device info (prevents duplicates on reconnect/hot-reload)
@@ -304,6 +347,45 @@ object DevConnect {
                                 send("client:custom:command_result", buildPayload {
                                     put("command", cmd)
                                 })
+                            }
+                        }
+                    }
+                    "server:reload" -> {
+                        // Desktop asking the app to rebuild itself. Android has
+                        // no hot-reload in the RN/Flutter sense, so the
+                        // closest equivalent is recreating the host activity
+                        // — that tears down every view, kills any in-process
+                        // state, and re-launches the activity from onCreate.
+                        // If the host has supplied a custom handler, defer to
+                        // that and let them call recreate() themselves.
+                        if (reloadHandler != null) {
+                            try { reloadHandler?.invoke() } catch (_: Exception) {}
+                        } else {
+                            try {
+                                val act = trackedActivityRef?.get()
+                                if (act != null && !act.isFinishing) act.recreate()
+                            } catch (_: Exception) {
+                                // Activity gone or in bad state — ignore
+                            }
+                        }
+                    }
+                    "server:hot_restart" -> {
+                        // Heavier counterpart — same observable effect as
+                        // `server:reload` because `Activity.recreate()` is
+                        // already the strongest "reset" Android exposes.
+                        // We still accept the message so mixed-platform
+                        // setups don't silently drop the hot_restart signal
+                        // on Android devices when the user clicks the
+                        // Hot restart button (visible when a Flutter device
+                        // is also connected).
+                        if (reloadHandler != null) {
+                            try { reloadHandler?.invoke() } catch (_: Exception) {}
+                        } else {
+                            try {
+                                val act = trackedActivityRef?.get()
+                                if (act != null && !act.isFinishing) act.recreate()
+                            } catch (_: Exception) {
+                                // Activity gone or in bad state — ignore
                             }
                         }
                     }
@@ -510,6 +592,23 @@ object DevConnect {
 
     /** Handler called when desktop dispatches a Redux/ViewModel action */
     var onReduxDispatch: ((Map<String, Any>) -> Unit)? = null
+
+    // ---- Reload ----
+
+    /**
+     * Custom handler for `server:reload` requests from the desktop.
+     *
+     * By default, the SDK calls [Activity.recreate] on the host activity —
+     * the closest thing to "rebuild the app" Android has natively. Override
+     * when you need to wipe in-memory state first (e.g. ViewModel caches,
+     * in-memory databases). If you set a custom handler you are responsible
+     * for actually reloading — the default [Activity.recreate] call will not
+     * run.
+     */
+    var onReloadRequest: (() -> Unit)? = null
+
+    private val reloadHandler: (() -> Unit)?
+        get() = onReloadRequest
 
     // ---- OkHttp Interceptor ----
 

@@ -169,7 +169,7 @@ class SEn extends S {
   }
 
   @override
-  String get reload => 'Reload';
+  String get restartServer => 'Restart server';
 
   @override
   String portOccupied(Object port) {
@@ -210,6 +210,36 @@ class SEn extends S {
       other: '$count devices reconnected',
       one: '1 device reconnected',
       zero: '0 reconnected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reloadApp => 'Reload app';
+
+  @override
+  String get reloadAppHotReload => 'Hot reload';
+
+  @override
+  String get reloadAppHotRestart => 'Hot restart';
+
+  @override
+  String get reloadAppMetro => 'Reload Metro';
+
+  @override
+  String get reloadAppNoDevices => 'No devices connected';
+
+  @override
+  String get reloadSent => 'Reload sent';
+
+  @override
+  String sentReloadTo(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count devices reloaded',
+      one: '1 device reloaded',
+      zero: '0 devices reloaded',
     );
     return '$_temp0';
   }

@@ -169,7 +169,7 @@ class SJa extends S {
   }
 
   @override
-  String get reload => '再読み込み';
+  String get restartServer => 'サーバーを再起動';
 
   @override
   String portOccupied(Object port) {
@@ -210,6 +210,36 @@ class SJa extends S {
       other: '$count 台のデバイスが再接続',
       one: '1 台のデバイスが再接続',
       zero: '0 件再接続',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reloadApp => 'アプリをリロード';
+
+  @override
+  String get reloadAppHotReload => 'ホットリロード';
+
+  @override
+  String get reloadAppHotRestart => 'ホットリスタート';
+
+  @override
+  String get reloadAppMetro => 'Metro をリロード';
+
+  @override
+  String get reloadAppNoDevices => 'デバイス未接続';
+
+  @override
+  String get reloadSent => 'リロードを送信しました';
+
+  @override
+  String sentReloadTo(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台のデバイスをリロード',
+      one: '1 台のデバイスをリロード',
+      zero: '0 件リロード',
     );
     return '$_temp0';
   }

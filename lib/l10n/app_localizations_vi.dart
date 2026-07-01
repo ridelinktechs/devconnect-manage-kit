@@ -169,7 +169,7 @@ class SVi extends S {
   }
 
   @override
-  String get reload => 'Tải lại';
+  String get restartServer => 'Khởi động lại server';
 
   @override
   String portOccupied(Object port) {
@@ -210,6 +210,36 @@ class SVi extends S {
       other: '$count thiết bị kết nối lại',
       one: '1 thiết bị kết nối lại',
       zero: '0 kết nối lại',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reloadApp => 'Tải lại ứng dụng';
+
+  @override
+  String get reloadAppHotReload => 'Tải lại nhanh';
+
+  @override
+  String get reloadAppHotRestart => 'Khởi động lại nhanh';
+
+  @override
+  String get reloadAppMetro => 'Tải lại Metro';
+
+  @override
+  String get reloadAppNoDevices => 'Chưa có thiết bị kết nối';
+
+  @override
+  String get reloadSent => 'Đã gửi lệnh tải lại';
+
+  @override
+  String sentReloadTo(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count thiết bị đã tải lại',
+      one: '1 thiết bị đã tải lại',
+      zero: '0 thiết bị đã tải lại',
     );
     return '$_temp0';
   }
