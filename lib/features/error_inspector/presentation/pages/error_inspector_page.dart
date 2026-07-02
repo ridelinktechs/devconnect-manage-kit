@@ -535,8 +535,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
                   ],
                 ),
               ),
-              _buildDivider(isDark),
-              // Per-platform mini-bars
+              // Per-platform mini-bars (method prepends its own dividers)
               ..._buildPlatformCountBars(isDark),
             ],
           ),
@@ -831,20 +830,26 @@ class _PulsingDotState extends State<_PulsingDot>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Outer expanding ring (perpetual "breathing" pulse)
+          // Outer expanding ring (perpetual "breathing" pulse).
+          // Animate the color's alpha directly instead of wrapping in an
+          // `Opacity` widget — that avoids intermediate offscreen render
+          // passes on every animation tick (the inner Container is a
+          // simple solid-color circle, so the Opacity layer is pure
+          // overhead).
           AnimatedBuilder(
             animation: _ctrl,
             builder: (context, _) {
               return Transform.scale(
                 scale: 0.6 + 0.8 * _ctrl.value,
-                child: Opacity(
-                  opacity: 0.6 * (1 - _ctrl.value),
-                  child: Container(
-                    width: widget.size,
-                    height: widget.size,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: widget.color.withValues(alpha: 0.6),
+                child: Container(
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    // Color alpha rides the same progress: starts at 0.6,
+                    // fades to 0 as the ring expands.
+                    color: widget.color.withValues(
+                      alpha: 0.6 * (1 - _ctrl.value),
                     ),
                   ),
                 ),
@@ -1094,9 +1099,9 @@ class _PlatformFilterChip extends StatefulWidget {
 class _PlatformFilterChipState extends State<_PlatformFilterChip>
     with SingleTickerProviderStateMixin {
   bool _hovered = false;
-  bool _pressed = false;
 
-  // Short pop on tap — gsap.to(scale: 1.1, duration: 0.15) → scale: 1
+  // Short pop on tap — gsap.to(scale: 0.92, duration: 0.11) → scale: 1
+  // (drives ScaleTransition below).
   late final AnimationController _tapCtrl;
   late final Animation<double> _tapScale;
 
@@ -1105,10 +1110,13 @@ class _PlatformFilterChipState extends State<_PlatformFilterChip>
     super.initState();
     _tapCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
-      value: 1.0,
+      duration: const Duration(milliseconds: 110),
     );
-    _tapScale = Tween<double>(begin: 1.0, end: 1.0).animate(_tapCtrl);
+    // We drive `_tapCtrl` from 0 (no compression) to 1 (fully compressed)
+    // and map to scale 1.0 → 0.92 with easeOut.
+    _tapScale = Tween<double>(begin: 1.0, end: 0.92).animate(
+      CurvedAnimation(parent: _tapCtrl, curve: Curves.easeOut),
+    );
   }
 
   @override
@@ -1117,17 +1125,13 @@ class _PlatformFilterChipState extends State<_PlatformFilterChip>
     super.dispose();
   }
 
-  void _onTap() {
-    // Quick spring-back pop on press
-    _tapCtrl.duration = const Duration(milliseconds: 110);
-    _tapCtrl.reverse(from: 0.92);
-    Future.delayed(const Duration(milliseconds: 110), () {
-      if (mounted) {
-        _tapCtrl.duration = const Duration(milliseconds: 220);
-        _tapCtrl.forward(from: 1.0);
-      }
-    });
+  Future<void> _onTap() async {
+    // 0 → 1: scale shrinks to 0.92; on completion, reverse back to 1.
+    _tapCtrl.forward(from: 0);
     widget.onTap();
+    await Future.delayed(const Duration(milliseconds: 110));
+    if (!mounted) return;
+    _tapCtrl.reverse();
   }
 
   @override
@@ -1173,10 +1177,8 @@ class _PlatformFilterChipState extends State<_PlatformFilterChip>
                       width: 1,
                     ),
             ),
-            child: AnimatedScale(
-              scale: _pressed ? 0.94 : 1.0,
-              duration: const Duration(milliseconds: 120),
-              curve: Curves.easeOut,
+            child: ScaleTransition(
+              scale: _tapScale,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
