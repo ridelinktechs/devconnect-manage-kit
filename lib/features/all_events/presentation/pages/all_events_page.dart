@@ -3837,10 +3837,23 @@ class _ActionButton extends StatelessWidget {
 // Log Detail
 // ═══════════════════════════════════════════════
 
-class _LogDetail extends StatelessWidget {
+class _LogDetail extends StatefulWidget {
   final LogEntry entry;
 
   const _LogDetail({required this.entry});
+
+  @override
+  State<_LogDetail> createState() => _LogDetailState();
+}
+
+class _LogDetailState extends State<_LogDetail> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   /// Try to extract JSON from the log message.
   /// Returns (prefix, parsedJson) or null if no JSON found.
@@ -3869,10 +3882,12 @@ class _LogDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final jsonResult = _extractJson(entry.message);
 
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4244,15 +4259,30 @@ class _TimingBar extends StatelessWidget {
   }
 }
 
-class _HeadersView extends StatelessWidget {
+class _HeadersView extends StatefulWidget {
   final NetworkEntry entry;
 
   const _HeadersView({required this.entry});
 
   @override
+  State<_HeadersView> createState() => _HeadersViewState();
+}
+
+class _HeadersViewState extends State<_HeadersView> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4589,6 +4619,14 @@ class _BodyView extends ConsumerStatefulWidget {
 }
 
 class _BodyViewState extends ConsumerState<_BodyView> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -4678,6 +4716,7 @@ class _BodyViewState extends ConsumerState<_BodyView> {
         ),
         Expanded(
           child: SingleChildScrollView(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             child: _buildContent(
               parsedBody: parsedBody,
@@ -4815,13 +4854,27 @@ class _InlineJsonViewState extends ConsumerState<_InlineJsonView> {
   }
 }
 
-class _TimingView extends StatelessWidget {
+class _TimingView extends StatefulWidget {
   final NetworkEntry entry;
 
   const _TimingView({required this.entry});
 
   @override
+  State<_TimingView> createState() => _TimingViewState();
+}
+
+class _TimingViewState extends State<_TimingView> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final duration = entry.duration;
     final startDt = DateTime.fromMillisecondsSinceEpoch(entry.startTime);
@@ -4855,6 +4908,7 @@ class _TimingView extends StatelessWidget {
     }
 
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -5233,6 +5287,7 @@ class _StateDetail extends ConsumerStatefulWidget {
 class _StateDetailState extends ConsumerState<_StateDetail>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _diffScrollController = SmoothScrollController();
 
   @override
   void initState() {
@@ -5269,6 +5324,7 @@ class _StateDetailState extends ConsumerState<_StateDetail>
   void dispose() {
     _tabController.removeListener(_onTabIndexChange);
     _tabController.dispose();
+    _diffScrollController.dispose();
     super.dispose();
   }
 
@@ -5322,6 +5378,7 @@ class _StateDetailState extends ConsumerState<_StateDetail>
                   ? EmptyState(
                       icon: LucideIcons.gitCompare, title: 'No diff')
                   : ListView.builder(
+                      controller: _diffScrollController,
                       padding: const EdgeInsets.all(12),
                       itemCount: entry.diff.length,
                       itemBuilder: (context, index) =>
@@ -5489,6 +5546,13 @@ class _StorageDetail extends StatefulWidget {
 
 class _StorageDetailState extends State<_StorageDetail> {
   bool _formatted = false;
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   StorageEntry get entry => widget.entry;
 
@@ -5527,6 +5591,7 @@ class _StorageDetailState extends State<_StorageDetail> {
     final canFormat = parsedJson != null && !isAlreadyJson;
 
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -5596,16 +5661,31 @@ class _StorageDetailState extends State<_StorageDetail> {
 // Fallback Detail
 // ═══════════════════════════════════════════════
 
-class _FallbackDetail extends StatelessWidget {
+class _FallbackDetail extends StatefulWidget {
   final UnifiedEvent event;
 
   const _FallbackDetail({required this.event});
 
   @override
+  State<_FallbackDetail> createState() => _FallbackDetailState();
+}
+
+class _FallbackDetailState extends State<_FallbackDetail> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final event = widget.event;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

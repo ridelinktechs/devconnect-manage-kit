@@ -295,5 +295,7 @@
   "growingCollection": "增长中的集合",
   "custom": "自定义",
   "smoothScrolling": "平滑滚动",
-  "smoothScrollingDesc": "为鼠标滚轮事件添加平滑动画。如果遇到卡顿或性能下降，请关闭此选项。"
+  "smoothScrollingDesc": "为鼠标滚轮事件添加平滑动画。如果遇到卡顿或性能下降，请关闭此选项。",
+  "smoothScrollingDuration": "滚动持续时间",
+  "smoothScrollingDurationDesc": "滚动动画的持续时间（毫秒）。"
 }

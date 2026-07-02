@@ -916,6 +916,61 @@ class _AppearanceSection extends ConsumerWidget {
             style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
           ),
         ),
+        if (ref.watch(smoothScrollEnabledProvider)) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              SizedBox(
+                width: 100,
+                child: Text(
+                  S.of(context).smoothScrollingDuration,
+                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                ),
+              ),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 2,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                  ),
+                  child: Slider(
+                    value: ref.watch(smoothScrollDurationProvider).toDouble(),
+                    min: 100,
+                    max: 1000,
+                    divisions: 18,
+                    label: '${ref.watch(smoothScrollDurationProvider)}ms',
+                    activeColor: ColorTokens.primary,
+                    inactiveColor: isDark ? Colors.white12 : Colors.black12,
+                    onChanged: (v) => ref
+                        .read(smoothScrollDurationProvider.notifier)
+                        .set(v.round()),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 50,
+                child: Text(
+                  '${ref.watch(smoothScrollDurationProvider)}ms',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: ColorTokens.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 100),
+            child: Text(
+              S.of(context).smoothScrollingDurationDesc,
+              style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
+            ),
+          ),
+        ],
       ],
     );
   }

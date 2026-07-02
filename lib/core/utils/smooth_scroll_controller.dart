@@ -34,6 +34,7 @@ class SmoothScrollPosition extends ScrollPositionWithSingleContext {
     // Calculate target pixels starting from current target (if animating) or current position
     final double basePixels = _targetPixels ?? pixels;
     final double target = (basePixels + delta * 2.2).clamp(minScrollExtent, maxScrollExtent);
+    final durationMs = AppPreferences().get<int>('smoothScrollDuration', 250) ?? 250;
 
     if (target != pixels) {
       _targetPixels = target;
@@ -47,7 +48,7 @@ class SmoothScrollPosition extends ScrollPositionWithSingleContext {
       // in `beginActivity` always cleared `_targetPixels` mid-animation.
       animateTo(
         target,
-        duration: const Duration(milliseconds: 250),
+        duration: Duration(milliseconds: durationMs),
         curve: Curves.easeOutQuart,
       ).whenComplete(() {
         if (_targetPixels == target) {

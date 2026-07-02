@@ -124,6 +124,22 @@ final smoothScrollEnabledProvider =
   (ref) => SmoothScrollEnabledNotifier(),
 );
 
+/// How long the smooth scroll animation runs (in milliseconds).
+class SmoothScrollDurationNotifier extends StateNotifier<int> {
+  SmoothScrollDurationNotifier()
+      : super(AppPreferences().get<int>('smoothScrollDuration', 250) ?? 250);
+
+  void set(int v) {
+    state = v;
+    AppPreferences().set('smoothScrollDuration', v);
+  }
+}
+
+final smoothScrollDurationProvider =
+    StateNotifierProvider<SmoothScrollDurationNotifier, int>(
+  (ref) => SmoothScrollDurationNotifier(),
+);
+
 // ═══════════════════════════════════════════════════════════════════
 // Server start error (transient, not persisted)
 // ═══════════════════════════════════════════════════════════════════

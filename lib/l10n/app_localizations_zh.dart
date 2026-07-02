@@ -1002,6 +1002,12 @@ class SZh extends S {
 
   @override
   String get smoothScrollingDesc => '为鼠标滚轮事件添加平滑动画。如果遇到卡顿或性能下降，请关闭此选项。';
+
+  @override
+  String get smoothScrollingDuration => '滚动持续时间';
+
+  @override
+  String get smoothScrollingDurationDesc => '滚动动画的持续时间（毫秒）。';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -2002,6 +2008,12 @@ class SZhCn extends SZh {
 
   @override
   String get smoothScrollingDesc => '为鼠标滚轮事件添加平滑动画。如果遇到卡顿或性能下降，请关闭此选项。';
+
+  @override
+  String get smoothScrollingDuration => '滚动持续时间';
+
+  @override
+  String get smoothScrollingDurationDesc => '滚动动画的持续时间（毫秒）。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -3002,4 +3014,10 @@ class SZhTw extends SZh {
 
   @override
   String get smoothScrollingDesc => '為滑鼠滾輪事件添加平滑動畫。如果遇到卡頓或性能下降，請關閉此選項。';
+
+  @override
+  String get smoothScrollingDuration => '滾動持續時間';
+
+  @override
+  String get smoothScrollingDurationDesc => '滾動動畫的持續時間（毫秒）。';
 }

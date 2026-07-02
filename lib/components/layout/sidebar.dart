@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/providers/tab_visibility_provider.dart';
 import '../../core/theme/color_tokens.dart';
 import '../../core/theme/theme_provider.dart';
+import '../../core/utils/smooth_scroll_controller.dart';
 import '../../server/providers/server_providers.dart';
 
 class SidebarItem {
@@ -82,7 +83,7 @@ final sidebarItems = [
   ),
 ];
 
-class Sidebar extends ConsumerWidget {
+class Sidebar extends ConsumerStatefulWidget {
   final int selectedIndex;
   final ValueChanged<int> onItemSelected;
 
@@ -93,7 +94,21 @@ class Sidebar extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends ConsumerState<Sidebar> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final devices = ref.watch(connectedDevicesProvider);
@@ -106,6 +121,8 @@ class Sidebar extends ConsumerWidget {
             ref.read(sidebarCollapsedProvider.notifier).state = false,
       );
     }
+
+    final selectedIndex = widget.selectedIndex;
 
     return Container(
       width: 68,
@@ -158,6 +175,7 @@ class Sidebar extends ConsumerWidget {
             child: Builder(builder: (context) {
               final enabledTabs = ref.watch(tabVisibilityProvider);
               return ListView.builder(
+                controller: _scrollController,
                 itemCount: sidebarItems.length,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 itemBuilder: (context, index) {
@@ -170,7 +188,7 @@ class Sidebar extends ConsumerWidget {
                     label: item.label,
                     isSelected: isSelected,
                     isLocked: isLocked,
-                    onTap: () => onItemSelected(index),
+                    onTap: () => widget.onItemSelected(index),
                   );
                 },
               );

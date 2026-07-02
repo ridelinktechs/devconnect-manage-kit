@@ -1020,4 +1020,11 @@ class SEn extends S {
   @override
   String get smoothScrollingDesc =>
       'Smooths mouse-wheel scroll events. Disable this option if you notice any lag or performance drop.';
+
+  @override
+  String get smoothScrollingDuration => 'Scroll duration';
+
+  @override
+  String get smoothScrollingDurationDesc =>
+      'The duration of the smooth scroll animation in milliseconds.';
 }

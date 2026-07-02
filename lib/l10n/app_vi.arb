@@ -295,5 +295,7 @@
   "growingCollection": "Bộ sưu tập tăng trưởng",
   "custom": "Tùy chỉnh",
   "smoothScrolling": "Cuộn mượt",
-  "smoothScrollingDesc": "Tạo hiệu ứng cuộn mượt mà hơn khi sử dụng con lăn chuột. Nếu bạn thấy lag hoặc ảnh hưởng đến hiệu năng, hãy tắt cài đặt này."
+  "smoothScrollingDesc": "Tạo hiệu ứng cuộn mượt mà hơn khi sử dụng con lăn chuột. Nếu bạn thấy lag hoặc ảnh hưởng đến hiệu năng, hãy tắt cài đặt này.",
+  "smoothScrollingDuration": "Thời gian cuộn",
+  "smoothScrollingDurationDesc": "Thời gian chạy hiệu ứng cuộn mượt mà tính bằng mili-giây."
 }

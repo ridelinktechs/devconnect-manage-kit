@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/tab_visibility_provider.dart';
 import '../../../core/utils/duration_format.dart';
+import '../../../core/utils/log_message_summary.dart';
 import '../../../models/display/display_entry.dart';
 import '../../../models/log/error_event.dart';
 import '../../../server/providers/server_providers.dart';
@@ -85,7 +86,10 @@ final allEventsProvider = Provider<List<UnifiedEvent>>((ref) {
         id: log.id,
         deviceId: log.deviceId,
         timestamp: log.timestamp,
-        title: log.message,
+        // Summarize JSON object/array messages so the event row shows
+        // "Object {3 keys: foo, bar}" instead of just "{" (truncated from
+        // a pretty-printed payload by the row's maxLines: 1).
+        title: summarizeLogMessage(log.message),
         subtitle: log.tag ?? 'log',
         level: log.level.name,
         rawData: log,
