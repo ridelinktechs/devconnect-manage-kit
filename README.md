@@ -6,7 +6,7 @@
 
 **Debug Flutter, React Native & Android apps — network, state, logs, storage, database — all in one beautiful desktop tool.**
 
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)](https://github.com/ridelinktechs/devconnect-manage-kit/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)](https://github.com/MTI ridelinktechs/devconnect-manage-kit/releases)
 [![Flutter](https://img.shields.io/badge/Flutter-SDK-02569B?logo=flutter)](client_sdks/devconnect_manage_kit)
 [![React Native](https://img.shields.io/badge/React%20Native-SDK-61DAFB?logo=react)](client_sdks/devconnect-manage-kit)
 [![Android](https://img.shields.io/badge/Android-SDK-3DDC84?logo=android)](client_sdks/devconnect-manage-android)
@@ -91,7 +91,7 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 | macOS | `DevConnectManageTool-macOS-v1.0.1-universal.dmg` | arm64 + x86_64 |
 | Windows | `DevConnectManageTool-Windows-v1.0.1.zip` | x64 |
 
-Download from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases).
+Download from [Releases](https://github.com/MTI ridelinktechs/devconnect-manage-kit/releases).
 
 ---
 
@@ -136,7 +136,7 @@ That's it. Open DevConnect Manage Tool desktop, run your app, and everything app
 ### Build from source
 
 ```bash
-git clone https://github.com/ridelinktechs/devconnect-manage-kit.git
+git clone https://github.com/MTI ridelinktechs/devconnect-manage-kit.git
 cd devconnect
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
@@ -180,7 +180,7 @@ Or from GitHub:
 dependencies:
   devconnect_manage_kit:
     git:
-      url: https://github.com/ridelinktechs/devconnect-manage-kit.git
+      url: https://github.com/MTI ridelinktechs/devconnect-manage-kit.git
       path: client_sdks/devconnect_manage_kit
 ```
 
@@ -532,7 +532,7 @@ npm install devconnect-manage-kit
 Or from GitHub:
 
 ```bash
-yarn add github:ridelinktechs/devconnect-manage-kit#main
+yarn add github:MTI ridelinktechs/devconnect-manage-kit#main
 ```
 
 ### Init
@@ -879,11 +879,11 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.ridelinktechs.devconnect:devconnect-manage-android:v1.0.0")
+    implementation("com.github.MTI ridelinktechs.devconnect:devconnect-manage-android:v1.0.0")
 }
 ```
 
-Or AAR file from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases):
+Or AAR file from [Releases](https://github.com/MTI ridelinktechs/devconnect-manage-kit/releases):
 
 ```gradle
 dependencies {
