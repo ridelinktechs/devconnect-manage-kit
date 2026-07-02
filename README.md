@@ -6,11 +6,11 @@
 
 **Debug Flutter, React Native & Android apps — network, state, logs, storage, database — all in one beautiful desktop tool.**
 
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)](https://github.com/MTI ridelinktechs/devconnect-manage-kit/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)](https://github.com/ridelinktechs/devconnect-manage-kit/releases)
 [![Flutter](https://img.shields.io/badge/Flutter-SDK-02569B?logo=flutter)](client_sdks/devconnect_manage_kit)
 [![React Native](https://img.shields.io/badge/React%20Native-SDK-61DAFB?logo=react)](client_sdks/devconnect-manage-kit)
 [![Android](https://img.shields.io/badge/Android-SDK-3DDC84?logo=android)](client_sdks/devconnect-manage-android)
-[![License](https://img.shields.io/badge/License-Free%20Non--Commercial-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 [Features](#features) · [Download](#download) · [Quick Start](#quick-start) · [Desktop Guide](#using-the-desktop-app) · [SDKs](#flutter-sdk) · [Support](#support-devconnect-manage-kit)
 
@@ -22,25 +22,25 @@
 
 If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know they're powerful but limited to one framework. DevConnect Manage Kit is a **single desktop app** that works with all of them.
 
-| | DevConnect Manage Kit | Reactotron | Flipper | Flutter DevTools |
-|---|:---:|:---:|:---:|:---:|
-| Flutter support | ✅ | ❌ | ⚠️ plugin | ✅ |
-| React Native support | ✅ | ✅ | ✅ | ❌ |
-| Android Native support | ✅ | ❌ | ✅ | ❌ |
-| Network inspector | ✅ | ✅ | ✅ | ✅ |
-| State debugging | ✅ Redux/MobX/Zustand/BLoC/Riverpod/GetX | ✅ Redux/MobX | ✅ | ❌ |
-| Log viewer | ✅ | ✅ | ✅ | ✅ |
-| Storage viewer | ✅ | ✅ | ✅ | ❌ |
-| Database browser | ✅ | ❌ | ✅ | ❌ |
-| Performance profiling | ✅ FPS/CPU/Memory/Jank | ❌ | ❌ | ✅ |
-| Memory leak detection | ✅ | ❌ | ❌ | ✅ |
-| Benchmark timing | ✅ | ✅ | ❌ | ✅ |
-| Custom commands | ✅ | ✅ | ❌ | ❌ |
-| Multi-device | ✅ | ❌ | ✅ | ❌ |
-| Zero-config setup | ✅ auto-detect | ❌ manual | ⚠️ | ⚠️ |
-| macOS + Windows | ✅ | ✅ | ⚠️ deprecated | ✅ |
-| Dark + Light theme | ✅ | ✅ | ✅ | ✅ |
-| Active maintenance | ✅ | ⚠️ slow | ❌ deprecated | ✅ |
+|                        |          DevConnect Manage Kit           |  Reactotron   |    Flipper    | Flutter DevTools |
+| ---------------------- | :--------------------------------------: | :-----------: | :-----------: | :--------------: |
+| Flutter support        |                    ✅                    |      ❌       |   ⚠️ plugin   |        ✅        |
+| React Native support   |                    ✅                    |      ✅       |      ✅       |        ❌        |
+| Android Native support |                    ✅                    |      ❌       |      ✅       |        ❌        |
+| Network inspector      |                    ✅                    |      ✅       |      ✅       |        ✅        |
+| State debugging        | ✅ Redux/MobX/Zustand/BLoC/Riverpod/GetX | ✅ Redux/MobX |      ✅       |        ❌        |
+| Log viewer             |                    ✅                    |      ✅       |      ✅       |        ✅        |
+| Storage viewer         |                    ✅                    |      ✅       |      ✅       |        ❌        |
+| Database browser       |                    ✅                    |      ❌       |      ✅       |        ❌        |
+| Performance profiling  |          ✅ FPS/CPU/Memory/Jank          |      ❌       |      ❌       |        ✅        |
+| Memory leak detection  |                    ✅                    |      ❌       |      ❌       |        ✅        |
+| Benchmark timing       |                    ✅                    |      ✅       |      ❌       |        ✅        |
+| Custom commands        |                    ✅                    |      ✅       |      ❌       |        ❌        |
+| Multi-device           |                    ✅                    |      ❌       |      ✅       |        ❌        |
+| Zero-config setup      |              ✅ auto-detect              |   ❌ manual   |      ⚠️       |        ⚠️        |
+| macOS + Windows        |                    ✅                    |      ✅       | ⚠️ deprecated |        ✅        |
+| Dark + Light theme     |                    ✅                    |      ✅       |      ✅       |        ✅        |
+| Active maintenance     |                    ✅                    |    ⚠️ slow    | ❌ deprecated |        ✅        |
 
 > **TL;DR** — One tool to replace Reactotron + Flipper + DevTools. Works with Flutter, React Native, and Android Native. Auto-detects everything.
 
@@ -66,32 +66,32 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 
 ### Screenshots
 
-| All Events | State Inspector |
-|---|---|
+| All Events                                     | State Inspector                                    |
+| ---------------------------------------------- | -------------------------------------------------- |
 | ![All Events](docs/screenshots/all-events.png) | ![State Detail](docs/screenshots/state-detail.png) |
 
-| Network Inspector | Network Detail |
-|---|---|
+| Network Inspector                                  | Network Detail                                         |
+| -------------------------------------------------- | ------------------------------------------------------ |
 | ![Network List](docs/screenshots/network-list.png) | ![Network Detail](docs/screenshots/network-detail.png) |
 
-| Performance Profiler | Benchmark |
-|---|---|
+| Performance Profiler                             | Benchmark                                    |
+| ------------------------------------------------ | -------------------------------------------- |
 | ![Performance](docs/screenshots/performance.png) | ![Benchmark](docs/screenshots/benchmark.png) |
 
-| Storage Viewer |
-|---|
+| Storage Viewer                           |
+| ---------------------------------------- |
 | ![Storage](docs/screenshots/storage.png) |
 
 ---
 
 ## Download
 
-| Platform | File | Architecture |
-|----------|------|-------------|
-| macOS | `DevConnectManageTool-macOS-v1.0.1-universal.dmg` | arm64 + x86_64 |
-| Windows | `DevConnectManageTool-Windows-v1.0.1.zip` | x64 |
+| Platform | File                                              | Architecture   |
+| -------- | ------------------------------------------------- | -------------- |
+| macOS    | `DevConnectManageTool-macOS-v1.0.1-universal.dmg` | arm64 + x86_64 |
+| Windows  | `DevConnectManageTool-Windows-v1.0.1.zip`         | x64            |
 
-Download from [Releases](https://github.com/MTI ridelinktechs/devconnect-manage-kit/releases).
+Download from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases).
 
 ---
 
@@ -114,9 +114,9 @@ void main() async {
 ### React Native — 1 line
 
 ```typescript
-import { DevConnect } from 'devconnect-manage-kit';
+import { DevConnect } from "devconnect-manage-kit";
 
-await DevConnect.init({ appName: 'MyApp' });
+await DevConnect.init({ appName: "MyApp" });
 // Done. fetch + XHR + console auto-captured.
 ```
 
@@ -136,7 +136,7 @@ That's it. Open DevConnect Manage Tool desktop, run your app, and everything app
 ### Build from source
 
 ```bash
-git clone https://github.com/MTI ridelinktechs/devconnect-manage-kit.git
+git clone https://github.com/ridelinktechs/devconnect-manage-kit.git
 cd devconnect
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
@@ -180,7 +180,7 @@ Or from GitHub:
 dependencies:
   devconnect_manage_kit:
     git:
-      url: https://github.com/MTI ridelinktechs/devconnect-manage-kit.git
+      url: https://github.com/ridelinktechs/devconnect-manage-kit.git
       path: client_sdks/devconnect_manage_kit
 ```
 
@@ -532,15 +532,15 @@ npm install devconnect-manage-kit
 Or from GitHub:
 
 ```bash
-yarn add github:MTI ridelinktechs/devconnect-manage-kit#main
+yarn add github:ridelinktechs/devconnect-manage-kit#main
 ```
 
 ### Init
 
 ```typescript
-import { DevConnect } from 'devconnect-manage-kit';
+import { DevConnect } from "devconnect-manage-kit";
 
-await DevConnect.init({ appName: 'MyApp' });
+await DevConnect.init({ appName: "MyApp" });
 // Auto-captures: fetch, XHR, console.log/warn/error
 ```
 
@@ -548,11 +548,11 @@ await DevConnect.init({ appName: 'MyApp' });
 
 ```typescript
 await DevConnect.init({
-  appName: 'MyApp',
-  appVersion: '1.0.0',
-  host: undefined,            // undefined = auto-detect, '192.168.1.100' = manual
-  port: 9090,                 // default: 9090
-  enabled: __DEV__,           // false in production
+  appName: "MyApp",
+  appVersion: "1.0.0",
+  host: undefined, // undefined = auto-detect, '192.168.1.100' = manual
+  port: 9090, // default: 9090
+  enabled: __DEV__, // false in production
   autoInterceptFetch: true,
   autoInterceptXHR: true,
   autoInterceptConsole: true,
@@ -565,7 +565,7 @@ Auto-captured: fetch, XHR, axios, got, ky, superagent, apisauce, Apollo, urql, T
 
 ```typescript
 // Axios (optional, for extra tagging)
-import { setupAxiosInterceptor } from 'devconnect-manage-kit';
+import { setupAxiosInterceptor } from "devconnect-manage-kit";
 setupAxiosInterceptor(axios);
 ```
 
@@ -575,47 +575,49 @@ Auto-captured: console.log, console.debug, console.info, console.warn, console.e
 
 ```typescript
 // Manual
-DevConnect.log('User logged in');
-DevConnect.debug('Debug info', 'Auth');
-DevConnect.warn('Warning');
-DevConnect.error('Error', 'Tag', stackTrace);
+DevConnect.log("User logged in");
+DevConnect.debug("Debug info", "Auth");
+DevConnect.warn("Warning");
+DevConnect.error("Error", "Tag", stackTrace);
 
 // react-native-logs
-import { devConnectTransport } from 'devconnect-manage-kit';
-const log = logger.createLogger({ transport: [consoleTransport, devConnectTransport] });
+import { devConnectTransport } from "devconnect-manage-kit";
+const log = logger.createLogger({
+  transport: [consoleTransport, devConnectTransport],
+});
 
 // loglevel
-import { patchLoglevel } from 'devconnect-manage-kit';
+import { patchLoglevel } from "devconnect-manage-kit";
 patchLoglevel(log);
 
 // pino
-import { pinoDevConnectTransport } from 'devconnect-manage-kit';
+import { pinoDevConnectTransport } from "devconnect-manage-kit";
 const logger = pino({}, pinoDevConnectTransport());
 
 // winston
-import { winstonDevConnectTransport } from 'devconnect-manage-kit';
+import { winstonDevConnectTransport } from "devconnect-manage-kit";
 
 // bunyan
-import { bunyanDevConnectStream } from 'devconnect-manage-kit';
+import { bunyanDevConnectStream } from "devconnect-manage-kit";
 
 // Any custom logger
-import { wrapLogger } from 'devconnect-manage-kit';
-const wrapped = wrapLogger(myLogger, 'myLoggerName');
+import { wrapLogger } from "devconnect-manage-kit";
+const wrapped = wrapLogger(myLogger, "myLoggerName");
 ```
 
 ### State
 
 ```typescript
 // Redux - Classic createStore
-import { createStore, applyMiddleware, compose } from 'redux';
-import { devConnectReduxMiddleware } from 'devconnect-manage-kit';
-import { DevConnect } from 'devconnect-manage-kit';
+import { createStore, applyMiddleware, compose } from "redux";
+import { devConnectReduxMiddleware } from "devconnect-manage-kit";
+import { DevConnect } from "devconnect-manage-kit";
 
 let store;
 if (__DEV__) {
   store = createStore(
     rootReducer,
-    compose(applyMiddleware(thunkMiddleware, devConnectReduxMiddleware))
+    compose(applyMiddleware(thunkMiddleware, devConnectReduxMiddleware)),
   );
   // Allow desktop to dispatch actions into the app
   DevConnect.connectReduxStore(store);
@@ -626,16 +628,14 @@ if (__DEV__) {
 
 ```typescript
 // Redux Toolkit
-import { configureStore } from '@reduxjs/toolkit';
-import { devConnectReduxMiddleware } from 'devconnect-manage-kit';
-import { DevConnect } from 'devconnect-manage-kit';
+import { configureStore } from "@reduxjs/toolkit";
+import { devConnectReduxMiddleware } from "devconnect-manage-kit";
+import { DevConnect } from "devconnect-manage-kit";
 
 const store = configureStore({
   reducer: rootReducer,
   middleware: (getDefault) =>
-    __DEV__
-      ? getDefault().concat(devConnectReduxMiddleware)
-      : getDefault(),
+    __DEV__ ? getDefault().concat(devConnectReduxMiddleware) : getDefault(),
 });
 
 if (__DEV__) DevConnect.connectReduxStore(store);
@@ -643,8 +643,8 @@ if (__DEV__) DevConnect.connectReduxStore(store);
 
 ```typescript
 // MobX
-import { spy } from 'mobx';
-import { setupMobxSpy } from 'devconnect-manage-kit';
+import { spy } from "mobx";
+import { setupMobxSpy } from "devconnect-manage-kit";
 
 if (__DEV__) {
   setupMobxSpy(spy); // reports all observable changes
@@ -653,60 +653,60 @@ if (__DEV__) {
 
 ```typescript
 // Zustand
-import { create } from 'zustand';
-import { devConnectMiddleware } from 'devconnect-manage-kit';
+import { create } from "zustand";
+import { devConnectMiddleware } from "devconnect-manage-kit";
 
 // Wrap your store creator with devConnectMiddleware
 const useStore = create(
   devConnectMiddleware(
     (set) => ({
       count: 0,
-      name: '',
+      name: "",
       increment: () => set((s) => ({ count: s.count + 1 })),
       setName: (name: string) => set({ name }),
     }),
-    'CounterStore' // label shown in DevConnect desktop
-  )
+    "CounterStore", // label shown in DevConnect desktop
+  ),
 );
 ```
 
 ```typescript
 // Jotai
-import { atom, createStore } from 'jotai';
-import { watchAtom } from 'devconnect-manage-kit';
+import { atom, createStore } from "jotai";
+import { watchAtom } from "devconnect-manage-kit";
 
 const countAtom = atom(0);
 const store = createStore();
 
 if (__DEV__) {
   // Watches atom and reports every value change
-  const unsub = watchAtom(store, countAtom, 'countAtom');
+  const unsub = watchAtom(store, countAtom, "countAtom");
   // unsub() to stop watching
 }
 ```
 
 ```typescript
 // Valtio
-import { proxy } from 'valtio';
-import { watchValtio } from 'devconnect-manage-kit';
+import { proxy } from "valtio";
+import { watchValtio } from "devconnect-manage-kit";
 
-const state = proxy({ count: 0, user: { name: '' } });
+const state = proxy({ count: 0, user: { name: "" } });
 
 if (__DEV__) {
-  watchValtio(state, 'AppState'); // reports all proxy mutations
+  watchValtio(state, "AppState"); // reports all proxy mutations
 }
 ```
 
 ```typescript
 // XState
-import { interpret } from 'xstate';
-import { devConnectXStateInspector } from 'devconnect-manage-kit';
+import { interpret } from "xstate";
+import { devConnectXStateInspector } from "devconnect-manage-kit";
 
 const service = interpret(toggleMachine);
 
 if (__DEV__) {
   // Reports every state transition (event, from, to, context)
-  service.onTransition(devConnectXStateInspector('ToggleMachine'));
+  service.onTransition(devConnectXStateInspector("ToggleMachine"));
 }
 
 service.start();
@@ -716,11 +716,11 @@ service.start();
 
 ```typescript
 // AsyncStorage
-import { DevConnectAsyncStorage } from 'devconnect-manage-kit';
+import { DevConnectAsyncStorage } from "devconnect-manage-kit";
 DevConnectAsyncStorage.patchInPlace(AsyncStorage);
 
 // MMKV
-import { DevConnectMMKV } from 'devconnect-manage-kit';
+import { DevConnectMMKV } from "devconnect-manage-kit";
 DevConnectMMKV.wrap(storage);
 ```
 
@@ -729,29 +729,29 @@ DevConnectMMKV.wrap(storage);
 ```typescript
 // Report FPS
 DevConnect.reportPerformanceMetric({
-  metricType: 'fps',
+  metricType: "fps",
   value: 58.5,
-  label: 'JS Thread FPS',
+  label: "JS Thread FPS",
 });
 
 // Report memory usage (MB)
 DevConnect.reportPerformanceMetric({
-  metricType: 'memory_usage',
+  metricType: "memory_usage",
   value: 142.3,
-  label: 'JS Heap',
+  label: "JS Heap",
 });
 
 // Report CPU usage (%)
 DevConnect.reportPerformanceMetric({
-  metricType: 'cpu_usage',
+  metricType: "cpu_usage",
   value: 35.2,
 });
 
 // Report jank frame (ms)
 DevConnect.reportPerformanceMetric({
-  metricType: 'jank_frame',
+  metricType: "jank_frame",
   value: 32.1,
-  label: 'Slow render in FlatList',
+  label: "Slow render in FlatList",
 });
 ```
 
@@ -760,20 +760,20 @@ DevConnect.reportPerformanceMetric({
 ```typescript
 // Report undisposed subscription
 DevConnect.reportMemoryLeak({
-  leakType: 'undisposed_stream',
-  severity: 'warning',
-  objectName: 'UserDataSubscription',
-  detail: 'EventEmitter listener not removed in ProfileScreen',
+  leakType: "undisposed_stream",
+  severity: "warning",
+  objectName: "UserDataSubscription",
+  detail: "EventEmitter listener not removed in ProfileScreen",
   retainedSizeBytes: 2048,
   stackTrace: new Error().stack,
 });
 
 // Report growing collection
 DevConnect.reportMemoryLeak({
-  leakType: 'growing_collection',
-  severity: 'critical',
-  objectName: 'eventCache',
-  detail: 'Array grows unbounded — 15000 items, expected < 100',
+  leakType: "growing_collection",
+  severity: "critical",
+  objectName: "eventCache",
+  detail: "Array grows unbounded — 15000 items, expected < 100",
   retainedSizeBytes: 1200000,
   metadata: { currentSize: 15000, maxExpected: 100 },
 });
@@ -782,32 +782,32 @@ DevConnect.reportMemoryLeak({
 ### Tagged Logger
 
 ```typescript
-const logger = DevConnect.logger('AuthService');
-logger.log('User logged in');
-logger.debug('Token refreshed');
-logger.warn('Session expiring');
-logger.error('Login failed', error.stack);
+const logger = DevConnect.logger("AuthService");
+logger.log("User logged in");
+logger.debug("Token refreshed");
+logger.warn("Session expiring");
+logger.error("Login failed", error.stack);
 ```
 
 ### Manual Network Reporting
 
 ```typescript
 // When auto-interception is disabled or for custom transports
-const requestId = 'req-123';
+const requestId = "req-123";
 
 DevConnect.reportNetworkStart({
   requestId,
-  method: 'POST',
-  url: 'https://api.example.com/data',
-  headers: { 'Content-Type': 'application/json' },
-  body: { name: 'John' },
+  method: "POST",
+  url: "https://api.example.com/data",
+  headers: { "Content-Type": "application/json" },
+  body: { name: "John" },
 });
 
 // After response
 DevConnect.reportNetworkComplete({
   requestId,
-  method: 'POST',
-  url: 'https://api.example.com/data',
+  method: "POST",
+  url: "https://api.example.com/data",
   statusCode: 200,
   startTime: 1711180800000,
   responseBody: { success: true },
@@ -817,17 +817,17 @@ DevConnect.reportNetworkComplete({
 ### Benchmark
 
 ```typescript
-DevConnect.benchmark('loadUserData');
+DevConnect.benchmark("loadUserData");
 await fetchUser();
-DevConnect.benchmarkStep('loadUserData', 'fetched user');
+DevConnect.benchmarkStep("loadUserData", "fetched user");
 await fetchPosts();
-DevConnect.benchmarkStop('loadUserData');
+DevConnect.benchmarkStop("loadUserData");
 ```
 
 ### Custom Commands
 
 ```typescript
-DevConnect.registerCommand('clearCache', () => {
+DevConnect.registerCommand("clearCache", () => {
   AsyncStorage.clear();
   return { success: true };
 });
@@ -836,9 +836,9 @@ DevConnect.registerCommand('clearCache', () => {
 ### State Snapshot + Restore
 
 ```typescript
-DevConnect.sendStateSnapshot('redux', store.getState());
+DevConnect.sendStateSnapshot("redux", store.getState());
 DevConnect.onStateRestore((state) => {
-  store.dispatch({ type: 'RESTORE_STATE', payload: state });
+  store.dispatch({ type: "RESTORE_STATE", payload: state });
 });
 ```
 
@@ -847,7 +847,7 @@ DevConnect.onStateRestore((state) => {
 ```typescript
 // Check connection status
 if (DevConnect.isConnected()) {
-  console.log('Connected to DevConnect desktop');
+  console.log("Connected to DevConnect desktop");
 }
 
 // Disconnect
@@ -879,11 +879,11 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.MTI ridelinktechs.devconnect:devconnect-manage-android:v1.0.0")
+    implementation("com.github.ridelinktechs.devconnect:devconnect-manage-android:v1.0.0")
 }
 ```
 
-Or AAR file from [Releases](https://github.com/MTI ridelinktechs/devconnect-manage-kit/releases):
+Or AAR file from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases):
 
 ```gradle
 dependencies {
@@ -1165,6 +1165,7 @@ DevConnect.disconnect()
 ### Auto-detect (default)
 
 SDK tries these addresses in order:
+
 1. `localhost` (iOS simulator, macOS)
 2. `10.0.2.2` (Android emulator)
 3. `10.0.3.2` (Genymotion)
@@ -1194,17 +1195,17 @@ Open DevConnect, run your app with the SDK — data appears automatically. The s
 
 ### Tabs & Features
 
-| Tab | What it shows | Key actions |
-|-----|---------------|-------------|
-| **Console** | Real-time logs from your app | Filter by level (debug/info/warn/error), search, click to expand |
-| **Network** | HTTP requests & responses | Filter by method (GET/POST/PUT/PATCH/DELETE), filter by source (App/Library/System), click request to see headers + body + timing |
-| **State** | State changes timeline | Click to see before/after diff, snapshot & restore state |
-| **Storage** | Key/value storage entries | Filter by operation (READ/WRITE/DELETE), filter by type (AS/SP/HV/SQL), click to see full value |
-| **Database** | SQLite tables & queries | Browse tables, view schema, run SQL queries |
-| **Performance** | Real-time FPS, CPU, memory charts | Hover for exact values, jank frames highlighted |
-| **Memory Leaks** | Detected leaks with severity | Sorted by severity (critical/warning/info), stack traces |
-| **Benchmark** | Timing measurements with steps | Start/step/stop lifecycle with duration |
-| **All Events** | Unified timeline across all features | Filter by type, search across everything |
+| Tab              | What it shows                        | Key actions                                                                                                                       |
+| ---------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Console**      | Real-time logs from your app         | Filter by level (debug/info/warn/error), search, click to expand                                                                  |
+| **Network**      | HTTP requests & responses            | Filter by method (GET/POST/PUT/PATCH/DELETE), filter by source (App/Library/System), click request to see headers + body + timing |
+| **State**        | State changes timeline               | Click to see before/after diff, snapshot & restore state                                                                          |
+| **Storage**      | Key/value storage entries            | Filter by operation (READ/WRITE/DELETE), filter by type (AS/SP/HV/SQL), click to see full value                                   |
+| **Database**     | SQLite tables & queries              | Browse tables, view schema, run SQL queries                                                                                       |
+| **Performance**  | Real-time FPS, CPU, memory charts    | Hover for exact values, jank frames highlighted                                                                                   |
+| **Memory Leaks** | Detected leaks with severity         | Sorted by severity (critical/warning/info), stack traces                                                                          |
+| **Benchmark**    | Timing measurements with steps       | Start/step/stop lifecycle with duration                                                                                           |
+| **All Events**   | Unified timeline across all features | Filter by type, search across everything                                                                                          |
 
 ### Toolbar Controls
 
@@ -1234,11 +1235,11 @@ When multiple apps are connected, use the device selector in the bottom bar to f
 
 All SDKs are **disabled by default in production builds** — zero runtime overhead.
 
-| SDK | Guard | Behavior in production |
-|-----|-------|----------------------|
-| Flutter | `kDebugMode` | Returns immediately, no WebSocket, no interceptors |
-| React Native | `__DEV__` | Creates dummy instance, all methods are no-ops |
-| Android | `BuildConfig.DEBUG` | Returns immediately, nothing initialized |
+| SDK          | Guard               | Behavior in production                             |
+| ------------ | ------------------- | -------------------------------------------------- |
+| Flutter      | `kDebugMode`        | Returns immediately, no WebSocket, no interceptors |
+| React Native | `__DEV__`           | Creates dummy instance, all methods are no-ops     |
+| Android      | `BuildConfig.DEBUG` | Returns immediately, nothing initialized           |
 
 You can also manually disable:
 
@@ -1247,7 +1248,7 @@ DevConnect.init(appName: 'MyApp', enabled: false);  // Flutter
 ```
 
 ```typescript
-DevConnect.init({ appName: 'MyApp', enabled: false });  // React Native
+DevConnect.init({ appName: "MyApp", enabled: false }); // React Native
 ```
 
 ```kotlin
@@ -1263,7 +1264,6 @@ DevConnect.init(context = this, appName = "MyApp", enabled = false)  // Android
 - **Desktop**: Flutter Desktop (macOS/Windows) + Riverpod + go_router + Freezed
 - **Protocol**: JSON over WebSocket (default port 9090)
 - **SDKs**: Flutter (pub.dev / git), React Native (npm / git), Android (Maven / JitPack / AAR)
-
 
 ## Contributing
 
@@ -1289,20 +1289,34 @@ Looking for mobile debugging tools? Here's how DevConnect compares:
 - **[Flipper](https://github.com/facebook/flipper)** — Facebook's extensible debugger, now deprecated. DevConnect is actively maintained.
 - **[Flutter DevTools](https://docs.flutter.dev/tools/devtools)** — Official Flutter debugging, but no React Native or Android Native. DevConnect adds cross-platform support.
 
-> Searching for: *reactotron alternative*, *flipper replacement*, *flutter debugging tool*, *react native debugger*, *android debug inspector*, *mobile app debugger*, *cross-platform debugging*, *network inspector*, *state debugger*, *redux devtools mobile*? DevConnect is built for you.
+> Searching for: _reactotron alternative_, _flipper replacement_, _flutter debugging tool_, _react native debugger_, _android debug inspector_, _mobile app debugger_, _cross-platform debugging_, _network inspector_, _state debugger_, _redux devtools mobile_? DevConnect is built for you.
 
 ---
 
 ## License
 
-| Component | License | Commercial use |
-|---|---|---|
-| **Client SDKs** (Flutter, React Native, Android) | MIT | Free, no restrictions |
-| **Desktop Application** (source code) | Custom Non-Commercial | Requires paid license |
+**MIT License** — Everything in this repository (desktop app + all SDKs) is free
+for any use, including commercial. Use it, modify it, ship it — no restrictions.
 
-**SDKs** — Use freely in any project, including commercial apps. See [client_sdks/*/LICENSE](client_sdks/).
+```
+MIT License
 
-**Desktop App** — Free for personal, educational, and open-source use. Commercial use requires written permission. Contact [buivietphi](https://github.com/buivietphi) for commercial licensing. See [LICENSE](LICENSE).
+Copyright (c) 2026 MTI ridelinktechs
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+```
+
+See [LICENSE](LICENSE) and [client_sdks/*/LICENSE](client_sdks/) for the full text.
 
 ---
 
@@ -1310,6 +1324,6 @@ Looking for mobile debugging tools? Here's how DevConnect compares:
 
 **DevConnect Manage Tool** — Debug Flutter, React Native & Android apps from one desktop tool.
 
-*A modern alternative to Reactotron, Flipper, and platform-specific debugging tools.*
+_A modern alternative to Reactotron, Flipper, and platform-specific debugging tools._
 
 </div>
