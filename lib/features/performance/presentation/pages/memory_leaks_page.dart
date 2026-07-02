@@ -12,6 +12,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/text/text_component.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../core/theme/color_tokens.dart';
@@ -27,6 +28,13 @@ class MemoryLeaksPage extends ConsumerStatefulWidget {
 
 class _MemoryLeaksPageState extends ConsumerState<MemoryLeaksPage> {
   MemoryLeakEntry? _selectedEntry;
+  final _listScrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _listScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +71,7 @@ class _MemoryLeaksPageState extends ConsumerState<MemoryLeaksPage> {
                         selectedEntry: _selectedEntry,
                         isDark: isDark,
                         onSelect: (e) => setState(() => _selectedEntry = e),
+                        controller: _listScrollController,
                       ),
                     ),
                     // Detail panel
@@ -218,17 +227,20 @@ class _LeakList extends StatelessWidget {
   final MemoryLeakEntry? selectedEntry;
   final bool isDark;
   final ValueChanged<MemoryLeakEntry> onSelect;
+  final ScrollController? controller;
 
   const _LeakList({
     required this.entries,
     required this.selectedEntry,
     required this.isDark,
     required this.onSelect,
+    this.controller,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
+      controller: controller,
       itemCount: entries.length,
       padding: const EdgeInsets.symmetric(vertical: 4),
       itemBuilder: (context, index) {
@@ -372,6 +384,13 @@ class _LeakDetail extends StatefulWidget {
 
 class _LeakDetailState extends State<_LeakDetail> {
   final _contentKey = GlobalKey();
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   Future<void> _takeScreenshot() async {
     try {
@@ -448,6 +467,7 @@ class _LeakDetailState extends State<_LeakDetail> {
           child: RepaintBoundary(
             key: _contentKey,
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

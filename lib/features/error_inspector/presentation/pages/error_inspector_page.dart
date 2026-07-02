@@ -14,6 +14,7 @@ import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../models/log/error_event.dart';
 import '../../provider/error_providers.dart';
 
@@ -58,7 +59,7 @@ class ErrorInspectorPage extends ConsumerStatefulWidget {
 }
 
 class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
-  final _scrollController = ScrollController();
+  final _scrollController = SmoothScrollController();
   final _selectedId = ValueNotifier<String?>(null);
   final _entryCount = ValueNotifier<int>(0);
   final _searchController = TextEditingController();

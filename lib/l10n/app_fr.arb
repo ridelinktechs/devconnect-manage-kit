@@ -293,5 +293,7 @@
   "undisposedAnimation": "Animation non libérée",
   "widgetLeak": "Fuite de Widget",
   "growingCollection": "Collection croissante",
-  "custom": "Personnalisé"
+  "custom": "Personnalisé",
+  "smoothScrolling": "Défilement fluide",
+  "smoothScrollingDesc": "Rend le défilement de la molette de la souris plus fluide. Désactivez cette option si vous constatez des ralentissements ou une baisse de performance."
 }

@@ -107,6 +107,23 @@ final tabAnimationProvider = Provider<Duration>((ref) {
   return Duration(milliseconds: ms);
 });
 
+
+/// Whether smooth scrolling (inertia/momentum) is enabled for scrollable widgets.
+class SmoothScrollEnabledNotifier extends StateNotifier<bool> {
+  SmoothScrollEnabledNotifier()
+      : super(AppPreferences().get<bool>('smoothScrollEnabled', false) ?? false);
+
+  void set(bool v) {
+    state = v;
+    AppPreferences().set('smoothScrollEnabled', v);
+  }
+}
+
+final smoothScrollEnabledProvider =
+    StateNotifierProvider<SmoothScrollEnabledNotifier, bool>(
+  (ref) => SmoothScrollEnabledNotifier(),
+);
+
 // ═══════════════════════════════════════════════════════════════════
 // Server start error (transient, not persisted)
 // ═══════════════════════════════════════════════════════════════════

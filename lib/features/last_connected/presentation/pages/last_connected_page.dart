@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/utils/duration_format.dart';
@@ -26,6 +27,24 @@ class LastConnectedPage extends ConsumerStatefulWidget {
 class _LastConnectedPageState extends ConsumerState<LastConnectedPage> {
   int? _selectedSessionIndex;
   int _selectedTab = 0; // 0=all, 1=logs, 2=network, 3=state, 4=storage
+
+  final _sessionScrollController = SmoothScrollController();
+  final _allEventsScrollController = SmoothScrollController();
+  final _logsScrollController = SmoothScrollController();
+  final _networkScrollController = SmoothScrollController();
+  final _stateScrollController = SmoothScrollController();
+  final _storageScrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _sessionScrollController.dispose();
+    _allEventsScrollController.dispose();
+    _logsScrollController.dispose();
+    _networkScrollController.dispose();
+    _stateScrollController.dispose();
+    _storageScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +87,7 @@ class _LastConnectedPageState extends ConsumerState<LastConnectedPage> {
                     SizedBox(
                       width: selected != null ? 260 : 360,
                       child: ListView.builder(
+                        controller: _sessionScrollController,
                         itemCount: sessions.length,
                         itemBuilder: (context, index) {
                           final session = sessions[index];
@@ -102,6 +122,11 @@ class _LastConnectedPageState extends ConsumerState<LastConnectedPage> {
                               setState(() => _selectedTab = tab),
                           onClose: () =>
                               setState(() => _selectedSessionIndex = null),
+                          allEventsScrollController: _allEventsScrollController,
+                          logsScrollController: _logsScrollController,
+                          networkScrollController: _networkScrollController,
+                          stateScrollController: _stateScrollController,
+                          storageScrollController: _storageScrollController,
                         ),
                       ),
                     ],
@@ -376,12 +401,22 @@ class _SessionDetailPanel extends StatelessWidget {
   final int selectedTab;
   final ValueChanged<int> onTabChanged;
   final VoidCallback onClose;
+  final ScrollController allEventsScrollController;
+  final ScrollController logsScrollController;
+  final ScrollController networkScrollController;
+  final ScrollController stateScrollController;
+  final ScrollController storageScrollController;
 
   const _SessionDetailPanel({
     required this.session,
     required this.selectedTab,
     required this.onTabChanged,
     required this.onClose,
+    required this.allEventsScrollController,
+    required this.logsScrollController,
+    required this.networkScrollController,
+    required this.stateScrollController,
+    required this.storageScrollController,
   });
 
   @override
@@ -473,15 +508,30 @@ class _SessionDetailPanel extends StatelessWidget {
   Widget _buildContent() {
     switch (selectedTab) {
       case 1:
-        return _LogList(entries: session.logs);
+        return _LogList(
+          entries: session.logs,
+          controller: logsScrollController,
+        );
       case 2:
-        return _NetworkList(entries: session.networkEntries);
+        return _NetworkList(
+          entries: session.networkEntries,
+          controller: networkScrollController,
+        );
       case 3:
-        return _StateList(entries: session.stateChanges);
+        return _StateList(
+          entries: session.stateChanges,
+          controller: stateScrollController,
+        );
       case 4:
-        return _StorageList(entries: session.storageEntries);
+        return _StorageList(
+          entries: session.storageEntries,
+          controller: storageScrollController,
+        );
       default:
-        return _AllEventsList(session: session);
+        return _AllEventsList(
+          session: session,
+          controller: allEventsScrollController,
+        );
     }
   }
 }
@@ -551,8 +601,9 @@ class _TabButton extends StatelessWidget {
 
 class _AllEventsList extends StatelessWidget {
   final DisconnectedSession session;
+  final ScrollController? controller;
 
-  const _AllEventsList({required this.session});
+  const _AllEventsList({required this.session, this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -609,6 +660,7 @@ class _AllEventsList extends StatelessWidget {
     }
 
     return ListView.builder(
+      controller: controller,
       itemCount: events.length,
       itemBuilder: (context, index) {
         final e = events[index];
@@ -743,8 +795,9 @@ class _EventRow extends StatelessWidget {
 
 class _LogList extends StatelessWidget {
   final List<LogEntry> entries;
+  final ScrollController? controller;
 
-  const _LogList({required this.entries});
+  const _LogList({required this.entries, this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -752,6 +805,7 @@ class _LogList extends StatelessWidget {
       return EmptyState(icon: LucideIcons.terminal, title: S.of(context).noLogsYet);
     }
     return ListView.builder(
+      controller: controller,
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final e = entries[entries.length - 1 - index];
@@ -816,8 +870,9 @@ class _LogList extends StatelessWidget {
 
 class _NetworkList extends StatelessWidget {
   final List<NetworkEntry> entries;
+  final ScrollController? controller;
 
-  const _NetworkList({required this.entries});
+  const _NetworkList({required this.entries, this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -826,6 +881,7 @@ class _NetworkList extends StatelessWidget {
           icon: LucideIcons.globe, title: S.of(context).noNetworkRequests);
     }
     return ListView.builder(
+      controller: controller,
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final e = entries[entries.length - 1 - index];
@@ -909,8 +965,9 @@ class _NetworkList extends StatelessWidget {
 
 class _StateList extends StatelessWidget {
   final List<StateChange> entries;
+  final ScrollController? controller;
 
-  const _StateList({required this.entries});
+  const _StateList({required this.entries, this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -919,6 +976,7 @@ class _StateList extends StatelessWidget {
           icon: LucideIcons.layers, title: S.of(context).noStateChanges);
     }
     return ListView.builder(
+      controller: controller,
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final e = entries[entries.length - 1 - index];
@@ -994,8 +1052,9 @@ class _StateList extends StatelessWidget {
 
 class _StorageList extends StatelessWidget {
   final List<StorageEntry> entries;
+  final ScrollController? controller;
 
-  const _StorageList({required this.entries});
+  const _StorageList({required this.entries, this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -1004,6 +1063,7 @@ class _StorageList extends StatelessWidget {
           icon: LucideIcons.database, title: 'No storage operations');
     }
     return ListView.builder(
+      controller: controller,
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final e = entries[entries.length - 1 - index];

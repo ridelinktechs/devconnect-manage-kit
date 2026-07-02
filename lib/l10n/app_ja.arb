@@ -293,5 +293,7 @@
   "undisposedAnimation": "未解放のAnimation",
   "widgetLeak": "Widgetリーク",
   "growingCollection": "増加中のコレクション",
-  "custom": "カスタム"
+  "custom": "カスタム",
+  "smoothScrolling": "スムーズスクロール",
+  "smoothScrollingDesc": "マウスホイールのスクロールイベントに滑らかなアニメーションを追加します。ラグやパフォーマンス低下を感じる場合は、この設定をオフにしてください。"
 }

@@ -41,6 +41,7 @@ import '../../../storage_viewer/provider/storage_providers.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/all_events_provider.dart';
 
 // ═══════════════════════════════════════════════
@@ -55,7 +56,7 @@ class AllEventsPage extends ConsumerStatefulWidget {
 }
 
 class _AllEventsPageState extends ConsumerState<AllEventsPage> {
-  final _scrollController = ScrollController();
+  final _scrollController = SmoothScrollController();
   final _selectedEventId = ValueNotifier<String?>(null);
   final _eventCount = ValueNotifier<int>(0);
   bool _autoScroll = true;

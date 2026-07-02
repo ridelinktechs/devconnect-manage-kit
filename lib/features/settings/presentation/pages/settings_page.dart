@@ -13,6 +13,7 @@ import '../../../../core/providers/tab_visibility_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../device_history/provider/device_history_providers.dart';
 
@@ -29,6 +30,7 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   late TextEditingController _portController;
+  final _scrollController = SmoothScrollController();
   List<_NetworkInfo> _networkInfos = [];
   String _hostName = '';
 
@@ -83,6 +85,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   void dispose() {
     _portController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -119,6 +122,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return Container(
       color: surfaceAlt,
       child: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Center(
           child: ConstrainedBox(
@@ -872,6 +876,45 @@ class _AppearanceSection extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        // Smooth scroll
+        Row(
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text(
+                S.of(context).smoothScrolling,
+                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+              ),
+            ),
+            Switch.adaptive(
+              value: ref.watch(smoothScrollEnabledProvider),
+              onChanged: (v) =>
+                  ref.read(smoothScrollEnabledProvider.notifier).set(v),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              ref.watch(smoothScrollEnabledProvider)
+                  ? S.of(context).on
+                  : S.of(context).off,
+              style: TextStyle(
+                fontSize: 12,
+                color: ref.watch(smoothScrollEnabledProvider)
+                    ? ColorTokens.primary
+                    : Colors.grey[500],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 100),
+          child: Text(
+            S.of(context).smoothScrollingDesc,
+            style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
+          ),
         ),
       ],
     );

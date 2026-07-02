@@ -293,5 +293,7 @@
   "undisposedAnimation": "未釋放的 Animation",
   "widgetLeak": "Widget 洩漏",
   "growingCollection": "增長中的集合",
-  "custom": "自訂"
+  "custom": "自訂",
+  "smoothScrolling": "平滑捲動",
+  "smoothScrollingDesc": "為滑鼠滾輪事件添加平滑動畫。如果遇到卡頓或性能下降，請關閉此選項。"
 }

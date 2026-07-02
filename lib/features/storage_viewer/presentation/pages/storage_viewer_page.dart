@@ -19,6 +19,7 @@ import '../../../../models/storage/storage_entry.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/storage_providers.dart';
 
 class StorageViewerPage extends ConsumerStatefulWidget {
@@ -29,7 +30,7 @@ class StorageViewerPage extends ConsumerStatefulWidget {
 }
 
 class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
-  final ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController = SmoothScrollController();
   final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
   bool _programmaticScroll = false;

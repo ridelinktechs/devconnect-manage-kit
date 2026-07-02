@@ -15,6 +15,7 @@ import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../../models/performance/performance_entry.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/performance_providers.dart';
 
 /// Format bytes/MB value to human-readable with auto unit
@@ -56,6 +57,13 @@ class PerformancePage extends ConsumerStatefulWidget {
 class _PerformancePageState extends ConsumerState<PerformancePage> {
   bool _isRecording = true;
   final _contentKey = GlobalKey();
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   Future<void> _takeScreenshot() async {
     try {
@@ -151,7 +159,8 @@ class _PerformancePageState extends ConsumerState<PerformancePage> {
           child: RepaintBoundary(
             key: _contentKey,
             child: ListView(
-            padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
             children: [
               // FPS chart row
               _ProfilerChartRow(

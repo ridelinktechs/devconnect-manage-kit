@@ -20,6 +20,7 @@ import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/console_providers.dart';
 
 Color _levelColor(LogLevel level) {
@@ -43,7 +44,7 @@ class ConsolePage extends ConsumerStatefulWidget {
 }
 
 class _ConsolePageState extends ConsumerState<ConsolePage> {
-  final _scrollController = ScrollController();
+  final _scrollController = SmoothScrollController();
   final _selectedId = ValueNotifier<String?>(null);
   final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
