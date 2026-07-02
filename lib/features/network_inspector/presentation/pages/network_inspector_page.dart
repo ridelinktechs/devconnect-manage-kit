@@ -1239,7 +1239,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                 controller: _tabController,
                 isDark: isDark,
                 accentColor: ColorTokens.primary,
-                tabs: [S.of(context).headers, S.of(context).request, S.of(context).response, S.of(context).timing],
+                tabs: const ['Headers', 'Request', 'Response', 'Timing'],
               ),
             ],
           ),
@@ -1255,12 +1255,12 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
                 _HeadersTab(entry: entry),
                 _BodyTab(
                   body: entry.requestBody,
-                  label: S.of(context).requestBody,
+                  label: 'Request',
                   deviceId: entry.deviceId,
                 ),
                 _BodyTab(
                   body: entry.responseBody,
-                  label: S.of(context).responseBody,
+                  label: 'Response',
                   deviceId: entry.deviceId,
                 ),
                 _TimingTab(entry: entry),
@@ -1672,17 +1672,17 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
           ),
           const Divider(height: 1),
           // Headers section
-          _screenshotSection(S.of(context).requestHeaders, isDark),
+          _screenshotSection('Request Headers', isDark),
           ...entry.requestHeaders.entries.map((e) =>
               _screenshotHeaderRow(e.key, e.value, isDark)),
           if (entry.responseHeaders.isNotEmpty) ...[
-            _screenshotSection(S.of(context).responseHeaders, isDark),
+            _screenshotSection('Response Headers', isDark),
             ...entry.responseHeaders.entries.map((e) =>
                 _screenshotHeaderRow(e.key, e.value, isDark)),
           ],
           // Request body
           if (parsedReqBody != null) ...[
-            _screenshotSection(S.of(context).requestBody, isDark),
+            _screenshotSection('Request Body', isDark),
             Padding(
               padding: const EdgeInsets.all(12),
               child: parsedReqBody is Map || parsedReqBody is List
@@ -1692,7 +1692,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
           ],
           // Response body
           if (parsedResBody != null) ...[
-            _screenshotSection(S.of(context).responseBody, isDark),
+            _screenshotSection('Response Body', isDark),
             Padding(
               padding: const EdgeInsets.all(12),
               child: parsedResBody is Map || parsedResBody is List
@@ -1707,7 +1707,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
 
   Widget _buildTabScreenshotWidget(bool isDark, int tabIndex) {
     final entry = widget.entry;
-    final tabNames = [S.of(context).headers, 'Request', 'Response', 'Timing'];
+    final tabNames = const ['Headers', 'Request', 'Response', 'Timing'];
 
     Widget tabContent;
     switch (tabIndex) {
@@ -1716,11 +1716,11 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _screenshotSection(S.of(context).requestHeaders, isDark),
+            _screenshotSection('Request Headers', isDark),
             ...entry.requestHeaders.entries.map((e) =>
                 _screenshotHeaderRow(e.key, e.value, isDark)),
             if (entry.responseHeaders.isNotEmpty) ...[
-              _screenshotSection(S.of(context).responseHeaders, isDark),
+              _screenshotSection('Response Headers', isDark),
               ...entry.responseHeaders.entries.map((e) =>
                   _screenshotHeaderRow(e.key, e.value, isDark)),
             ],
@@ -2089,15 +2089,30 @@ class _TimingBar extends StatelessWidget {
 // Headers tab
 // ---------------------------------------------------------------------------
 
-class _HeadersTab extends StatelessWidget {
+class _HeadersTab extends StatefulWidget {
   final NetworkEntry entry;
 
   const _HeadersTab({required this.entry});
 
   @override
+  State<_HeadersTab> createState() => _HeadersTabState();
+}
+
+class _HeadersTabState extends State<_HeadersTab> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2105,7 +2120,7 @@ class _HeadersTab extends StatelessWidget {
           _HeaderSection(
             icon: LucideIcons.arrowUpRight,
             iconColor: ColorTokens.primary,
-            title: S.of(context).requestHeaders,
+            title: 'Request Headers',
             count: entry.requestHeaders.length,
             headers: entry.requestHeaders,
             isDark: isDark,
@@ -2114,7 +2129,7 @@ class _HeadersTab extends StatelessWidget {
           _HeaderSection(
             icon: LucideIcons.arrowDownLeft,
             iconColor: ColorTokens.success,
-            title: S.of(context).responseHeaders,
+            title: 'Response Headers',
             count: entry.responseHeaders.length,
             headers: entry.responseHeaders,
             isDark: isDark,
@@ -2281,7 +2296,7 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 180,
+            width: 170,
             child: TextComponent(
               widget.headerKey,
               style: TextStyle(
@@ -2375,6 +2390,14 @@ class _BodyTab extends ConsumerStatefulWidget {
 }
 
 class _BodyTabState extends ConsumerState<_BodyTab> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -2481,6 +2504,7 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
         // Body content
         Expanded(
           child: SingleChildScrollView(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             child: _buildContent(
               parsedBody: parsedBody,
@@ -2524,13 +2548,27 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
 // Timing tab
 // ---------------------------------------------------------------------------
 
-class _TimingTab extends StatelessWidget {
+class _TimingTab extends StatefulWidget {
   final NetworkEntry entry;
 
   const _TimingTab({required this.entry});
 
   @override
+  State<_TimingTab> createState() => _TimingTabState();
+}
+
+class _TimingTabState extends State<_TimingTab> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final duration = entry.duration;
     final startDt = DateTime.fromMillisecondsSinceEpoch(entry.startTime);
@@ -2564,6 +2602,7 @@ class _TimingTab extends StatelessWidget {
     }
 
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

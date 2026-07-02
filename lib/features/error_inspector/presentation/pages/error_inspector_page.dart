@@ -987,6 +987,9 @@ class _ErrorDetailPanel extends ConsumerStatefulWidget {
 class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _messageScrollController = SmoothScrollController();
+  final _stackTraceScrollController = SmoothScrollController();
+  final _detailsScrollController = SmoothScrollController();
 
   @override
   void initState() {
@@ -1001,6 +1004,9 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
   @override
   void dispose() {
     _tabController.dispose();
+    _messageScrollController.dispose();
+    _stackTraceScrollController.dispose();
+    _detailsScrollController.dispose();
     super.dispose();
   }
 
@@ -1192,6 +1198,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
             children: [
               // Message tab
               SingleChildScrollView(
+                controller: _messageScrollController,
                 padding: const EdgeInsets.all(16),
                 child: TextComponent(
                   entry.message,
@@ -1205,6 +1212,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
               // Stack trace tab
               entry.stackTrace != null
                   ? SingleChildScrollView(
+                      controller: _stackTraceScrollController,
                       padding: const EdgeInsets.all(16),
                       child: TextComponent(
                         entry.stackTrace!,
@@ -1220,6 +1228,7 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
                     ),
               // Details tab
               SingleChildScrollView(
+                controller: _detailsScrollController,
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

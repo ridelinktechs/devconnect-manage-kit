@@ -295,5 +295,7 @@
   "growingCollection": "Growing Collection",
   "custom": "Custom",
   "smoothScrolling": "Smooth scroll",
-  "smoothScrollingDesc": "Smooths mouse-wheel scroll events. Disable this option if you notice any lag or performance drop."
+  "smoothScrollingDesc": "Smooths mouse-wheel scroll events. Disable this option if you notice any lag or performance drop.",
+  "smoothScrollingDuration": "Scroll duration",
+  "smoothScrollingDurationDesc": "The duration of the smooth scroll animation in milliseconds."
 }

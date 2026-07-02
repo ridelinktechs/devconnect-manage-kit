@@ -745,6 +745,13 @@ class _StateJsonToggleView extends StatefulWidget {
 
 class _StateJsonToggleViewState extends State<_StateJsonToggleView> {
   bool _jsonEverOpened = false;
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(_StateJsonToggleView oldWidget) {
@@ -764,6 +771,7 @@ class _StateJsonToggleViewState extends State<_StateJsonToggleView> {
         Offstage(
           offstage: widget.jsonMode,
           child: SingleChildScrollView(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             child: JsonViewer(data: widget.data, initiallyExpanded: true),
           ),
@@ -781,13 +789,27 @@ class _StateJsonToggleViewState extends State<_StateJsonToggleView> {
   }
 }
 
-class _DiffView extends StatelessWidget {
+class _DiffView extends StatefulWidget {
   final List<StateDiffEntry> diff;
 
   const _DiffView({required this.diff});
 
   @override
+  State<_DiffView> createState() => _DiffViewState();
+}
+
+class _DiffViewState extends State<_DiffView> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final diff = widget.diff;
     if (diff.isEmpty) {
       return EmptyState(
         icon: LucideIcons.equal,
@@ -796,6 +818,7 @@ class _DiffView extends StatelessWidget {
     }
 
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       itemCount: diff.length,
       itemBuilder: (context, index) {

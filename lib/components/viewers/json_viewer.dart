@@ -12,8 +12,9 @@ import '../../core/theme/color_tokens.dart';
 import '../../core/utils/code_generator.dart';
 import '../../core/utils/toast_utils.dart';
 import '../../core/utils/code_highlighter.dart';
+import '../../core/utils/smooth_scroll_controller.dart';
 
-class JsonViewer extends StatelessWidget {
+class JsonViewer extends StatefulWidget {
   final dynamic data;
   final bool initiallyExpanded;
 
@@ -23,16 +24,31 @@ class JsonViewer extends StatelessWidget {
     this.initiallyExpanded = true,
   });
 
+  @override
+  State<JsonViewer> createState() => _JsonViewerState();
+}
+
+class _JsonViewerState extends State<JsonViewer> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   String _formatAll() {
     try {
-      return const JsonEncoder.withIndent('  ').convert(data);
+      return const JsonEncoder.withIndent('  ').convert(widget.data);
     } catch (_) {
-      return data?.toString() ?? 'null';
+      return widget.data?.toString() ?? 'null';
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final data = widget.data;
+    final initiallyExpanded = widget.initiallyExpanded;
     if (data == null) {
       return Text('null', style: Theme.of(context).textTheme.labelMedium);
     }
@@ -56,6 +72,7 @@ class JsonViewer extends StatelessWidget {
         const SizedBox(height: 6),
         SelectionArea(
           child: SingleChildScrollView(
+            controller: _scrollController,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -410,6 +427,13 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   bool? _lastIsDark;
   /// Per-line TextSpan cache — built lazily per visible line.
   final Map<int, List<TextSpan>> _lineSpanCache = {};
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -605,6 +629,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                   builder: (context, constraints) {
                     final bounded = constraints.maxHeight.isFinite;
                     return ListView.builder(
+                      controller: _scrollController,
                       itemCount: lineCount,
                       shrinkWrap: !bounded,
                       physics: bounded

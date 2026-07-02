@@ -3,15 +3,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme/color_tokens.dart';
+import '../../core/utils/smooth_scroll_controller.dart';
 import '../../models/device_info.dart';
 import '../../server/providers/server_providers.dart';
 
 /// Bottom bar showing connected devices with glow animation on selected item.
-class DeviceBottomBar extends ConsumerWidget {
+class DeviceBottomBar extends ConsumerStatefulWidget {
   const DeviceBottomBar({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DeviceBottomBar> createState() => _DeviceBottomBarState();
+}
+
+class _DeviceBottomBarState extends ConsumerState<DeviceBottomBar> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final devices = ref.watch(connectedDevicesProvider);
     final selectedId = ref.watch(selectedDeviceProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -63,6 +78,7 @@ class DeviceBottomBar extends ConsumerWidget {
           // Device chips
           Expanded(
             child: ListView.separated(
+              controller: _scrollController,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 2),
               itemCount: devices.length,

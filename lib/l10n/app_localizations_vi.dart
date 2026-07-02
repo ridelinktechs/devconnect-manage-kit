@@ -1023,4 +1023,11 @@ class SVi extends S {
   @override
   String get smoothScrollingDesc =>
       'Tạo hiệu ứng cuộn mượt mà hơn khi sử dụng con lăn chuột. Nếu bạn thấy lag hoặc ảnh hưởng đến hiệu năng, hãy tắt cài đặt này.';
+
+  @override
+  String get smoothScrollingDuration => 'Thời gian cuộn';
+
+  @override
+  String get smoothScrollingDurationDesc =>
+      'Thời gian chạy hiệu ứng cuộn mượt mà tính bằng mili-giây.';
 }

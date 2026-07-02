@@ -295,5 +295,7 @@
   "growingCollection": "Collection croissante",
   "custom": "Personnalisé",
   "smoothScrolling": "Défilement fluide",
-  "smoothScrollingDesc": "Rend le défilement de la molette de la souris plus fluide. Désactivez cette option si vous constatez des ralentissements ou une baisse de performance."
+  "smoothScrollingDesc": "Rend le défilement de la molette de la souris plus fluide. Désactivez cette option si vous constatez des ralentissements ou une baisse de performance.",
+  "smoothScrollingDuration": "Durée du défilement",
+  "smoothScrollingDurationDesc": "La durée de l'animation de défilement en millisecondes."
 }

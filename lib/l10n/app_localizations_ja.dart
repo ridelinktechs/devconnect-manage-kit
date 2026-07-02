@@ -1011,4 +1011,10 @@ class SJa extends S {
   @override
   String get smoothScrollingDesc =>
       'マウスホイールのスクロールイベントに滑らかなアニメーションを追加します。ラグやパフォーマンス低下を感じる場合は、この設定をオフにしてください。';
+
+  @override
+  String get smoothScrollingDuration => 'スクロール時間';
+
+  @override
+  String get smoothScrollingDurationDesc => 'スクロールアニメーションの時間（ミリ秒）。';
 }

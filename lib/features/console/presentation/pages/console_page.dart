@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
@@ -849,7 +851,7 @@ class _LogEntryContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    entry.message,
+                    _summarizeLogMessage(entry.message),
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
                       fontSize: 12,
@@ -914,7 +916,7 @@ class _TagBadge extends StatelessWidget {
 // Log detail panel
 // ---------------------------------------------------------------------------
 
-class _LogDetailPanel extends StatelessWidget {
+class _LogDetailPanel extends StatefulWidget {
   final LogEntry entry;
   final VoidCallback onClose;
   final VoidCallback onScreenshot;
@@ -927,7 +929,21 @@ class _LogDetailPanel extends StatelessWidget {
   });
 
   @override
+  State<_LogDetailPanel> createState() => _LogDetailPanelState();
+}
+
+class _LogDetailPanelState extends State<_LogDetailPanel> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final color = _levelColor(entry.level);
@@ -997,7 +1013,7 @@ class _LogDetailPanel extends StatelessWidget {
                 Tooltip(
                   message: 'Capture detail as image',
                   child: GestureDetector(
-                    onTap: onScreenshot,
+                    onTap: widget.onScreenshot,
                     child: MouseRegion(
                       cursor: SystemMouseCursors.click,
                       child: Container(
@@ -1020,7 +1036,7 @@ class _LogDetailPanel extends StatelessWidget {
                 Tooltip(
                   message: S.of(context).closePanel,
                   child: GestureDetector(
-                    onTap: onClose,
+                    onTap: widget.onClose,
                     child: MouseRegion(
                       cursor: SystemMouseCursors.click,
                       child: Container(
@@ -1044,6 +1060,7 @@ class _LogDetailPanel extends StatelessWidget {
           // Scrollable content
           Expanded(
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1056,36 +1073,11 @@ class _LogDetailPanel extends StatelessWidget {
                     const SizedBox(height: 16),
                   ],
 
-                  // Message
+                  // Message — with 3 view modes (Tree / JSON / Code), same
+                  // pattern as the All Events detail panel.
                   _SectionLabel(label: S.of(context).message),
                   const SizedBox(height: 6),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? ColorTokens.darkBackground
-                          : const Color(0xFFF0F0F0),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.06),
-                        width: 1,
-                      ),
-                    ),
-                    child: TextComponent(
-                      entry.message,
-                      style: TextStyle(
-                        fontFamily: AppConstants.monoFontFamily,
-                        fontSize: 12,
-                        color: isDark
-                            ? ColorTokens.lightBackground
-                            : ColorTokens.darkNeutral,
-                        height: 1.6,
-                      ),
-                    ),
-                  ),
+                  _LogMessageBlock(message: entry.message, isDark: isDark),
 
                   // Metadata
                   if (entry.metadata != null &&
@@ -1167,6 +1159,232 @@ class _SectionLabel extends StatelessWidget {
         fontWeight: FontWeight.w600,
         letterSpacing: 0.5,
         color: Colors.grey[500],
+      ),
+    );
+  }
+}
+
+/// Convert a raw log message into a one-line preview suitable for the
+/// list row's `Text`. Special handling for JSON objects/arrays so the
+/// user sees something like `Object {3 keys: foo, bar, baz}` instead of
+/// just `{}` (the first character of the pretty-printed payload that the
+/// SDK sent over the wire).
+String _summarizeLogMessage(String message) {
+  final trimmed = message.trimLeft();
+  if (trimmed.isEmpty) return message;
+  if (trimmed[0] != '{' && trimmed[0] != '[') return message;
+
+  // Try to parse as JSON — RN's `toStr` (and Flutter's `jsonEncode`) ship
+  // pretty-printed payloads, so we can't rely on a single line.
+  dynamic parsed;
+  try {
+    parsed = jsonDecode(trimmed);
+  } catch (_) {
+    return message; // not valid JSON — show the original text
+  }
+
+  if (parsed is Map) {
+    final keys = parsed.keys.cast<String>().toList();
+    if (keys.isEmpty) return 'Object {}';
+    final preview = keys.take(3).join(', ');
+    final more = keys.length > 3 ? ', …' : '';
+    return 'Object {${keys.length} key${keys.length == 1 ? '' : 's'}: $preview$more}';
+  }
+  if (parsed is List) {
+    if (parsed.isEmpty) return 'Array []';
+    return 'Array [${parsed.length}]';
+  }
+  return message;
+}
+
+/// 3-mode view toggle (Tree / JSON / Code) for the log message body — same
+/// pattern as the All Events detail panel.
+class _LogMessageBlock extends StatefulWidget {
+  final String message;
+  final bool isDark;
+
+  const _LogMessageBlock({required this.message, required this.isDark});
+
+  @override
+  State<_LogMessageBlock> createState() => _LogMessageBlockState();
+}
+
+class _LogMessageBlockState extends State<_LogMessageBlock> {
+  /// 0 = Tree, 1 = JSON, 2 = Code.
+  int _mode = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    // Try to parse as JSON so Tree/JSON modes can render structured data.
+    // If the payload isn't valid JSON, both Tree and JSON fall back to
+    // the raw text — only Code mode has a guaranteed different rendering
+    // (and even that is identical for non-JSON messages).
+    dynamic parsed;
+    try {
+      parsed = jsonDecode(widget.message);
+    } catch (_) {
+      parsed = null;
+    }
+    final isJson = parsed is Map || parsed is List;
+
+    Widget body;
+    switch (_mode) {
+      case 0: // Tree
+        body = isJson
+            ? JsonViewer(data: parsed, initiallyExpanded: true)
+            : _CodeBlock(text: widget.message, isDark: isDark);
+        break;
+      case 1: // JSON
+        body = isJson
+            ? _CodeBlock(
+                text: const JsonEncoder.withIndent('  ').convert(parsed),
+                isDark: isDark,
+              )
+            : _CodeBlock(text: widget.message, isDark: isDark);
+        break;
+      case 2: // Code
+      default:
+        body = _CodeBlock(text: widget.message, isDark: isDark);
+        break;
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.black.withValues(alpha: 0.06),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Mode tabs — same style as the All Events Tree/JSON toggle.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+            child: _DetailTabBar(
+              tabs: const ['Tree', 'JSON', 'Code'],
+              currentIndex: _mode,
+              onSelect: (i) => setState(() => _mode = i),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: body,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Plain monospace text block with theme-aware colors. Used by Code mode
+/// (and as the fallback for Tree/JSON when the message isn't valid JSON).
+class _CodeBlock extends StatelessWidget {
+  final String text;
+  final bool isDark;
+
+  const _CodeBlock({required this.text, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextComponent(
+      text,
+      style: TextStyle(
+        fontFamily: AppConstants.monoFontFamily,
+        fontSize: 12,
+        color: isDark ? ColorTokens.lightBackground : ColorTokens.darkNeutral,
+        height: 1.6,
+      ),
+    );
+  }
+}
+
+/// Compact pill-style tab bar for the message view-mode toggle. Same visual
+/// pattern as `_DetailTabBar` in `all_events_page.dart` but with a
+/// `currentIndex + onSelect` callback instead of a `TabController` — simpler
+/// to wire up in a private widget that already manages its own state.
+class _DetailTabBar extends StatelessWidget {
+  final List<String> tabs;
+  final int currentIndex;
+  final ValueChanged<int> onSelect;
+
+  const _DetailTabBar({
+    required this.tabs,
+    required this.currentIndex,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = ColorTokens.primary;
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < tabs.length; i++)
+            _buildSegment(tabs[i], i, isDark, accent),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegment(String label, int index, bool isDark, Color accent) {
+    final selected = index == currentIndex;
+    return GestureDetector(
+      onTap: () => onSelect(index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? (isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: selected
+              ? Border.all(
+                  color: isDark
+                      ? accent.withValues(alpha: 0.25)
+                      : Colors.black.withValues(alpha: 0.06),
+                )
+              : Border.all(color: Colors.transparent),
+          boxShadow: selected && !isDark
+              ? const [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    blurRadius: 2,
+                    offset: Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            letterSpacing: 0.2,
+            color: selected
+                ? accent
+                : (isDark ? Colors.grey[500] : Colors.grey[600]),
+          ),
+        ),
       ),
     );
   }

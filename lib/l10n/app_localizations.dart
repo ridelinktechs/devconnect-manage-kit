@@ -1880,6 +1880,18 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Smooths mouse-wheel scroll events. Disable this option if you notice any lag or performance drop.'**
   String get smoothScrollingDesc;
+
+  /// No description provided for @smoothScrollingDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Scroll duration'**
+  String get smoothScrollingDuration;
+
+  /// No description provided for @smoothScrollingDurationDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'The duration of the smooth scroll animation in milliseconds.'**
+  String get smoothScrollingDurationDesc;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

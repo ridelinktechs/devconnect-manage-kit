@@ -1022,4 +1022,11 @@ class SFr extends S {
   @override
   String get smoothScrollingDesc =>
       'Rend le défilement de la molette de la souris plus fluide. Désactivez cette option si vous constatez des ralentissements ou une baisse de performance.';
+
+  @override
+  String get smoothScrollingDuration => 'Durée du défilement';
+
+  @override
+  String get smoothScrollingDurationDesc =>
+      'La durée de l\'animation de défilement en millisecondes.';
 }

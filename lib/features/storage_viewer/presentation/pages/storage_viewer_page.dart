@@ -808,6 +808,13 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
   bool _formatted = false;
   bool _jsonMode = false;
   bool _jsonEverOpened = false;
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   StorageEntry get entry => widget.entry;
 
@@ -993,6 +1000,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
           // Content
           Expanded(
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

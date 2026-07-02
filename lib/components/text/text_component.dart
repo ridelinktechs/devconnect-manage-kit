@@ -159,7 +159,7 @@ class _SelectableEllipsis extends StatelessWidget {
             strutStyle: strutStyle,
             textAlign: textAlign,
             textDirection: textDirection,
-            maxLines: maxLines,
+            maxLines: null,
             textWidthBasis: textWidthBasis,
             textHeightBehavior: textHeightBehavior,
             semanticsLabel: semanticsLabel,
