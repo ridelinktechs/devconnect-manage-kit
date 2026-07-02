@@ -84,6 +84,11 @@ class _MemoryLeaksPageState extends ConsumerState<MemoryLeaksPage> {
                       Expanded(
                         flex: 3,
                         child: _LeakDetail(
+                          // Force state recreation on entry change so the
+                          // scroll position resets to the top instead of
+                          // staying wherever the previous leak was
+                          // scrolled to.
+                          key: ValueKey(_selectedEntry!.id),
                           entry: _selectedEntry!,
                           isDark: isDark,
                         ),
@@ -376,7 +381,13 @@ class _LeakDetail extends StatefulWidget {
   final MemoryLeakEntry entry;
   final bool isDark;
 
-  const _LeakDetail({required this.entry, required this.isDark});
+  // `super.key` so the call site can pass `key: ValueKey(entry.id)` —
+  // without it, Flutter reuses the same `_LeakDetailState` instance when
+  // the parent rebuilds with a different `entry`, which leaves the
+  // `_scrollController` stuck at whatever offset the previous leak was
+  // scrolled to. With the key, switching leaks destroys + recreates the
+  // state cleanly.
+  const _LeakDetail({super.key, required this.entry, required this.isDark});
 
   @override
   State<_LeakDetail> createState() => _LeakDetailState();

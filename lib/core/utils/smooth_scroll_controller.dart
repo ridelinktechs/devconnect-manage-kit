@@ -37,18 +37,24 @@ class SmoothScrollPosition extends ScrollPositionWithSingleContext {
 
     if (target != pixels) {
       _targetPixels = target;
-      
+
       _isAnimatingSmoothly = true;
+      // `.whenComplete` (instead of `.then`) guarantees `_isAnimatingSmoothly`
+      // is reset whether the animation completes normally, completes early via
+      // `jumpTo`, or fails synchronously inside `animateTo` (e.g. detached
+      // scrollable). With the old `.then` + immediate `= false` reset, the
+      // flag flipped off before `beginActivity` ever observed it, so the guard
+      // in `beginActivity` always cleared `_targetPixels` mid-animation.
       animateTo(
         target,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutQuart,
-      ).then((_) {
+      ).whenComplete(() {
         if (_targetPixels == target) {
           _targetPixels = null;
         }
+        _isAnimatingSmoothly = false;
       });
-      _isAnimatingSmoothly = false;
     }
   }
 

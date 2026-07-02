@@ -35,6 +35,22 @@ class _LastConnectedPageState extends ConsumerState<LastConnectedPage> {
   final _stateScrollController = SmoothScrollController();
   final _storageScrollController = SmoothScrollController();
 
+  /// Reset every detail scroll controller to the top. The same controller
+  /// instances are reused across different sessions — without this, switching
+  /// sessions would leave the new panel scrolled to whatever offset the
+  /// previous session was at.
+  void _resetDetailScroll() {
+    for (final c in [
+      _allEventsScrollController,
+      _logsScrollController,
+      _networkScrollController,
+      _stateScrollController,
+      _storageScrollController,
+    ]) {
+      if (c.hasClients) c.jumpTo(0);
+    }
+  }
+
   @override
   void dispose() {
     _sessionScrollController.dispose();
@@ -98,6 +114,7 @@ class _LastConnectedPageState extends ConsumerState<LastConnectedPage> {
                             onTap: () => setState(() {
                               _selectedSessionIndex = isSelected ? null : index;
                               _selectedTab = 0;
+                              _resetDetailScroll();
                             }),
                             onRemove: () {
                               ref
@@ -120,8 +137,10 @@ class _LastConnectedPageState extends ConsumerState<LastConnectedPage> {
                           selectedTab: _selectedTab,
                           onTabChanged: (tab) =>
                               setState(() => _selectedTab = tab),
-                          onClose: () =>
-                              setState(() => _selectedSessionIndex = null),
+                          onClose: () => setState(() {
+                            _selectedSessionIndex = null;
+                            _resetDetailScroll();
+                          }),
                           allEventsScrollController: _allEventsScrollController,
                           logsScrollController: _logsScrollController,
                           networkScrollController: _networkScrollController,
