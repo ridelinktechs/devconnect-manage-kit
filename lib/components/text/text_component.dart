@@ -154,6 +154,14 @@ class _SelectableEllipsis extends StatelessWidget {
       painter.dispose();
 
       if (!didOverflow) {
+        // Text fits within [maxLines] — we pass `maxLines: null` here
+        // intentionally.  Flutter's SelectableText (backed by a multiline
+        // TextField) reserves vertical height for every line slot up to the
+        // maxLines limit even when the content is short, which creates
+        // unwanted whitespace in compact rows (e.g. network header values).
+        // Since the TextPainter check above already confirmed the text does
+        // NOT exceed the constraint, clamping is unnecessary and null
+        // lets the widget collapse to its natural single-line height.
         return SelectableText(data,
             style: style,
             strutStyle: strutStyle,

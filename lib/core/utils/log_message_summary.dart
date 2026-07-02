@@ -14,6 +14,11 @@ String summarizeLogMessage(String message) {
   if (trimmed.isEmpty) return message;
   if (trimmed[0] != '{' && trimmed[0] != '[') return message;
 
+  // Skip expensive JSON parsing for very large payloads — decoding a
+  // multi-MB log synchronously on the main thread can cause noticeable
+  // jank.  In practice a JSON preview is not useful for such payloads.
+  if (trimmed.length > 5000) return message;
+
   // Try to parse as JSON — RN's `toStr` (and Flutter's `jsonEncode`) ship
   // pretty-printed payloads, so we can't rely on a single line.
   dynamic parsed;
