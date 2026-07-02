@@ -27,6 +27,7 @@ import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/network_providers.dart';
 
 // ---------------------------------------------------------------------------
@@ -42,7 +43,7 @@ class NetworkInspectorPage extends ConsumerStatefulWidget {
 }
 
 class _NetworkInspectorPageState extends ConsumerState<NetworkInspectorPage> {
-  final _scrollController = ScrollController();
+  final _scrollController = SmoothScrollController();
   final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
   bool _programmaticScroll = false;

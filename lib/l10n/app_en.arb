@@ -293,5 +293,7 @@
   "undisposedAnimation": "Undisposed Animation",
   "widgetLeak": "Widget Leak",
   "growingCollection": "Growing Collection",
-  "custom": "Custom"
+  "custom": "Custom",
+  "smoothScrolling": "Smooth scroll",
+  "smoothScrollingDesc": "Smooths mouse-wheel scroll events. Disable this option if you notice any lag or performance drop."
 }

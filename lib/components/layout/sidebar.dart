@@ -371,6 +371,12 @@ class _SidebarButtonState extends State<_SidebarButton> {
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              // Size to natural content height instead of stretching to
+              // fill the 46px container. With `max` the column tried to
+              // occupy the full 46px and pushed the 2px gap + text label
+              // past the bottom edge by exactly 2px on this particular
+              // font/locale combination.
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Stack(
                   clipBehavior: Clip.none,
@@ -389,16 +395,24 @@ class _SidebarButtonState extends State<_SidebarButton> {
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: widget.isSelected
-                        ? FontWeight.w600
-                        : FontWeight.w400,
-                    color: widget.isLocked
-                        ? Colors.grey[600]
-                        : iconColor,
+                // FittedBox shrinks the label to fit if the localised
+                // string is wider than the 52px column. Without it, the
+                // Text's intrinsic line-height pushes the column past the
+                // 46px container by 2px on this font.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: widget.isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                      color: widget.isLocked
+                          ? Colors.grey[600]
+                          : iconColor,
+                    ),
                   ),
                 ),
               ],

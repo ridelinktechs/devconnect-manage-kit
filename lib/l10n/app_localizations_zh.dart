@@ -996,6 +996,12 @@ class SZh extends S {
 
   @override
   String get custom => '自定义';
+
+  @override
+  String get smoothScrolling => '平滑滚动';
+
+  @override
+  String get smoothScrollingDesc => '为鼠标滚轮事件添加平滑动画。如果遇到卡顿或性能下降，请关闭此选项。';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -1990,6 +1996,12 @@ class SZhCn extends SZh {
 
   @override
   String get custom => '自定义';
+
+  @override
+  String get smoothScrolling => '平滑滚动';
+
+  @override
+  String get smoothScrollingDesc => '为鼠标滚轮事件添加平滑动画。如果遇到卡顿或性能下降，请关闭此选项。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -2984,4 +2996,10 @@ class SZhTw extends SZh {
 
   @override
   String get custom => '自訂';
+
+  @override
+  String get smoothScrolling => '平滑捲動';
+
+  @override
+  String get smoothScrollingDesc => '為滑鼠滾輪事件添加平滑動畫。如果遇到卡頓或性能下降，請關閉此選項。';
 }

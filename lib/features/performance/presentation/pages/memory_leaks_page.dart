@@ -12,6 +12,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/text/text_component.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../core/theme/color_tokens.dart';
@@ -27,6 +28,13 @@ class MemoryLeaksPage extends ConsumerStatefulWidget {
 
 class _MemoryLeaksPageState extends ConsumerState<MemoryLeaksPage> {
   MemoryLeakEntry? _selectedEntry;
+  final _listScrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _listScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +71,7 @@ class _MemoryLeaksPageState extends ConsumerState<MemoryLeaksPage> {
                         selectedEntry: _selectedEntry,
                         isDark: isDark,
                         onSelect: (e) => setState(() => _selectedEntry = e),
+                        controller: _listScrollController,
                       ),
                     ),
                     // Detail panel
@@ -75,6 +84,11 @@ class _MemoryLeaksPageState extends ConsumerState<MemoryLeaksPage> {
                       Expanded(
                         flex: 3,
                         child: _LeakDetail(
+                          // Force state recreation on entry change so the
+                          // scroll position resets to the top instead of
+                          // staying wherever the previous leak was
+                          // scrolled to.
+                          key: ValueKey(_selectedEntry!.id),
                           entry: _selectedEntry!,
                           isDark: isDark,
                         ),
@@ -218,17 +232,20 @@ class _LeakList extends StatelessWidget {
   final MemoryLeakEntry? selectedEntry;
   final bool isDark;
   final ValueChanged<MemoryLeakEntry> onSelect;
+  final ScrollController? controller;
 
   const _LeakList({
     required this.entries,
     required this.selectedEntry,
     required this.isDark,
     required this.onSelect,
+    this.controller,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
+      controller: controller,
       itemCount: entries.length,
       padding: const EdgeInsets.symmetric(vertical: 4),
       itemBuilder: (context, index) {
@@ -364,7 +381,13 @@ class _LeakDetail extends StatefulWidget {
   final MemoryLeakEntry entry;
   final bool isDark;
 
-  const _LeakDetail({required this.entry, required this.isDark});
+  // `super.key` so the call site can pass `key: ValueKey(entry.id)` —
+  // without it, Flutter reuses the same `_LeakDetailState` instance when
+  // the parent rebuilds with a different `entry`, which leaves the
+  // `_scrollController` stuck at whatever offset the previous leak was
+  // scrolled to. With the key, switching leaks destroys + recreates the
+  // state cleanly.
+  const _LeakDetail({super.key, required this.entry, required this.isDark});
 
   @override
   State<_LeakDetail> createState() => _LeakDetailState();
@@ -372,6 +395,13 @@ class _LeakDetail extends StatefulWidget {
 
 class _LeakDetailState extends State<_LeakDetail> {
   final _contentKey = GlobalKey();
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   Future<void> _takeScreenshot() async {
     try {
@@ -448,6 +478,7 @@ class _LeakDetailState extends State<_LeakDetail> {
           child: RepaintBoundary(
             key: _contentKey,
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -1868,6 +1868,18 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Custom'**
   String get custom;
+
+  /// No description provided for @smoothScrolling.
+  ///
+  /// In en, this message translates to:
+  /// **'Smooth scroll'**
+  String get smoothScrolling;
+
+  /// No description provided for @smoothScrollingDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Smooths mouse-wheel scroll events. Disable this option if you notice any lag or performance drop.'**
+  String get smoothScrollingDesc;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

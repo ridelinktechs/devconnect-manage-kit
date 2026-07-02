@@ -7,6 +7,7 @@ import '../../../../core/utils/duration_format.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/database_providers.dart';
 
 class DatabaseViewerPage extends ConsumerStatefulWidget {
@@ -245,13 +246,29 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
   }
 }
 
-class _QueryResultView extends StatelessWidget {
+class _QueryResultView extends StatefulWidget {
   final QueryResult result;
 
   const _QueryResultView({required this.result});
 
   @override
+  State<_QueryResultView> createState() => _QueryResultViewState();
+}
+
+class _QueryResultViewState extends State<_QueryResultView> {
+  final _verticalScrollController = SmoothScrollController();
+  final _horizontalScrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final result = widget.result;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -314,8 +331,10 @@ class _QueryResultView extends StatelessWidget {
         // Data table
         Expanded(
           child: SingleChildScrollView(
+            controller: _horizontalScrollController,
             scrollDirection: Axis.horizontal,
             child: SingleChildScrollView(
+              controller: _verticalScrollController,
               child: DataTable(
                 headingRowHeight: 36,
                 dataRowMinHeight: 32,

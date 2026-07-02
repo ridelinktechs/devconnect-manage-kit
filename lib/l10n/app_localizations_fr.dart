@@ -1015,4 +1015,11 @@ class SFr extends S {
 
   @override
   String get custom => 'Personnalisé';
+
+  @override
+  String get smoothScrolling => 'Défilement fluide';
+
+  @override
+  String get smoothScrollingDesc =>
+      'Rend le défilement de la molette de la souris plus fluide. Désactivez cette option si vous constatez des ralentissements ou une baisse de performance.';
 }

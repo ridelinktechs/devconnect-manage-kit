@@ -19,6 +19,7 @@ import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/log/benchmark_entry.dart';
+import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/benchmark_providers.dart';
 
 class BenchmarkPage extends ConsumerStatefulWidget {
@@ -30,6 +31,13 @@ class BenchmarkPage extends ConsumerStatefulWidget {
 
 class _BenchmarkPageState extends ConsumerState<BenchmarkPage> {
   String? _selectedId;
+  final _listScrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _listScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +85,7 @@ class _BenchmarkPageState extends ConsumerState<BenchmarkPage> {
                     Expanded(
                       flex: selected != null ? 4 : 1,
                       child: ListView.builder(
+                        controller: _listScrollController,
                         itemCount: entries.length,
                         itemExtent: 56,
                         itemBuilder: (context, index) {
@@ -437,6 +446,13 @@ class _BenchmarkDetail extends StatefulWidget {
 
 class _BenchmarkDetailState extends State<_BenchmarkDetail> {
   final _contentKey = GlobalKey();
+  final _detailScrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _detailScrollController.dispose();
+    super.dispose();
+  }
 
   Future<void> _takeScreenshot() async {
     try {
@@ -559,6 +575,7 @@ class _BenchmarkDetailState extends State<_BenchmarkDetail> {
             child: RepaintBoundary(
               key: _contentKey,
               child: SingleChildScrollView(
+              controller: _detailScrollController,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

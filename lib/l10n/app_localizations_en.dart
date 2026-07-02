@@ -1013,4 +1013,11 @@ class SEn extends S {
 
   @override
   String get custom => 'Custom';
+
+  @override
+  String get smoothScrolling => 'Smooth scroll';
+
+  @override
+  String get smoothScrollingDesc =>
+      'Smooths mouse-wheel scroll events. Disable this option if you notice any lag or performance drop.';
 }
