@@ -14,18 +14,20 @@ String summarizeLogMessage(String message) {
   if (trimmed.isEmpty) return message;
   if (trimmed[0] != '{' && trimmed[0] != '[') return message;
 
-  // Skip expensive JSON parsing for very large payloads — decoding a
-  // multi-MB log synchronously on the main thread can cause noticeable
-  // jank.  In practice a JSON preview is not useful for such payloads.
-  if (trimmed.length > 5000) return message;
+  // Cheap shape check before paying the cost of a full JSON decode.
+  // For very large payloads, return a simple cover without key names.
+  const largePayloadThreshold = 1000;
+  if (trimmed.length > largePayloadThreshold) {
+    final kb = (trimmed.length / 1024).toStringAsFixed(1);
+    if (trimmed[0] == '{') return 'Object {…} ($kb KB)';
+    return 'Array […] ($kb KB)';
+  }
 
-  // Try to parse as JSON — RN's `toStr` (and Flutter's `jsonEncode`) ship
-  // pretty-printed payloads, so we can't rely on a single line.
   dynamic parsed;
   try {
     parsed = jsonDecode(trimmed);
   } catch (_) {
-    return message; // not valid JSON — show the original text
+    return message;
   }
 
   if (parsed is Map) {
