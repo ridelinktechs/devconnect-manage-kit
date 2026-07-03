@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/tab_visibility_provider.dart';
 import '../../../core/utils/duration_format.dart';
 import '../../../core/utils/log_message_summary.dart';
+import '../../../core/utils/network_url_utils.dart';
 import '../../../models/display/display_entry.dart';
 import '../../../models/log/error_event.dart';
 import '../../../server/providers/server_providers.dart';
@@ -257,9 +258,12 @@ final filteredAllEventsProvider = Provider<List<UnifiedEvent>>((ref) {
 });
 
 String _shortenUrl(String url) {
+  if (isMalformedNetworkUrl(url)) return '<unknown url>';
   try {
     final uri = Uri.parse(url);
-    return uri.path;
+    if (uri.path.isNotEmpty) return uri.path;
+    if (uri.host.isNotEmpty) return uri.host;
+    return url;
   } catch (_) {
     return url;
   }

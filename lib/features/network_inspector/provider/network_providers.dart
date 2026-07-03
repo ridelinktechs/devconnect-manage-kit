@@ -80,7 +80,6 @@ bool _isBetterBody(dynamic body) {
 
 /// Merge two duplicate network entries, preferring the one with better data.
 NetworkEntry _mergeNetworkEntries(NetworkEntry existing, NetworkEntry incoming) {
-  // Prefer the entry with the more complete response body
   final useExistingBody = _isBetterBody(existing.responseBody);
   final useIncomingBody = _isBetterBody(incoming.responseBody);
 
@@ -88,13 +87,16 @@ NetworkEntry _mergeNetworkEntries(NetworkEntry existing, NetworkEntry incoming) 
       ? incoming.responseBody
       : (useExistingBody ? existing.responseBody : incoming.responseBody);
 
+  final bestRequestBody = _isBetterBody(incoming.requestBody)
+      ? incoming.requestBody
+      : existing.requestBody;
+
   final bestStatusCode = incoming.statusCode != 0 ? incoming.statusCode : existing.statusCode;
   final bestError = incoming.error ?? existing.error;
   final bestIsComplete = incoming.isComplete || existing.isComplete;
   final bestEndTime = incoming.endTime ?? existing.endTime;
   final bestDuration = incoming.duration ?? existing.duration;
 
-  // Merge request headers from both sources
   final mergedReqHeaders = {...existing.requestHeaders, ...incoming.requestHeaders};
   final mergedResHeaders = {...existing.responseHeaders, ...incoming.responseHeaders};
 
@@ -102,6 +104,7 @@ NetworkEntry _mergeNetworkEntries(NetworkEntry existing, NetworkEntry incoming) 
     statusCode: bestStatusCode,
     requestHeaders: mergedReqHeaders,
     responseHeaders: mergedResHeaders,
+    requestBody: bestRequestBody,
     responseBody: bestBody,
     endTime: bestEndTime,
     duration: bestDuration,

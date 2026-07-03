@@ -753,7 +753,22 @@ export class DevConnect {
       const requestId = generateId();
       const startTime = Date.now();
       const method = init?.method?.toUpperCase() ?? 'GET';
-      const url = typeof input === 'string' ? input : input.toString();
+      // Extract the actual URL string. Libraries like AWS Cognito sometimes
+      // pass a Request object — calling `.toString()` on it would return
+      // the default "[object Object]" from Object.prototype.toString, which
+      // then gets displayed as `%5Bobject%20Object%5D` in the inspector.
+      let url: string;
+      if (typeof input === 'string') {
+        url = input;
+      } else if (input instanceof URL) {
+        url = input.toString();
+      } else if (typeof Request !== 'undefined' && input instanceof Request) {
+        url = input.url;
+      } else {
+        // Last resort — try a `.url` property (covers undici Request, node
+        // fetch Request, etc.) before falling back to String() coercion.
+        url = (input as any)?.url ?? String(input);
+      }
 
       const reqHeaders: Record<string, string> = {};
       if (init?.headers) {
@@ -825,7 +840,12 @@ export class DevConnect {
       let requestBody: any;
 
       const origOpen = xhr.open.bind(xhr);
-      xhr.open = (m: string, u: string, ...args: any[]) => { method = m.toUpperCase(); url = u; return origOpen(m, u, ...args); };
+      xhr.open = (m: string, u: string | URL, ...args: any[]) => {
+        method = m.toUpperCase();
+        // Coerce URL/Request to a string in case a polyfill accepts them
+        url = typeof u === 'string' ? u : (u as any)?.url ?? String(u);
+        return origOpen(m, u as string, ...args);
+      };
 
       const origSetHeader = xhr.setRequestHeader.bind(xhr);
       xhr.setRequestHeader = (n: string, v: string) => { reqHeaders[n] = v; return origSetHeader(n, v); };

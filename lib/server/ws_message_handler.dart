@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../core/constants/ws_constants.dart';
+import '../core/utils/network_url_utils.dart';
 import '../models/device_info.dart';
 import '../models/log/log_entry.dart';
 import '../models/log/error_event.dart';
@@ -209,7 +210,10 @@ class WsMessageHandler {
       id: p['requestId'] as String? ?? message.id,
       deviceId: message.deviceId,
       method: p['method'] as String? ?? 'GET',
-      url: p['url'] as String? ?? '',
+      // Guard against malformed URL strings from buggy client SDKs
+      // (e.g. AWS Cognito RN SDK used to forward the raw Request
+      // object as a string, which surfaced as "[object Object]").
+      url: normalizeNetworkUrl(p['url'] as String?),
       statusCode: p['statusCode'] as int? ?? 0,
       requestHeaders: _castStringMap(p['requestHeaders']),
       responseHeaders: _castStringMap(p['responseHeaders']),
