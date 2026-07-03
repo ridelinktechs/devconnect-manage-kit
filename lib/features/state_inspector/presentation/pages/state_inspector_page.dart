@@ -709,17 +709,23 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
           Expanded(
             child: TabBarView(
               children: [
-                // Diff tab
-                _DiffView(diff: entry.diff),
-                // Before tab
-                _StateJsonToggleView(
-                  data: entry.previousState,
-                  jsonMode: _jsonPrettyMode,
+                LazyTab(
+                  index: 0,
+                  builder: (_) => _DiffView(diff: entry.diff),
                 ),
-                // After tab
-                _StateJsonToggleView(
-                  data: entry.nextState,
-                  jsonMode: _jsonPrettyMode,
+                LazyTab(
+                  index: 1,
+                  builder: (_) => _StateJsonToggleView(
+                    data: entry.previousState,
+                    jsonMode: _jsonPrettyMode,
+                  ),
+                ),
+                LazyTab(
+                  index: 2,
+                  builder: (_) => _StateJsonToggleView(
+                    data: entry.nextState,
+                    jsonMode: _jsonPrettyMode,
+                  ),
                 ),
               ],
             ),

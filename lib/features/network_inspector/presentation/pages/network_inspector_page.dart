@@ -1308,18 +1308,34 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _HeadersTab(entry: entry),
-                _BodyTab(
-                  body: entry.requestBody,
-                  label: 'Request',
-                  deviceId: entry.deviceId,
+                LazyTab(
+                  controller: _tabController,
+                  index: 0,
+                  builder: (_) => _HeadersTab(entry: entry),
                 ),
-                _BodyTab(
-                  body: entry.responseBody,
-                  label: 'Response',
-                  deviceId: entry.deviceId,
+                LazyTab(
+                  controller: _tabController,
+                  index: 1,
+                  builder: (_) => _BodyTab(
+                    body: entry.requestBody,
+                    label: 'Request',
+                    deviceId: entry.deviceId,
+                  ),
                 ),
-                _TimingTab(entry: entry),
+                LazyTab(
+                  controller: _tabController,
+                  index: 2,
+                  builder: (_) => _BodyTab(
+                    body: entry.responseBody,
+                    label: 'Response',
+                    deviceId: entry.deviceId,
+                  ),
+                ),
+                LazyTab(
+                  controller: _tabController,
+                  index: 3,
+                  builder: (_) => _TimingTab(entry: entry),
+                ),
               ],
             ),
           ),
@@ -1922,18 +1938,23 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
   Widget _buildBodyContent(
       dynamic parsed, bool canToggle, BodyViewMode mode, CodeLang codeLang) {
     if (!canToggle) return JsonPrettyViewer(data: parsed);
-    switch (mode) {
-      case BodyViewMode.tree:
-        return JsonViewer(data: parsed, initiallyExpanded: true);
-      case BodyViewMode.json:
-        return JsonPrettyViewer(data: parsed);
-      case BodyViewMode.code:
-        return CodeViewer(
-          generated: CodeGenerator.generate(parsed, codeLang),
-          lang: codeLang,
-          languageLabel: CodeGenerator.labelFor(codeLang),
-        );
-    }
+    return DeferredBuilder(
+      key: ValueKey(mode),
+      builder: (_) {
+        switch (mode) {
+          case BodyViewMode.tree:
+            return JsonViewer(data: parsed, initiallyExpanded: true);
+          case BodyViewMode.json:
+            return JsonPrettyViewer(data: parsed);
+          case BodyViewMode.code:
+            return CodeViewer(
+              generated: CodeGenerator.generate(parsed, codeLang),
+              lang: codeLang,
+              languageLabel: CodeGenerator.labelFor(codeLang),
+            );
+        }
+      },
+    );
   }
 
   Widget _screenshotSection(String title, bool isDark) {
@@ -2574,21 +2595,6 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
       );
     }
 
-    // Try to parse string body as JSON
-    dynamic parsedBody = widget.body;
-    if (parsedBody is String) {
-      try {
-        parsedBody = jsonDecode(parsedBody);
-      } catch (_) {
-        // Not valid JSON, keep as string
-      }
-    }
-
-    final canToggle = parsedBody is Map || parsedBody is List;
-    // When the body is a primitive string, Tree mode can't show anything
-    // structured so we implicitly fall back to JSON mode.
-    final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
-
     // Look up the connected device's platform so Code mode exports the
     // right language. Falls back to TypeScript (RN) when not connected.
     final devices = ref.watch(connectedDevicesProvider);
@@ -2599,85 +2605,97 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
         'react_native';
     final codeLang = CodeGenerator.langForPlatform(platform);
 
-    return Column(
-      children: [
-        // Toggle bar — 3-way Tree / JSON / Code segmented toggle
-        Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.black.withValues(alpha: 0.06),
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              TextComponent(widget.label, style: theme.textTheme.titleSmall),
-              const Spacer(),
-              if (canToggle) ...[
-                ViewModeSegment(
-                  label: 'Tree',
-                  active: effectiveMode == BodyViewMode.tree,
-                  position: ViewSegmentPosition.start,
-                  onTap: () => ref
-                      .read(bodyViewModeProvider.notifier)
-                      .set(BodyViewMode.tree),
-                ),
-                ViewModeSegment(
-                  label: 'JSON',
-                  active: effectiveMode == BodyViewMode.json,
-                  position: ViewSegmentPosition.middle,
-                  onTap: () => ref
-                      .read(bodyViewModeProvider.notifier)
-                      .set(BodyViewMode.json),
-                ),
-                ViewModeSegment(
-                  label: CodeGenerator.labelFor(codeLang),
-                  active: effectiveMode == BodyViewMode.code,
-                  position: ViewSegmentPosition.end,
-                  onTap: () => ref
-                      .read(bodyViewModeProvider.notifier)
-                      .set(BodyViewMode.code),
-                ),
-              ],
-              const SizedBox(width: 8),
-              // Copy body button
-              GestureDetector(
-                onTap: () {
-                  final text = parsedBody is String
-                      ? parsedBody
-                      : const JsonEncoder.withIndent('  ')
-                          .convert(parsedBody);
-                  Clipboard.setData(ClipboardData(text: text));
-                  showCopiedToast(context, label: '${widget.label} copied');
-                },
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Icon(LucideIcons.copy,
-                      size: 14, color: Colors.grey[500]),
+    return AsyncJsonParser(
+      rawData: widget.body,
+      builder: (context, parsedBody, isJson) {
+        final canToggle = isJson;
+        // When the body is a primitive string, Tree mode can't show anything
+        // structured so we implicitly fall back to JSON mode.
+        final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
+
+        return Column(
+          children: [
+            // Toggle bar — 3-way Tree / JSON / Code segmented toggle
+            Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.06),
+                  ),
                 ),
               ),
-            ],
-          ),
-        ),
-        // Body content
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            child: _buildContent(
-              parsedBody: parsedBody,
-              canToggle: canToggle,
-              mode: effectiveMode,
-              codeLang: codeLang,
+              child: Row(
+                children: [
+                  TextComponent(widget.label, style: theme.textTheme.titleSmall),
+                  const Spacer(),
+                  if (canToggle) ...[
+                    ViewModeSegment(
+                      label: 'Tree',
+                      active: effectiveMode == BodyViewMode.tree,
+                      position: ViewSegmentPosition.start,
+                      onTap: () => ref
+                          .read(bodyViewModeProvider.notifier)
+                          .set(BodyViewMode.tree),
+                    ),
+                    ViewModeSegment(
+                      label: 'JSON',
+                      active: effectiveMode == BodyViewMode.json,
+                      position: ViewSegmentPosition.middle,
+                      onTap: () => ref
+                          .read(bodyViewModeProvider.notifier)
+                          .set(BodyViewMode.json),
+                    ),
+                    ViewModeSegment(
+                      label: CodeGenerator.labelFor(codeLang),
+                      active: effectiveMode == BodyViewMode.code,
+                      position: ViewSegmentPosition.end,
+                      onTap: () => ref
+                          .read(bodyViewModeProvider.notifier)
+                          .set(BodyViewMode.code),
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  // Copy body button
+                  GestureDetector(
+                    onTap: () {
+                      final text = parsedBody is String
+                          ? parsedBody
+                          : const JsonEncoder.withIndent('  ')
+                              .convert(parsedBody);
+                      Clipboard.setData(ClipboardData(text: text));
+                      showCopiedToast(context, label: '${widget.label} copied');
+                    },
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Icon(LucideIcons.copy,
+                          size: 14, color: Colors.grey[500]),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-      ],
+            // Body content — each viewer handles its own scrolling.
+            // Keeping bounded constraints so JsonPrettyViewer / JsonViewer
+            // can virtualize (shrinkWrap: false) instead of measuring
+            // every single line.
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildContent(
+                  parsedBody: parsedBody,
+                  canToggle: canToggle,
+                  mode: effectiveMode,
+                  codeLang: codeLang,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -2691,19 +2709,26 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
       // Primitive / non-JSON body: only the pretty JSON viewer is meaningful.
       return JsonPrettyViewer(data: parsedBody);
     }
-    switch (mode) {
-      case BodyViewMode.tree:
-        return JsonViewer(data: parsedBody, initiallyExpanded: true);
-      case BodyViewMode.json:
-        return JsonPrettyViewer(data: parsedBody);
-      case BodyViewMode.code:
-        final generated = CodeGenerator.generate(parsedBody, codeLang);
-        return CodeViewer(
-          generated: generated,
-          lang: codeLang,
-          languageLabel: CodeGenerator.labelFor(codeLang),
-        );
-    }
+    return DeferredBuilder(
+      key: ValueKey(mode),
+      builder: (_) {
+        switch (mode) {
+          case BodyViewMode.tree:
+            return JsonViewer(data: parsedBody, initiallyExpanded: true);
+          case BodyViewMode.json:
+            return JsonPrettyViewer(data: widget.body);
+          case BodyViewMode.code:
+            final generated = CodeGenerator.generate(parsedBody, codeLang);
+            return SingleChildScrollView(
+              child: CodeViewer(
+                generated: generated,
+                lang: codeLang,
+                languageLabel: CodeGenerator.labelFor(codeLang),
+              ),
+            );
+        }
+      },
+    );
   }
 
   (String?, int?) _isBlobPayload(dynamic body) {

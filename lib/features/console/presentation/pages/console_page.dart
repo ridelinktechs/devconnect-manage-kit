@@ -1188,14 +1188,6 @@ class _LogMessageBlock extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mode = ref.watch(bodyViewModeProvider);
 
-    dynamic parsed;
-    try {
-      parsed = jsonDecode(message);
-    } catch (_) {
-      parsed = null;
-    }
-    final isJson = parsed is Map || parsed is List;
-
     final devices = ref.watch(connectedDevicesProvider);
     final platform = devices
             .where((d) => d.deviceId == deviceId)
@@ -1204,60 +1196,67 @@ class _LogMessageBlock extends ConsumerWidget {
         'react_native';
     final codeLang = CodeGenerator.langForPlatform(platform);
 
-    final canToggle = isJson;
+    return AsyncJsonParser(
+      rawData: message,
+      builder: (context, parsed, isJson) {
+        final canToggle = isJson;
 
-    Widget body;
-    if (!isJson) {
-      body = _PlainMessageBlock(text: message, isDark: isDark);
-    } else {
-      switch (mode) {
-        case BodyViewMode.tree:
-          body = JsonViewer(data: parsed, initiallyExpanded: true);
-          break;
-        case BodyViewMode.json:
-          body = JsonPrettyViewer(data: parsed);
-          break;
-        case BodyViewMode.code:
-          body = CodeViewer(
-            generated: CodeGenerator.generate(parsed, codeLang),
-            lang: codeLang,
-            languageLabel: CodeGenerator.labelFor(codeLang),
+        Widget body;
+        if (!isJson) {
+          body = _PlainMessageBlock(text: message, isDark: isDark);
+        } else {
+          body = DeferredBuilder(
+            key: ValueKey(mode),
+            builder: (_) {
+              switch (mode) {
+                case BodyViewMode.tree:
+                  return JsonViewer(data: parsed, initiallyExpanded: true);
+                case BodyViewMode.json:
+                  return JsonPrettyViewer(data: message);
+                case BodyViewMode.code:
+                  return CodeViewer(
+                    generated: CodeGenerator.generate(parsed, codeLang),
+                    lang: codeLang,
+                    languageLabel: CodeGenerator.labelFor(codeLang),
+                  );
+              }
+            },
           );
-          break;
-      }
-    }
+        }
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.06),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (canToggle)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-              child: ViewModeSwitcher(
-                current: mode,
-                codeLabel: CodeGenerator.labelFor(codeLang),
-                onChanged: (BodyViewMode m) =>
-                    ref.read(bodyViewModeProvider.notifier).set(m),
-              ),
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.06),
+              width: 1,
             ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: body,
           ),
-        ],
-      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (canToggle)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: ViewModeSwitcher(
+                    current: mode,
+                    codeLabel: CodeGenerator.labelFor(codeLang),
+                    onChanged: (BodyViewMode m) =>
+                        ref.read(bodyViewModeProvider.notifier).set(m),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: body,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

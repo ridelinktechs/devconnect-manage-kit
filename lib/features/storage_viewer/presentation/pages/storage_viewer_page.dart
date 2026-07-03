@@ -820,7 +820,13 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
 
   void _takeScreenshot(BuildContext context, bool isDark) {
     final isAlreadyJson = entry.value is Map || entry.value is List;
-    final parsedJson = isAlreadyJson ? null : _tryParseJson(entry.value);
+    dynamic parsedJson;
+    if (!isAlreadyJson && entry.value is String) {
+      try {
+        parsedJson = jsonDecode(entry.value as String);
+        if (parsedJson is! Map && parsedJson is! List) parsedJson = null;
+      } catch (_) {}
+    }
 
     final screenshotWidget = Container(
       color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
@@ -878,15 +884,6 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
     captureWidgetAsImage(context, screenshotWidget);
   }
 
-  dynamic _tryParseJson(dynamic value) {
-    if (value is! String) return null;
-    try {
-      final parsed = jsonDecode(value);
-      if (parsed is Map || parsed is List) return parsed;
-    } catch (_) {}
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -894,10 +891,6 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
     final time = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
     );
-
-    final isAlreadyJson = entry.value is Map || entry.value is List;
-    final parsedJson = isAlreadyJson ? null : _tryParseJson(entry.value);
-    final canFormat = parsedJson != null;
 
     final opColor = _StorageEntryTile._opColor(entry.operation);
     final tColor = _StorageEntryTile._typeColor(entry.storageType);
@@ -908,8 +901,8 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
         children: [
           // Header
           Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: isDark ? ColorTokens.darkBackground : Colors.white,
               border: Border(
@@ -999,51 +992,59 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
           ),
           // Content
           Expanded(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Value section
-                  Row(
+            child: AsyncJsonParser(
+              rawData: entry.value,
+              builder: (context, parsedJson, isJson) {
+                final isAlreadyJson = entry.value is Map || entry.value is List;
+                final canFormat = isJson && !isAlreadyJson;
+
+                return SingleChildScrollView(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextComponent('Value', style: theme.textTheme.titleSmall),
-                      const Spacer(),
-                      if (isAlreadyJson || (canFormat && _formatted && parsedJson != null)) ...[
-                        _ViewModeToggle(
-                          isJsonMode: _jsonMode,
-                          onToggle: () => setState(() {
-                            _jsonMode = !_jsonMode;
-                            if (_jsonMode) _jsonEverOpened = true;
-                          }),
-                          isDark: isDark,
-                        ),
-                        const SizedBox(width: 8),
+                      // Value section
+                      Row(
+                        children: [
+                          TextComponent('Value', style: theme.textTheme.titleSmall),
+                          const Spacer(),
+                          if (isAlreadyJson || (canFormat && _formatted)) ...[
+                            _ViewModeToggle(
+                              isJsonMode: _jsonMode,
+                              onToggle: () => setState(() {
+                                _jsonMode = !_jsonMode;
+                                if (_jsonMode) _jsonEverOpened = true;
+                              }),
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          if (canFormat)
+                            _FormatToggle(
+                              isFormatted: _formatted,
+                              onToggle: () =>
+                                  setState(() => _formatted = !_formatted),
+                              isDark: isDark,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (_jsonMode && (isAlreadyJson || (_formatted && parsedJson != null))) ...[
+                        if (_jsonEverOpened)
+                          JsonPrettyViewer(data: entry.value),
+                      ] else ...[
+                        if (isAlreadyJson)
+                          JsonViewer(data: entry.value, initiallyExpanded: true)
+                        else if (_formatted && parsedJson != null)
+                          JsonViewer(data: parsedJson, initiallyExpanded: true)
+                        else
+                          JsonViewer(data: entry.value, initiallyExpanded: false),
                       ],
-                      if (canFormat && !isAlreadyJson)
-                        _FormatToggle(
-                          isFormatted: _formatted,
-                          onToggle: () =>
-                              setState(() => _formatted = !_formatted),
-                          isDark: isDark,
-                        ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  if (_jsonMode && (isAlreadyJson || (_formatted && parsedJson != null))) ...[
-                    if (_jsonEverOpened)
-                      JsonPrettyViewer(data: isAlreadyJson ? entry.value : parsedJson),
-                  ] else ...[
-                    if (isAlreadyJson)
-                      JsonViewer(data: entry.value, initiallyExpanded: true)
-                    else if (_formatted && parsedJson != null)
-                      JsonViewer(data: parsedJson, initiallyExpanded: true)
-                    else
-                      JsonViewer(data: entry.value, initiallyExpanded: false),
-                  ],
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],
