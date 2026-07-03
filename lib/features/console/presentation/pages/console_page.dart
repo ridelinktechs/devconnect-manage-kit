@@ -19,6 +19,9 @@ import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/utils/code_generator.dart';
+import '../../../../server/providers/server_providers.dart';
+import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../server/providers/server_providers.dart';
@@ -1078,7 +1081,10 @@ class _LogDetailPanelState extends State<_LogDetailPanel> {
                   // pattern as the All Events detail panel.
                   _SectionLabel(label: S.of(context).message),
                   const SizedBox(height: 6),
-                  _LogMessageBlock(message: entry.message, isDark: isDark),
+                  _LogMessageBlock(
+                    message: entry.message,
+                    deviceId: entry.deviceId,
+                  ),
 
                   // Metadata
                   if (entry.metadata != null &&
@@ -1168,54 +1174,57 @@ class _SectionLabel extends StatelessWidget {
 
 /// 3-mode view toggle (Tree / JSON / Code) for the log message body — same
 /// pattern as the All Events detail panel.
-class _LogMessageBlock extends StatefulWidget {
+class _LogMessageBlock extends ConsumerWidget {
   final String message;
-  final bool isDark;
+  final String deviceId;
 
-  const _LogMessageBlock({required this.message, required this.isDark});
-
-  @override
-  State<_LogMessageBlock> createState() => _LogMessageBlockState();
-}
-
-class _LogMessageBlockState extends State<_LogMessageBlock> {
-  /// 0 = Tree, 1 = JSON, 2 = Code.
-  int _mode = 0;
+  const _LogMessageBlock({
+    required this.message,
+    required this.deviceId,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = widget.isDark;
-    // Try to parse as JSON so Tree/JSON modes can render structured data.
-    // If the payload isn't valid JSON, both Tree and JSON fall back to
-    // the raw text — only Code mode has a guaranteed different rendering
-    // (and even that is identical for non-JSON messages).
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = ref.watch(bodyViewModeProvider);
+
     dynamic parsed;
     try {
-      parsed = jsonDecode(widget.message);
+      parsed = jsonDecode(message);
     } catch (_) {
       parsed = null;
     }
     final isJson = parsed is Map || parsed is List;
 
+    final devices = ref.watch(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
+
+    final canToggle = isJson;
+
     Widget body;
-    switch (_mode) {
-      case 0: // Tree
-        body = isJson
-            ? JsonViewer(data: parsed, initiallyExpanded: true)
-            : _CodeBlock(text: widget.message, isDark: isDark);
-        break;
-      case 1: // JSON
-        body = isJson
-            ? _CodeBlock(
-                text: const JsonEncoder.withIndent('  ').convert(parsed),
-                isDark: isDark,
-              )
-            : _CodeBlock(text: widget.message, isDark: isDark);
-        break;
-      case 2: // Code
-      default:
-        body = _CodeBlock(text: widget.message, isDark: isDark);
-        break;
+    if (!isJson) {
+      body = _PlainMessageBlock(text: message, isDark: isDark);
+    } else {
+      switch (mode) {
+        case BodyViewMode.tree:
+          body = JsonViewer(data: parsed, initiallyExpanded: true);
+          break;
+        case BodyViewMode.json:
+          body = JsonPrettyViewer(data: parsed);
+          break;
+        case BodyViewMode.code:
+          body = CodeViewer(
+            generated: CodeGenerator.generate(parsed, codeLang),
+            lang: codeLang,
+            languageLabel: CodeGenerator.labelFor(codeLang),
+          );
+          break;
+      }
     }
 
     return Container(
@@ -1233,20 +1242,43 @@ class _LogMessageBlockState extends State<_LogMessageBlock> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Mode tabs — same style as the All Events Tree/JSON toggle.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-            child: _DetailTabBar(
-              tabs: const ['Tree', 'JSON', 'Code'],
-              currentIndex: _mode,
-              onSelect: (i) => setState(() => _mode = i),
+          if (canToggle)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+              child: ViewModeSwitcher(
+                current: mode,
+                codeLabel: CodeGenerator.labelFor(codeLang),
+                onChanged: (BodyViewMode m) =>
+                    ref.read(bodyViewModeProvider.notifier).set(m),
+              ),
             ),
-          ),
           Padding(
             padding: const EdgeInsets.all(12),
             child: body,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlainMessageBlock extends StatelessWidget {
+  final String text;
+  final bool isDark;
+
+  const _PlainMessageBlock({required this.text, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextComponent(
+      text,
+      style: TextStyle(
+        fontFamily: AppConstants.monoFontFamily,
+        fontSize: 12,
+        height: 1.5,
+        color: isDark
+            ? const Color(0xFFCCCCCC)
+            : const Color(0xFF333333),
       ),
     );
   }
