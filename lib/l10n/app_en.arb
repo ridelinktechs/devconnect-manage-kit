@@ -297,5 +297,17 @@
   "smoothScrolling": "Smooth scroll",
   "smoothScrollingDesc": "Smooths mouse-wheel scroll events. Disable this option if you notice any lag or performance drop.",
   "smoothScrollingDuration": "Scroll duration",
-  "smoothScrollingDurationDesc": "The duration of the smooth scroll animation in milliseconds."
+  "smoothScrollingDurationDesc": "The duration of the smooth scroll animation in milliseconds.",
+  "binaryBody": "{label} body is binary",
+  "@binaryBody": {
+    "placeholders": { "label": { "type": "String" } }
+  },
+  "binaryBodySize": "{kb} KB ({bytes} bytes)",
+  "@binaryBodySize": {
+    "placeholders": {
+      "kb": { "type": "String" },
+      "bytes": { "type": "int" }
+    }
+  },
+  "binaryBodyHint": "Identify the action via the X-Amz-Target header."
 }

@@ -1027,4 +1027,18 @@ class SEn extends S {
   @override
   String get smoothScrollingDurationDesc =>
       'The duration of the smooth scroll animation in milliseconds.';
+
+  @override
+  String binaryBody(String label) {
+    return '$label body is binary';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes bytes)';
+  }
+
+  @override
+  String get binaryBodyHint =>
+      'Identify the action via the X-Amz-Target header.';
 }

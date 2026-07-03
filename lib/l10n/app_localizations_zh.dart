@@ -1008,6 +1008,19 @@ class SZh extends S {
 
   @override
   String get smoothScrollingDurationDesc => '滚动动画的持续时间（毫秒）。';
+
+  @override
+  String binaryBody(String label) {
+    return '$label 正文为二进制';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes 字节)';
+  }
+
+  @override
+  String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -2014,6 +2027,19 @@ class SZhCn extends SZh {
 
   @override
   String get smoothScrollingDurationDesc => '滚动动画的持续时间（毫秒）。';
+
+  @override
+  String binaryBody(String label) {
+    return '$label 正文为二进制';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes 字节)';
+  }
+
+  @override
+  String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -3020,4 +3046,17 @@ class SZhTw extends SZh {
 
   @override
   String get smoothScrollingDurationDesc => '滾動動畫的持續時間（毫秒）。';
+
+  @override
+  String binaryBody(String label) {
+    return '$label 內文為二進位';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes 位元組)';
+  }
+
+  @override
+  String get binaryBodyHint => '透過 X-Amz-Target 標頭識別操作。';
 }

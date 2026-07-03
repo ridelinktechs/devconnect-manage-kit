@@ -1030,4 +1030,17 @@ class SVi extends S {
   @override
   String get smoothScrollingDurationDesc =>
       'Thời gian chạy hiệu ứng cuộn mượt mà tính bằng mili-giây.';
+
+  @override
+  String binaryBody(String label) {
+    return 'Body $label là nhị phân';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes byte)';
+  }
+
+  @override
+  String get binaryBodyHint => 'Xác định action thông qua header X-Amz-Target.';
 }

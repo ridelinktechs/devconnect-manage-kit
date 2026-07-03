@@ -1892,6 +1892,24 @@ abstract class S {
   /// In en, this message translates to:
   /// **'The duration of the smooth scroll animation in milliseconds.'**
   String get smoothScrollingDurationDesc;
+
+  /// No description provided for @binaryBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{label} body is binary'**
+  String binaryBody(String label);
+
+  /// No description provided for @binaryBodySize.
+  ///
+  /// In en, this message translates to:
+  /// **'{kb} KB ({bytes} bytes)'**
+  String binaryBodySize(String kb, int bytes);
+
+  /// No description provided for @binaryBodyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Identify the action via the X-Amz-Target header.'**
+  String get binaryBodyHint;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

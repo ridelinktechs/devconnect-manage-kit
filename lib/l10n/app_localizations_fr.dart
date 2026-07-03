@@ -1029,4 +1029,18 @@ class SFr extends S {
   @override
   String get smoothScrollingDurationDesc =>
       'La durée de l\'animation de défilement en millisecondes.';
+
+  @override
+  String binaryBody(String label) {
+    return 'Le corps de $label est binaire';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb Ko ($bytes octets)';
+  }
+
+  @override
+  String get binaryBodyHint =>
+      'Identifiez l\'action via l\'en-tête X-Amz-Target.';
 }

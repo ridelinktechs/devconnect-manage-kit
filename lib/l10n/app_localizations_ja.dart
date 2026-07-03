@@ -1017,4 +1017,17 @@ class SJa extends S {
 
   @override
   String get smoothScrollingDurationDesc => 'スクロールアニメーションの時間（ミリ秒）。';
+
+  @override
+  String binaryBody(String label) {
+    return '$labelのボディはバイナリです';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes バイト)';
+  }
+
+  @override
+  String get binaryBodyHint => 'アクションは X-Amz-Target ヘッダーで識別してください。';
 }

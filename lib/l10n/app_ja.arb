@@ -297,5 +297,8 @@
   "smoothScrolling": "スムーズスクロール",
   "smoothScrollingDesc": "マウスホイールのスクロールイベントに滑らかなアニメーションを追加します。ラグやパフォーマンス低下を感じる場合は、この設定をオフにしてください。",
   "smoothScrollingDuration": "スクロール時間",
-  "smoothScrollingDurationDesc": "スクロールアニメーションの時間（ミリ秒）。"
+  "smoothScrollingDurationDesc": "スクロールアニメーションの時間（ミリ秒）。",
+  "binaryBody": "{label}のボディはバイナリです",
+  "binaryBodySize": "{kb} KB ({bytes} バイト)",
+  "binaryBodyHint": "アクションは X-Amz-Target ヘッダーで識別してください。"
 }

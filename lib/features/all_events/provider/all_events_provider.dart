@@ -6,6 +6,7 @@ import '../../../core/utils/log_message_summary.dart';
 import '../../../core/utils/network_url_utils.dart';
 import '../../../models/display/display_entry.dart';
 import '../../../models/log/error_event.dart';
+import '../../../models/network/network_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../console/provider/console_providers.dart';
 import '../../display/provider/display_providers.dart';
@@ -107,7 +108,7 @@ final allEventsProvider = Provider<List<UnifiedEvent>>((ref) {
         id: req.id,
         deviceId: req.deviceId,
         timestamp: req.startTime,
-        title: '${req.method} ${_shortenUrl(req.url)}',
+        title: _networkTitle(req),
         subtitle: req.isComplete
             ? '${req.statusCode} - ${formatDuration(req.duration ?? 0)}'
             : 'in progress',
@@ -267,4 +268,12 @@ String _shortenUrl(String url) {
   } catch (_) {
     return url;
   }
+}
+
+String _networkTitle(NetworkEntry req) {
+  if (req.serviceAction != null) {
+    final path = Uri.tryParse(req.url)?.path ?? '';
+    if (path.isEmpty || path == '/') return '${req.method} ${req.serviceAction}';
+  }
+  return '${req.method} ${_shortenUrl(req.url)}';
 }

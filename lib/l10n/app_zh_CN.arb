@@ -297,5 +297,8 @@
   "smoothScrolling": "平滑滚动",
   "smoothScrollingDesc": "为鼠标滚轮事件添加平滑动画。如果遇到卡顿或性能下降，请关闭此选项。",
   "smoothScrollingDuration": "滚动持续时间",
-  "smoothScrollingDurationDesc": "滚动动画的持续时间（毫秒）。"
+  "smoothScrollingDurationDesc": "滚动动画的持续时间（毫秒）。",
+  "binaryBody": "{label} 正文为二进制",
+  "binaryBodySize": "{kb} KB ({bytes} 字节)",
+  "binaryBodyHint": "通过 X-Amz-Target 请求头识别操作。"
 }

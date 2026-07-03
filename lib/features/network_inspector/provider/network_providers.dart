@@ -118,6 +118,8 @@ class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
 
   NetworkNotifier(WsMessageHandler wsMessageHandler) : super([]) {
     _sub = wsMessageHandler.onNetwork.listen((entry) {
+      if (entry.method.toUpperCase() == 'OPTIONS') return;
+      if (entry.method.toUpperCase() == 'HEAD' && !entry.isComplete) return;
       // Update existing or add new
       final index = state.indexWhere((e) => e.id == entry.id);
       if (index >= 0) {

@@ -654,6 +654,54 @@ class _IconBtnState extends State<_IconBtn> {
 // Request card tile
 // ---------------------------------------------------------------------------
 
+class _ServiceTag extends StatelessWidget {
+  final String name;
+  const _ServiceTag({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colorForService(name);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        name,
+        style: TextStyle(
+          fontSize: 8,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  static Color colorForService(String name) {
+    switch (name) {
+      case 'AWS':
+      case 'AWS Cognito':
+        return const Color(0xFFFF9900);
+      case 'Google Maps':
+        return const Color(0xFF4285F4);
+      case 'Firebase':
+        return const Color(0xFFFFCA28);
+      case 'Stripe':
+        return const Color(0xFF635BFF);
+      case 'GitHub':
+        return const Color(0xFF8B949E);
+      case 'Sentry':
+        return const Color(0xFF6C5FC7);
+      default:
+        return ColorTokens.primary;
+    }
+  }
+
+  Color _colorForService(String n) => colorForService(n);
+}
+
 class _RequestCard extends ConsumerWidget {
   final NetworkEntry entry;
   final bool isSelected;
@@ -685,6 +733,10 @@ class _RequestCard extends ConsumerWidget {
     } catch (_) {}
     final displayUrl = uri?.path ?? entry.url;
     final host = uri?.host ?? '';
+    final isRootPath = displayUrl == '/' || displayUrl.isEmpty;
+    final titleText = (entry.serviceAction != null && isRootPath)
+        ? entry.serviceAction!
+        : displayUrl;
 
     // Left bar color based on status code
     final Color leftBarColor;
@@ -783,7 +835,7 @@ class _RequestCard extends ConsumerWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  displayUrl,
+                                  titleText,
                                   style: TextStyle(
                                     fontFamily: AppConstants.monoFontFamily,
                                     fontSize: 12,
@@ -800,6 +852,10 @@ class _RequestCard extends ConsumerWidget {
                                 const SizedBox(height: 2),
                                 Row(
                                   children: [
+                                    if (entry.serviceName != null) ...[
+                                      _ServiceTag(name: entry.serviceName!),
+                                      const SizedBox(width: 4),
+                                    ],
                                     // Source badge
                                     Container(
                                       padding: const EdgeInsets.symmetric(
@@ -1618,10 +1674,12 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
     if (parsedReqBody is String) {
       try { parsedReqBody = jsonDecode(parsedReqBody); } catch (_) {}
     }
+    final reqIsBlob = _isBlobPayload(parsedReqBody);
     dynamic parsedResBody = entry.responseBody;
     if (parsedResBody is String) {
       try { parsedResBody = jsonDecode(parsedResBody); } catch (_) {}
     }
+    final resIsBlob = _isBlobPayload(parsedResBody);
 
     return Container(
       color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
@@ -1685,9 +1743,11 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
             _screenshotSection('Request Body', isDark),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: parsedReqBody is Map || parsedReqBody is List
-                  ? JsonViewer(data: parsedReqBody, initiallyExpanded: true)
-                  : JsonPrettyViewer(data: parsedReqBody),
+              child: reqIsBlob.$1 != null
+                  ? _screenshotBlobNote(reqIsBlob, isDark)
+                  : parsedReqBody is Map || parsedReqBody is List
+                      ? JsonViewer(data: parsedReqBody, initiallyExpanded: true)
+                      : JsonPrettyViewer(data: parsedReqBody),
             ),
           ],
           // Response body
@@ -1695,9 +1755,11 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
             _screenshotSection('Response Body', isDark),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: parsedResBody is Map || parsedResBody is List
-                  ? JsonViewer(data: parsedResBody, initiallyExpanded: true)
-                  : JsonPrettyViewer(data: parsedResBody),
+              child: resIsBlob.$1 != null
+                  ? _screenshotBlobNote(resIsBlob, isDark)
+                  : parsedResBody is Map || parsedResBody is List
+                      ? JsonViewer(data: parsedResBody, initiallyExpanded: true)
+                      : JsonPrettyViewer(data: parsedResBody),
             ),
           ],
         ],
@@ -1934,6 +1996,38 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
       buf.write(" \\\n  -d '$body'");
     }
     return buf.toString();
+  }
+
+  (String?, int?) _isBlobPayload(dynamic body) {
+    if (body is String) {
+      final t = body.trim();
+      final m = RegExp(r'^<\s*(blob|arraybuffer)\s+(\d+)\s*bytes\s*>\s*$',
+              caseSensitive: false)
+          .firstMatch(t);
+      if (m != null) return (m.group(1), int.tryParse(m.group(2)!));
+      final m2 = RegExp(r'^<blob:\s*(\d+)\s*bytes>\s*$', caseSensitive: false)
+          .firstMatch(t);
+      if (m2 != null) return ('blob', int.tryParse(m2.group(1)!));
+      final m3 = RegExp(r'^(\d+)\s*bytes$', caseSensitive: false).firstMatch(t);
+      if (m3 != null) return ('blob', int.tryParse(m3.group(1)!));
+    }
+    return (null, null);
+  }
+
+  Widget _screenshotBlobNote((String?, int?) blob, bool isDark) {
+    final type = blob.$1 ?? 'blob';
+    final bytes = blob.$2 ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: TextComponent(
+        '$type payload ($bytes bytes) — binary, cannot be inspected.\nIdentify the action via the X-Amz-Target header.',
+        style: TextStyle(
+          fontFamily: AppConstants.monoFontFamily,
+          fontSize: 11,
+          color: isDark ? Colors.white60 : Colors.black54,
+        ),
+      ),
+    );
   }
 }
 
@@ -2374,6 +2468,66 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
 // Body tab (request / response)
 // ---------------------------------------------------------------------------
 
+class _BlobInfo extends StatelessWidget {
+  final String label;
+  final int sizeBytes;
+  final bool isDark;
+
+  const _BlobInfo({
+    required this.label,
+    required this.sizeBytes,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.package,
+                size: 28, color: isDark ? Colors.white38 : Colors.black38),
+            const SizedBox(height: 12),
+            Text(
+              S.of(context).binaryBody(label),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? ColorTokens.lightBackground
+                    : ColorTokens.darkNeutral,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              S.of(context).binaryBodySize(
+                (sizeBytes / 1024).toStringAsFixed(1),
+                sizeBytes,
+              ),
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.white54 : Colors.black54,
+                fontFamily: AppConstants.monoFontFamily,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              S.of(context).binaryBodyHint,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark ? Colors.white38 : Colors.black45,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BodyTab extends ConsumerStatefulWidget {
   final dynamic body;
   final String label;
@@ -2408,6 +2562,15 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
       return EmptyState(
         icon: LucideIcons.fileText,
         title: 'No ${widget.label}',
+      );
+    }
+
+    final blob = _isBlobPayload(widget.body);
+    if (blob.$1 != null) {
+      return _BlobInfo(
+        label: widget.label,
+        sizeBytes: blob.$2 ?? 0,
+        isDark: isDark,
       );
     }
 
@@ -2541,6 +2704,22 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
           languageLabel: CodeGenerator.labelFor(codeLang),
         );
     }
+  }
+
+  (String?, int?) _isBlobPayload(dynamic body) {
+    if (body is String) {
+      final t = body.trim();
+      final m = RegExp(r'^<\s*(blob|arraybuffer)\s+(\d+)\s*bytes\s*>\s*$',
+              caseSensitive: false)
+          .firstMatch(t);
+      if (m != null) return (m.group(1), int.tryParse(m.group(2)!));
+      final m2 = RegExp(r'^<blob:\s*(\d+)\s*bytes>\s*$', caseSensitive: false)
+          .firstMatch(t);
+      if (m2 != null) return ('blob', int.tryParse(m2.group(1)!));
+      final m3 = RegExp(r'^(\d+)\s*bytes$', caseSensitive: false).firstMatch(t);
+      if (m3 != null) return ('blob', int.tryParse(m3.group(1)!));
+    }
+    return (null, null);
   }
 }
 

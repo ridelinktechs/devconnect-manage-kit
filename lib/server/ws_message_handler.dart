@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../core/constants/ws_constants.dart';
+import '../core/utils/network_service_detector.dart';
 import '../core/utils/network_url_utils.dart';
 import '../models/device_info.dart';
 import '../models/log/log_entry.dart';
@@ -206,25 +207,31 @@ class WsMessageHandler {
 
   void _handleNetwork(DCMessage message) {
     final p = message.payload;
+    final reqHeaders = _castStringMap(p['requestHeaders']);
+    final resHeaders = _castStringMap(p['responseHeaders']);
+    final reqBody = p['requestBody'];
+    final resBody = p['responseBody'];
+    final url = normalizeNetworkUrl(p['url'] as String?);
+    final detected = detectService(url,
+        headers: {...reqHeaders, ...resHeaders}, body: reqBody);
     final entry = NetworkEntry(
       id: p['requestId'] as String? ?? message.id,
       deviceId: message.deviceId,
       method: p['method'] as String? ?? 'GET',
-      // Guard against malformed URL strings from buggy client SDKs
-      // (e.g. AWS Cognito RN SDK used to forward the raw Request
-      // object as a string, which surfaced as "[object Object]").
-      url: normalizeNetworkUrl(p['url'] as String?),
+      url: url,
       statusCode: p['statusCode'] as int? ?? 0,
-      requestHeaders: _castStringMap(p['requestHeaders']),
-      responseHeaders: _castStringMap(p['responseHeaders']),
-      requestBody: p['requestBody'],
-      responseBody: p['responseBody'],
+      requestHeaders: reqHeaders,
+      responseHeaders: resHeaders,
+      requestBody: reqBody,
+      responseBody: resBody,
       startTime: p['startTime'] as int? ?? message.timestamp,
       endTime: p['endTime'] as int?,
       duration: p['duration'] as int?,
       error: p['error'] as String?,
       isComplete: message.type == WsMessageTypes.clientNetworkRequestComplete,
       source: p['source'] as String? ?? 'app',
+      serviceName: detected?.name,
+      serviceAction: detected?.action,
     );
     _networkController.add(entry);
   }

@@ -18,6 +18,7 @@ import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/text/text_component.dart';
 import '../../../../components/misc/status_badge.dart';
+import '../../../../components/misc/service_tag.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/providers/tab_visibility_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
@@ -995,6 +996,13 @@ class _EventRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              if (event.type == EventType.network &&
+                  event.rawData is NetworkEntry &&
+                  (event.rawData as NetworkEntry).serviceName != null) ...[
+                ServiceTag(
+                    name: (event.rawData as NetworkEntry).serviceName!),
+                const SizedBox(width: 6),
+              ],
               // Subtitle / Status indicator
               if (!showDetail) ...[
                 if (event.type == EventType.network &&
