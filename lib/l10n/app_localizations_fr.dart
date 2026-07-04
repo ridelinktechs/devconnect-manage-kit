@@ -470,6 +470,17 @@ class SFr extends S {
       'Le mode JSON affiche les données sous forme de document JSON unique, coloré syntaxiquement et facile à copier.';
 
   @override
+  String get captureDataJson =>
+      'Capturer les données (clé + valeur dans le mode actuel)';
+
+  @override
+  String get captureDataText =>
+      'Capturer les données (clé + valeur sous forme de texte)';
+
+  @override
+  String get copyKey => 'Copier la clé';
+
+  @override
   String get usbConnection => 'Connexion USB';
 
   @override

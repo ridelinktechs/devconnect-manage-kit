@@ -470,6 +470,15 @@ class SEn extends S {
       'JSON mode renders the data as a single, syntax-highlighted, copy-friendly JSON document.';
 
   @override
+  String get captureDataJson => 'Capture data (key + value in current mode)';
+
+  @override
+  String get captureDataText => 'Capture data (key + value as text)';
+
+  @override
+  String get copyKey => 'Copy key';
+
+  @override
   String get usbConnection => 'USB Connection';
 
   @override

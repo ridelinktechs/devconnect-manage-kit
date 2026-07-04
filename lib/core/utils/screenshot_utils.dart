@@ -1,16 +1,33 @@
-import 'dart:io';
+import 'dart:io' show Platform, Process;
 import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-/// Captures a widget as a PNG image and saves to file.
-Future<void> captureWidgetAsImage(
+/// Captures a widget as a PNG image and saves to file. Returns the saved
+/// file path on success, or null if the user cancelled the save dialog or
+/// capture failed.
+///
+/// [fileName] is the suggested filename shown in the save dialog. If null,
+/// a timestamp-based default is used (e.g. `dcmt_1717456789.png`).
+/// Callers should pass a meaningful name so the user can recognise the
+/// context of the screenshot — e.g. `storage_data_user_token`.
+///
+/// [onSaved] is called with the saved path after the file is written. If
+/// omitted, a default SnackBar with an Open action is shown.
+///
+/// Implementation note: we use [XFile] + [saveTo] (rather than `File.writeAsBytes`)
+/// so the user-selected path is treated as authoritative — on macOS the OS
+/// won't silently append timestamps or rename to `image.png` after the dialog
+/// closes.
+Future<String?> captureWidgetAsImage(
   BuildContext context,
   Widget screenshotWidget, {
   double width = 600,
   double pixelRatio = 2.0,
+  String? fileName,
+  void Function(String savedPath)? onSaved,
 }) async {
   try {
     // Show flash
@@ -40,13 +57,15 @@ Future<void> captureWidgetAsImage(
     );
 
     Overlay.of(context).insert(overlayEntry);
-    await Future.delayed(const Duration(milliseconds: 300));
+    // Wait long enough for async widgets (e.g. JsonPrettyViewer's
+    // isolate compute) to settle and paint before snapshotting.
+    await Future.delayed(const Duration(milliseconds: 600));
 
     final boundary = overlayKey.currentContext?.findRenderObject()
         as RenderRepaintBoundary?;
     if (boundary == null) {
       overlayEntry.remove();
-      return;
+      return null;
     }
 
     final image = await boundary.toImage(pixelRatio: pixelRatio);
@@ -54,38 +73,90 @@ Future<void> captureWidgetAsImage(
         await image.toByteData(format: ui.ImageByteFormat.png);
     overlayEntry.remove();
 
-    if (byteData == null) return;
+    if (byteData == null) return null;
 
     final pngBytes = byteData.buffer.asUint8List();
 
-    final fileName =
-        'dcmt_${DateTime.now().millisecondsSinceEpoch}.png';
+    final baseName = (fileName == null || fileName.isEmpty)
+        ? 'dcmt_${DateTime.now().millisecondsSinceEpoch}'
+        : fileName;
+    final withExt =
+        baseName.endsWith('.png') ? baseName : '$baseName.png';
+
     final location = await getSaveLocation(
-      suggestedName: fileName,
+      suggestedName: withExt,
       acceptedTypeGroups: [
         const XTypeGroup(label: 'PNG Image', extensions: ['png']),
       ],
     );
 
-    if (location == null) return;
+    if (location == null) return null;
 
-    final file = File(location.path);
-    await file.writeAsBytes(pngBytes);
+    // Force the saved file's name to [withExt] regardless of what the OS
+    // returns in [location.path] — some platforms append timestamps or
+    // strip extensions after the dialog closes.
+    final savedPath = _ensureFilename(location.path, withExt);
+    final xfile = XFile.fromData(
+      pngBytes,
+      mimeType: 'image/png',
+      name: withExt,
+      length: pngBytes.lengthInBytes,
+    );
+    await xfile.saveTo(savedPath);
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Screenshot saved: ${file.path}'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      if (onSaved != null) {
+        onSaved(savedPath);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Screenshot saved: $savedPath'),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Open',
+              onPressed: () => _openFile(savedPath),
+            ),
+          ),
+        );
+      }
     }
+    return savedPath;
   } catch (e) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Screenshot failed: $e')),
       );
     }
+    return null;
+  }
+}
+
+/// Returns [path] but with its basename replaced by [desiredName] when the
+/// user picked a folder via the save dialog. This keeps our naming
+/// convention (`storage_data_user_token.png`) even if the OS would otherwise
+/// default the new file to `image.png` or add a numeric suffix.
+String _ensureFilename(String path, String desiredName) {
+  final sep = path.contains(r'\') ? r'\' : '/';
+  final last = path.lastIndexOf(sep);
+  if (last == -1) return '$path$sep$desiredName';
+  return '${path.substring(0, last + 1)}$desiredName';
+}
+
+/// Opens [path] with the OS default handler. macOS uses `open`, Linux
+/// uses `xdg-open`, Windows uses `start`. Failures are swallowed — the
+/// snackbar stays visible so the user can read the path.
+Future<void> _openFile(String path) async {
+  try {
+    if (Platform.isMacOS) {
+      await Process.run('open', [path]);
+    } else if (Platform.isLinux) {
+      await Process.run('xdg-open', [path]);
+    } else if (Platform.isWindows) {
+      await Process.run('start', ['', path], runInShell: true);
+    }
+  } catch (_) {
+    // ignore — file may not exist or no handler registered
   }
 }
 

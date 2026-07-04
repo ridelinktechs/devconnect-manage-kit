@@ -468,6 +468,15 @@ class SJa extends S {
       'JSONモードはデータを構文強調表示付きの単一のコピーしやすいJSONドキュメントとして表示します。';
 
   @override
+  String get captureDataJson => 'データをキャプチャ (現在のモードのキー + 値)';
+
+  @override
+  String get captureDataText => 'データをキャプチャ (キー + 値をテキストとして)';
+
+  @override
+  String get copyKey => 'キーをコピー';
+
+  @override
   String get usbConnection => 'USB接続';
 
   @override

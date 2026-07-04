@@ -864,9 +864,7 @@ class _StorageDetailPanelState extends ConsumerState<_StorageDetailPanel> {
     final v = entry.value;
     if (v == null) return '0 B';
     final raw = v is String ? v : jsonEncode(v);
-    final bytes = raw.length;
-    if (bytes < 1024) return '$bytes B';
-    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return AppConstants.formatBytes(raw.length);
   }
 
   void _takeScreenshot(BuildContext context, bool isDark) {

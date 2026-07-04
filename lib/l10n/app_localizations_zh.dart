@@ -460,6 +460,15 @@ class SZh extends S {
   String get jsonModeDesc => 'JSON 模式将数据呈现为单一、带语法高亮、易于复制的 JSON 文档。';
 
   @override
+  String get captureDataJson => '截图数据(当前模式下的键 + 值)';
+
+  @override
+  String get captureDataText => '截图数据(键 + 值作为文本)';
+
+  @override
+  String get copyKey => '复制键';
+
+  @override
   String get usbConnection => 'USB 连接';
 
   @override
@@ -1479,6 +1488,15 @@ class SZhCn extends SZh {
   String get codeModeDesc => '代码模式根据已连接的 SDK 导出为 TypeScript / Dart / Kotlin。';
 
   @override
+  String get captureDataJson => '截图数据(当前模式下的键 + 值)';
+
+  @override
+  String get captureDataText => '截图数据(键 + 值作为文本)';
+
+  @override
+  String get copyKey => '复制键';
+
+  @override
   String get usbConnection => 'USB 连接';
 
   @override
@@ -2496,6 +2514,15 @@ class SZhTw extends SZh {
 
   @override
   String get codeModeDesc => '程式碼模式根據已連線的 SDK 匯出為 TypeScript / Dart / Kotlin。';
+
+  @override
+  String get captureDataJson => '擷取資料 (目前模式的金鑰 + 值)';
+
+  @override
+  String get captureDataText => '擷取資料 (金鑰 + 值作為文字)';
+
+  @override
+  String get copyKey => '複製金鑰';
 
   @override
   String get usbConnection => 'USB 連線';

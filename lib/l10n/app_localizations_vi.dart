@@ -470,6 +470,16 @@ class SVi extends S {
       'Chế độ JSON hiển thị dữ liệu dưới dạng tài liệu JSON tô màu cú pháp, dễ sao chép.';
 
   @override
+  String get captureDataJson =>
+      'Chụp ảnh dữ liệu (key + value theo chế độ hiện tại)';
+
+  @override
+  String get captureDataText => 'Chụp ảnh dữ liệu (key + value dạng text)';
+
+  @override
+  String get copyKey => 'Sao chép key';
+
+  @override
   String get usbConnection => 'Kết nối USB';
 
   @override

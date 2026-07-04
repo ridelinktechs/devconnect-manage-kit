@@ -855,6 +855,24 @@ abstract class S {
   /// **'JSON mode renders the data as a single, syntax-highlighted, copy-friendly JSON document.'**
   String get jsonModeDesc;
 
+  /// No description provided for @captureDataJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture data (key + value in current mode)'**
+  String get captureDataJson;
+
+  /// No description provided for @captureDataText.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture data (key + value as text)'**
+  String get captureDataText;
+
+  /// No description provided for @copyKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy key'**
+  String get copyKey;
+
   /// No description provided for @usbConnection.
   ///
   /// In en, this message translates to:

@@ -2524,7 +2524,7 @@ class _BlobInfo extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               S.of(context).binaryBodySize(
-                (sizeBytes / 1024).toStringAsFixed(1),
+                AppConstants.formatBytes(sizeBytes),
                 sizeBytes,
               ),
               style: TextStyle(
