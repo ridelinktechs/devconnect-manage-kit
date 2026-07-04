@@ -1,3 +1,23 @@
+## 1.0.5
+
+- **Hot reload / hot restart from desktop**: new public API
+  `DevConnect.onReloadRequest` and `DevConnect.onHotRestartRequest`.
+  The SDK now responds to `server:reload` and `server:hot_restart`
+  messages from DevConnect Manage Tool. Default implementation calls
+  `WidgetsBinding.reassembleApplication` (the same mechanism
+  `flutter run -r` uses). Override the hooks to wipe in-memory state
+  before reload or to remount your root widget for true hot-restart
+  semantics.
+- **Host cache identity verification**: the cached host entry now
+  carries the desktop's stable `machineId`, and the SDK probes the
+  server with a short-lived WebSocket on every reconnect to verify
+  the cached IP still points at the same machine. Stale or
+  mismatched entries are invalidated automatically — fixes the
+  simulator/device-swap reconnect bug.
+- **Legacy cache invalidation**: caches written by older SDKs (no
+  `machineId`) are now treated as absent instead of being trusted
+  blindly.
+
 ## 1.0.4
 
 - **Error monitoring**: new `error_monitor` plugin + cross-platform Error Inspector that captures uncaught and zone errors.

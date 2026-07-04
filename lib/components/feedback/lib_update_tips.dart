@@ -228,14 +228,14 @@ class _SdkCatalog {
     _SdkEntry(
       platform: _SdkPlatform.flutter,
       name: 'devconnect_manage_kit',
-      version: '1.0.4',
-      note: 'pubspec.yaml → devconnect_manage_kit: ^1.0.4',
+      version: '1.0.5',
+      note: 'pubspec.yaml → devconnect_manage_kit: ^1.0.5',
     ),
     _SdkEntry(
       platform: _SdkPlatform.reactNative,
       name: 'devconnect-manage-kit',
-      version: '1.0.5',
-      note: 'npm i / yarn add / pnpm add devconnect-manage-kit@1.0.5',
+      version: '1.0.6',
+      note: 'npm i / yarn add / pnpm add devconnect-manage-kit@1.0.6',
     ),
     _SdkEntry(
       platform: _SdkPlatform.android,

@@ -1,5 +1,6 @@
 # DevConnect Manage Kit — Flutter SDK
 
+[![pub.dev](https://img.shields.io/pub/v/devconnect_manage_kit)](https://pub.dev/packages/devconnect_manage_kit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.0-02569B?logo=flutter)](https://flutter.dev)
 
@@ -10,7 +11,7 @@ Debug your Flutter app with [DevConnect Manage Tool](https://github.com/ridelink
 ```yaml
 # pubspec.yaml
 dependencies:
-  devconnect_flutter: ^1.0.0
+  devconnect_manage_kit: ^1.0.5
 ```
 
 ## Quick Start
@@ -239,6 +240,30 @@ DevConnect.registerCommand('clearCache', (args) {
   return {'cleared': true};
 });
 ```
+
+### Hot Reload / Hot Restart from Desktop
+
+Since **1.0.5** — let DevConnect Manage Tool trigger a hot-reload
+(`server:reload`) or a hot-restart (`server:hot_restart`) on your
+app from the desktop. Both default to `WidgetsBinding.reassembleApplication`,
+the same path `flutter run -r` uses for hot-reload outside the IDE.
+
+```dart
+// Optional: wipe in-memory caches before the reload
+DevConnect.onReloadRequest = () {
+  myCache.clear();
+  WidgetsBinding.instance.reassembleApplication();
+};
+
+// Optional: true hot-restart semantics (the Flutter IDE's heavier
+// variant — tears down every State and remounts the root widget)
+final appKey = GlobalKey();
+DevConnect.onHotRestartRequest = () {
+  appKey.currentState?.reassemble();  // or bump a state-version counter
+};
+```
+
+> Works in debug builds only — production no-ops.
 
 ## Production Safety
 
