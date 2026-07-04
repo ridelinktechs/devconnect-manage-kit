@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
@@ -11,7 +9,6 @@ import '../../../../components/text/text_component.dart';
 import '../../../../core/utils/log_message_summary.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
-
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/status_badge.dart';
@@ -21,10 +18,8 @@ import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/code_generator.dart';
 import '../../../../server/providers/server_providers.dart';
-import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../models/log/log_entry.dart';
-import '../../../../server/providers/server_providers.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/console_providers.dart';
@@ -1092,22 +1087,9 @@ class _LogDetailPanelState extends State<_LogDetailPanel> {
                     const SizedBox(height: 20),
                     _SectionLabel(label: S.of(context).metadata),
                     const SizedBox(height: 6),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? ColorTokens.darkBackground
-                            : const Color(0xFFF0F0F0),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.06)
-                              : Colors.black.withValues(alpha: 0.06),
-                          width: 1,
-                        ),
-                      ),
-                      child: JsonViewer(data: entry.metadata),
+                    _MetadataBlock(
+                      data: entry.metadata!,
+                      deviceId: entry.deviceId,
                     ),
                   ],
 
@@ -1141,6 +1123,84 @@ class _LogDetailPanelState extends State<_LogDetailPanel> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Metadata block — same 3-mode toggle as the message block, so the user can
+// flip between Tree / JSON / Code without leaving the panel.
+// ---------------------------------------------------------------------------
+
+class _MetadataBlock extends ConsumerWidget {
+  final Map<String, dynamic> data;
+  final String deviceId;
+
+  const _MetadataBlock({
+    required this.data,
+    required this.deviceId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = ref.watch(metadataViewModeProvider);
+    final devices = ref.watch(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
+    final codeLabel = CodeGenerator.labelFor(codeLang);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.black.withValues(alpha: 0.06),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: ViewModeSwitcher(
+                current: mode,
+                codeLabel: codeLabel,
+                onChanged: (BodyViewMode m) =>
+                    ref.read(metadataViewModeProvider.notifier).state = m,
+              ),
+            ),
+          ),
+          DeferredBuilder(
+            key: ValueKey(mode),
+            builder: (_) {
+              switch (mode) {
+                case BodyViewMode.tree:
+                  return JsonViewer(data: data, initiallyExpanded: true);
+                case BodyViewMode.json:
+                  return JsonPrettyViewer(data: data);
+                case BodyViewMode.code:
+                  return CodeViewer(
+                    generated: CodeGenerator.generate(data, codeLang),
+                    lang: codeLang,
+                    languageLabel: codeLabel,
+                  );
+              }
+            },
           ),
         ],
       ),
@@ -1199,30 +1259,37 @@ class _LogMessageBlock extends ConsumerWidget {
     return AsyncJsonParser(
       rawData: message,
       builder: (context, parsed, isJson) {
-        final canToggle = isJson;
-
         Widget body;
-        if (!isJson) {
-          body = _PlainMessageBlock(text: message, isDark: isDark);
-        } else {
-          body = DeferredBuilder(
-            key: ValueKey(mode),
-            builder: (_) {
+        body = DeferredBuilder(
+          key: ValueKey('$mode-$isJson'),
+          builder: (_) {
+            // When the message isn't JSON we fall back to a plain text
+            // rendering for Tree/JSON (no node hierarchy exists), while
+            // Code still wraps it as a string literal so the toggle has
+            // something meaningful to switch between.
+            if (!isJson) {
               switch (mode) {
                 case BodyViewMode.tree:
-                  return JsonViewer(data: parsed, initiallyExpanded: true);
                 case BodyViewMode.json:
-                  return JsonPrettyViewer(data: message);
+                  return _PlainMessageBlock(text: message, isDark: isDark);
                 case BodyViewMode.code:
-                  return CodeViewer(
-                    generated: CodeGenerator.generate(parsed, codeLang),
-                    lang: codeLang,
-                    languageLabel: CodeGenerator.labelFor(codeLang),
-                  );
+                  return _CodeBlock(text: message, isDark: isDark);
               }
-            },
-          );
-        }
+            }
+            switch (mode) {
+              case BodyViewMode.tree:
+                return JsonViewer(data: parsed, initiallyExpanded: true);
+              case BodyViewMode.json:
+                return JsonPrettyViewer(data: parsed);
+              case BodyViewMode.code:
+                return CodeViewer(
+                  generated: CodeGenerator.generate(parsed, codeLang),
+                  lang: codeLang,
+                  languageLabel: CodeGenerator.labelFor(codeLang),
+                );
+            }
+          },
+        );
 
         return Container(
           width: double.infinity,
@@ -1239,7 +1306,7 @@ class _LogMessageBlock extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (canToggle)
+              if (true)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
                   child: ViewModeSwitcher(

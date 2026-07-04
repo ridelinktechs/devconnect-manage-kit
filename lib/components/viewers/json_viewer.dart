@@ -1440,6 +1440,16 @@ class _AsyncJsonParserState extends State<AsyncJsonParser> {
         return true;
       }
     }
+    // String ≥ 10k chars that LOOKS like JSON — defer to async path so
+    // the slow-path in [_processData] gets a chance to run on an isolate.
+    // Until the isolate finishes, mark as not-ready so callers see the
+    // spinner rather than rendering the raw string as text.
+    if (raw is String) {
+      final t = raw.trim();
+      if (t.length >= 10000 && (t.startsWith('{') || t.startsWith('['))) {
+        return false; // let [_scheduleProcess] take the async path
+      }
+    }
     // Fallback for other types: resolve sync, no spinner.
     _parsedData = raw;
     _isJson = false;
