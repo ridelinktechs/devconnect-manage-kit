@@ -13,6 +13,7 @@ import '../../core/theme/theme_provider.dart';
 import '../../core/utils/code_generator.dart';
 import '../../core/utils/toast_utils.dart';
 import '../../core/utils/code_highlighter.dart';
+import '../../core/utils/lru_cache.dart';
 import '../../core/utils/smooth_scroll_controller.dart';
 
 class JsonViewer extends StatefulWidget {
@@ -423,8 +424,62 @@ _HighlightResult _computeHighlight(List<dynamic> args) {
   return _HighlightResult(formatted, lines.length, lineTokens);
 }
 
-/// Global cache keyed by data identity.
-final _highlightCache = <int, _HighlightResult>{};
+/// Global cache keyed by data identity. Bounded to ~10 MB — old entries
+/// are evicted in LRU order once the budget is exceeded.
+final _highlightCache = LruCache<int, _HighlightResult>(
+  maxBytes: 10 * 1024 * 1024,
+  weightOf: (r) => r.formatted.length * 2 + // string chars ~2 bytes UTF-16
+      r.lineTokens.length * 48, // per-line List overhead estimate
+);
+
+/// Background-time tracker. When the app is paused/hidden for longer than
+/// [_idleClearThreshold], [_highlightCache] is cleared on resume so that
+/// stale (and possibly stale-by-data-version) entries don't linger.
+class HighlightCacheLifecycleObserver with WidgetsBindingObserver {
+  static const Duration _idleClearThreshold = Duration(minutes: 20);
+  static final HighlightCacheLifecycleObserver instance =
+      HighlightCacheLifecycleObserver._();
+
+  DateTime? _pausedAt;
+
+  HighlightCacheLifecycleObserver._();
+
+  void attach() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  void detach() {
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
+  /// Drops every cached highlight. Call when the data context changes
+  /// (device switch, project switch, etc.) so stale values aren't reused.
+  void clearCache() => _highlightCache.clear();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        _pausedAt ??= DateTime.now();
+        break;
+      case AppLifecycleState.resumed:
+        final pausedAt = _pausedAt;
+        _pausedAt = null;
+        if (pausedAt != null) {
+          final elapsed = DateTime.now().difference(pausedAt);
+          if (elapsed >= _idleClearThreshold) {
+            _highlightCache.clear();
+          }
+        }
+        break;
+      case AppLifecycleState.inactive:
+        // Transient state (e.g. incoming call, control center) — keep timer.
+        break;
+    }
+  }
+}
 
 class JsonPrettyViewer extends StatefulWidget {
   final dynamic data;
@@ -444,9 +499,15 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   /// Per-line TextSpan cache — built lazily per visible line.
   final Map<int, List<TextSpan>> _lineSpanCache = {};
   final _scrollController = SmoothScrollController();
+  /// The cache key for the entry currently displayed. Pinned so a cache
+  /// pressure from other pages can't evict the value the user is looking at.
+  int? _pinnedKey;
 
   @override
   void dispose() {
+    if (_pinnedKey != null) {
+      _highlightCache.unpin(_pinnedKey!);
+    }
     _scrollController.dispose();
     super.dispose();
   }
@@ -454,6 +515,8 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   @override
   void initState() {
     super.initState();
+    _pinnedKey = _cacheKey;
+    _highlightCache.pin(_pinnedKey!);
     _startCompute();
   }
 
@@ -461,19 +524,32 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   void didUpdateWidget(JsonPrettyViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.data, widget.data)) {
+      // Unpin the previous entry so it becomes evictable again.
+      if (_pinnedKey != null) {
+        _highlightCache.unpin(_pinnedKey!);
+      }
+      _pinnedKey = _cacheKey;
+      _highlightCache.pin(_pinnedKey!);
       _result = null;
       _lineSpanCache.clear();
       _startCompute();
+    } else {
+      // Same data — recompute if theme changed (handled in build) but
+      // never show the spinner for an unchanged payload.
+      _loading = _result == null;
     }
   }
 
   int get _cacheKey => identityHashCode(widget.data);
 
   void _startCompute() {
-    final cached = _highlightCache[_cacheKey];
+    final cached = _highlightCache.get(_cacheKey);
     if (cached != null) {
       _result = cached;
       _loading = false;
+      // Mark the build dirty so the cached result is rendered without
+      // sitting in the loading state for a frame.
+      if (mounted) setState(() {});
       return;
     }
 
@@ -484,7 +560,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
 
     compute(_computeHighlight, [widget.data, isDark]).then((result) {
       if (!mounted) return;
-      _highlightCache[_cacheKey] = result;
+      _highlightCache.put(_cacheKey, result);
       setState(() {
         _result = result;
         _loading = false;
