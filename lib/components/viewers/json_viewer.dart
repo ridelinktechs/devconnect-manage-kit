@@ -1303,10 +1303,25 @@ class _AsyncJsonParserState extends State<AsyncJsonParser> {
     }
   }
 
-  /// Always defers processing by 1 frame so the current build (tab switch,
+  /// Defers processing by 1 frame so the current build (tab switch,
   /// navigation push, etc.) finishes and paints the loading spinner first.
+  /// For data that needs no async work (null, Map, List, non-JSON strings,
+  /// short JSON strings) we resolve synchronously and skip the spinner
+  /// entirely — flashing a spinner on every click would clobber the selected
+  /// tile's highlight and make the panel feel sluggish.
   void _scheduleProcess() {
     _lastRawData = widget.rawData;
+    final raw = widget.rawData;
+
+    // Fast path: data that can be resolved without an isolate.
+    // We resolve synchronously and stay _ready=true so no spinner is shown.
+    if (_tryResolveSync(raw)) {
+      // _tryResolveSync already set _parsedData/_isJson and _ready=true.
+      if (mounted) setState(() {});
+      return;
+    }
+
+    // Slow path: large string needing isolate parsing. Show spinner.
     setState(() => _ready = false);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -1314,50 +1329,71 @@ class _AsyncJsonParserState extends State<AsyncJsonParser> {
     });
   }
 
-  void _processData() {
-    final raw = widget.rawData;
-    if (!identical(raw, _lastRawData)) return; // stale
-
+  /// Tries to resolve [raw] synchronously. Returns true if it succeeded
+  /// (caller should skip the spinner). Returns false if the data needs
+  /// background isolate parsing.
+  bool _tryResolveSync(dynamic raw) {
     if (raw == null) {
-      _finalize(null, false);
-      return;
+      _parsedData = null;
+      _isJson = false;
+      _ready = true;
+      return true;
     }
-
     if (raw is Map || raw is List) {
-      _finalize(raw, true);
-      return;
+      _parsedData = raw;
+      _isJson = true;
+      _ready = true;
+      return true;
     }
-
     if (raw is String) {
       final trimmed = raw.trim();
       if (trimmed.isEmpty || (trimmed[0] != '{' && trimmed[0] != '[')) {
-        _finalize(raw, false);
-        return;
+        _parsedData = raw;
+        _isJson = false;
+        _ready = true;
+        return true;
       }
-
-      // Short strings — parse synchronously (isolate startup overhead > parse cost)
       if (trimmed.length < 10000) {
         dynamic parsed;
         try {
           parsed = jsonDecode(trimmed);
         } catch (_) {}
-        _finalize(parsed ?? raw, parsed is Map || parsed is List);
+        _parsedData = parsed ?? raw;
+        _isJson = parsed is Map || parsed is List;
+        _ready = true;
+        return true;
+      }
+    }
+    // Fallback for other types: resolve sync, no spinner.
+    _parsedData = raw;
+    _isJson = false;
+    _ready = true;
+    return true;
+  }
+
+  void _processData() {
+    final raw = widget.rawData;
+    if (!identical(raw, _lastRawData)) return; // stale
+
+    // Should have been handled by the fast path; double-check.
+    if (raw is String) {
+      final trimmed = raw.trim();
+      if (trimmed.length >= 10000 &&
+          trimmed.isNotEmpty &&
+          (trimmed[0] == '{' || trimmed[0] == '[')) {
+        compute(_decodeJsonIsolate, trimmed).then((parsed) {
+          if (!mounted || !identical(_lastRawData, raw)) return;
+          _finalize(parsed ?? raw, parsed is Map || parsed is List);
+        }).catchError((_) {
+          if (!mounted || !identical(_lastRawData, raw)) return;
+          _finalize(raw, false);
+        });
         return;
       }
-
-      // Large strings — parse on a background isolate
-      compute(_decodeJsonIsolate, trimmed).then((parsed) {
-        if (!mounted || !identical(_lastRawData, raw)) return;
-        _finalize(parsed ?? raw, parsed is Map || parsed is List);
-      }).catchError((_) {
-        if (!mounted || !identical(_lastRawData, raw)) return;
-        _finalize(raw, false);
-      });
-      return;
     }
-
-    // Fallback
-    _finalize(raw, false);
+    // Otherwise: resolve synchronously and flip ready.
+    _tryResolveSync(raw);
+    if (mounted) setState(() {});
   }
 
   /// Commits the parsed result and flips [_ready] after one more frame so

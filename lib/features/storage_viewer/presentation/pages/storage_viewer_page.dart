@@ -12,6 +12,7 @@ import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/utils/code_generator.dart';
 import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../components/text/text_component.dart';
@@ -20,6 +21,7 @@ import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
+import '../../../../server/providers/server_providers.dart';
 import '../../provider/storage_providers.dart';
 
 class StorageViewerPage extends ConsumerStatefulWidget {
@@ -57,6 +59,18 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
         if (_autoScroll) _autoScrollIfNeeded();
       },
       fireImmediately: true,
+    );
+    // Selection changes must also bump generation — StableBuilderDelegate
+    // short-circuits shouldRebuild when generation is unchanged, which
+    // would otherwise leave tile decorations (selected bg, accent border)
+    // stuck on the previously-selected item.
+    ref.listenManual<String?>(
+      selectedStorageIdProvider,
+      (_, _) {
+        _generation++;
+        setState(() {});
+      },
+      fireImmediately: false,
     );
   }
 
@@ -236,6 +250,14 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                               Expanded(
                                 flex: 3,
                                 child: _StorageDetailPanel(
+                                  // Recycle the panel state when the entry
+                                  // changes — without this, Flutter reuses
+                                  // the State across entries, which can
+                                  // leave the GestureDetector inside the
+                                  // JsonPrettyViewer's deferred subtree in
+                                  // a state that captures subsequent pointer
+                                  // events.
+                                  key: ValueKey(selected.id),
                                   entry: selected,
                                   onClose: () => ref
                                       .read(selectedStorageIdProvider.notifier)
@@ -674,6 +696,11 @@ class _StorageEntryTile extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
+      // Opaque hit-testing so taps land on the tile's full area — without
+      // this, an outer MouseRegion can swallow the hit for hover handling
+      // before the GestureDetector sees it, breaking subsequent taps after
+      // a rebuild.
+      behavior: HitTestBehavior.opaque,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
@@ -794,20 +821,21 @@ class _StorageEntryTile extends StatelessWidget {
   }
 }
 
-class _StorageDetailPanel extends StatefulWidget {
+class _StorageDetailPanel extends ConsumerStatefulWidget {
   final StorageEntry entry;
   final VoidCallback onClose;
 
-  const _StorageDetailPanel({required this.entry, required this.onClose});
+  const _StorageDetailPanel({
+    super.key,
+    required this.entry,
+    required this.onClose,
+  });
 
   @override
-  State<_StorageDetailPanel> createState() => _StorageDetailPanelState();
+  ConsumerState<_StorageDetailPanel> createState() => _StorageDetailPanelState();
 }
 
-class _StorageDetailPanelState extends State<_StorageDetailPanel> {
-  bool _formatted = false;
-  bool _jsonMode = false;
-  bool _jsonEverOpened = false;
+class _StorageDetailPanelState extends ConsumerState<_StorageDetailPanel> {
   final _scrollController = SmoothScrollController();
 
   @override
@@ -818,7 +846,31 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
 
   StorageEntry get entry => widget.entry;
 
+  /// Stats used by the metadata footer + the JSON-mode empty state.
+  String _valueStats() {
+    final v = entry.value;
+    if (v == null) return 'null';
+    if (v is Map) {
+      final n = v.length;
+      return '$n ${n == 1 ? 'key' : 'keys'} · ${v.values.length} values';
+    }
+    if (v is List) return '${v.length} items';
+    final s = v.toString();
+    if (s.length > 24) return '${s.length} chars';
+    return s;
+  }
+
+  String _sizeLabel() {
+    final v = entry.value;
+    if (v == null) return '0 B';
+    final raw = v is String ? v : jsonEncode(v);
+    final bytes = raw.length;
+    if (bytes < 1024) return '$bytes B';
+    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  }
+
   void _takeScreenshot(BuildContext context, bool isDark) {
+    final mode = ref.read(bodyViewModeProvider);
     final isAlreadyJson = entry.value is Map || entry.value is List;
     dynamic parsedJson;
     if (!isAlreadyJson && entry.value is String) {
@@ -827,6 +879,12 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
         if (parsedJson is! Map && parsedJson is! List) parsedJson = null;
       } catch (_) {}
     }
+
+    final displayValue = isAlreadyJson
+        ? entry.value
+        : (parsedJson ?? entry.value);
+    final usePrettyJson = mode == BodyViewMode.json;
+    final useTree = mode == BodyViewMode.tree;
 
     final screenshotWidget = Container(
       color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
@@ -855,16 +913,12 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                   fontWeight: FontWeight.w600,
                   color: Colors.grey[500])),
           const SizedBox(height: 4),
-          if (isAlreadyJson)
-            _jsonMode
-                ? JsonPrettyViewer(data: entry.value)
-                : JsonViewer(data: entry.value, initiallyExpanded: true)
-          else if (_formatted && parsedJson != null)
-            _jsonMode
-                ? JsonPrettyViewer(data: parsedJson)
-                : JsonViewer(data: parsedJson, initiallyExpanded: true)
+          if (usePrettyJson)
+            JsonPrettyViewer(data: displayValue)
+          else if (useTree)
+            JsonViewer(data: displayValue, initiallyExpanded: true)
           else
-            JsonPrettyViewer(data: entry.value),
+            _screenshotCodeView(displayValue),
           const SizedBox(height: 16),
           TextComponent(S.of(context).metadata,
               style: TextStyle(
@@ -884,6 +938,23 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
     captureWidgetAsImage(context, screenshotWidget);
   }
 
+  Widget _screenshotCodeView(dynamic displayValue) {
+    final devices = ref.read(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == entry.deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final lang = CodeGenerator.langForPlatform(platform);
+    final generated =
+        CodeGenerator.generate(displayValue, lang);
+    return CodeViewer(
+      generated: generated,
+      lang: lang,
+      languageLabel: CodeGenerator.labelFor(lang),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -891,6 +962,16 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
     final time = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
     );
+    final mode = ref.watch(bodyViewModeProvider);
+
+    final devices = ref.watch(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == entry.deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
+    final codeLabel = CodeGenerator.labelFor(codeLang);
 
     final opColor = _StorageEntryTile._opColor(entry.operation);
     final tColor = _StorageEntryTile._typeColor(entry.storageType);
@@ -901,8 +982,7 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
         children: [
           // Header
           Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
             decoration: BoxDecoration(
               color: isDark ? ColorTokens.darkBackground : Colors.white,
               border: Border(
@@ -913,79 +993,67 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                 ),
               ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(LucideIcons.database, size: 14, color: ColorTokens.primary),
-                const SizedBox(width: 8),
-                // Operation badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: opColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: TextComponent(
-                    entry.operation.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
+                Row(
+                  children: [
+                    Icon(LucideIcons.database, size: 14, color: ColorTokens.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextComponent(
+                        entry.key,
+                        style: TextStyle(
+                          fontFamily: AppConstants.monoFontFamily,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    _DetailIconBtn(
+                      icon: LucideIcons.camera,
+                      tooltip: S.of(context).captureAsImage,
+                      isDark: isDark,
+                      onTap: () => _takeScreenshot(context, isDark),
+                    ),
+                    const SizedBox(width: 4),
+                    _DetailIconBtn(
+                      icon: LucideIcons.x,
+                      tooltip: S.of(context).close,
+                      isDark: isDark,
+                      onTap: widget.onClose,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _MetaChip(
+                      icon: _opIcon(entry.operation),
+                      label: entry.operation.toUpperCase(),
                       color: opColor,
+                      isDark: isDark,
                     ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                // Type badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: tColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: TextComponent(
-                    entry.storageType.name,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
+                    const SizedBox(width: 6),
+                    _MetaChip(
+                      icon: LucideIcons.database,
+                      label: entry.storageType.name,
                       color: tColor,
+                      isDark: isDark,
                     ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextComponent(
-                    entry.key,
-                    style: TextStyle(
-                      fontFamily: AppConstants.monoFontFamily,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black87,
+                    const SizedBox(width: 6),
+                    _MetaChip(
+                      icon: LucideIcons.clock,
+                      label: time,
+                      color: Colors.grey,
+                      isDark: isDark,
+                      isMono: true,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                TextComponent(
-                  time,
-                  style: TextStyle(
-                    fontFamily: AppConstants.monoFontFamily,
-                    fontSize: 10,
-                    color: Colors.grey[500],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                _DetailIconBtn(
-                  icon: LucideIcons.camera,
-                  tooltip: S.of(context).captureAsImage,
-                  isDark: isDark,
-                  onTap: () => _takeScreenshot(context, isDark),
-                ),
-                const SizedBox(width: 4),
-                _DetailIconBtn(
-                  icon: LucideIcons.x,
-                  tooltip: S.of(context).close,
-                  isDark: isDark,
-                  onTap: widget.onClose,
+                    const Spacer(),
+                  ],
                 ),
               ],
             ),
@@ -995,8 +1063,13 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
             child: AsyncJsonParser(
               rawData: entry.value,
               builder: (context, parsedJson, isJson) {
-                final isAlreadyJson = entry.value is Map || entry.value is List;
-                final canFormat = isJson && !isAlreadyJson;
+                final isAlreadyJson =
+                    entry.value is Map || entry.value is List;
+                // For Tree/JSON: prefer the parsed JSON when available so
+                // string-encoded JSON renders correctly in both modes.
+                final displayValue = isAlreadyJson
+                    ? entry.value
+                    : (parsedJson ?? entry.value);
 
                 return SingleChildScrollView(
                   controller: _scrollController,
@@ -1004,43 +1077,71 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Value section
+                      // Section header
                       Row(
                         children: [
-                          TextComponent('Value', style: theme.textTheme.titleSmall),
-                          const Spacer(),
-                          if (isAlreadyJson || (canFormat && _formatted)) ...[
-                            _ViewModeToggle(
-                              isJsonMode: _jsonMode,
-                              onToggle: () => setState(() {
-                                _jsonMode = !_jsonMode;
-                                if (_jsonMode) _jsonEverOpened = true;
-                              }),
-                              isDark: isDark,
+                          TextComponent(
+                            'Value',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
                             ),
-                            const SizedBox(width: 8),
-                          ],
-                          if (canFormat)
-                            _FormatToggle(
-                              isFormatted: _formatted,
-                              onToggle: () =>
-                                  setState(() => _formatted = !_formatted),
-                              isDark: isDark,
-                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _MetaChip(
+                            icon: LucideIcons.hardDrive,
+                            label: _sizeLabel(),
+                            color: Colors.grey,
+                            isDark: isDark,
+                            isMono: true,
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      if (_jsonMode && (isAlreadyJson || (_formatted && parsedJson != null))) ...[
-                        if (_jsonEverOpened)
-                          JsonPrettyViewer(data: entry.value),
-                      ] else ...[
-                        if (isAlreadyJson)
-                          JsonViewer(data: entry.value, initiallyExpanded: true)
-                        else if (_formatted && parsedJson != null)
-                          JsonViewer(data: parsedJson, initiallyExpanded: true)
-                        else
-                          JsonViewer(data: entry.value, initiallyExpanded: false),
-                      ],
+                      const SizedBox(height: 10),
+                      // View switcher (own row so its inner Expanded row gets
+                      // a real width — placing it inside a parent Row collapsed
+                      // the Container's intrinsic width to ~0, hiding it).
+                      SizedBox(
+                        width: double.infinity,
+                        child: ViewModeSwitcher(
+                          current: mode,
+                          codeLabel: codeLabel,
+                          onChanged: (BodyViewMode m) =>
+                              ref.read(bodyViewModeProvider.notifier).set(m),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      DeferredBuilder(
+                        key: ValueKey(mode),
+                        builder: (_) {
+                          switch (mode) {
+                            case BodyViewMode.tree:
+                              return JsonViewer(
+                                data: displayValue,
+                                initiallyExpanded: true,
+                              );
+                            case BodyViewMode.json:
+                              return JsonPrettyViewer(data: displayValue);
+                            case BodyViewMode.code:
+                              return CodeViewer(
+                                generated: CodeGenerator.generate(
+                                  displayValue,
+                                  codeLang,
+                                ),
+                                lang: codeLang,
+                                languageLabel: codeLabel,
+                              );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      const _MetaDivider(),
+                      const SizedBox(height: 12),
+                      _MetadataFooter(
+                        entry: entry,
+                        isDark: isDark,
+                        stats: _valueStats(),
+                      ),
                     ],
                   ),
                 );
@@ -1049,6 +1150,161 @@ class _StorageDetailPanelState extends State<_StorageDetailPanel> {
           ),
         ],
       ),
+    );
+  }
+
+  IconData _opIcon(String op) {
+    switch (op.toLowerCase()) {
+      case 'write':
+        return LucideIcons.pencilLine;
+      case 'delete':
+      case 'clear':
+        return LucideIcons.trash2;
+      default:
+        return LucideIcons.eye;
+    }
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool isDark;
+  final bool isMono;
+
+  const _MetaChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.isDark,
+    this.isMono = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(
+        color: color == Colors.grey
+            ? (isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.black.withValues(alpha: 0.04))
+            : color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 10,
+            color: color == Colors.grey ? Colors.grey[500] : color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: isMono ? AppConstants.monoFontFamily : null,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: color == Colors.grey ? Colors.grey[500] : color,
+              letterSpacing: isMono ? -0.1 : 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaDivider extends StatelessWidget {
+  const _MetaDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      children: [
+        TextComponent(
+          'Metadata',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.06),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MetadataFooter extends StatelessWidget {
+  final StorageEntry entry;
+  final bool isDark;
+  final String stats;
+
+  const _MetadataFooter({
+    required this.entry,
+    required this.isDark,
+    required this.stats,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final labelColor = isDark ? Colors.grey[500] : Colors.grey[600];
+    final valueColor = isDark ? Colors.white70 : Colors.black87;
+    final monoStyle = TextStyle(
+      fontFamily: AppConstants.monoFontFamily,
+      fontSize: 11,
+      color: valueColor,
+    );
+
+    Widget row(String label, String value) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 96,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: labelColor,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  value,
+                  style: monoStyle,
+                  softWrap: true,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row('Type', entry.storageType.name),
+        row('Operation', entry.operation),
+        row('Shape', stats),
+        row('Device', entry.deviceId),
+      ],
     );
   }
 }
@@ -1084,108 +1340,6 @@ class _DetailIconBtn extends StatelessWidget {
                   : Colors.black.withValues(alpha: 0.06),
             ),
             child: Icon(icon, size: 13, color: Colors.grey[500]),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ViewModeToggle extends StatelessWidget {
-  final bool isJsonMode;
-  final VoidCallback onToggle;
-  final bool isDark;
-
-  const _ViewModeToggle({
-    required this.isJsonMode,
-    required this.onToggle,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onToggle,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            color: isJsonMode
-                ? ColorTokens.primary.withValues(alpha: 0.15)
-                : (isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.black.withValues(alpha: 0.06)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isJsonMode ? LucideIcons.braces : LucideIcons.list,
-                size: 12,
-                color: isJsonMode ? ColorTokens.primary : Colors.grey[500],
-              ),
-              const SizedBox(width: 4),
-              TextComponent(
-                isJsonMode ? S.of(context).json : S.of(context).tree,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: isJsonMode ? ColorTokens.primary : Colors.grey[500],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FormatToggle extends StatelessWidget {
-  final bool isFormatted;
-  final VoidCallback onToggle;
-  final bool isDark;
-
-  const _FormatToggle({
-    required this.isFormatted,
-    required this.onToggle,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onToggle,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            color: isFormatted
-                ? ColorTokens.primary.withValues(alpha: 0.15)
-                : (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.06)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                LucideIcons.braces,
-                size: 12,
-                color: isFormatted ? ColorTokens.primary : Colors.grey[500],
-              ),
-              const SizedBox(width: 4),
-              TextComponent(
-                isFormatted ? S.of(context).raw : S.of(context).format,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: isFormatted ? ColorTokens.primary : Colors.grey[500],
-                ),
-              ),
-            ],
           ),
         ),
       ),
