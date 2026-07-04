@@ -209,17 +209,18 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                               },
                               builder: (context, index) {
                                 final entry = _entries[index];
-                                final isSelected = selected?.id == entry.id;
                                 return RepaintBoundary(
                                   key: ValueKey(entry.id),
                                   child: _StateChangeTile(
                                     entry: entry,
-                                    isSelected: isSelected,
                                     onTap: () {
+                                      final currentlySelected =
+                                          ref.read(selectedStateChangeIdProvider) ==
+                                              entry.id;
                                       ref
                                           .read(selectedStateChangeIdProvider.notifier)
-                                          .state = isSelected ? null : entry.id;
-                                      if (!isSelected && _autoScroll) {
+                                          .state = currentlySelected ? null : entry.id;
+                                      if (!currentlySelected && _autoScroll) {
                                         _autoScroll = false;
                                         _programmaticScroll = false;
                                         if (_scrollController.hasClients) {
@@ -354,20 +355,20 @@ class _Toolbar extends ConsumerWidget {
   }
 }
 
-class _StateChangeTile extends StatelessWidget {
+class _StateChangeTile extends ConsumerWidget {
   final StateChange entry;
-  final bool isSelected;
   final VoidCallback onTap;
 
   const _StateChangeTile({
     super.key,
     required this.entry,
-    required this.isSelected,
     required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedId = ref.watch(selectedStateChangeIdProvider);
+    final isSelected = selectedId == entry.id;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final time = DateFormat('HH:mm:ss.SSS').format(
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
