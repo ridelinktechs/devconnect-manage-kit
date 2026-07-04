@@ -64,6 +64,14 @@ class WsMessageHandler {
   int _networkSeq = 0;
   final _uuid = const Uuid();
 
+  /// Tracks ids we've already emitted for one-shot entries (log, state,
+  /// storage, performance, display, async, error). If a client reuses
+  /// the same `message.id` across two messages — e.g. a retried log or
+  /// a state snapshot sent twice — we disambiguate so the row in the
+  /// UI list stays a distinct entry.
+  final _seenMessageIds = <String>{};
+  int _genericSeq = 0;
+
   /// Build a unique id for one logical network request.
   ///
   /// One round-trip = one start + one complete (whether success or
@@ -144,6 +152,30 @@ class WsMessageHandler {
     final keys = _openTrips.keys.toList(growable: false);
     for (var i = 0; i < drop; i++) {
       _openTrips.remove(keys[i]);
+    }
+  }
+
+  /// Mint a unique id for a one-shot entry (log, state, storage, etc.).
+  /// Unlike network round-trips these don't have a `start`/`complete`
+  /// pair, so we just guarantee that no two entries ever share the
+  /// same id — if `message.id` was already seen, disambiguate.
+  String _uniqueOneShotId(String messageId) {
+    if (_seenMessageIds.add(messageId)) return messageId;
+    final seq = (++_genericSeq).toRadixString(36);
+    final micros = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final rand = _uuid.v4().substring(0, 4);
+    final newId = '$messageId-$micros-$seq-$rand';
+    _seenMessageIds.add(newId);
+    _trimSeenMessageIds();
+    return newId;
+  }
+
+  void _trimSeenMessageIds() {
+    if (_seenMessageIds.length <= 4096) return;
+    final drop = _seenMessageIds.length - 2048;
+    final keys = _seenMessageIds.toList(growable: false);
+    for (var i = 0; i < drop; i++) {
+      _seenMessageIds.remove(keys[i]);
     }
   }
 
@@ -289,7 +321,7 @@ class WsMessageHandler {
 
   void _handleLog(DCMessage message) {
     final entry = LogEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       level: _parseLogLevel(message.payload['level'] as String? ?? 'info'),
       message: message.payload['message'] as String? ?? '',
@@ -343,7 +375,7 @@ class WsMessageHandler {
         [];
 
     final entry = StateChange(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       stateManagerType: p['stateManager'] as String? ?? 'unknown',
       actionName: p['action'] as String? ?? '',
@@ -359,7 +391,7 @@ class WsMessageHandler {
   void _handleStorage(DCMessage message) {
     final p = message.payload;
     final entry = StorageEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       storageType: _parseStorageType(p['storageType'] as String? ?? ''),
       key: p['key'] as String? ?? '',
@@ -426,7 +458,7 @@ class WsMessageHandler {
   void _handlePerformance(DCMessage message) {
     final p = message.payload;
     final entry = PerformanceEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       metricType: _parseMetricType(p['metricType'] as String? ?? 'fps'),
       value: (p['value'] as num?)?.toDouble() ?? 0.0,
@@ -439,7 +471,7 @@ class WsMessageHandler {
   void _handleMemoryLeak(DCMessage message) {
     final p = message.payload;
     final entry = MemoryLeakEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       leakType: _parseLeakType(p['leakType'] as String? ?? 'custom'),
       objectName: p['objectName'] as String? ?? '',
@@ -490,7 +522,7 @@ class WsMessageHandler {
   void _handleDisplay(DCMessage message) {
     final p = message.payload;
     final entry = DisplayEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       name: p['name'] as String? ?? 'Display',
       timestamp: message.timestamp,
@@ -505,7 +537,7 @@ class WsMessageHandler {
   void _handleAsyncOperation(DCMessage message) {
     final p = message.payload;
     final entry = AsyncOperationEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       operationType: _parseAsyncOpType(p['operationType'] as String? ?? 'custom'),
       description: p['description'] as String? ?? '',
@@ -523,7 +555,7 @@ class WsMessageHandler {
   void _handleError(DCMessage message) {
     final p = message.payload;
     final entry = ErrorEvent(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       platform: _parseErrorPlatform(p['platform'] as String? ?? 'js'),
       severity: _parseErrorSeverity(p['severity'] as String? ?? 'error'),
