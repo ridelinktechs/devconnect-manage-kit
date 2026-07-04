@@ -12,8 +12,10 @@ import '../../../../components/lists/stable_list_view.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/screenshot_filename.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../server/providers/server_providers.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../models/log/error_event.dart';
 import '../../provider/error_providers.dart';
@@ -190,6 +192,13 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
     );
 
+    // Resolve a descriptive file name: error_<source>_<ts>_full.png
+    final fileName = buildRichScreenshotName(
+      type: 'error',
+      subject: entry.source ?? entry.severity.name,
+      suffix: '_full',
+    );
+
     captureWidgetAsImage(
       context,
       Container(
@@ -267,6 +276,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
           ],
         ),
       ),
+      fileName: fileName,
     );
   }
 
@@ -1866,17 +1876,33 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
 
   Future<void> _takeFullScreenshot() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final entry = widget.entry;
+    final subject = entry.source ?? entry.severity.name;
+    final fileName = buildRichScreenshotName(
+      type: 'error',
+      subject: subject,
+      suffix: '_full',
+    );
     await captureWidgetAsImage(
       context,
       _buildFullScreenshotWidget(isDark),
+      fileName: fileName,
     );
   }
 
   Future<void> _takeTabScreenshot() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final entry = widget.entry;
+    final subject = entry.source ?? entry.severity.name;
+    final fileName = buildRichScreenshotName(
+      type: 'error',
+      subject: subject,
+      suffix: '_tab',
+    );
     await captureWidgetAsImage(
       context,
       _buildTabScreenshotWidget(isDark, _tabController.index),
+      fileName: fileName,
     );
   }
 

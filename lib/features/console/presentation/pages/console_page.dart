@@ -19,6 +19,7 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/code_generator.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/screenshot_filename.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
@@ -179,6 +180,13 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
     );
 
+    // Build a descriptive filename: log_<tag>_<ts>_full.png
+    final fileName = buildRichScreenshotName(
+      type: 'log',
+      subject: entry.tag ?? entry.level.name,
+      suffix: '_full',
+    );
+
     captureWidgetAsImage(
       context,
       Container(
@@ -315,6 +323,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
         ),
       ),
       width: 600,
+      fileName: fileName,
     );
   }
 

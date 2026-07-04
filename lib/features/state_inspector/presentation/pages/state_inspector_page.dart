@@ -12,6 +12,7 @@ import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/screenshot_filename.dart';
 import '../../../../models/state/state_change.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
@@ -492,6 +493,15 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
   StateChange get entry => widget.entry;
 
   void _takeScreenshot(BuildContext context, bool isDark) {
+    // Resolve a descriptive file name: state_<action>_<ts>_full.png
+    final fileName = buildRichScreenshotName(
+      type: 'state',
+      subject: entry.actionName.isNotEmpty
+          ? entry.actionName
+          : entry.stateManagerType,
+      suffix: '_full',
+    );
+
     final screenshotWidget = Container(
       color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
@@ -600,7 +610,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
         ],
       ),
     );
-    captureWidgetAsImage(context, screenshotWidget);
+    captureWidgetAsImage(context, screenshotWidget, fileName: fileName);
   }
 
   @override

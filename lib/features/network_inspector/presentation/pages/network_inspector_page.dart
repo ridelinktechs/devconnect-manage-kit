@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart' hide ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/utils/screenshot_filename.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -1346,7 +1347,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
 
   // ---- Screenshot ----
 
-  Future<void> _captureAndSave(Widget screenshotWidget) async {
+  Future<void> _captureAndSave(Widget screenshotWidget, {String? fileName}) async {
     try {
       _showCaptureFlash();
 
@@ -1391,10 +1392,13 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
       if (byteData == null) return;
 
       final pngBytes = byteData.buffer.asUint8List();
-      final fileName =
-          'devconnect_network_${DateTime.now().millisecondsSinceEpoch}.png';
+      final baseName = (fileName == null || fileName.isEmpty)
+          ? 'devconnect_network_${DateTime.now().millisecondsSinceEpoch}'
+          : fileName;
+      final outName =
+          baseName.endsWith('.png') ? baseName : '$baseName.png';
       final location = await getSaveLocation(
-        suggestedName: fileName,
+        suggestedName: outName,
         acceptedTypeGroups: [
           const XTypeGroup(label: 'PNG Image', extensions: ['png']),
         ],
@@ -1670,14 +1674,37 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
   Future<void> _takeFullScreenshot() async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    await _captureAndSave(_buildFullScreenshotWidget(isDark));
+    final subject = _urlPath(widget.entry.url);
+    final fileName = buildRichScreenshotName(
+      type: 'network',
+      subject: subject,
+      suffix: '_full',
+    );
+    await _captureAndSave(_buildFullScreenshotWidget(isDark),
+        fileName: fileName);
   }
 
   Future<void> _takeTabScreenshot() async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final subject = _urlPath(widget.entry.url);
+    final fileName = buildRichScreenshotName(
+      type: 'network',
+      subject: subject,
+      suffix: '_tab',
+    );
     await _captureAndSave(
-        _buildTabScreenshotWidget(isDark, _tabController.index));
+        _buildTabScreenshotWidget(isDark, _tabController.index),
+        fileName: fileName);
+  }
+
+  String _urlPath(String url) {
+    try {
+      final p = Uri.parse(url).path;
+      return p.isEmpty ? url : p;
+    } catch (_) {
+      return url;
+    }
   }
 
   Widget _buildFullScreenshotWidget(bool isDark) {

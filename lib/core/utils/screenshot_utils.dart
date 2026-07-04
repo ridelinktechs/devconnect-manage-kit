@@ -1,9 +1,10 @@
-import 'dart:io' show Platform, Process;
 import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+
+import 'toast_utils.dart';
 
 /// Captures a widget as a PNG image and saves to file. Returns the saved
 /// file path on success, or null if the user cancelled the save dialog or
@@ -14,8 +15,11 @@ import 'package:flutter/rendering.dart';
 /// Callers should pass a meaningful name so the user can recognise the
 /// context of the screenshot — e.g. `storage_data_user_token`.
 ///
+/// [pixelRatio] defaults to 3.0 for crisp Retina-class output on
+/// macOS/Windows displays. Lower if the screenshot is too large to share.
+///
 /// [onSaved] is called with the saved path after the file is written. If
-/// omitted, a default SnackBar with an Open action is shown.
+/// omitted, the rich "Screenshot saved · Reveal" overlay toast is shown.
 ///
 /// Implementation note: we use [XFile] + [saveTo] (rather than `File.writeAsBytes`)
 /// so the user-selected path is treated as authoritative — on macOS the OS
@@ -25,7 +29,7 @@ Future<String?> captureWidgetAsImage(
   BuildContext context,
   Widget screenshotWidget, {
   double width = 600,
-  double pixelRatio = 2.0,
+  double pixelRatio = 3.0,
   String? fileName,
   void Function(String savedPath)? onSaved,
 }) async {
@@ -108,17 +112,9 @@ Future<String?> captureWidgetAsImage(
       if (onSaved != null) {
         onSaved(savedPath);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Screenshot saved: $savedPath'),
-            duration: const Duration(seconds: 4),
-            behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'Open',
-              onPressed: () => _openFile(savedPath),
-            ),
-          ),
-        );
+        // Use the rich overlay toast defined in toast_utils.dart so
+        // every page shows the same "Screenshot saved · Reveal" pill.
+        showScreenshotSavedToast(context, filePath: savedPath);
       }
     }
     return savedPath;
@@ -143,23 +139,6 @@ String _ensureFilename(String path, String desiredName) {
   return '${path.substring(0, last + 1)}$desiredName';
 }
 
-/// Opens [path] with the OS default handler. macOS uses `open`, Linux
-/// uses `xdg-open`, Windows uses `start`. Failures are swallowed — the
-/// snackbar stays visible so the user can read the path.
-Future<void> _openFile(String path) async {
-  try {
-    if (Platform.isMacOS) {
-      await Process.run('open', [path]);
-    } else if (Platform.isLinux) {
-      await Process.run('xdg-open', [path]);
-    } else if (Platform.isWindows) {
-      await Process.run('start', ['', path], runInShell: true);
-    }
-  } catch (_) {
-    // ignore — file may not exist or no handler registered
-  }
-}
-
 void _showCaptureFlash(BuildContext context) {
   final overlay = Overlay.of(context);
   late OverlayEntry flashEntry;
@@ -178,3 +157,4 @@ void _showCaptureFlash(BuildContext context) {
   );
   overlay.insert(flashEntry);
 }
+

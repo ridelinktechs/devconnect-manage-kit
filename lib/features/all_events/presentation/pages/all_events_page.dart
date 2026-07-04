@@ -48,269 +48,6 @@ import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/all_events_provider.dart';
 
 // ═══════════════════════════════════════════════
-// Shared rich screenshot toast (overlay pill with Reveal in Finder)
-// ═══════════════════════════════════════════════
-
-/// Shows a floating overlay toast confirming a screenshot was saved.
-/// Includes a Reveal button that opens the containing folder in Finder
-/// (macOS) / file manager (Linux/Windows).
-void showScreenshotSavedToast(BuildContext context, String path) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  final overlay = Overlay.of(context);
-  late OverlayEntry entry;
-  entry = OverlayEntry(
-    builder: (_) => Positioned(
-      bottom: 32,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) => Opacity(
-            opacity: value,
-            child: Transform.translate(
-              offset: Offset(0, 20 * (1 - value)),
-              child: Transform.scale(
-                scale: 0.92 + 0.08 * value,
-                child: child,
-              ),
-            ),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 380),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF131A24)
-                    : const Color(0xFFFFFFFF),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.06),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 32,
-                    offset: const Offset(0, 8),
-                  ),
-                  if (isDark)
-                    BoxShadow(
-                      color: ColorTokens.success.withValues(alpha: 0.08),
-                      blurRadius: 40,
-                      spreadRadius: -4,
-                    ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    height: 3,
-                    margin: const EdgeInsets.symmetric(horizontal: 40),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          ColorTokens.success.withValues(alpha: 0.0),
-                          ColorTokens.success,
-                          ColorTokens.success.withValues(alpha: 0.0),
-                        ],
-                      ),
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                ColorTokens.success.withValues(alpha: 0.2),
-                                ColorTokens.success.withValues(alpha: 0.08),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color:
-                                  ColorTokens.success.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: const Icon(
-                            LucideIcons.checkCheck,
-                            size: 18,
-                            color: ColorTokens.success,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              TextComponent(
-                                S.of(context).screenshotSaved,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark
-                                      ? ColorTokens.lightBackground
-                                      : const Color(0xFF1E293B),
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              TextComponent(
-                                path.split('/').last,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontFamily: AppConstants.monoFontFamily,
-                                  color: isDark
-                                      ? Colors.grey[500]
-                                      : Colors.grey[600],
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Reveal in Finder button
-                        _RevealButton(
-                          onTap: () {
-                            entry.remove();
-                            Process.run('open', ['-R', path]);
-                          },
-                        ),
-                        const SizedBox(width: 4),
-                        _CloseToastButton(onTap: () => entry.remove()),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-  overlay.insert(entry);
-  Future.delayed(const Duration(seconds: 5), () {
-    if (entry.mounted) entry.remove();
-  });
-}
-
-/// Reveal button used by [showScreenshotSavedToast]. Top-level so both
-/// storage-full and storage-data captures can use the same toast.
-class _RevealButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _RevealButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isDark
-                  ? [const Color(0xFF1A2332), const Color(0xFF1E2A3A)]
-                  : [const Color(0xFFF0F4F8), const Color(0xFFE8EDF2)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.1)
-                  : Colors.black.withValues(alpha: 0.08),
-            ),
-          ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  LucideIcons.folderOpen,
-                  size: 13,
-                  color: isDark
-                      ? ColorTokens.lightBackground
-                      : const Color(0xFF374151),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  S.of(context).reveal,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isDark
-                        ? ColorTokens.lightBackground
-                        : const Color(0xFF374151),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Close button used by [showScreenshotSavedToast].
-class _CloseToastButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _CloseToastButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(6),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          width: 28,
-          height: 28,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.04)
-                : Colors.black.withValues(alpha: 0.04),
-          ),
-          child: Icon(
-            LucideIcons.x,
-            size: 13,
-            color: isDark ? Colors.grey[600] : Colors.grey[400],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════
 // All Events Page
 // ═══════════════════════════════════════════════
 
@@ -2804,7 +2541,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
       );
       await xfile.saveTo(savedPath);
 
-      if (mounted) showScreenshotSavedToast(context, savedPath);
+      if (mounted) showScreenshotSavedToast(context, filePath: savedPath);
     } catch (e) {
       if (mounted) _showErrorToast('$e');
     }
@@ -3085,17 +2822,12 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
   }
 
   /// Builds a descriptive file name for event screenshots:
-  /// `<appName>_<type>_<keyOrTitle>_<isoTimestamp>_<suffix>.png`
-  /// Falls back gracefully when app/key metadata is missing.
+  /// `<type>_<keyOrTitle>_<isoTimestamp>_<suffix>.png`
+  /// Falls back gracefully when key metadata is missing.
+  /// Note: appName is intentionally NOT included — screenshots may be
+  /// shared with clients and the internal app identifier must not leak.
   String _buildEventScreenshotName(String suffix) {
     final event = widget.event;
-    final devices = ProviderScope.containerOf(context, listen: false)
-        .read(connectedDevicesProvider);
-    final appName = devices
-        .where((d) => d.deviceId == event.deviceId)
-        .map((d) => d.appName)
-        .firstOrNull;
-    final app = (appName == null || appName.isEmpty) ? 'app' : appName;
     final type = event.type.name;
 
     // Pick a meaningful subject: storage key, network URL path, log tag, etc.
@@ -3119,13 +2851,11 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
           : sc.stateManagerType;
     }
 
-    final key = safeFileName(subject);
-    final ts = DateTime.now()
-        .toIso8601String()
-        .replaceAll(':', '-')
-        .split('.')
-        .first;
-    return '${safeFileName(app)}_${type}_${key}_$ts$suffix';
+    return buildRichScreenshotName(
+      type: type,
+      subject: subject,
+      suffix: suffix,
+    );
   }
 
   Future<void> _takeTabScreenshot() async {
@@ -6996,26 +6726,20 @@ class _StorageDetailRedesignState
       capture,
       fileName: _buildScreenshotName(devices, '_data'),
       onSaved: (path) {
-        if (mounted) showScreenshotSavedToast(context, path);
+        if (mounted) showScreenshotSavedToast(context, filePath: path);
       },
     );
   }
 
   String _buildScreenshotName(List<DeviceInfo> devices, String suffix) {
     final entry = widget.entry;
-    final appName = devices
-        .where((d) => d.deviceId == entry.deviceId)
-        .map((d) => d.appName)
-        .firstOrNull;
-    final app = (appName == null || appName.isEmpty) ? 'app' : appName;
-    final type = entry.storageType.name;
-    final key = safeFileName(entry.key);
-    final ts = DateTime.now()
-        .toIso8601String()
-        .replaceAll(':', '-')
-        .split('.')
-        .first;
-    return '${safeFileName(app)}_${type}_${key}_$ts$suffix';
+    // Note: appName intentionally omitted to avoid leaking the app
+    // identifier into filenames shared with clients.
+    return buildRichScreenshotName(
+      type: entry.storageType.name,
+      subject: entry.key,
+      suffix: suffix,
+    );
   }
 }
 
