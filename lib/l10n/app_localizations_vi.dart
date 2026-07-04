@@ -594,6 +594,26 @@ class SVi extends S {
       'Các lệnh gọi API sẽ xuất hiện ở đây theo thời gian thực';
 
   @override
+  String clearStaleButton(Object count) {
+    return 'Cũ ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return 'Xóa $count yêu cầu đang chờ không có phản hồi trên 10 phút';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return 'Đã xóa $count yêu cầu cũ (chờ > 10 phút)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return 'An toàn bộ nhớ: đã loại $count mục mạng cũ khỏi bộ nhớ đệm open-trips';
+  }
+
+  @override
   String get networkTitle => 'Mạng';
 
   @override

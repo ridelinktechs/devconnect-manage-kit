@@ -592,6 +592,26 @@ class SEn extends S {
   String get apiCallsAppearHere => 'API calls will appear here in real-time';
 
   @override
+  String clearStaleButton(Object count) {
+    return 'Stale ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return 'Clear $count pending request(s) with no response for over 10 minutes';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return 'Cleared $count stale request(s) (pending > 10min)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return 'Memory safety: dropped $count stale network entry(ies) from the open-trips cache';
+  }
+
+  @override
   String get networkTitle => 'Network';
 
   @override

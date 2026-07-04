@@ -580,6 +580,26 @@ class SZh extends S {
   String get apiCallsAppearHere => 'API 调用将实时显示在这里';
 
   @override
+  String clearStaleButton(Object count) {
+    return '过期 ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return '清除 $count 个超过 10 分钟未响应的挂起请求';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '已清除 $count 个过期请求 (挂起 > 10 分钟)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return '内存安全: 已从 open-trips 缓存中丢弃 $count 个过期网络条目';
+  }
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -1608,6 +1628,26 @@ class SZhCn extends SZh {
   String get apiCallsAppearHere => 'API 调用将实时显示在这里';
 
   @override
+  String clearStaleButton(Object count) {
+    return '过期 ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return '清除 $count 个超过 10 分钟未响应的挂起请求';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '已清除 $count 个过期请求 (挂起 > 10 分钟)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return '内存安全: 已从 open-trips 缓存中丢弃 $count 个过期网络条目';
+  }
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -2634,6 +2674,26 @@ class SZhTw extends SZh {
 
   @override
   String get apiCallsAppearHere => 'API 呼叫將即時顯示在這裡';
+
+  @override
+  String clearStaleButton(Object count) {
+    return '過期 ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return '清除 $count 個超過 10 分鐘未回應的掛起請求';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '已清除 $count 個過期請求 (掛起 > 10 分鐘)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return '記憶體安全: 已從 open-trips 快取中丟棄 $count 個過期網路條目';
+  }
 
   @override
   String get networkTitle => '網路';

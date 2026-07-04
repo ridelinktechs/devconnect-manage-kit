@@ -13,6 +13,7 @@ import '../models/performance/performance_entry.dart';
 import '../models/storage/storage_entry.dart';
 import 'protocol/dc_message.dart';
 import 'ws_server.dart';
+import 'package:uuid/uuid.dart';
 
 class WsMessageHandler {
   final WsServer server;
@@ -50,6 +51,101 @@ class WsMessageHandler {
   late final StreamSubscription<DCMessage> _messageSub;
   late final StreamSubscription<DeviceInfo> _connectionSub;
   late final StreamSubscription<String> _disconnectionSub;
+
+  /// State for an open round-trip (start seen, complete still pending).
+  /// All messages — start, complete, success, error — of a single
+  /// logical request share the same canonical id.
+  ///
+  /// Key = canonical id (which we mint once per round-trip).
+  /// Value = the bare `requestId` so we can look up "is this requestId
+  /// currently busy with another open round-trip?" when a new message
+  /// arrives.
+  final _openTrips = <String, String>{}; // canonicalId -> base requestId
+  int _networkSeq = 0;
+  final _uuid = const Uuid();
+
+  /// Build a unique id for one logical network request.
+  ///
+  /// One round-trip = one start + one complete (whether success or
+  /// error) sharing a `requestId`. All messages of that round-trip
+  /// must emit the SAME id so the provider can merge them into a
+  /// single row.
+  ///
+  /// When two genuinely concurrent requests arrive with the same
+  /// `requestId`, the first start mints `base` as the canonical id and
+  /// marks it open; the second start sees the open trip and mints a
+  /// fresh disambiguated id (also marked open). Each round-trip's
+  /// complete then finds its own canonical id via the open-trips map.
+  String _uniqueNetworkId(DCMessage message, Map<String, dynamic> payload) {
+    final raw = payload['requestId'] as String?;
+    final base = (raw != null && raw.isNotEmpty) ? raw : message.id;
+    final isComplete =
+        message.type == WsMessageTypes.clientNetworkRequestComplete;
+    final canonical = _mintOrReuseCanonical(base, isComplete);
+    if (!isComplete) {
+      // Start — register the round-trip as open so the matching
+      // complete can find it. Also remember the base for dedup.
+      _openTrips[canonical] = base;
+    } else {
+      // Complete — drop the open-trip entry. If no open trip existed
+      // (orphan complete or disambiguated start whose complete we
+      // also disambiguated), nothing to remove.
+      _openTrips.remove(canonical);
+    }
+    _trimOpenTrips();
+    return canonical;
+  }
+
+  /// For a start: if no round-trip is currently open for this base,
+  /// mint a fresh canonical id and remember it as open. If another
+  /// round-trip is already open for the same base, disambiguate and
+  /// remember a fresh id.
+  ///
+  /// For a complete: locate the open round-trip for this base and
+  /// reuse its canonical id (this is the start→complete round-trip
+  /// case). If no open trip exists (orphan complete), mint a fresh
+  /// canonical id and don't open a trip (it'll just stand alone).
+  String _mintOrReuseCanonical(String base, bool isComplete) {
+    if (!isComplete) {
+      // Find any existing open trip for this base.
+      final existing = _existingOpenCanonicalForBase(base);
+      if (existing != null && _isOpenFor(existing)) {
+        return _disambiguate(base);
+      }
+      return base;
+    }
+    // Complete: find the open round-trip for this base.
+    final existing = _existingOpenCanonicalForBase(base);
+    if (existing != null) {
+      return existing;
+    }
+    return base;
+  }
+
+  String? _existingOpenCanonicalForBase(String base) {
+    for (final entry in _openTrips.entries) {
+      if (entry.value == base) return entry.key;
+    }
+    return null;
+  }
+
+  bool _isOpenFor(String canonical) => _openTrips.containsKey(canonical);
+
+  String _disambiguate(String base) {
+    final seq = (++_networkSeq).toRadixString(36);
+    final micros = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final rand = _uuid.v4().substring(0, 4);
+    return '$base-$micros-$seq-$rand';
+  }
+
+  void _trimOpenTrips() {
+    if (_openTrips.length <= 2048) return;
+    final drop = _openTrips.length - 1024;
+    final keys = _openTrips.keys.toList(growable: false);
+    for (var i = 0; i < drop; i++) {
+      _openTrips.remove(keys[i]);
+    }
+  }
 
   WsMessageHandler({required this.server}) {
     _messageSub = server.onMessage.listen(_handleMessage);
@@ -215,7 +311,7 @@ class WsMessageHandler {
     final detected = detectService(url,
         headers: {...reqHeaders, ...resHeaders}, body: reqBody);
     final entry = NetworkEntry(
-      id: p['requestId'] as String? ?? message.id,
+      id: _uniqueNetworkId(message, p),
       deviceId: message.deviceId,
       method: p['method'] as String? ?? 'GET',
       url: url,

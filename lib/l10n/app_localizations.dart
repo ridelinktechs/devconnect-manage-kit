@@ -1077,6 +1077,30 @@ abstract class S {
   /// **'API calls will appear here in real-time'**
   String get apiCallsAppearHere;
 
+  /// No description provided for @clearStaleButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Stale ({count})'**
+  String clearStaleButton(Object count);
+
+  /// No description provided for @clearStaleTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear {count} pending request(s) with no response for over 10 minutes'**
+  String clearStaleTooltip(Object count);
+
+  /// No description provided for @clearStaleSnackbar.
+  ///
+  /// In en, this message translates to:
+  /// **'Cleared {count} stale request(s) (pending > 10min)'**
+  String clearStaleSnackbar(Object count);
+
+  /// No description provided for @memorySafetyOverflow.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory safety: dropped {count} stale network entry(ies) from the open-trips cache'**
+  String memorySafetyOverflow(Object count);
+
   /// No description provided for @networkTitle.
   ///
   /// In en, this message translates to:

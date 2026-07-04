@@ -589,6 +589,26 @@ class SJa extends S {
   String get apiCallsAppearHere => 'APIコールがリアルタイムでここに表示されます';
 
   @override
+  String clearStaleButton(Object count) {
+    return '古い ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return '10分以上応答のない保留中のリクエスト$count件を削除';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '古いリクエスト$count件を削除しました (保留中 > 10分)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return 'メモリ保護: open-trips キャッシュから古いネットワーク エントリ $count 件を削除しました';
+  }
+
+  @override
   String get networkTitle => 'ネットワーク';
 
   @override

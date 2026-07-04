@@ -595,6 +595,26 @@ class SFr extends S {
       'Les appels API apparaîtront ici en temps réel';
 
   @override
+  String clearStaleButton(Object count) {
+    return 'Obsolète ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return 'Supprimer $count requêtes en attente sans réponse depuis plus de 10 minutes';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '$count requête(s) obsolète(s) supprimée(s) (en attente > 10 min)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return 'Sécurité mémoire: $count entrée(s) réseau obsolète(s) supprimée(s) du cache open-trips';
+  }
+
+  @override
   String get networkTitle => 'Réseau';
 
   @override
