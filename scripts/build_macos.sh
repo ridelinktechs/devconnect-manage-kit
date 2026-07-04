@@ -18,7 +18,7 @@ cp -R "$APP_PATH" "$OUTPUT_DIR/$FINAL_APP"
 
 # Create DMG
 echo "📦 Creating DMG..."
-DMG_NAME="DevConnect-macOS-v1.0.1.dmg"
+DMG_NAME="DevConnect-macOS-v1.0.3.dmg"
 hdiutil create -volname "DevConnect Manage Tool" \
   -srcfolder "$OUTPUT_DIR/$FINAL_APP" \
   -ov -format UDZO \

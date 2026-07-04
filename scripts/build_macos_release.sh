@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-VERSION="${1:-1.0.2}"
+VERSION="${1:-1.0.3}"
 SRC_APP="build/macos/Build/Products/Release/DevConnect.app"
 APP_NAME="DevConnect"                       # name of the .app inside the dmg/zip
 VOLNAME="DevConnect Manage Tool v${VERSION}"
