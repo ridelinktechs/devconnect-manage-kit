@@ -1252,6 +1252,17 @@ Future<String?> _resolveAdbPath() async {
 class _DetailViewSection extends ConsumerWidget {
   const _DetailViewSection();
 
+  String _modeDescription(WidgetRef ref, BodyViewMode mode) {
+    switch (mode) {
+      case BodyViewMode.tree:
+        return S.of(ref.context).treeModeDesc;
+      case BodyViewMode.json:
+        return S.of(ref.context).jsonModeDesc;
+      case BodyViewMode.code:
+        return S.of(ref.context).codeModeDesc;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final viewMode = ref.watch(bodyViewModeProvider);
@@ -1317,7 +1328,7 @@ class _DetailViewSection extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.only(left: 100),
           child: Text(
-            S.of(context).codeModeDesc,
+            _modeDescription(ref, viewMode),
             style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
           ),
         ),

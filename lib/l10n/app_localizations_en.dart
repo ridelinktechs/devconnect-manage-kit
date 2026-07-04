@@ -462,6 +462,23 @@ class SEn extends S {
       'Code mode exports as TypeScript / Dart / Kotlin based on the connected SDK.';
 
   @override
+  String get treeModeDesc =>
+      'Tree mode shows the data as an expandable, collapsible node hierarchy. Best for navigating deeply nested values.';
+
+  @override
+  String get jsonModeDesc =>
+      'JSON mode renders the data as a single, syntax-highlighted, copy-friendly JSON document.';
+
+  @override
+  String get captureDataJson => 'Capture data (key + value in current mode)';
+
+  @override
+  String get captureDataText => 'Capture data (key + value as text)';
+
+  @override
+  String get copyKey => 'Copy key';
+
+  @override
   String get usbConnection => 'USB Connection';
 
   @override
@@ -573,6 +590,50 @@ class SEn extends S {
 
   @override
   String get apiCallsAppearHere => 'API calls will appear here in real-time';
+
+  @override
+  String clearStaleButton(Object count) {
+    return 'Stale ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return 'Clear $count pending request(s) with no response for over 10 minutes';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return 'Cleared $count stale request(s) (pending > 10min)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return 'Memory safety: dropped $count stale network entry(ies) from the open-trips cache';
+  }
+
+  @override
+  String get sdkTipsPill => 'Tips';
+
+  @override
+  String get sdkTipsHeader => 'Library compatibility';
+
+  @override
+  String get sdkTipsSubtitle =>
+      'To ensure all data is fully displayed, make sure the libraries are the latest version.';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
 
   @override
   String get networkTitle => 'Network';
@@ -1027,4 +1088,18 @@ class SEn extends S {
   @override
   String get smoothScrollingDurationDesc =>
       'The duration of the smooth scroll animation in milliseconds.';
+
+  @override
+  String binaryBody(String label) {
+    return '$label body is binary';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes bytes)';
+  }
+
+  @override
+  String get binaryBodyHint =>
+      'Identify the action via the X-Amz-Target header.';
 }

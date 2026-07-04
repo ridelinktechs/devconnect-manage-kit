@@ -302,10 +302,10 @@ class SJa extends S {
   String get json => 'JSON';
 
   @override
-  String get tree => 'ツリー';
+  String get tree => 'Tree';
 
   @override
-  String get code => 'コード';
+  String get code => 'Code';
 
   @override
   String get raw => 'Raw';
@@ -460,6 +460,23 @@ class SJa extends S {
       'コードモードは接続されたSDKに基づいてTypeScript / Dart / Kotlinとしてエクスポートします。';
 
   @override
+  String get treeModeDesc =>
+      'ツリーモードはデータを展開/折りたたみ可能なノード階層で表示します。深くネストされた値の閲覧に適しています。';
+
+  @override
+  String get jsonModeDesc =>
+      'JSONモードはデータを構文強調表示付きの単一のコピーしやすいJSONドキュメントとして表示します。';
+
+  @override
+  String get captureDataJson => 'データをキャプチャ (現在のモードのキー + 値)';
+
+  @override
+  String get captureDataText => 'データをキャプチャ (キー + 値をテキストとして)';
+
+  @override
+  String get copyKey => 'キーをコピー';
+
+  @override
   String get usbConnection => 'USB接続';
 
   @override
@@ -570,6 +587,50 @@ class SJa extends S {
 
   @override
   String get apiCallsAppearHere => 'APIコールがリアルタイムでここに表示されます';
+
+  @override
+  String clearStaleButton(Object count) {
+    return '古い ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return '10分以上応答のない保留中のリクエスト$count件を削除';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '古いリクエスト$count件を削除しました (保留中 > 10分)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return 'メモリ保護: open-trips キャッシュから古いネットワーク エントリ $count 件を削除しました';
+  }
+
+  @override
+  String get sdkTipsPill => 'ヒント';
+
+  @override
+  String get sdkTipsHeader => 'ライブラリの互換性';
+
+  @override
+  String get sdkTipsSubtitle =>
+      'すべてのデータが完全に表示されるよう、ライブラリが最新バージョンであることを確認してください。';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
 
   @override
   String get networkTitle => 'ネットワーク';
@@ -1017,4 +1078,17 @@ class SJa extends S {
 
   @override
   String get smoothScrollingDurationDesc => 'スクロールアニメーションの時間（ミリ秒）。';
+
+  @override
+  String binaryBody(String label) {
+    return '$labelのボディはバイナリです';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes バイト)';
+  }
+
+  @override
+  String get binaryBodyHint => 'アクションは X-Amz-Target ヘッダーで識別してください。';
 }

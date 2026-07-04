@@ -62,6 +62,12 @@ final bodyViewModeProvider =
   (ref) => BodyViewModeNotifier(),
 );
 
+/// View mode for the metadata block in detail panels. Independent from
+/// [bodyViewModeProvider] so switching the metadata render style doesn't
+/// flip the message block above it (and vice versa).
+final metadataViewModeProvider =
+    StateProvider<BodyViewMode>((ref) => BodyViewMode.tree);
+
 /// Whether tab switching animation is enabled in detail panels.
 class TabAnimationEnabledNotifier extends StateNotifier<bool> {
   TabAnimationEnabledNotifier()

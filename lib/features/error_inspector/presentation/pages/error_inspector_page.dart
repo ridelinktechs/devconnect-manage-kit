@@ -12,7 +12,10 @@ import '../../../../components/lists/stable_list_view.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/screenshot_filename.dart';
+import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../server/providers/server_providers.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../models/log/error_event.dart';
 import '../../provider/error_providers.dart';
@@ -189,6 +192,13 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
     );
 
+    // Resolve a descriptive file name: error_<source>_<ts>_full.png
+    final fileName = buildRichScreenshotName(
+      type: 'error',
+      subject: entry.source ?? entry.severity.name,
+      suffix: '_full',
+    );
+
     captureWidgetAsImage(
       context,
       Container(
@@ -266,6 +276,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
           ],
         ),
       ),
+      fileName: fileName,
     );
   }
 
@@ -1766,84 +1777,96 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
         ),
         // Tab content
         Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              // Message tab
-              SingleChildScrollView(
-                controller: _messageScrollController,
-                padding: const EdgeInsets.all(16),
-                child: TextComponent(
-                  entry.message,
-                  style: TextStyle(
-                    fontFamily: AppConstants.monoFontFamily,
-                    fontSize: 13,
-                    color: isDark ? Colors.white : Colors.black87,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // Message tab
+                LazyTab(
+                  controller: _tabController,
+                  index: 0,
+                  builder: (_) => SingleChildScrollView(
+                    controller: _messageScrollController,
+                    padding: const EdgeInsets.all(16),
+                    child: TextComponent(
+                      entry.message,
+                      style: TextStyle(
+                        fontFamily: AppConstants.monoFontFamily,
+                        fontSize: 13,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              // Stack trace tab
-              entry.stackTrace != null
-                  ? SingleChildScrollView(
-                      controller: _stackTraceScrollController,
-                      padding: const EdgeInsets.all(16),
-                      child: TextComponent(
-                        entry.stackTrace!,
-                        style: TextStyle(
-                          fontFamily: AppConstants.monoFontFamily,
-                          fontSize: 11,
-                          color: isDark ? Colors.white70 : Colors.black87,
-                        ),
-                      ),
-                    )
-                  : Center(
-                      child: TextComponent(S.of(context).noStackTrace),
-                    ),
-              // Details tab
-              SingleChildScrollView(
-                controller: _detailsScrollController,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _DetailRow(label: S.of(context).platform, value: entry.platform.name),
-                    _DetailRow(label: S.of(context).severity, value: entry.severity.name),
-                    _DetailRow(label: S.of(context).source, value: entry.source ?? 'unknown'),
-                    _DetailRow(label: S.of(context).deviceId, value: entry.deviceId),
-                    _DetailRow(label: S.of(context).deviceInfo, value: entry.deviceInfo ?? 'unknown'),
-                    if (entry.metadata != null) ...[
-                      const SizedBox(height: 12),
-                      TextComponent(
-                        'Metadata',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.black26 : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: TextComponent(
-                          entry.metadata.toString(),
-                          style: TextStyle(
-                            fontFamily: AppConstants.monoFontFamily,
-                            fontSize: 11,
-                            color: isDark ? Colors.white70 : Colors.black87,
+                // Stack trace tab
+                LazyTab(
+                  controller: _tabController,
+                  index: 1,
+                  builder: (_) => entry.stackTrace != null
+                      ? SingleChildScrollView(
+                          controller: _stackTraceScrollController,
+                          padding: const EdgeInsets.all(16),
+                          child: TextComponent(
+                            entry.stackTrace!,
+                            style: TextStyle(
+                              fontFamily: AppConstants.monoFontFamily,
+                              fontSize: 11,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
                           ),
+                        )
+                      : Center(
+                          child: TextComponent(S.of(context).noStackTrace),
                         ),
-                      ),
-                    ],
-                  ],
                 ),
-              ),
-            ],
-          ),
+                // Details tab
+                LazyTab(
+                  controller: _tabController,
+                  index: 2,
+                  builder: (_) => SingleChildScrollView(
+                    controller: _detailsScrollController,
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _DetailRow(label: S.of(context).platform, value: entry.platform.name),
+                        _DetailRow(label: S.of(context).severity, value: entry.severity.name),
+                        _DetailRow(label: S.of(context).source, value: entry.source ?? 'unknown'),
+                        _DetailRow(label: S.of(context).deviceId, value: entry.deviceId),
+                        _DetailRow(label: S.of(context).deviceInfo, value: entry.deviceInfo ?? 'unknown'),
+                        if (entry.metadata != null) ...[
+                          const SizedBox(height: 12),
+                          TextComponent(
+                            'Metadata',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.black26 : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: TextComponent(
+                              entry.metadata.toString(),
+                              style: TextStyle(
+                                fontFamily: AppConstants.monoFontFamily,
+                                fontSize: 11,
+                                color: isDark ? Colors.white70 : Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
         ),
       ],
     );
@@ -1853,17 +1876,33 @@ class _ErrorDetailPanelState extends ConsumerState<_ErrorDetailPanel>
 
   Future<void> _takeFullScreenshot() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final entry = widget.entry;
+    final subject = entry.source ?? entry.severity.name;
+    final fileName = buildRichScreenshotName(
+      type: 'error',
+      subject: subject,
+      suffix: '_full',
+    );
     await captureWidgetAsImage(
       context,
       _buildFullScreenshotWidget(isDark),
+      fileName: fileName,
     );
   }
 
   Future<void> _takeTabScreenshot() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final entry = widget.entry;
+    final subject = entry.source ?? entry.severity.name;
+    final fileName = buildRichScreenshotName(
+      type: 'error',
+      subject: subject,
+      suffix: '_tab',
+    );
     await captureWidgetAsImage(
       context,
       _buildTabScreenshotWidget(isDark, _tabController.index),
+      fileName: fileName,
     );
   }
 

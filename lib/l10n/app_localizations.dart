@@ -843,6 +843,36 @@ abstract class S {
   /// **'Code mode exports as TypeScript / Dart / Kotlin based on the connected SDK.'**
   String get codeModeDesc;
 
+  /// No description provided for @treeModeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Tree mode shows the data as an expandable, collapsible node hierarchy. Best for navigating deeply nested values.'**
+  String get treeModeDesc;
+
+  /// No description provided for @jsonModeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'JSON mode renders the data as a single, syntax-highlighted, copy-friendly JSON document.'**
+  String get jsonModeDesc;
+
+  /// No description provided for @captureDataJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture data (key + value in current mode)'**
+  String get captureDataJson;
+
+  /// No description provided for @captureDataText.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture data (key + value as text)'**
+  String get captureDataText;
+
+  /// No description provided for @copyKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy key'**
+  String get copyKey;
+
   /// No description provided for @usbConnection.
   ///
   /// In en, this message translates to:
@@ -1046,6 +1076,72 @@ abstract class S {
   /// In en, this message translates to:
   /// **'API calls will appear here in real-time'**
   String get apiCallsAppearHere;
+
+  /// No description provided for @clearStaleButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Stale ({count})'**
+  String clearStaleButton(Object count);
+
+  /// No description provided for @clearStaleTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear {count} pending request(s) with no response for over 10 minutes'**
+  String clearStaleTooltip(Object count);
+
+  /// No description provided for @clearStaleSnackbar.
+  ///
+  /// In en, this message translates to:
+  /// **'Cleared {count} stale request(s) (pending > 10min)'**
+  String clearStaleSnackbar(Object count);
+
+  /// No description provided for @memorySafetyOverflow.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory safety: dropped {count} stale network entry(ies) from the open-trips cache'**
+  String memorySafetyOverflow(Object count);
+
+  /// No description provided for @sdkTipsPill.
+  ///
+  /// In en, this message translates to:
+  /// **'Tips'**
+  String get sdkTipsPill;
+
+  /// No description provided for @sdkTipsHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Library compatibility'**
+  String get sdkTipsHeader;
+
+  /// No description provided for @sdkTipsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'To ensure all data is fully displayed, make sure the libraries are the latest version.'**
+  String get sdkTipsSubtitle;
+
+  /// No description provided for @sdkTipsFlutter.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter'**
+  String get sdkTipsFlutter;
+
+  /// No description provided for @sdkTipsReactNative.
+  ///
+  /// In en, this message translates to:
+  /// **'React Native'**
+  String get sdkTipsReactNative;
+
+  /// No description provided for @sdkTipsAndroid.
+  ///
+  /// In en, this message translates to:
+  /// **'Android'**
+  String get sdkTipsAndroid;
+
+  /// No description provided for @sdkTipsVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'v{version}'**
+  String sdkTipsVersionLabel(Object version);
 
   /// No description provided for @networkTitle.
   ///
@@ -1892,6 +1988,24 @@ abstract class S {
   /// In en, this message translates to:
   /// **'The duration of the smooth scroll animation in milliseconds.'**
   String get smoothScrollingDurationDesc;
+
+  /// No description provided for @binaryBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{label} body is binary'**
+  String binaryBody(String label);
+
+  /// No description provided for @binaryBodySize.
+  ///
+  /// In en, this message translates to:
+  /// **'{kb} KB ({bytes} bytes)'**
+  String binaryBodySize(String kb, int bytes);
+
+  /// No description provided for @binaryBodyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Identify the action via the X-Amz-Target header.'**
+  String get binaryBodyHint;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

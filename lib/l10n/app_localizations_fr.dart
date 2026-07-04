@@ -302,7 +302,7 @@ class SFr extends S {
   String get json => 'JSON';
 
   @override
-  String get tree => 'Arborescence';
+  String get tree => 'Tree';
 
   @override
   String get code => 'Code';
@@ -462,6 +462,25 @@ class SFr extends S {
       'Le mode code exporte en TypeScript / Dart / Kotlin selon le SDK connecté.';
 
   @override
+  String get treeModeDesc =>
+      'Le mode arborescence affiche les données sous forme de hiérarchie de nœuds dépliables. Idéal pour parcourir des valeurs profondément imbriquées.';
+
+  @override
+  String get jsonModeDesc =>
+      'Le mode JSON affiche les données sous forme de document JSON unique, coloré syntaxiquement et facile à copier.';
+
+  @override
+  String get captureDataJson =>
+      'Capturer les données (clé + valeur dans le mode actuel)';
+
+  @override
+  String get captureDataText =>
+      'Capturer les données (clé + valeur sous forme de texte)';
+
+  @override
+  String get copyKey => 'Copier la clé';
+
+  @override
   String get usbConnection => 'Connexion USB';
 
   @override
@@ -574,6 +593,50 @@ class SFr extends S {
   @override
   String get apiCallsAppearHere =>
       'Les appels API apparaîtront ici en temps réel';
+
+  @override
+  String clearStaleButton(Object count) {
+    return 'Obsolète ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return 'Supprimer $count requêtes en attente sans réponse depuis plus de 10 minutes';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '$count requête(s) obsolète(s) supprimée(s) (en attente > 10 min)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return 'Sécurité mémoire: $count entrée(s) réseau obsolète(s) supprimée(s) du cache open-trips';
+  }
+
+  @override
+  String get sdkTipsPill => 'Astuces';
+
+  @override
+  String get sdkTipsHeader => 'Compatibilité des bibliothèques';
+
+  @override
+  String get sdkTipsSubtitle =>
+      'Pour que toutes les données s\'affichent correctement, assurez-vous que les bibliothèques sont à la dernière version.';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
 
   @override
   String get networkTitle => 'Réseau';
@@ -1029,4 +1092,18 @@ class SFr extends S {
   @override
   String get smoothScrollingDurationDesc =>
       'La durée de l\'animation de défilement en millisecondes.';
+
+  @override
+  String binaryBody(String label) {
+    return 'Le corps de $label est binaire';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb Ko ($bytes octets)';
+  }
+
+  @override
+  String get binaryBodyHint =>
+      'Identifiez l\'action via l\'en-tête X-Amz-Target.';
 }

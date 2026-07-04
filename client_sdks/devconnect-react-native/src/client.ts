@@ -380,6 +380,83 @@ function classifyUrl(url: string): string {
   return 'app';
 }
 
+function wrapFetchInit(
+  init: RequestInit | undefined,
+  tracker: { headers?: any; body?: any },
+): RequestInit | undefined {
+  if (!init) return init;
+
+  const headers = init.headers;
+  if (headers && typeof headers === 'object' && !(headers instanceof Headers)) {
+    const proxy = new Proxy(headers as Record<string, string>, {
+      set(target, key, value) {
+        (target as any)[key] = value;
+        tracker.headers = { ...target };
+        return true;
+      },
+      deleteProperty(target, key) {
+        delete (target as any)[key];
+        tracker.headers = { ...target };
+        return true;
+      },
+    });
+    (init as any).headers = proxy;
+    tracker.headers = { ...(headers as Record<string, string>) };
+  } else if (headers instanceof Headers) {
+    const origAppend = headers.append.bind(headers);
+    const origSet = headers.set.bind(headers);
+    const origDelete = headers.delete.bind(headers);
+    headers.append = function (name: string, value: string) {
+      const r = origAppend(name, value);
+      const snap: Record<string, string> = {};
+      headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
+      tracker.headers = snap;
+      return r;
+    };
+    headers.set = function (name: string, value: string) {
+      const r = origSet(name, value);
+      const snap: Record<string, string> = {};
+      headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
+      tracker.headers = snap;
+      return r;
+    };
+    headers.delete = function (name: string) {
+      const r = origDelete(name);
+      const snap: Record<string, string> = {};
+      headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
+      tracker.headers = snap;
+      return r;
+    };
+    const snap: Record<string, string> = {};
+    headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
+    tracker.headers = snap;
+  } else {
+    tracker.headers = headers;
+  }
+
+  if ('body' in init) tracker.body = init.body;
+  (init as any)['__dcBodyGet'] = () => tracker.body;
+
+  return init;
+}
+
+function readFinalHeaders(
+  tracker: { headers?: any },
+  init: RequestInit | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const src = tracker.headers ?? init?.headers;
+  if (!src) return out;
+  if (typeof Headers !== 'undefined' && src instanceof Headers) {
+    src.forEach((v, k) => (out[k.toLowerCase()] = v));
+  } else if (Array.isArray(src)) {
+    for (const [k, v] of src) out[String(k).toLowerCase()] = String(v);
+  } else if (typeof src === 'object') {
+    for (const [k, v] of Object.entries(src)) out[k.toLowerCase()] = String(v);
+  }
+  return out;
+}
+
 // ---- Main Class ----
 
 export class DevConnect {
@@ -752,24 +829,60 @@ export class DevConnect {
     global.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       const requestId = generateId();
       const startTime = Date.now();
-      const method = init?.method?.toUpperCase() ?? 'GET';
-      const url = typeof input === 'string' ? input : input.toString();
 
-      const reqHeaders: Record<string, string> = {};
-      if (init?.headers) {
-        if (init.headers instanceof Headers) {
-          init.headers.forEach((v, k) => (reqHeaders[k] = v));
-        } else if (typeof init.headers === 'object') {
-          Object.entries(init.headers).forEach(([k, v]) => (reqHeaders[k] = String(v)));
+      let method: string;
+      if (init?.method) {
+        method = init.method.toUpperCase();
+      } else if (typeof Request !== 'undefined' && input instanceof Request) {
+        method = (input as Request).method.toUpperCase();
+      } else {
+        method = 'GET';
+      }
+
+      let url: string;
+      if (typeof input === 'string') {
+        url = input;
+      } else if (input instanceof URL) {
+        url = input.toString();
+      } else if (typeof Request !== 'undefined' && input instanceof Request) {
+        url = input.url;
+      } else {
+        url = (input as any)?.url ?? String(input);
+      }
+
+      // AWS SDK v3 (@aws-sdk/fetch-http-handler) calls `fetch(request)` where
+      // `request` is a fully-built Request object — init is undefined in that
+      // case. All headers (including X-Amz-Date, Authorization added by the
+      // signer middleware) are inside request.headers by the time fetch is
+      // invoked. We must read from request, not init.
+      const isRequestInput =
+        typeof Request !== 'undefined' && input instanceof Request;
+      let reqHeaders: Record<string, string>;
+      let finalBody: any;
+
+      if (isRequestInput) {
+        const r = input as Request;
+        reqHeaders = {};
+        r.headers.forEach((v, k) => (reqHeaders[k.toLowerCase()] = v));
+        try {
+          finalBody = await r.clone().text();
+        } catch (_) {
+          finalBody = undefined;
         }
+      } else {
+        const tracker: { headers?: any; body?: any } = {};
+        const trackedInit = wrapFetchInit(init, tracker);
+        (init as any) = trackedInit;
+        reqHeaders = readFinalHeaders(tracker, trackedInit);
+        finalBody = tracker.body !== undefined ? tracker.body : trackedInit?.body;
       }
 
       let requestBody: any;
-      if (init?.body) {
-        if (init.body instanceof FormData) {
+      if (finalBody) {
+        if (finalBody instanceof FormData) {
           const fields: Record<string, any> = {};
           const files: any[] = [];
-          for (const [key, value] of (init.body as any).entries()) {
+          for (const [key, value] of (finalBody as any).entries()) {
             if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
               files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
             } else {
@@ -778,7 +891,7 @@ export class DevConnect {
           }
           requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
         } else {
-          try { requestBody = JSON.parse(init.body as string); } catch (_) { requestBody = String(init.body); }
+          try { requestBody = JSON.parse(finalBody as string); } catch (_) { requestBody = String(finalBody); }
         }
       }
 
@@ -825,7 +938,12 @@ export class DevConnect {
       let requestBody: any;
 
       const origOpen = xhr.open.bind(xhr);
-      xhr.open = (m: string, u: string, ...args: any[]) => { method = m.toUpperCase(); url = u; return origOpen(m, u, ...args); };
+      xhr.open = (m: string, u: string | URL, ...args: any[]) => {
+        method = m.toUpperCase();
+        // Coerce URL/Request to a string in case a polyfill accepts them
+        url = typeof u === 'string' ? u : (u as any)?.url ?? String(u);
+        return origOpen(m, u as string, ...args);
+      };
 
       const origSetHeader = xhr.setRequestHeader.bind(xhr);
       xhr.setRequestHeader = (n: string, v: string) => { reqHeaders[n] = v; return origSetHeader(n, v); };

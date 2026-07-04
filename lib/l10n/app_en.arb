@@ -123,6 +123,11 @@
   "tabAnimation": "Tab animation",
   "tabAnimationDuration": "Duration",
   "codeModeDesc": "Code mode exports as TypeScript / Dart / Kotlin based on the connected SDK.",
+  "treeModeDesc": "Tree mode shows the data as an expandable, collapsible node hierarchy. Best for navigating deeply nested values.",
+  "jsonModeDesc": "JSON mode renders the data as a single, syntax-highlighted, copy-friendly JSON document.",
+  "captureDataJson": "Capture data (key + value in current mode)",
+  "captureDataText": "Capture data (key + value as text)",
+  "copyKey": "Copy key",
   "usbConnection": "USB Connection",
   "android": "Android",
   "ios": "iOS",
@@ -157,6 +162,17 @@
   "history": "History",
   "noNetworkRequests": "No network requests",
   "apiCallsAppearHere": "API calls will appear here in real-time",
+  "clearStaleButton": "Stale ({count})",
+  "clearStaleTooltip": "Clear {count} pending request(s) with no response for over 10 minutes",
+  "clearStaleSnackbar": "Cleared {count} stale request(s) (pending > 10min)",
+  "memorySafetyOverflow": "Memory safety: dropped {count} stale network entry(ies) from the open-trips cache",
+  "sdkTipsPill": "Tips",
+  "sdkTipsHeader": "Library compatibility",
+  "sdkTipsSubtitle": "To ensure all data is fully displayed, make sure the libraries are the latest version.",
+  "sdkTipsFlutter": "Flutter",
+  "sdkTipsReactNative": "React Native",
+  "sdkTipsAndroid": "Android",
+  "sdkTipsVersionLabel": "v{version}",
   "networkTitle": "Network",
   "filterUrls": "Filter URLs...",
   "copyUrl": "Copy URL",
@@ -297,5 +313,17 @@
   "smoothScrolling": "Smooth scroll",
   "smoothScrollingDesc": "Smooths mouse-wheel scroll events. Disable this option if you notice any lag or performance drop.",
   "smoothScrollingDuration": "Scroll duration",
-  "smoothScrollingDurationDesc": "The duration of the smooth scroll animation in milliseconds."
+  "smoothScrollingDurationDesc": "The duration of the smooth scroll animation in milliseconds.",
+  "binaryBody": "{label} body is binary",
+  "@binaryBody": {
+    "placeholders": { "label": { "type": "String" } }
+  },
+  "binaryBodySize": "{kb} KB ({bytes} bytes)",
+  "@binaryBodySize": {
+    "placeholders": {
+      "kb": { "type": "String" },
+      "bytes": { "type": "int" }
+    }
+  },
+  "binaryBodyHint": "Identify the action via the X-Amz-Target header."
 }

@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart' hide ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/utils/screenshot_filename.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -446,6 +447,36 @@ class _Toolbar extends ConsumerWidget {
                       : Colors.black.withValues(alpha: 0.08),
                 ),
                 const SizedBox(width: 2),
+                // ── Clear stale (only when there are pending > 10min) ──
+                Consumer(
+                  builder: (context, ref, _) {
+                    final staleCount =
+                        ref.watch(staleNetworkCountProvider);
+                    if (staleCount == 0) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 2),
+                      child: _ClearStaleBtn(
+                        count: staleCount,
+                        onTap: () {
+                          final removed = ref
+                              .read(networkEntriesProvider.notifier)
+                              .clearStale();
+                          if (removed > 0 && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                duration: const Duration(seconds: 2),
+                                content: Text(
+                                  'Cleared $removed stale request${removed == 1 ? '' : 's'} '
+                                  '(pending > 10min)',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    );
+                  },
+                ),
                 _IconBtn(
                   icon: LucideIcons.trash2,
                   tooltip: S.of(context).clear,
@@ -650,9 +681,125 @@ class _IconBtnState extends State<_IconBtn> {
   }
 }
 
+/// "Clear stale (N)" pill that surfaces pending requests that haven't
+/// received a response in over 10 minutes — the client likely crashed
+/// before completing them. Tinted amber so it stands out from the
+/// neutral toolbar without screaming like the red trash button.
+class _ClearStaleBtn extends StatefulWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _ClearStaleBtn({required this.count, required this.onTap});
+
+  @override
+  State<_ClearStaleBtn> createState() => _ClearStaleBtnState();
+}
+
+class _ClearStaleBtnState extends State<_ClearStaleBtn> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final loc = S.of(context);
+    const accent = Color(0xFFFBBF24); // amber 400 — matches Tree mode
+
+    final bg = _hovered
+        ? accent.withValues(alpha: isDark ? 0.18 : 0.16)
+        : accent.withValues(alpha: isDark ? 0.12 : 0.10);
+    final border = accent.withValues(alpha: isDark ? 0.40 : 0.36);
+
+    return Tooltip(
+      message: loc.clearStaleTooltip(widget.count),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(7),
+              border: Border.all(color: border, width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.timerOff, size: 12, color: accent),
+                const SizedBox(width: 5),
+                Text(
+                  loc.clearStaleButton(widget.count),
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                    color: accent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Request card tile
 // ---------------------------------------------------------------------------
+
+class _ServiceTag extends StatelessWidget {
+  final String name;
+  const _ServiceTag({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colorForService(name);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        name,
+        style: TextStyle(
+          fontSize: 8,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  static Color colorForService(String name) {
+    switch (name) {
+      case 'AWS':
+      case 'AWS Cognito':
+        return const Color(0xFFFF9900);
+      case 'Google Maps':
+        return const Color(0xFF4285F4);
+      case 'Firebase':
+        return const Color(0xFFFFCA28);
+      case 'Stripe':
+        return const Color(0xFF635BFF);
+      case 'GitHub':
+        return const Color(0xFF8B949E);
+      case 'Sentry':
+        return const Color(0xFF6C5FC7);
+      default:
+        return ColorTokens.primary;
+    }
+  }
+
+  Color _colorForService(String n) => colorForService(n);
+}
 
 class _RequestCard extends ConsumerWidget {
   final NetworkEntry entry;
@@ -685,6 +832,10 @@ class _RequestCard extends ConsumerWidget {
     } catch (_) {}
     final displayUrl = uri?.path ?? entry.url;
     final host = uri?.host ?? '';
+    final isRootPath = displayUrl == '/' || displayUrl.isEmpty;
+    final titleText = (entry.serviceAction != null && isRootPath)
+        ? entry.serviceAction!
+        : displayUrl;
 
     // Left bar color based on status code
     final Color leftBarColor;
@@ -783,7 +934,7 @@ class _RequestCard extends ConsumerWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  displayUrl,
+                                  titleText,
                                   style: TextStyle(
                                     fontFamily: AppConstants.monoFontFamily,
                                     fontSize: 12,
@@ -800,6 +951,10 @@ class _RequestCard extends ConsumerWidget {
                                 const SizedBox(height: 2),
                                 Row(
                                   children: [
+                                    if (entry.serviceName != null) ...[
+                                      _ServiceTag(name: entry.serviceName!),
+                                      const SizedBox(width: 4),
+                                    ],
                                     // Source badge
                                     Container(
                                       padding: const EdgeInsets.symmetric(
@@ -1252,18 +1407,34 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _HeadersTab(entry: entry),
-                _BodyTab(
-                  body: entry.requestBody,
-                  label: 'Request',
-                  deviceId: entry.deviceId,
+                LazyTab(
+                  controller: _tabController,
+                  index: 0,
+                  builder: (_) => _HeadersTab(entry: entry),
                 ),
-                _BodyTab(
-                  body: entry.responseBody,
-                  label: 'Response',
-                  deviceId: entry.deviceId,
+                LazyTab(
+                  controller: _tabController,
+                  index: 1,
+                  builder: (_) => _BodyTab(
+                    body: entry.requestBody,
+                    label: 'Request',
+                    deviceId: entry.deviceId,
+                  ),
                 ),
-                _TimingTab(entry: entry),
+                LazyTab(
+                  controller: _tabController,
+                  index: 2,
+                  builder: (_) => _BodyTab(
+                    body: entry.responseBody,
+                    label: 'Response',
+                    deviceId: entry.deviceId,
+                  ),
+                ),
+                LazyTab(
+                  controller: _tabController,
+                  index: 3,
+                  builder: (_) => _TimingTab(entry: entry),
+                ),
               ],
             ),
           ),
@@ -1274,7 +1445,7 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
 
   // ---- Screenshot ----
 
-  Future<void> _captureAndSave(Widget screenshotWidget) async {
+  Future<void> _captureAndSave(Widget screenshotWidget, {String? fileName}) async {
     try {
       _showCaptureFlash();
 
@@ -1319,10 +1490,13 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
       if (byteData == null) return;
 
       final pngBytes = byteData.buffer.asUint8List();
-      final fileName =
-          'devconnect_network_${DateTime.now().millisecondsSinceEpoch}.png';
+      final baseName = (fileName == null || fileName.isEmpty)
+          ? 'devconnect_network_${DateTime.now().millisecondsSinceEpoch}'
+          : fileName;
+      final outName =
+          baseName.endsWith('.png') ? baseName : '$baseName.png';
       final location = await getSaveLocation(
-        suggestedName: fileName,
+        suggestedName: outName,
         acceptedTypeGroups: [
           const XTypeGroup(label: 'PNG Image', extensions: ['png']),
         ],
@@ -1598,14 +1772,37 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
   Future<void> _takeFullScreenshot() async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    await _captureAndSave(_buildFullScreenshotWidget(isDark));
+    final subject = _urlPath(widget.entry.url);
+    final fileName = buildRichScreenshotName(
+      type: 'network',
+      subject: subject,
+      suffix: '_full',
+    );
+    await _captureAndSave(_buildFullScreenshotWidget(isDark),
+        fileName: fileName);
   }
 
   Future<void> _takeTabScreenshot() async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final subject = _urlPath(widget.entry.url);
+    final fileName = buildRichScreenshotName(
+      type: 'network',
+      subject: subject,
+      suffix: '_tab',
+    );
     await _captureAndSave(
-        _buildTabScreenshotWidget(isDark, _tabController.index));
+        _buildTabScreenshotWidget(isDark, _tabController.index),
+        fileName: fileName);
+  }
+
+  String _urlPath(String url) {
+    try {
+      final p = Uri.parse(url).path;
+      return p.isEmpty ? url : p;
+    } catch (_) {
+      return url;
+    }
   }
 
   Widget _buildFullScreenshotWidget(bool isDark) {
@@ -1618,10 +1815,12 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
     if (parsedReqBody is String) {
       try { parsedReqBody = jsonDecode(parsedReqBody); } catch (_) {}
     }
+    final reqIsBlob = _isBlobPayload(parsedReqBody);
     dynamic parsedResBody = entry.responseBody;
     if (parsedResBody is String) {
       try { parsedResBody = jsonDecode(parsedResBody); } catch (_) {}
     }
+    final resIsBlob = _isBlobPayload(parsedResBody);
 
     return Container(
       color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
@@ -1685,9 +1884,11 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
             _screenshotSection('Request Body', isDark),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: parsedReqBody is Map || parsedReqBody is List
-                  ? JsonViewer(data: parsedReqBody, initiallyExpanded: true)
-                  : JsonPrettyViewer(data: parsedReqBody),
+              child: reqIsBlob.$1 != null
+                  ? _screenshotBlobNote(reqIsBlob, isDark)
+                  : parsedReqBody is Map || parsedReqBody is List
+                      ? JsonViewer(data: parsedReqBody, initiallyExpanded: true)
+                      : JsonPrettyViewer(data: parsedReqBody),
             ),
           ],
           // Response body
@@ -1695,9 +1896,11 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
             _screenshotSection('Response Body', isDark),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: parsedResBody is Map || parsedResBody is List
-                  ? JsonViewer(data: parsedResBody, initiallyExpanded: true)
-                  : JsonPrettyViewer(data: parsedResBody),
+              child: resIsBlob.$1 != null
+                  ? _screenshotBlobNote(resIsBlob, isDark)
+                  : parsedResBody is Map || parsedResBody is List
+                      ? JsonViewer(data: parsedResBody, initiallyExpanded: true)
+                      : JsonPrettyViewer(data: parsedResBody),
             ),
           ],
         ],
@@ -1860,18 +2063,23 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
   Widget _buildBodyContent(
       dynamic parsed, bool canToggle, BodyViewMode mode, CodeLang codeLang) {
     if (!canToggle) return JsonPrettyViewer(data: parsed);
-    switch (mode) {
-      case BodyViewMode.tree:
-        return JsonViewer(data: parsed, initiallyExpanded: true);
-      case BodyViewMode.json:
-        return JsonPrettyViewer(data: parsed);
-      case BodyViewMode.code:
-        return CodeViewer(
-          generated: CodeGenerator.generate(parsed, codeLang),
-          lang: codeLang,
-          languageLabel: CodeGenerator.labelFor(codeLang),
-        );
-    }
+    return DeferredBuilder(
+      key: ValueKey(mode),
+      builder: (_) {
+        switch (mode) {
+          case BodyViewMode.tree:
+            return JsonViewer(data: parsed, initiallyExpanded: true);
+          case BodyViewMode.json:
+            return JsonPrettyViewer(data: parsed);
+          case BodyViewMode.code:
+            return CodeViewer(
+              generated: CodeGenerator.generate(parsed, codeLang),
+              lang: codeLang,
+              languageLabel: CodeGenerator.labelFor(codeLang),
+            );
+        }
+      },
+    );
   }
 
   Widget _screenshotSection(String title, bool isDark) {
@@ -1934,6 +2142,38 @@ class _RequestDetailPanelState extends ConsumerState<_RequestDetailPanel>
       buf.write(" \\\n  -d '$body'");
     }
     return buf.toString();
+  }
+
+  (String?, int?) _isBlobPayload(dynamic body) {
+    if (body is String) {
+      final t = body.trim();
+      final m = RegExp(r'^<\s*(blob|arraybuffer)\s+(\d+)\s*bytes\s*>\s*$',
+              caseSensitive: false)
+          .firstMatch(t);
+      if (m != null) return (m.group(1), int.tryParse(m.group(2)!));
+      final m2 = RegExp(r'^<blob:\s*(\d+)\s*bytes>\s*$', caseSensitive: false)
+          .firstMatch(t);
+      if (m2 != null) return ('blob', int.tryParse(m2.group(1)!));
+      final m3 = RegExp(r'^(\d+)\s*bytes$', caseSensitive: false).firstMatch(t);
+      if (m3 != null) return ('blob', int.tryParse(m3.group(1)!));
+    }
+    return (null, null);
+  }
+
+  Widget _screenshotBlobNote((String?, int?) blob, bool isDark) {
+    final type = blob.$1 ?? 'blob';
+    final bytes = blob.$2 ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: TextComponent(
+        '$type payload ($bytes bytes) — binary, cannot be inspected.\nIdentify the action via the X-Amz-Target header.',
+        style: TextStyle(
+          fontFamily: AppConstants.monoFontFamily,
+          fontSize: 11,
+          color: isDark ? Colors.white60 : Colors.black54,
+        ),
+      ),
+    );
   }
 }
 
@@ -2374,6 +2614,66 @@ class _HeaderRowWithCopyState extends State<_HeaderRowWithCopy> {
 // Body tab (request / response)
 // ---------------------------------------------------------------------------
 
+class _BlobInfo extends StatelessWidget {
+  final String label;
+  final int sizeBytes;
+  final bool isDark;
+
+  const _BlobInfo({
+    required this.label,
+    required this.sizeBytes,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.package,
+                size: 28, color: isDark ? Colors.white38 : Colors.black38),
+            const SizedBox(height: 12),
+            Text(
+              S.of(context).binaryBody(label),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? ColorTokens.lightBackground
+                    : ColorTokens.darkNeutral,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              S.of(context).binaryBodySize(
+                AppConstants.formatBytes(sizeBytes),
+                sizeBytes,
+              ),
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.white54 : Colors.black54,
+                fontFamily: AppConstants.monoFontFamily,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              S.of(context).binaryBodyHint,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark ? Colors.white38 : Colors.black45,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BodyTab extends ConsumerStatefulWidget {
   final dynamic body;
   final String label;
@@ -2411,20 +2711,14 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
       );
     }
 
-    // Try to parse string body as JSON
-    dynamic parsedBody = widget.body;
-    if (parsedBody is String) {
-      try {
-        parsedBody = jsonDecode(parsedBody);
-      } catch (_) {
-        // Not valid JSON, keep as string
-      }
+    final blob = _isBlobPayload(widget.body);
+    if (blob.$1 != null) {
+      return _BlobInfo(
+        label: widget.label,
+        sizeBytes: blob.$2 ?? 0,
+        isDark: isDark,
+      );
     }
-
-    final canToggle = parsedBody is Map || parsedBody is List;
-    // When the body is a primitive string, Tree mode can't show anything
-    // structured so we implicitly fall back to JSON mode.
-    final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
 
     // Look up the connected device's platform so Code mode exports the
     // right language. Falls back to TypeScript (RN) when not connected.
@@ -2436,85 +2730,97 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
         'react_native';
     final codeLang = CodeGenerator.langForPlatform(platform);
 
-    return Column(
-      children: [
-        // Toggle bar — 3-way Tree / JSON / Code segmented toggle
-        Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.black.withValues(alpha: 0.06),
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              TextComponent(widget.label, style: theme.textTheme.titleSmall),
-              const Spacer(),
-              if (canToggle) ...[
-                ViewModeSegment(
-                  label: 'Tree',
-                  active: effectiveMode == BodyViewMode.tree,
-                  position: ViewSegmentPosition.start,
-                  onTap: () => ref
-                      .read(bodyViewModeProvider.notifier)
-                      .set(BodyViewMode.tree),
-                ),
-                ViewModeSegment(
-                  label: 'JSON',
-                  active: effectiveMode == BodyViewMode.json,
-                  position: ViewSegmentPosition.middle,
-                  onTap: () => ref
-                      .read(bodyViewModeProvider.notifier)
-                      .set(BodyViewMode.json),
-                ),
-                ViewModeSegment(
-                  label: CodeGenerator.labelFor(codeLang),
-                  active: effectiveMode == BodyViewMode.code,
-                  position: ViewSegmentPosition.end,
-                  onTap: () => ref
-                      .read(bodyViewModeProvider.notifier)
-                      .set(BodyViewMode.code),
-                ),
-              ],
-              const SizedBox(width: 8),
-              // Copy body button
-              GestureDetector(
-                onTap: () {
-                  final text = parsedBody is String
-                      ? parsedBody
-                      : const JsonEncoder.withIndent('  ')
-                          .convert(parsedBody);
-                  Clipboard.setData(ClipboardData(text: text));
-                  showCopiedToast(context, label: '${widget.label} copied');
-                },
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Icon(LucideIcons.copy,
-                      size: 14, color: Colors.grey[500]),
+    return AsyncJsonParser(
+      rawData: widget.body,
+      builder: (context, parsedBody, isJson) {
+        final canToggle = isJson;
+        // When the body is a primitive string, Tree mode can't show anything
+        // structured so we implicitly fall back to JSON mode.
+        final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
+
+        return Column(
+          children: [
+            // Toggle bar — 3-way Tree / JSON / Code segmented toggle
+            Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.06),
+                  ),
                 ),
               ),
-            ],
-          ),
-        ),
-        // Body content
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            child: _buildContent(
-              parsedBody: parsedBody,
-              canToggle: canToggle,
-              mode: effectiveMode,
-              codeLang: codeLang,
+              child: Row(
+                children: [
+                  TextComponent(widget.label, style: theme.textTheme.titleSmall),
+                  const Spacer(),
+                  if (canToggle) ...[
+                    ViewModeSegment(
+                      label: 'Tree',
+                      active: effectiveMode == BodyViewMode.tree,
+                      position: ViewSegmentPosition.start,
+                      onTap: () => ref
+                          .read(bodyViewModeProvider.notifier)
+                          .set(BodyViewMode.tree),
+                    ),
+                    ViewModeSegment(
+                      label: 'JSON',
+                      active: effectiveMode == BodyViewMode.json,
+                      position: ViewSegmentPosition.middle,
+                      onTap: () => ref
+                          .read(bodyViewModeProvider.notifier)
+                          .set(BodyViewMode.json),
+                    ),
+                    ViewModeSegment(
+                      label: CodeGenerator.labelFor(codeLang),
+                      active: effectiveMode == BodyViewMode.code,
+                      position: ViewSegmentPosition.end,
+                      onTap: () => ref
+                          .read(bodyViewModeProvider.notifier)
+                          .set(BodyViewMode.code),
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  // Copy body button
+                  GestureDetector(
+                    onTap: () {
+                      final text = parsedBody is String
+                          ? parsedBody
+                          : const JsonEncoder.withIndent('  ')
+                              .convert(parsedBody);
+                      Clipboard.setData(ClipboardData(text: text));
+                      showCopiedToast(context, label: '${widget.label} copied');
+                    },
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Icon(LucideIcons.copy,
+                          size: 14, color: Colors.grey[500]),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-      ],
+            // Body content — each viewer handles its own scrolling.
+            // Keeping bounded constraints so JsonPrettyViewer / JsonViewer
+            // can virtualize (shrinkWrap: false) instead of measuring
+            // every single line.
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildContent(
+                  parsedBody: parsedBody,
+                  canToggle: canToggle,
+                  mode: effectiveMode,
+                  codeLang: codeLang,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -2528,19 +2834,42 @@ class _BodyTabState extends ConsumerState<_BodyTab> {
       // Primitive / non-JSON body: only the pretty JSON viewer is meaningful.
       return JsonPrettyViewer(data: parsedBody);
     }
-    switch (mode) {
-      case BodyViewMode.tree:
-        return JsonViewer(data: parsedBody, initiallyExpanded: true);
-      case BodyViewMode.json:
-        return JsonPrettyViewer(data: parsedBody);
-      case BodyViewMode.code:
-        final generated = CodeGenerator.generate(parsedBody, codeLang);
-        return CodeViewer(
-          generated: generated,
-          lang: codeLang,
-          languageLabel: CodeGenerator.labelFor(codeLang),
-        );
+    return DeferredBuilder(
+      key: ValueKey(mode),
+      builder: (_) {
+        switch (mode) {
+          case BodyViewMode.tree:
+            return JsonViewer(data: parsedBody, initiallyExpanded: true);
+          case BodyViewMode.json:
+            return JsonPrettyViewer(data: widget.body);
+          case BodyViewMode.code:
+            final generated = CodeGenerator.generate(parsedBody, codeLang);
+            return SingleChildScrollView(
+              child: CodeViewer(
+                generated: generated,
+                lang: codeLang,
+                languageLabel: CodeGenerator.labelFor(codeLang),
+              ),
+            );
+        }
+      },
+    );
+  }
+
+  (String?, int?) _isBlobPayload(dynamic body) {
+    if (body is String) {
+      final t = body.trim();
+      final m = RegExp(r'^<\s*(blob|arraybuffer)\s+(\d+)\s*bytes\s*>\s*$',
+              caseSensitive: false)
+          .firstMatch(t);
+      if (m != null) return (m.group(1), int.tryParse(m.group(2)!));
+      final m2 = RegExp(r'^<blob:\s*(\d+)\s*bytes>\s*$', caseSensitive: false)
+          .firstMatch(t);
+      if (m2 != null) return ('blob', int.tryParse(m2.group(1)!));
+      final m3 = RegExp(r'^(\d+)\s*bytes$', caseSensitive: false).firstMatch(t);
+      if (m3 != null) return ('blob', int.tryParse(m3.group(1)!));
     }
+    return (null, null);
   }
 }
 

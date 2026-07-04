@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../components/feedback/lib_update_tips.dart';
 import '../../components/layout/device_bottom_bar.dart';
 import '../../components/layout/sidebar.dart';
 import '../providers/tab_visibility_provider.dart';
@@ -113,6 +114,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                     },
                   ),
                 ),
+              // ── Update tips pill (anchored to OS title bar, top-right) ──
+              // Sits in the title-bar strip so it stays above every
+              // page's toolbar and never overlaps page content.
+              // macOS traffic lights live in the top-left ~80px so
+              // right: 14 here is safely clear of them.
+              Positioned(
+                top: Platform.isMacOS ? 20 : 6,
+                right: 14,
+                child: const LibUpdateTips(),
+              ),
             ],
           );
         },

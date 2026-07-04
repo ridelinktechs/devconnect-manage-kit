@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'components/viewers/json_viewer.dart';
 import 'core/providers/locale_provider.dart';
 import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -17,13 +18,25 @@ class DevConnectApp extends ConsumerStatefulWidget {
 }
 
 class _DevConnectAppState extends ConsumerState<DevConnectApp> {
+  /// Device IDs we've already seen, so a freshly-connected device (vs an
+  /// existing one re-emitting) is the trigger for cache invalidation.
+  Set<String>? _knownDeviceIds;
+
   @override
   void initState() {
     super.initState();
+    // Auto-clear the JSON highlight cache after long background sessions.
+    HighlightCacheLifecycleObserver.instance.attach();
     // Auto-start WebSocket server on app launch
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _autoStartServer();
     });
+  }
+
+  @override
+  void dispose() {
+    HighlightCacheLifecycleObserver.instance.detach();
+    super.dispose();
   }
 
   Future<void> _autoStartServer() async {
@@ -62,6 +75,23 @@ class _DevConnectAppState extends ConsumerState<DevConnectApp> {
     // Activate the persistent device-history mirror so connect/disconnect
     // events are recorded even when no Settings page is open.
     ref.watch(deviceHistoryMirrorProvider);
+
+    // A. Invalidate the JSON highlight cache when the user picks a
+    // different device — data is filtered per-device, so old highlights
+    // belong to a different payload.
+    ref.listen<String?>(selectedDeviceProvider, (_, next) {
+      HighlightCacheLifecycleObserver.instance.clearCache();
+    });
+
+    // B. Invalidate the JSON highlight cache when a NEW device connects.
+    // A reconnect of an already-known device (e.g. hot reload) does NOT
+    // trigger this — only an addition to the device list.
+    final devices = ref.watch(connectedDevicesProvider);
+    final ids = devices.map((d) => d.deviceId).toSet();
+    if (_knownDeviceIds != null && ids.any((id) => !_knownDeviceIds!.contains(id))) {
+      HighlightCacheLifecycleObserver.instance.clearCache();
+    }
+    _knownDeviceIds = ids;
 
     final locale = ref.watch(localeProvider);
 

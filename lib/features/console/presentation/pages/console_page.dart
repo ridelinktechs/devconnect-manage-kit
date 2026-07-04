@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
@@ -11,7 +9,6 @@ import '../../../../components/text/text_component.dart';
 import '../../../../core/utils/log_message_summary.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
-
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/status_badge.dart';
@@ -19,9 +16,11 @@ import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/screenshot_utils.dart';
-import '../../../../models/log/log_entry.dart';
+import '../../../../core/utils/code_generator.dart';
 import '../../../../server/providers/server_providers.dart';
+import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/screenshot_filename.dart';
+import '../../../../models/log/log_entry.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../provider/console_providers.dart';
@@ -181,6 +180,13 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
     );
 
+    // Build a descriptive filename: log_<tag>_<ts>_full.png
+    final fileName = buildRichScreenshotName(
+      type: 'log',
+      subject: entry.tag ?? entry.level.name,
+      suffix: '_full',
+    );
+
     captureWidgetAsImage(
       context,
       Container(
@@ -317,6 +323,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
         ),
       ),
       width: 600,
+      fileName: fileName,
     );
   }
 
@@ -1078,7 +1085,10 @@ class _LogDetailPanelState extends State<_LogDetailPanel> {
                   // pattern as the All Events detail panel.
                   _SectionLabel(label: S.of(context).message),
                   const SizedBox(height: 6),
-                  _LogMessageBlock(message: entry.message, isDark: isDark),
+                  _LogMessageBlock(
+                    message: entry.message,
+                    deviceId: entry.deviceId,
+                  ),
 
                   // Metadata
                   if (entry.metadata != null &&
@@ -1086,22 +1096,9 @@ class _LogDetailPanelState extends State<_LogDetailPanel> {
                     const SizedBox(height: 20),
                     _SectionLabel(label: S.of(context).metadata),
                     const SizedBox(height: 6),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? ColorTokens.darkBackground
-                            : const Color(0xFFF0F0F0),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.06)
-                              : Colors.black.withValues(alpha: 0.06),
-                          width: 1,
-                        ),
-                      ),
-                      child: JsonViewer(data: entry.metadata),
+                    _MetadataBlock(
+                      data: entry.metadata!,
+                      deviceId: entry.deviceId,
                     ),
                   ],
 
@@ -1143,6 +1140,84 @@ class _LogDetailPanelState extends State<_LogDetailPanel> {
 }
 
 // ---------------------------------------------------------------------------
+// Metadata block — same 3-mode toggle as the message block, so the user can
+// flip between Tree / JSON / Code without leaving the panel.
+// ---------------------------------------------------------------------------
+
+class _MetadataBlock extends ConsumerWidget {
+  final Map<String, dynamic> data;
+  final String deviceId;
+
+  const _MetadataBlock({
+    required this.data,
+    required this.deviceId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = ref.watch(metadataViewModeProvider);
+    final devices = ref.watch(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
+    final codeLabel = CodeGenerator.labelFor(codeLang);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.black.withValues(alpha: 0.06),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: ViewModeSwitcher(
+                current: mode,
+                codeLabel: codeLabel,
+                onChanged: (BodyViewMode m) =>
+                    ref.read(metadataViewModeProvider.notifier).state = m,
+              ),
+            ),
+          ),
+          DeferredBuilder(
+            key: ValueKey(mode),
+            builder: (_) {
+              switch (mode) {
+                case BodyViewMode.tree:
+                  return JsonViewer(data: data, initiallyExpanded: true);
+                case BodyViewMode.json:
+                  return JsonPrettyViewer(data: data);
+                case BodyViewMode.code:
+                  return CodeViewer(
+                    generated: CodeGenerator.generate(data, codeLang),
+                    lang: codeLang,
+                    languageLabel: codeLabel,
+                  );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Section label used in the detail panel
 // ---------------------------------------------------------------------------
 
@@ -1168,97 +1243,112 @@ class _SectionLabel extends StatelessWidget {
 
 /// 3-mode view toggle (Tree / JSON / Code) for the log message body — same
 /// pattern as the All Events detail panel.
-class _LogMessageBlock extends StatefulWidget {
+class _LogMessageBlock extends ConsumerWidget {
   final String message;
-  final bool isDark;
+  final String deviceId;
 
-  const _LogMessageBlock({required this.message, required this.isDark});
-
-  @override
-  State<_LogMessageBlock> createState() => _LogMessageBlockState();
-}
-
-class _LogMessageBlockState extends State<_LogMessageBlock> {
-  /// 0 = Tree, 1 = JSON, 2 = Code.
-  int _mode = 0;
+  const _LogMessageBlock({
+    required this.message,
+    required this.deviceId,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = widget.isDark;
-    // Try to parse as JSON so Tree/JSON modes can render structured data.
-    // If the payload isn't valid JSON, both Tree and JSON fall back to
-    // the raw text — only Code mode has a guaranteed different rendering
-    // (and even that is identical for non-JSON messages).
-    dynamic parsed;
-    try {
-      parsed = jsonDecode(widget.message);
-    } catch (_) {
-      parsed = null;
-    }
-    final isJson = parsed is Map || parsed is List;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = ref.watch(bodyViewModeProvider);
 
-    Widget body;
-    switch (_mode) {
-      case 0: // Tree
-        body = isJson
-            ? JsonViewer(data: parsed, initiallyExpanded: true)
-            : _CodeBlock(text: widget.message, isDark: isDark);
-        break;
-      case 1: // JSON
-        body = isJson
-            ? _CodeBlock(
-                text: const JsonEncoder.withIndent('  ').convert(parsed),
-                isDark: isDark,
-              )
-            : _CodeBlock(text: widget.message, isDark: isDark);
-        break;
-      case 2: // Code
-      default:
-        body = _CodeBlock(text: widget.message, isDark: isDark);
-        break;
-    }
+    final devices = ref.watch(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.06),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Mode tabs — same style as the All Events Tree/JSON toggle.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-            child: _DetailTabBar(
-              tabs: const ['Tree', 'JSON', 'Code'],
-              currentIndex: _mode,
-              onSelect: (i) => setState(() => _mode = i),
+    return AsyncJsonParser(
+      rawData: message,
+      builder: (context, parsed, isJson) {
+        // Plain text: skip the 3-mode toggle entirely. The user gets the
+        // raw message without any view-mode chrome.
+        if (!isJson) {
+          return Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? ColorTokens.darkBackground
+                  : const Color(0xFFF0F0F0),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.06),
+                width: 1,
+              ),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: _PlainMessageBlock(text: message, isDark: isDark),
+          );
+        }
+
+        final body = DeferredBuilder(
+          key: ValueKey(mode),
+          builder: (_) {
+            switch (mode) {
+              case BodyViewMode.tree:
+                return JsonViewer(data: parsed, initiallyExpanded: true);
+              case BodyViewMode.json:
+                return JsonPrettyViewer(data: parsed);
+              case BodyViewMode.code:
+                return CodeViewer(
+                  generated: CodeGenerator.generate(parsed, codeLang),
+                  lang: codeLang,
+                  languageLabel: CodeGenerator.labelFor(codeLang),
+                );
+            }
+          },
+        );
+
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: isDark ? ColorTokens.darkBackground : const Color(0xFFF0F0F0),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.06),
+              width: 1,
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: body,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: ViewModeSwitcher(
+                  current: mode,
+                  codeLabel: CodeGenerator.labelFor(codeLang),
+                  onChanged: (BodyViewMode m) =>
+                      ref.read(bodyViewModeProvider.notifier).set(m),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: body,
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-/// Plain monospace text block with theme-aware colors. Used by Code mode
-/// (and as the fallback for Tree/JSON when the message isn't valid JSON).
-class _CodeBlock extends StatelessWidget {
+class _PlainMessageBlock extends StatelessWidget {
   final String text;
   final bool isDark;
 
-  const _CodeBlock({required this.text, required this.isDark});
+  const _PlainMessageBlock({required this.text, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
@@ -1267,8 +1357,10 @@ class _CodeBlock extends StatelessWidget {
       style: TextStyle(
         fontFamily: AppConstants.monoFontFamily,
         fontSize: 12,
-        color: isDark ? ColorTokens.lightBackground : ColorTokens.darkNeutral,
-        height: 1.6,
+        height: 1.5,
+        color: isDark
+            ? const Color(0xFFCCCCCC)
+            : const Color(0xFF333333),
       ),
     );
   }

@@ -9,9 +9,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/color_tokens.dart';
+import '../../core/theme/theme_provider.dart';
 import '../../core/utils/code_generator.dart';
 import '../../core/utils/toast_utils.dart';
 import '../../core/utils/code_highlighter.dart';
+import '../../core/utils/lru_cache.dart';
 import '../../core/utils/smooth_scroll_controller.dart';
 
 class JsonViewer extends StatefulWidget {
@@ -70,19 +72,21 @@ class _JsonViewerState extends State<JsonViewer> {
           },
         ),
         const SizedBox(height: 6),
-        SelectionArea(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _JsonNode(
-                  keyName: null,
-                  value: data,
-                  depth: 0,
-                  initiallyExpanded: initiallyExpanded,
-                ),
-              ],
+        Flexible(
+          child: SelectionArea(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _JsonNode(
+                    keyName: null,
+                    value: data,
+                    depth: 0,
+                    initiallyExpanded: initiallyExpanded,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -345,12 +349,25 @@ class _HighlightResult {
 
 /// Runs in isolate — per-line tokenization.
 _HighlightResult _computeHighlight(List<dynamic> args) {
-  final data = args[0];
+  final rawData = args[0];
   final isDark = args[1] as bool;
+
+  dynamic data = rawData;
+  if (rawData is String) {
+    try {
+      data = jsonDecode(rawData);
+    } catch (_) {
+      data = rawData;
+    }
+  }
 
   String formatted;
   try {
-    formatted = const JsonEncoder.withIndent('  ').convert(data);
+    if (data is Map || data is List) {
+      formatted = const JsonEncoder.withIndent('  ').convert(data);
+    } else {
+      formatted = data?.toString() ?? 'null';
+    }
   } catch (e) {
     formatted = data?.toString() ?? 'null';
   }
@@ -407,8 +424,62 @@ _HighlightResult _computeHighlight(List<dynamic> args) {
   return _HighlightResult(formatted, lines.length, lineTokens);
 }
 
-/// Global cache keyed by data identity.
-final _highlightCache = <int, _HighlightResult>{};
+/// Global cache keyed by data identity. Bounded to ~10 MB — old entries
+/// are evicted in LRU order once the budget is exceeded.
+final _highlightCache = LruCache<int, _HighlightResult>(
+  maxBytes: 10 * 1024 * 1024,
+  weightOf: (r) => r.formatted.length * 2 + // string chars ~2 bytes UTF-16
+      r.lineTokens.length * 48, // per-line List overhead estimate
+);
+
+/// Background-time tracker. When the app is paused/hidden for longer than
+/// [_idleClearThreshold], [_highlightCache] is cleared on resume so that
+/// stale (and possibly stale-by-data-version) entries don't linger.
+class HighlightCacheLifecycleObserver with WidgetsBindingObserver {
+  static const Duration _idleClearThreshold = Duration(minutes: 20);
+  static final HighlightCacheLifecycleObserver instance =
+      HighlightCacheLifecycleObserver._();
+
+  DateTime? _pausedAt;
+
+  HighlightCacheLifecycleObserver._();
+
+  void attach() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  void detach() {
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
+  /// Drops every cached highlight. Call when the data context changes
+  /// (device switch, project switch, etc.) so stale values aren't reused.
+  void clearCache() => _highlightCache.clear();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        _pausedAt ??= DateTime.now();
+        break;
+      case AppLifecycleState.resumed:
+        final pausedAt = _pausedAt;
+        _pausedAt = null;
+        if (pausedAt != null) {
+          final elapsed = DateTime.now().difference(pausedAt);
+          if (elapsed >= _idleClearThreshold) {
+            _highlightCache.clear();
+          }
+        }
+        break;
+      case AppLifecycleState.inactive:
+        // Transient state (e.g. incoming call, control center) — keep timer.
+        break;
+    }
+  }
+}
 
 class JsonPrettyViewer extends StatefulWidget {
   final dynamic data;
@@ -428,9 +499,15 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   /// Per-line TextSpan cache — built lazily per visible line.
   final Map<int, List<TextSpan>> _lineSpanCache = {};
   final _scrollController = SmoothScrollController();
+  /// The cache key for the entry currently displayed. Pinned so a cache
+  /// pressure from other pages can't evict the value the user is looking at.
+  int? _pinnedKey;
 
   @override
   void dispose() {
+    if (_pinnedKey != null) {
+      _highlightCache.unpin(_pinnedKey!);
+    }
     _scrollController.dispose();
     super.dispose();
   }
@@ -438,6 +515,8 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   @override
   void initState() {
     super.initState();
+    _pinnedKey = _cacheKey;
+    _highlightCache.pin(_pinnedKey!);
     _startCompute();
   }
 
@@ -445,19 +524,32 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   void didUpdateWidget(JsonPrettyViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.data, widget.data)) {
+      // Unpin the previous entry so it becomes evictable again.
+      if (_pinnedKey != null) {
+        _highlightCache.unpin(_pinnedKey!);
+      }
+      _pinnedKey = _cacheKey;
+      _highlightCache.pin(_pinnedKey!);
       _result = null;
       _lineSpanCache.clear();
       _startCompute();
+    } else {
+      // Same data — recompute if theme changed (handled in build) but
+      // never show the spinner for an unchanged payload.
+      _loading = _result == null;
     }
   }
 
   int get _cacheKey => identityHashCode(widget.data);
 
   void _startCompute() {
-    final cached = _highlightCache[_cacheKey];
+    final cached = _highlightCache.get(_cacheKey);
     if (cached != null) {
       _result = cached;
       _loading = false;
+      // Mark the build dirty so the cached result is rendered without
+      // sitting in the loading state for a frame.
+      if (mounted) setState(() {});
       return;
     }
 
@@ -468,7 +560,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
 
     compute(_computeHighlight, [widget.data, isDark]).then((result) {
       if (!mounted) return;
-      _highlightCache[_cacheKey] = result;
+      _highlightCache.put(_cacheKey, result);
       setState(() {
         _result = result;
         _loading = false;
@@ -826,6 +918,184 @@ class ViewModeSegment extends StatelessWidget {
   }
 }
 
+/// Premium 3-mode toggle (Tree / JSON / Code).
+class ViewModeSwitcher extends StatelessWidget {
+  final BodyViewMode current;
+  final String codeLabel;
+  final ValueChanged<BodyViewMode> onChanged;
+
+  const ViewModeSwitcher({
+    super.key,
+    required this.current,
+    required this.codeLabel,
+    required this.onChanged,
+  });
+
+  Alignment _alignmentFor(BodyViewMode mode) {
+    switch (mode) {
+      case BodyViewMode.tree:
+        return Alignment.centerLeft;
+      case BodyViewMode.json:
+        return Alignment.center;
+      case BodyViewMode.code:
+        return Alignment.centerRight;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final trackColor = isDark
+        ? const Color(0xFF1C2128).withValues(alpha: 0.6)
+        : const Color(0xFFEEF0F2);
+    final trackBorder = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.04);
+    final thumbColor = isDark ? const Color(0xFF30363D) : Colors.white;
+    final thumbShadow = isDark
+        ? Colors.black.withValues(alpha: 0.35)
+        : Colors.black.withValues(alpha: 0.06);
+
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: trackColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: trackBorder, width: 1),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            alignment: _alignmentFor(current),
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            child: FractionallySizedBox(
+              widthFactor: 1 / 3,
+              heightFactor: 1,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: thumbColor,
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: thumbShadow,
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              _Segment(
+                mode: BodyViewMode.tree,
+                current: current,
+                icon: LucideIcons.gitBranch,
+                label: 'Tree',
+                onTap: onChanged,
+              ),
+              _Segment(
+                mode: BodyViewMode.json,
+                current: current,
+                icon: LucideIcons.braces,
+                label: 'JSON',
+                onTap: onChanged,
+              ),
+              _Segment(
+                mode: BodyViewMode.code,
+                current: current,
+                icon: LucideIcons.code,
+                label: codeLabel,
+                onTap: onChanged,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Segment extends StatefulWidget {
+  final BodyViewMode mode;
+  final BodyViewMode current;
+  final IconData icon;
+  final String label;
+  final ValueChanged<BodyViewMode> onTap;
+
+  const _Segment({
+    required this.mode,
+    required this.current,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_Segment> createState() => _SegmentState();
+}
+
+class _SegmentState extends State<_Segment> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isActive = widget.mode == widget.current;
+    final color = isActive
+        ? ColorTokens.primary
+        : (isDark ? Colors.white60 : Colors.black54);
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => widget.onTap(widget.mode),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: _hovered && !isActive
+                  ? (isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : Colors.black.withValues(alpha: 0.03))
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(widget.icon, size: 11, color: color),
+                  const SizedBox(width: 5),
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                      color: color,
+                      fontFamily: AppConstants.monoFontFamily,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Code viewer — renders the generator's output as two stacked panels:
 //   1. "Types" — a define-file-style block of named type declarations
@@ -1010,3 +1280,339 @@ class _CodePanel extends StatelessWidget {
     );
   }
 }
+
+/// Shows a loading spinner for 1 frame on mount, then builds the child.
+///
+/// Use with a [ValueKey] tied to a view mode so that switching modes
+/// unmounts → remounts → defers → builds, preventing synchronous heavy
+/// widget trees from blocking the tab-switch animation frame.
+///
+/// Example:
+/// ```dart
+/// DeferredBuilder(
+///   key: ValueKey(currentMode),
+///   builder: (_) => JsonViewer(data: parsed),
+/// )
+/// ```
+class DeferredBuilder extends StatefulWidget {
+  final WidgetBuilder builder;
+  const DeferredBuilder({super.key, required this.builder});
+
+  @override
+  State<DeferredBuilder> createState() => _DeferredBuilderState();
+}
+
+class _DeferredBuilderState extends State<DeferredBuilder> {
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _ready = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Container(
+        padding: const EdgeInsets.all(32),
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: isDark ? Colors.grey[600] : Colors.grey[400],
+          ),
+        ),
+      );
+    }
+    return widget.builder(context);
+  }
+}
+
+/// Helper widget that ensures heavy JSON content never blocks tab transitions.
+///
+/// **How it works:**
+/// 1. On mount (or when data changes), it immediately shows a loading spinner.
+/// 2. After 1 frame (`addPostFrameCallback`), it parses the JSON (sync for
+///    small payloads, isolate for large ones).
+/// 3. After parsing completes, it waits 1 more frame before calling [builder]
+///    so the spinner is visible and the parent layout has settled.
+///
+/// This guarantees the tab-switch animation completes smoothly before any
+/// heavy widget tree (JsonViewer, JsonPrettyViewer, CodeViewer) is built.
+class AsyncJsonParser extends StatefulWidget {
+  final dynamic rawData;
+  final Widget Function(BuildContext context, dynamic parsedData, bool isJson) builder;
+
+  const AsyncJsonParser({
+    super.key,
+    required this.rawData,
+    required this.builder,
+  });
+
+  @override
+  State<AsyncJsonParser> createState() => _AsyncJsonParserState();
+}
+
+class _AsyncJsonParserState extends State<AsyncJsonParser> {
+  dynamic _parsedData;
+  bool _isJson = false;
+  bool _ready = false; // true once we can call builder
+  dynamic _lastRawData;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleProcess();
+  }
+
+  @override
+  void didUpdateWidget(AsyncJsonParser oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.rawData, widget.rawData)) {
+      _scheduleProcess();
+    }
+  }
+
+  /// Defers processing by 1 frame so the current build (tab switch,
+  /// navigation push, etc.) finishes and paints the loading spinner first.
+  /// For data that needs no async work (null, Map, List, non-JSON strings,
+  /// short JSON strings) we resolve synchronously and skip the spinner
+  /// entirely — flashing a spinner on every click would clobber the selected
+  /// tile's highlight and make the panel feel sluggish.
+  void _scheduleProcess() {
+    _lastRawData = widget.rawData;
+    final raw = widget.rawData;
+
+    // Fast path: data that can be resolved without an isolate.
+    // We resolve synchronously and stay _ready=true so no spinner is shown.
+    if (_tryResolveSync(raw)) {
+      // _tryResolveSync already set _parsedData/_isJson and _ready=true.
+      if (mounted) setState(() {});
+      return;
+    }
+
+    // Slow path: large string needing isolate parsing. Show spinner.
+    setState(() => _ready = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _processData();
+    });
+  }
+
+  /// Tries to resolve [raw] synchronously. Returns true if it succeeded
+  /// (caller should skip the spinner). Returns false if the data needs
+  /// background isolate parsing.
+  bool _tryResolveSync(dynamic raw) {
+    if (raw == null) {
+      _parsedData = null;
+      _isJson = false;
+      _ready = true;
+      return true;
+    }
+    if (raw is Map || raw is List) {
+      _parsedData = raw;
+      _isJson = true;
+      _ready = true;
+      return true;
+    }
+    if (raw is String) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty || (trimmed[0] != '{' && trimmed[0] != '[')) {
+        _parsedData = raw;
+        _isJson = false;
+        _ready = true;
+        return true;
+      }
+      if (trimmed.length < 10000) {
+        dynamic parsed;
+        try {
+          parsed = jsonDecode(trimmed);
+        } catch (_) {}
+        _parsedData = parsed ?? raw;
+        _isJson = parsed is Map || parsed is List;
+        _ready = true;
+        return true;
+      }
+    }
+    // String ≥ 10k chars that LOOKS like JSON — defer to async path so
+    // the slow-path in [_processData] gets a chance to run on an isolate.
+    // Until the isolate finishes, mark as not-ready so callers see the
+    // spinner rather than rendering the raw string as text.
+    if (raw is String) {
+      final t = raw.trim();
+      if (t.length >= 10000 && (t.startsWith('{') || t.startsWith('['))) {
+        return false; // let [_scheduleProcess] take the async path
+      }
+    }
+    // Fallback for other types: resolve sync, no spinner.
+    _parsedData = raw;
+    _isJson = false;
+    _ready = true;
+    return true;
+  }
+
+  void _processData() {
+    final raw = widget.rawData;
+    if (!identical(raw, _lastRawData)) return; // stale
+
+    // Should have been handled by the fast path; double-check.
+    if (raw is String) {
+      final trimmed = raw.trim();
+      if (trimmed.length >= 10000 &&
+          trimmed.isNotEmpty &&
+          (trimmed[0] == '{' || trimmed[0] == '[')) {
+        compute(_decodeJsonIsolate, trimmed).then((parsed) {
+          if (!mounted || !identical(_lastRawData, raw)) return;
+          _finalize(parsed ?? raw, parsed is Map || parsed is List);
+        }).catchError((_) {
+          if (!mounted || !identical(_lastRawData, raw)) return;
+          _finalize(raw, false);
+        });
+        return;
+      }
+    }
+    // Otherwise: resolve synchronously and flip ready.
+    _tryResolveSync(raw);
+    if (mounted) setState(() {});
+  }
+
+  /// Commits the parsed result and flips [_ready] after one more frame so
+  /// the spinner has at least one paint cycle visible.
+  void _finalize(dynamic data, bool isJson) {
+    _parsedData = data;
+    _isJson = isJson;
+    // Post-frame so the spinner is visible for at least 1 frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _ready = true);
+    });
+  }
+
+  static dynamic _decodeJsonIsolate(String text) {
+    try {
+      return jsonDecode(text);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Container(
+        padding: const EdgeInsets.all(32),
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: isDark ? Colors.grey[600] : Colors.grey[400],
+          ),
+        ),
+      );
+    }
+    return widget.builder(context, _parsedData, _isJson);
+  }
+}
+
+/// A widget that defers the initialization and rendering of a tab's child
+/// until the tab controller actually selects it (making it active/visible).
+class LazyTab extends StatefulWidget {
+  final TabController? controller;
+  final int index;
+  final WidgetBuilder builder;
+
+  const LazyTab({
+    super.key,
+    this.controller,
+    required this.index,
+    required this.builder,
+  });
+
+  @override
+  State<LazyTab> createState() => _LazyTabState();
+}
+
+class _LazyTabState extends State<LazyTab> {
+  bool _initialized = false;
+  TabController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // We will resolve the controller in didChangeDependencies
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newController = widget.controller ?? DefaultTabController.of(context);
+    if (_controller != newController) {
+      _controller?.removeListener(_handleTabChange);
+      _controller = newController;
+      _controller?.addListener(_handleTabChange);
+      _checkVisibility();
+    }
+  }
+
+  @override
+  void didUpdateWidget(LazyTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _controller?.removeListener(_handleTabChange);
+      _controller = widget.controller ?? DefaultTabController.of(context);
+      _controller?.addListener(_handleTabChange);
+    }
+    _checkVisibility();
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_handleTabChange);
+    super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (!mounted) return;
+    _checkVisibility();
+  }
+
+  void _checkVisibility() {
+    final c = _controller;
+    if (c != null && !_initialized && c.index == widget.index) {
+      setState(() {
+        _initialized = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_initialized) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Container(
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: isDark ? Colors.grey[600] : Colors.grey[400],
+          ),
+        ),
+      );
+    }
+    return widget.builder(context);
+  }
+}
+
+
+

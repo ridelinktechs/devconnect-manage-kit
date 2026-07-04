@@ -302,10 +302,10 @@ class SVi extends S {
   String get json => 'JSON';
 
   @override
-  String get tree => 'Cây';
+  String get tree => 'Tree';
 
   @override
-  String get code => 'Mã';
+  String get code => 'Code';
 
   @override
   String get raw => 'Thô';
@@ -462,6 +462,24 @@ class SVi extends S {
       'Chế độ mã xuất dưới dạng TypeScript / Dart / Kotlin dựa trên SDK đã kết nối.';
 
   @override
+  String get treeModeDesc =>
+      'Chế độ cây hiển thị dữ liệu dưới dạng cây nút có thể mở rộng/thu gọn. Phù hợp để duyệt các giá trị lồng nhau sâu.';
+
+  @override
+  String get jsonModeDesc =>
+      'Chế độ JSON hiển thị dữ liệu dưới dạng tài liệu JSON tô màu cú pháp, dễ sao chép.';
+
+  @override
+  String get captureDataJson =>
+      'Chụp ảnh dữ liệu (key + value theo chế độ hiện tại)';
+
+  @override
+  String get captureDataText => 'Chụp ảnh dữ liệu (key + value dạng text)';
+
+  @override
+  String get copyKey => 'Sao chép key';
+
+  @override
   String get usbConnection => 'Kết nối USB';
 
   @override
@@ -574,6 +592,50 @@ class SVi extends S {
   @override
   String get apiCallsAppearHere =>
       'Các lệnh gọi API sẽ xuất hiện ở đây theo thời gian thực';
+
+  @override
+  String clearStaleButton(Object count) {
+    return 'Cũ ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return 'Xóa $count yêu cầu đang chờ không có phản hồi trên 10 phút';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return 'Đã xóa $count yêu cầu cũ (chờ > 10 phút)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return 'An toàn bộ nhớ: đã loại $count mục mạng cũ khỏi bộ nhớ đệm open-trips';
+  }
+
+  @override
+  String get sdkTipsPill => 'Mẹo';
+
+  @override
+  String get sdkTipsHeader => 'Tương thích thư viện';
+
+  @override
+  String get sdkTipsSubtitle =>
+      'Để đảm bảo mọi data được hiển thị đầy đủ, hãy đảm bảo thư viện đã là version mới nhất.';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
 
   @override
   String get networkTitle => 'Mạng';
@@ -1030,4 +1092,17 @@ class SVi extends S {
   @override
   String get smoothScrollingDurationDesc =>
       'Thời gian chạy hiệu ứng cuộn mượt mà tính bằng mili-giây.';
+
+  @override
+  String binaryBody(String label) {
+    return 'Body $label là nhị phân';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes byte)';
+  }
+
+  @override
+  String get binaryBodyHint => 'Xác định action thông qua header X-Amz-Target.';
 }

@@ -298,10 +298,10 @@ class SZh extends S {
   String get json => 'JSON';
 
   @override
-  String get tree => '树形';
+  String get tree => 'Tree';
 
   @override
-  String get code => '代码';
+  String get code => 'Code';
 
   @override
   String get raw => '原始';
@@ -454,6 +454,21 @@ class SZh extends S {
   String get codeModeDesc => '代码模式根据已连接的 SDK 导出为 TypeScript / Dart / Kotlin。';
 
   @override
+  String get treeModeDesc => '树形模式以可展开/折叠的节点层级显示数据,适合浏览深度嵌套的值。';
+
+  @override
+  String get jsonModeDesc => 'JSON 模式将数据呈现为单一、带语法高亮、易于复制的 JSON 文档。';
+
+  @override
+  String get captureDataJson => '截图数据(当前模式下的键 + 值)';
+
+  @override
+  String get captureDataText => '截图数据(键 + 值作为文本)';
+
+  @override
+  String get copyKey => '复制键';
+
+  @override
   String get usbConnection => 'USB 连接';
 
   @override
@@ -563,6 +578,49 @@ class SZh extends S {
 
   @override
   String get apiCallsAppearHere => 'API 调用将实时显示在这里';
+
+  @override
+  String clearStaleButton(Object count) {
+    return '过期 ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return '清除 $count 个超过 10 分钟未响应的挂起请求';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '已清除 $count 个过期请求 (挂起 > 10 分钟)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return '内存安全: 已从 open-trips 缓存中丢弃 $count 个过期网络条目';
+  }
+
+  @override
+  String get sdkTipsPill => '提示';
+
+  @override
+  String get sdkTipsHeader => '库兼容性';
+
+  @override
+  String get sdkTipsSubtitle => '为确保所有数据完整显示,请确保使用的是最新版本的库。';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
 
   @override
   String get networkTitle => '网络';
@@ -1008,6 +1066,19 @@ class SZh extends S {
 
   @override
   String get smoothScrollingDurationDesc => '滚动动画的持续时间（毫秒）。';
+
+  @override
+  String binaryBody(String label) {
+    return '$label 正文为二进制';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes 字节)';
+  }
+
+  @override
+  String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -1304,10 +1375,10 @@ class SZhCn extends SZh {
   String get json => 'JSON';
 
   @override
-  String get tree => '树形';
+  String get tree => 'Tree';
 
   @override
-  String get code => '代码';
+  String get code => 'Code';
 
   @override
   String get raw => '原始';
@@ -1460,6 +1531,15 @@ class SZhCn extends SZh {
   String get codeModeDesc => '代码模式根据已连接的 SDK 导出为 TypeScript / Dart / Kotlin。';
 
   @override
+  String get captureDataJson => '截图数据(当前模式下的键 + 值)';
+
+  @override
+  String get captureDataText => '截图数据(键 + 值作为文本)';
+
+  @override
+  String get copyKey => '复制键';
+
+  @override
   String get usbConnection => 'USB 连接';
 
   @override
@@ -1569,6 +1649,49 @@ class SZhCn extends SZh {
 
   @override
   String get apiCallsAppearHere => 'API 调用将实时显示在这里';
+
+  @override
+  String clearStaleButton(Object count) {
+    return '过期 ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return '清除 $count 个超过 10 分钟未响应的挂起请求';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '已清除 $count 个过期请求 (挂起 > 10 分钟)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return '内存安全: 已从 open-trips 缓存中丢弃 $count 个过期网络条目';
+  }
+
+  @override
+  String get sdkTipsPill => '提示';
+
+  @override
+  String get sdkTipsHeader => '库兼容性';
+
+  @override
+  String get sdkTipsSubtitle => '为确保所有数据完整显示,请确保使用的是最新版本的库。';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
 
   @override
   String get networkTitle => '网络';
@@ -2014,6 +2137,19 @@ class SZhCn extends SZh {
 
   @override
   String get smoothScrollingDurationDesc => '滚动动画的持续时间（毫秒）。';
+
+  @override
+  String binaryBody(String label) {
+    return '$label 正文为二进制';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes 字节)';
+  }
+
+  @override
+  String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -2310,10 +2446,10 @@ class SZhTw extends SZh {
   String get json => 'JSON';
 
   @override
-  String get tree => '樹狀';
+  String get tree => 'Tree';
 
   @override
-  String get code => '程式碼';
+  String get code => 'Code';
 
   @override
   String get raw => '原始';
@@ -2466,6 +2602,15 @@ class SZhTw extends SZh {
   String get codeModeDesc => '程式碼模式根據已連線的 SDK 匯出為 TypeScript / Dart / Kotlin。';
 
   @override
+  String get captureDataJson => '擷取資料 (目前模式的金鑰 + 值)';
+
+  @override
+  String get captureDataText => '擷取資料 (金鑰 + 值作為文字)';
+
+  @override
+  String get copyKey => '複製金鑰';
+
+  @override
   String get usbConnection => 'USB 連線';
 
   @override
@@ -2575,6 +2720,49 @@ class SZhTw extends SZh {
 
   @override
   String get apiCallsAppearHere => 'API 呼叫將即時顯示在這裡';
+
+  @override
+  String clearStaleButton(Object count) {
+    return '過期 ($count)';
+  }
+
+  @override
+  String clearStaleTooltip(Object count) {
+    return '清除 $count 個超過 10 分鐘未回應的掛起請求';
+  }
+
+  @override
+  String clearStaleSnackbar(Object count) {
+    return '已清除 $count 個過期請求 (掛起 > 10 分鐘)';
+  }
+
+  @override
+  String memorySafetyOverflow(Object count) {
+    return '記憶體安全: 已從 open-trips 快取中丟棄 $count 個過期網路條目';
+  }
+
+  @override
+  String get sdkTipsPill => '提示';
+
+  @override
+  String get sdkTipsHeader => '庫相容性';
+
+  @override
+  String get sdkTipsSubtitle => '為確保所有資料完整顯示,請確保使用的是最新版本的庫。';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
 
   @override
   String get networkTitle => '網路';
@@ -3020,4 +3208,17 @@ class SZhTw extends SZh {
 
   @override
   String get smoothScrollingDurationDesc => '滾動動畫的持續時間（毫秒）。';
+
+  @override
+  String binaryBody(String label) {
+    return '$label 內文為二進位';
+  }
+
+  @override
+  String binaryBodySize(String kb, int bytes) {
+    return '$kb KB ($bytes 位元組)';
+  }
+
+  @override
+  String get binaryBodyHint => '透過 X-Amz-Target 標頭識別操作。';
 }

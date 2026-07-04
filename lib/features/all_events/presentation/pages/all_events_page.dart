@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/screenshot_filename.dart';
 import 'package:flutter/material.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'package:flutter/rendering.dart';
@@ -18,6 +20,7 @@ import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/text/text_component.dart';
 import '../../../../components/misc/status_badge.dart';
+import '../../../../components/misc/service_tag.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/providers/tab_visibility_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
@@ -995,6 +998,13 @@ class _EventRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              if (event.type == EventType.network &&
+                  event.rawData is NetworkEntry &&
+                  (event.rawData as NetworkEntry).serviceName != null) ...[
+                ServiceTag(
+                    name: (event.rawData as NetworkEntry).serviceName!),
+                const SizedBox(width: 6),
+              ],
               // Subtitle / Status indicator
               if (!showDetail) ...[
                 if (event.type == EventType.network &&
@@ -2456,10 +2466,10 @@ class _EventDetailPanel extends StatefulWidget {
 class _EventDetailPanelState extends State<_EventDetailPanel> {
   int _currentTabIndex = 0;
   bool _currentJsonMode = false;
-  bool _storageFormatted = false;
   final _contentKey = GlobalKey();
 
-  Future<void> _captureAndSave(Widget screenshotWidget) async {
+  Future<void> _captureAndSave(Widget screenshotWidget,
+      {String? fileName}) async {
     try {
       // Show capture flash animation
       _showCaptureFlash();
@@ -2488,7 +2498,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
       );
 
       Overlay.of(context).insert(overlayEntry);
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 600));
 
       final boundary = overlayKey.currentContext?.findRenderObject()
           as RenderRepaintBoundary?;
@@ -2506,10 +2516,14 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
 
       final pngBytes = byteData.buffer.asUint8List();
 
-      final fileName =
-          'dcmt_${DateTime.now().millisecondsSinceEpoch}.png';
+      final baseName = (fileName == null || fileName.isEmpty)
+          ? 'dcmt_${DateTime.now().millisecondsSinceEpoch}'
+          : fileName;
+      final withExt =
+          baseName.endsWith('.png') ? baseName : '$baseName.png';
+
       final location = await getSaveLocation(
-        suggestedName: fileName,
+        suggestedName: withExt,
         acceptedTypeGroups: [
           const XTypeGroup(label: 'PNG Image', extensions: ['png']),
         ],
@@ -2517,13 +2531,27 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
 
       if (location == null) return;
 
-      final file = File(location.path);
-      await file.writeAsBytes(pngBytes);
+      // Force saved file's name to withExt regardless of what OS returns.
+      final savedPath = _ensureFilename(location.path, withExt);
+      final xfile = XFile.fromData(
+        pngBytes,
+        mimeType: 'image/png',
+        name: withExt,
+        length: pngBytes.lengthInBytes,
+      );
+      await xfile.saveTo(savedPath);
 
-      if (mounted) _showSavedToast(file.path);
+      if (mounted) showScreenshotSavedToast(context, filePath: savedPath);
     } catch (e) {
       if (mounted) _showErrorToast('$e');
     }
+  }
+
+  String _ensureFilename(String path, String desiredName) {
+    final sep = path.contains(r'\') ? r'\' : '/';
+    final last = path.lastIndexOf(sep);
+    if (last == -1) return '$path$sep$desiredName';
+    return '${path.substring(0, last + 1)}$desiredName';
   }
 
   void _showCaptureFlash() {
@@ -2788,7 +2816,46 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
   Future<void> _takeFullScreenshot() async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    await _captureAndSave(_buildScreenshotWidget(theme, isDark));
+    final widget_ = _buildScreenshotWidget(theme, isDark);
+    final fileName = _buildEventScreenshotName('_full');
+    await _captureAndSave(widget_, fileName: fileName);
+  }
+
+  /// Builds a descriptive file name for event screenshots:
+  /// `<type>_<keyOrTitle>_<isoTimestamp>_<suffix>.png`
+  /// Falls back gracefully when key metadata is missing.
+  /// Note: appName is intentionally NOT included — screenshots may be
+  /// shared with clients and the internal app identifier must not leak.
+  String _buildEventScreenshotName(String suffix) {
+    final event = widget.event;
+    final type = event.type.name;
+
+    // Pick a meaningful subject: storage key, network URL path, log tag, etc.
+    String subject = event.title;
+    if (event.rawData is StorageEntry) {
+      subject = (event.rawData as StorageEntry).key;
+    } else if (event.rawData is NetworkEntry) {
+      final url = (event.rawData as NetworkEntry).url;
+      try {
+        subject = Uri.parse(url).path.isEmpty ? url : Uri.parse(url).path;
+      } catch (_) {
+        subject = url;
+      }
+    } else if (event.rawData is LogEntry) {
+      final tag = (event.rawData as LogEntry).tag;
+      if (tag != null && tag.isNotEmpty) subject = tag;
+    } else if (event.rawData is StateChange) {
+      final sc = event.rawData as StateChange;
+      subject = sc.actionName.isNotEmpty
+          ? sc.actionName
+          : sc.stateManagerType;
+    }
+
+    return buildRichScreenshotName(
+      type: type,
+      subject: subject,
+      suffix: suffix,
+    );
   }
 
   Future<void> _takeTabScreenshot() async {
@@ -2900,7 +2967,7 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
                     color: typeColor,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const Spacer(),
                 TextComponent(
                   time,
                   style: TextStyle(
@@ -3209,60 +3276,243 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
   }
 
   Widget _storageScreenshot(StorageEntry entry, bool isDark) {
-    Color opColor;
-    switch (entry.operation.toLowerCase()) {
-      case 'write':
-        opColor = ColorTokens.success;
-        break;
-      case 'read':
-        opColor = ColorTokens.info;
-        break;
-      case 'delete':
-      case 'clear':
-        opColor = ColorTokens.error;
-        break;
-      default:
-        opColor = ColorTokens.warning;
+    // Operation color matches the in-app panel: emerald/blue/red/amber.
+    Color opColorFor(StorageEntry e) {
+      switch (e.operation.toLowerCase()) {
+        case 'write':
+          return const Color(0xFF34D399);
+        case 'read':
+          return const Color(0xFF60A5FA);
+        case 'delete':
+        case 'clear':
+          return const Color(0xFFF87171);
+        default:
+          return const Color(0xFFFBBF24);
+      }
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    // Resolve platform from connected devices for code-mode export
+    final devices = ProviderScope.containerOf(context, listen: false)
+        .read(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == entry.deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
+    final codeLabel = CodeGenerator.labelFor(codeLang);
+
+    // Respect 3 view modes from global provider
+    final mode = ProviderScope.containerOf(context, listen: false)
+        .read(bodyViewModeProvider);
+
+    // Design tokens
+    final labelColor = isDark ? Colors.grey[500] : Colors.grey[600];
+    final dividerColor = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.06);
+
+    // ── Helpers ─────────────────────────────────────────────
+    String formatShape() {
+      final v = entry.value;
+      if (v == null) return 'null';
+      if (v is Map) return 'Map · ${v.length} ${v.length == 1 ? "key" : "keys"}';
+      if (v is List) return 'List · ${v.length} ${v.length == 1 ? "item" : "items"}';
+      if (v is String) {
+        if (v.isEmpty) return 'String · empty';
+        final t = v.trim();
+        if ((t.startsWith('{') && t.endsWith('}')) ||
+            (t.startsWith('[') && t.endsWith(']'))) {
+          return 'String · JSON-shaped';
+        }
+        return 'String';
+      }
+      return v.runtimeType.toString();
+    }
+
+    String formatSize() {
+      final raw = entry.value is String
+          ? entry.value as String
+          : const JsonEncoder.withIndent('  ').convert(entry.value);
+      return AppConstants.formatBytes(raw.length);
+    }
+
+    dynamic parseJson() {
+      final v = entry.value;
+      if (v is! String) return null;
+      try {
+        final p = jsonDecode(v);
+        if (p is Map || p is List) return p;
+      } catch (_) {}
+      return null;
+    }
+
+    dynamic displayValue() {
+      final v = entry.value;
+      if (v is Map || v is List) return v;
+      return parseJson() ?? v;
+    }
+
+    bool isJsonLike() {
+      final v = entry.value;
+      if (v is Map || v is List) return true;
+      return parseJson() != null;
+    }
+
+    Widget buildValueWidget() {
+      if (!isJsonLike()) {
+        return _CodeBlock(text: '${entry.value}', isDark: isDark);
+      }
+      final value = displayValue();
+      return switch (mode) {
+        BodyViewMode.tree =>
+          JsonViewer(data: value, initiallyExpanded: true),
+        BodyViewMode.json => JsonPrettyViewer(data: value),
+        BodyViewMode.code => CodeViewer(
+            generated: CodeGenerator.generate(value, codeLang),
+            lang: codeLang,
+            languageLabel: codeLabel,
+          ),
+      };
+    }
+
+    // Match the in-app metadata bento grid (2x2: SHAPE/SIZE on row 1,
+    // DEVICE/CAPTURED on row 2). Each cell has uppercase label + value.
+    final monoPrimary = TextStyle(
+      fontFamily: AppConstants.monoFontFamily,
+      fontSize: 13,
+      height: 1.5,
+      color: isDark ? const Color(0xFFE8E8E8) : const Color(0xFF1A1A1A),
+    );
+    final monoSecondary = TextStyle(
+      fontFamily: AppConstants.monoFontFamily,
+      fontSize: 11,
+      height: 1.5,
+      color: labelColor,
+    );
+    final metaLabelStyle = TextStyle(
+      fontSize: 10,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 1.2,
+      color: labelColor,
+    );
+
+    Widget metaCell(String label, String value, TextStyle valueStyle,
+            {bool monospace = false}) =>
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextComponent(label, style: metaLabelStyle),
+            const SizedBox(height: 4),
+            TextComponent(
+              value,
+              style: monospace
+                  ? valueStyle.copyWith(fontFamily: AppConstants.monoFontFamily)
+                  : valueStyle,
+            ),
+          ],
+        );
+
+    return Container(
+      color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            _TagChip(entry.operation.toUpperCase(), color: opColor),
-            const SizedBox(width: 8),
-            _TagChip(entry.storageType.name, color: ColorTokens.warning),
-          ]),
-          const SizedBox(height: 16),
-          const _SectionLabel('Key'),
-          const SizedBox(height: 6),
-          _CodeBlock(text: entry.key, isDark: isDark),
+          // ── Badges (mirror _StorageDetailRedesign header row) ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _OpBadge(label: entry.operation, color: opColorFor(entry)),
+                const SizedBox(width: 8),
+                _TypeBadge(label: entry.storageType.name),
+              ],
+            ),
+          ),
+          // ── Metadata (matches the in-app bento grid) ──────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextComponent('METADATA', style: metaLabelStyle),
+                const SizedBox(height: 10),
+                // Row 1: SHAPE / SIZE
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: metaCell('SHAPE', formatShape(), monoPrimary),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: metaCell('SIZE', formatSize(), monoPrimary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Row 2: DEVICE / CAPTURED
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: metaCell(
+                          'DEVICE', entry.deviceId, monoSecondary,
+                          monospace: true),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: metaCell(
+                        'CAPTURED',
+                        DateFormat('HH:mm:ss.SSS').format(
+                          DateTime.fromMillisecondsSinceEpoch(
+                              entry.timestamp),
+                        ),
+                        monoPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // ── Divider ───────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+            child: Container(height: 1, color: dividerColor),
+          ),
+          // ── Key ───────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SectionLabel('Key'),
+                const SizedBox(height: 6),
+                _CodeBlock(text: entry.key, isDark: isDark),
+              ],
+            ),
+          ),
+          // ── Value (3 view modes when JSON-like) ──────────────
           if (entry.value != null) ...[
             const SizedBox(height: 16),
-            const _SectionLabel('Value'),
-            const SizedBox(height: 6),
-            if (entry.value is Map || entry.value is List)
-              JsonViewer(data: entry.value, initiallyExpanded: true)
-            else if (_storageFormatted && _tryParseStorageJson(entry.value) != null)
-              JsonViewer(data: _tryParseStorageJson(entry.value), initiallyExpanded: true)
-            else
-              _CodeBlock(text: '${entry.value}', isDark: isDark),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionLabel('Value'),
+                  const SizedBox(height: 6),
+                  buildValueWidget(),
+                ],
+              ),
+            ),
           ],
         ],
       ),
     );
-  }
-
-  dynamic _tryParseStorageJson(dynamic value) {
-    if (value is! String) return null;
-    try {
-      final parsed = jsonDecode(value);
-      if (parsed is Map || parsed is List) return parsed;
-    } catch (_) {}
-    return null;
   }
 
   Widget _fallbackScreenshot(UnifiedEvent event, bool isDark) {
@@ -3604,9 +3854,8 @@ class _EventDetailPanelState extends State<_EventDetailPanel> {
         return _FallbackDetail(event: widget.event);
       case EventType.storage:
         if (widget.event.rawData is StorageEntry) {
-          return _StorageDetail(
+          return _StorageDetailRedesign(
             entry: widget.event.rawData as StorageEntry,
-            onFormatChanged: (v) => _storageFormatted = v,
           );
         }
         return _FallbackDetail(event: widget.event);
@@ -4175,20 +4424,36 @@ class _NetworkDetailState extends ConsumerState<_NetworkDetail>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _HeadersView(entry: entry),
-                _BodyView(
-                  body: entry.requestBody,
-                  label: 'Request Body',
-                  deviceId: entry.deviceId,
-                  onJsonModeChanged: widget.onJsonModeChanged,
+                LazyTab(
+                  controller: _tabController,
+                  index: 0,
+                  builder: (_) => _HeadersView(entry: entry),
                 ),
-                _BodyView(
-                  body: entry.responseBody,
-                  label: 'Response Body',
-                  deviceId: entry.deviceId,
-                  onJsonModeChanged: widget.onJsonModeChanged,
+                LazyTab(
+                  controller: _tabController,
+                  index: 1,
+                  builder: (_) => _BodyView(
+                    body: entry.requestBody,
+                    label: 'Request Body',
+                    deviceId: entry.deviceId,
+                    onJsonModeChanged: widget.onJsonModeChanged,
+                  ),
                 ),
-                _TimingView(entry: entry),
+                LazyTab(
+                  controller: _tabController,
+                  index: 2,
+                  builder: (_) => _BodyView(
+                    body: entry.responseBody,
+                    label: 'Response Body',
+                    deviceId: entry.deviceId,
+                    onJsonModeChanged: widget.onJsonModeChanged,
+                  ),
+                ),
+                LazyTab(
+                  controller: _tabController,
+                  index: 3,
+                  builder: (_) => _TimingView(entry: entry),
+                ),
               ],
             ),
           ),
@@ -4636,17 +4901,6 @@ class _BodyViewState extends ConsumerState<_BodyView> {
       return EmptyState(icon: LucideIcons.fileText, title: 'No ${widget.label}');
     }
 
-    // Try to parse string body as JSON
-    dynamic parsedBody = widget.body;
-    if (parsedBody is String) {
-      try {
-        parsedBody = jsonDecode(parsedBody);
-      } catch (_) {}
-    }
-
-    final canToggle = parsedBody is Map || parsedBody is List;
-    final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
-
     // Look up the connected device's platform to pick the Code language.
     final devices = ref.watch(connectedDevicesProvider);
     final platform = widget.deviceId == null
@@ -4658,75 +4912,82 @@ class _BodyViewState extends ConsumerState<_BodyView> {
             'react_native';
     final codeLang = CodeGenerator.langForPlatform(platform);
 
-    return Column(
-      children: [
-        Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.black.withValues(alpha: 0.06),
+    return AsyncJsonParser(
+      rawData: widget.body,
+      builder: (context, parsedBody, isJson) {
+        final canToggle = isJson;
+        final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
+
+        return Column(
+          children: [
+            Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.06),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  _SectionLabel(widget.label),
+                  const Spacer(),
+                  if (canToggle) ...[
+                    ViewModeSegment(
+                      label: 'Tree',
+                      active: effectiveMode == BodyViewMode.tree,
+                      position: ViewSegmentPosition.start,
+                      onTap: () {
+                        ref
+                            .read(bodyViewModeProvider.notifier)
+                            .set(BodyViewMode.tree);
+                        widget.onJsonModeChanged?.call(false);
+                      },
+                    ),
+                    ViewModeSegment(
+                      label: 'JSON',
+                      active: effectiveMode == BodyViewMode.json,
+                      position: ViewSegmentPosition.middle,
+                      onTap: () {
+                        ref
+                            .read(bodyViewModeProvider.notifier)
+                            .set(BodyViewMode.json);
+                        widget.onJsonModeChanged?.call(true);
+                      },
+                    ),
+                    ViewModeSegment(
+                      label: CodeGenerator.labelFor(codeLang),
+                      active: effectiveMode == BodyViewMode.code,
+                      position: ViewSegmentPosition.end,
+                      onTap: () {
+                        ref
+                            .read(bodyViewModeProvider.notifier)
+                            .set(BodyViewMode.code);
+                        widget.onJsonModeChanged?.call(false);
+                      },
+                    ),
+                  ],
+                ],
               ),
             ),
-          ),
-          child: Row(
-            children: [
-              _SectionLabel(widget.label),
-              const Spacer(),
-              if (canToggle) ...[
-                ViewModeSegment(
-                  label: 'Tree',
-                  active: effectiveMode == BodyViewMode.tree,
-                  position: ViewSegmentPosition.start,
-                  onTap: () {
-                    ref
-                        .read(bodyViewModeProvider.notifier)
-                        .set(BodyViewMode.tree);
-                    widget.onJsonModeChanged?.call(false);
-                  },
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildContent(
+                  parsedBody: parsedBody,
+                  canToggle: canToggle,
+                  mode: effectiveMode,
+                  codeLang: codeLang,
                 ),
-                ViewModeSegment(
-                  label: 'JSON',
-                  active: effectiveMode == BodyViewMode.json,
-                  position: ViewSegmentPosition.middle,
-                  onTap: () {
-                    ref
-                        .read(bodyViewModeProvider.notifier)
-                        .set(BodyViewMode.json);
-                    widget.onJsonModeChanged?.call(true);
-                  },
-                ),
-                ViewModeSegment(
-                  label: CodeGenerator.labelFor(codeLang),
-                  active: effectiveMode == BodyViewMode.code,
-                  position: ViewSegmentPosition.end,
-                  onTap: () {
-                    ref
-                        .read(bodyViewModeProvider.notifier)
-                        .set(BodyViewMode.code);
-                    widget.onJsonModeChanged?.call(false);
-                  },
-                ),
-              ],
-            ],
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            child: _buildContent(
-              parsedBody: parsedBody,
-              canToggle: canToggle,
-              mode: effectiveMode,
-              codeLang: codeLang,
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -4739,19 +5000,26 @@ class _BodyViewState extends ConsumerState<_BodyView> {
     if (!canToggle) {
       return JsonPrettyViewer(data: parsedBody);
     }
-    switch (mode) {
-      case BodyViewMode.tree:
-        return JsonViewer(data: parsedBody, initiallyExpanded: true);
-      case BodyViewMode.json:
-        return JsonPrettyViewer(data: parsedBody);
-      case BodyViewMode.code:
-        final generated = CodeGenerator.generate(parsedBody, codeLang);
-        return CodeViewer(
-          generated: generated,
-          lang: codeLang,
-          languageLabel: CodeGenerator.labelFor(codeLang),
-        );
-    }
+    return DeferredBuilder(
+      key: ValueKey(mode),
+      builder: (_) {
+        switch (mode) {
+          case BodyViewMode.tree:
+            return JsonViewer(data: parsedBody, initiallyExpanded: true);
+          case BodyViewMode.json:
+            return JsonPrettyViewer(data: widget.body);
+          case BodyViewMode.code:
+            final generated = CodeGenerator.generate(parsedBody, codeLang);
+            return SingleChildScrollView(
+              child: CodeViewer(
+                generated: generated,
+                lang: codeLang,
+                languageLabel: CodeGenerator.labelFor(codeLang),
+              ),
+            );
+        }
+      },
+    );
   }
 }
 
@@ -4771,63 +5039,61 @@ class _InlineJsonViewState extends ConsumerState<_InlineJsonView> {
   Widget build(BuildContext context) {
     final viewMode = ref.watch(bodyViewModeProvider);
 
-    dynamic parsed = widget.data;
-    if (parsed is String) {
-      try {
-        parsed = jsonDecode(parsed);
-      } catch (_) {}
-    }
-
-    final canToggle = parsed is Map || parsed is List;
-    final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
-
     // Inline views don't know the device, so Code mode falls back to TS.
     final codeLang = CodeGenerator.langForPlatform('react_native');
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return AsyncJsonParser(
+      rawData: widget.data,
+      builder: (context, parsed, isJson) {
+        final canToggle = isJson;
+        final effectiveMode = canToggle ? viewMode : BodyViewMode.json;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionLabel(widget.label),
-            const Spacer(),
-            if (canToggle) ...[
-              ViewModeSegment(
-                label: 'Tree',
-                active: effectiveMode == BodyViewMode.tree,
-                position: ViewSegmentPosition.start,
-                onTap: () => ref
-                    .read(bodyViewModeProvider.notifier)
-                    .set(BodyViewMode.tree),
-              ),
-              ViewModeSegment(
-                label: 'JSON',
-                active: effectiveMode == BodyViewMode.json,
-                position: ViewSegmentPosition.middle,
-                onTap: () => ref
-                    .read(bodyViewModeProvider.notifier)
-                    .set(BodyViewMode.json),
-              ),
-              ViewModeSegment(
-                label: CodeGenerator.labelFor(codeLang),
-                active: effectiveMode == BodyViewMode.code,
-                position: ViewSegmentPosition.end,
-                onTap: () => ref
-                    .read(bodyViewModeProvider.notifier)
-                    .set(BodyViewMode.code),
-              ),
-            ],
+            Row(
+              children: [
+                _SectionLabel(widget.label),
+                const Spacer(),
+                if (canToggle) ...[
+                  ViewModeSegment(
+                    label: 'Tree',
+                    active: effectiveMode == BodyViewMode.tree,
+                    position: ViewSegmentPosition.start,
+                    onTap: () => ref
+                        .read(bodyViewModeProvider.notifier)
+                        .set(BodyViewMode.tree),
+                  ),
+                  ViewModeSegment(
+                    label: 'JSON',
+                    active: effectiveMode == BodyViewMode.json,
+                    position: ViewSegmentPosition.middle,
+                    onTap: () => ref
+                        .read(bodyViewModeProvider.notifier)
+                        .set(BodyViewMode.json),
+                  ),
+                  ViewModeSegment(
+                    label: CodeGenerator.labelFor(codeLang),
+                    active: effectiveMode == BodyViewMode.code,
+                    position: ViewSegmentPosition.end,
+                    onTap: () => ref
+                        .read(bodyViewModeProvider.notifier)
+                        .set(BodyViewMode.code),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildInlineContent(
+              parsed: parsed,
+              canToggle: canToggle,
+              mode: effectiveMode,
+              codeLang: codeLang,
+            ),
           ],
-        ),
-        const SizedBox(height: 8),
-        _buildInlineContent(
-          parsed: parsed,
-          canToggle: canToggle,
-          mode: effectiveMode,
-          codeLang: codeLang,
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -4837,20 +5103,25 @@ class _InlineJsonViewState extends ConsumerState<_InlineJsonView> {
     required BodyViewMode mode,
     required CodeLang codeLang,
   }) {
-    if (!canToggle) return JsonPrettyViewer(data: parsed);
-    switch (mode) {
-      case BodyViewMode.tree:
-        return JsonViewer(data: parsed, initiallyExpanded: true);
-      case BodyViewMode.json:
-        return JsonPrettyViewer(data: parsed);
-      case BodyViewMode.code:
-        final generated = CodeGenerator.generate(parsed, codeLang);
-        return CodeViewer(
-          generated: generated,
-          lang: codeLang,
-          languageLabel: CodeGenerator.labelFor(codeLang),
-        );
-    }
+    if (!canToggle) return JsonPrettyViewer(data: widget.data);
+    return DeferredBuilder(
+      key: ValueKey(mode),
+      builder: (_) {
+        switch (mode) {
+          case BodyViewMode.tree:
+            return JsonViewer(data: parsed, initiallyExpanded: true);
+          case BodyViewMode.json:
+            return JsonPrettyViewer(data: widget.data);
+          case BodyViewMode.code:
+            final generated = CodeGenerator.generate(parsed, codeLang);
+            return CodeViewer(
+              generated: generated,
+              lang: codeLang,
+              languageLabel: CodeGenerator.labelFor(codeLang),
+            );
+        }
+      },
+    );
   }
 }
 
@@ -5371,41 +5642,53 @@ class _StateDetailState extends ConsumerState<_StateDetail>
           tabs: const ['Diff', 'Previous', 'Next'],
         ),
         Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              entry.diff.isEmpty
-                  ? EmptyState(
-                      icon: LucideIcons.gitCompare, title: 'No diff')
-                  : ListView.builder(
-                      controller: _diffScrollController,
-                      padding: const EdgeInsets.all(12),
-                      itemCount: entry.diff.length,
-                      itemBuilder: (context, index) =>
-                          _DiffRow(diff: entry.diff[index]),
-                    ),
-              entry.previousState.isEmpty
-                  ? EmptyState(
-                      icon: LucideIcons.layers,
-                      title: 'No previous state')
-                  : _BodyView(
-                      body: entry.previousState,
-                      label: 'Previous State',
-                      deviceId: entry.deviceId,
-                      onJsonModeChanged: widget.onJsonModeChanged,
-                    ),
-              entry.nextState.isEmpty
-                  ? EmptyState(
-                      icon: LucideIcons.layers,
-                      title: 'No next state')
-                  : _BodyView(
-                      body: entry.nextState,
-                      label: 'Next State',
-                      deviceId: entry.deviceId,
-                      onJsonModeChanged: widget.onJsonModeChanged,
-                    ),
-            ],
-          ),
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                LazyTab(
+                  controller: _tabController,
+                  index: 0,
+                  builder: (_) => entry.diff.isEmpty
+                      ? EmptyState(
+                          icon: LucideIcons.gitCompare, title: 'No diff')
+                      : ListView.builder(
+                          controller: _diffScrollController,
+                          padding: const EdgeInsets.all(12),
+                          itemCount: entry.diff.length,
+                          itemBuilder: (context, index) =>
+                              _DiffRow(diff: entry.diff[index]),
+                        ),
+                ),
+                LazyTab(
+                  controller: _tabController,
+                  index: 1,
+                  builder: (_) => entry.previousState.isEmpty
+                      ? EmptyState(
+                          icon: LucideIcons.layers,
+                          title: 'No previous state')
+                      : _BodyView(
+                          body: entry.previousState,
+                          label: 'Previous State',
+                          deviceId: entry.deviceId,
+                          onJsonModeChanged: widget.onJsonModeChanged,
+                        ),
+                ),
+                LazyTab(
+                  controller: _tabController,
+                  index: 2,
+                  builder: (_) => entry.nextState.isEmpty
+                      ? EmptyState(
+                          icon: LucideIcons.layers,
+                          title: 'No next state')
+                      : _BodyView(
+                          body: entry.nextState,
+                          label: 'Next State',
+                          deviceId: entry.deviceId,
+                          onJsonModeChanged: widget.onJsonModeChanged,
+                        ),
+                ),
+              ],
+            ),
         ),
       ],
     );
@@ -5589,31 +5872,64 @@ class _StorageDetailState extends State<_StorageDetail> {
     final parsedJson = _tryParseJson(entry.value);
     final isAlreadyJson = entry.value is Map || entry.value is List;
     final canFormat = parsedJson != null && !isAlreadyJson;
+    final rawText = entry.value is String
+        ? entry.value as String
+        : const JsonEncoder.withIndent('  ').convert(entry.value);
+    final sizeBytes = rawText.length;
+    final sizeLabel = AppConstants.formatBytes(sizeBytes);
+
+    // Off-black neutral palette per anti-AI-slop rules — no pure black,
+    // no purple/blue glows. Subtle tonal hierarchy only.
+    final surfaceColor = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFFAFAFA);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.06);
+    final labelColor = isDark ? const Color(0xFF8B8B8B) : const Color(0xFF6B6B6B);
+    final valueColor = isDark ? const Color(0xFFE8E8E8) : const Color(0xFF1A1A1A);
+    final monoStyle = TextStyle(
+      fontFamily: AppConstants.monoFontFamily,
+      fontSize: 12,
+      height: 1.6,
+      color: valueColor,
+    );
 
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Status row: operation + type + size + actions ──
+          // Asymmetric per VARIANCE 8: action cluster right-aligned, no
+          // centered chrome. Mathematically perfect 8px gaps.
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _TagChip(entry.operation.toUpperCase(), color: opColor),
               const SizedBox(width: 8),
               _TagChip(entry.storageType.name, color: ColorTokens.warning),
+              const SizedBox(width: 8),
+              _TagChip(sizeLabel, color: Colors.grey),
               const Spacer(),
-              _CopyButton(
+              _IconAction(
+                icon: LucideIcons.copy,
                 tooltip: 'Copy key',
                 onTap: () => _copyText(context, entry.key, 'Key'),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+
+          const SizedBox(height: 22),
+
+          // ── Key section: label above value, monospace value ──
           _SectionLabel('Key'),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           _CodeBlock(text: entry.key, isDark: isDark),
+
           if (entry.value != null) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 22),
+
+            // ── Value section ──
             if (isAlreadyJson)
               _InlineJsonView(data: entry.value, label: 'Value')
             else ...[
@@ -5624,15 +5940,15 @@ class _StorageDetailState extends State<_StorageDetail> {
                   if (canFormat) ...[
                     _FormatToggleButton(
                       isFormatted: _formatted,
-                      onToggle: () =>
-                          setState(() {
-                            _formatted = !_formatted;
-                            widget.onFormatChanged?.call(_formatted);
-                          }),
+                      onToggle: () => setState(() {
+                        _formatted = !_formatted;
+                        widget.onFormatChanged?.call(_formatted);
+                      }),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                   ],
-                  _CopyButton(
+                  _IconAction(
+                    icon: LucideIcons.copy,
                     tooltip: 'Copy value',
                     onTap: () {
                       final text = entry.value is String
@@ -5644,13 +5960,991 @@ class _StorageDetailState extends State<_StorageDetail> {
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               if (_formatted && parsedJson != null)
                 _InlineJsonView(data: parsedJson, label: '')
               else
                 _CodeBlock(text: '${entry.value}', isDark: isDark),
             ],
+
+            const SizedBox(height: 26),
+
+            // ── Metadata divider + key/value list ──
+            // No card container — just a thin 1px line + tight rows.
+            // Monospace values per dashboard rules; labels in neutral grey.
+            Container(height: 1, color: borderColor),
+            const SizedBox(height: 14),
+            _MetaRow(label: 'Shape', value: _shapeOf(entry.value), monoStyle: monoStyle, labelColor: labelColor),
+            _MetaRow(label: 'Length', value: '$sizeBytes chars', monoStyle: monoStyle, labelColor: labelColor),
+            _MetaRow(label: 'Device', value: entry.deviceId, monoStyle: monoStyle, labelColor: labelColor),
+            _MetaRow(
+              label: 'Captured',
+              value: DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
+                DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
+              ),
+              monoStyle: monoStyle,
+              labelColor: labelColor,
+            ),
           ],
+        ],
+      ),
+    );
+  }
+
+  String _shapeOf(dynamic v) {
+    if (v == null) return 'null';
+    if (v is Map) return 'Map · ${v.length} ${v.length == 1 ? "key" : "keys"}';
+    if (v is List) return 'List · ${v.length} ${v.length == 1 ? "item" : "items"}';
+    if (v is String) {
+      if (v.isEmpty) return 'String · empty';
+      final t = v.trim();
+      if ((t.startsWith('{') && t.endsWith('}')) ||
+          (t.startsWith('[') && t.endsWith(']'))) {
+        return 'String · JSON-shaped';
+      }
+      return 'String';
+    }
+    return v.runtimeType.toString();
+  }
+}
+
+/// Compact key/value row for the storage metadata footer.
+class _MetaRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final TextStyle monoStyle;
+  final Color labelColor;
+
+  const _MetaRow({
+    required this.label,
+    required this.value,
+    required this.monoStyle,
+    required this.labelColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 84,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: labelColor,
+                letterSpacing: 0.3,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: monoStyle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Subtle icon button with hover-state feedback. Replaces the hard-edged
+/// `_CopyButton` for a calmer, more premium look (MOTION_INTENSITY 6).
+class _IconAction extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _IconAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  State<_IconAction> createState() => _IconActionState();
+}
+
+class _IconActionState extends State<_IconAction> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: const Cubic(0.16, 1, 0.3, 1),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? (isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.05))
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              widget.icon,
+              size: 13,
+              color: isDark ? const Color(0xFF8B8B8B) : const Color(0xFF6B6B6B),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Metadata footer for the storage detail view. Renders a border-top divider
+/// followed by a clean key/value list — no card containers, just a thin line
+/// and tight monospace rows, per the dashboard-hardening design rule.
+class _StorageMetadataSection extends StatelessWidget {
+  final StorageEntry entry;
+  final bool isDark;
+
+  const _StorageMetadataSection({required this.entry, required this.isDark});
+
+  String _shape() {
+    final v = entry.value;
+    if (v == null) return 'null';
+    if (v is Map) return 'Map · ${v.length} keys';
+    if (v is List) return 'List · ${v.length} items';
+    if (v is String) {
+      if (v.isEmpty) return 'String · empty';
+      final t = v.trim();
+      if ((t.startsWith('{') && t.endsWith('}')) ||
+          (t.startsWith('[') && t.endsWith(']'))) {
+        return 'String · JSON';
+      }
+      return 'String · ${v.length} chars';
+    }
+    return v.runtimeType.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final labelColor = isDark ? Colors.grey[500] : Colors.grey[600];
+    final valueColor = isDark ? const Color(0xFFD4D4D4) : const Color(0xFF1F2328);
+    final dividerColor = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.06);
+    final monoStyle = TextStyle(
+      fontFamily: AppConstants.monoFontFamily,
+      fontSize: 11,
+      color: valueColor,
+    );
+
+    Widget row(String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 96,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: labelColor,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  value,
+                  style: monoStyle,
+                  softWrap: true,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(height: 1, color: dividerColor),
+        const SizedBox(height: 14),
+        row('Type', entry.storageType.name),
+        row('Operation', entry.operation),
+        row('Shape', _shape()),
+        row('Device', entry.deviceId),
+        row('Timestamp',
+            DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
+              DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
+            )),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Storage Detail (Redesigned)
+// ═══════════════════════════════════════════════
+
+class _StorageDetailRedesign extends ConsumerStatefulWidget {
+  final StorageEntry entry;
+  final VoidCallback? onClose;
+  const _StorageDetailRedesign({
+    required this.entry,
+    this.onClose,
+  });
+
+  @override
+  ConsumerState<_StorageDetailRedesign> createState() =>
+      _StorageDetailRedesignState();
+}
+
+class _StorageDetailRedesignState
+    extends ConsumerState<_StorageDetailRedesign> {
+  final _scrollController = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // ── Design tokens ─────────────────────────────────────────────
+  // Off-black neutrals (anti-pure-black rule). One accent reserved
+  // for the operation chip — everything else is desaturated.
+  Color _textPrimary(bool isDark) =>
+      isDark ? const Color(0xFFE8E8E8) : const Color(0xFF1A1A1A);
+  Color _textSecondary(bool isDark) =>
+      isDark ? const Color(0xFF8B8B8B) : const Color(0xFF6B6B6B);
+  Color _divider(bool isDark) => isDark
+      ? Colors.white.withValues(alpha: 0.06)
+      : Colors.black.withValues(alpha: 0.06);
+
+  Color _opColor() {
+    switch (widget.entry.operation.toLowerCase()) {
+      case 'write':
+        return const Color(0xFF34D399); // emerald 400 — single accent
+      case 'read':
+        return const Color(0xFF60A5FA); // blue 400
+      case 'delete':
+      case 'clear':
+        return const Color(0xFFF87171); // red 400
+      default:
+        return const Color(0xFFFBBF24); // amber 400
+    }
+  }
+
+  String _shapeOf(dynamic v) {
+    if (v == null) return 'null';
+    if (v is Map) return 'Map · ${v.length} ${v.length == 1 ? "key" : "keys"}';
+    if (v is List) return 'List · ${v.length} ${v.length == 1 ? "item" : "items"}';
+    if (v is String) {
+      if (v.isEmpty) return 'String · empty';
+      final t = v.trim();
+      if ((t.startsWith('{') && t.endsWith('}')) ||
+          (t.startsWith('[') && t.endsWith(']'))) {
+        return 'String · JSON-shaped';
+      }
+      return 'String';
+    }
+    return v.runtimeType.toString();
+  }
+
+  dynamic _parsedJson() {
+    final v = widget.entry.value;
+    if (v is! String) return null;
+    try {
+      final p = jsonDecode(v);
+      if (p is Map || p is List) return p;
+    } catch (_) {}
+    return null;
+  }
+
+  dynamic _displayValue() {
+    final v = widget.entry.value;
+    if (v is Map || v is List) return v;
+    return _parsedJson() ?? v;
+  }
+
+  bool get _isJsonLike {
+    final v = widget.entry.value;
+    if (v is Map || v is List) return true;
+    return _parsedJson() != null;
+  }
+
+  String _sizeLabel() {
+    final raw = widget.entry.value is String
+        ? widget.entry.value as String
+        : const JsonEncoder.withIndent('  ').convert(widget.entry.value);
+    return AppConstants.formatBytes(raw.length);
+  }
+
+  String _captureText() {
+    final v = widget.entry.value;
+    return v is String ? v : const JsonEncoder.withIndent('  ').convert(v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = ref.watch(bodyViewModeProvider);
+    final devices = ref.watch(connectedDevicesProvider);
+    final platform = devices
+            .where((d) => d.deviceId == widget.entry.deviceId)
+            .map((d) => d.platform)
+            .firstOrNull ??
+        'react_native';
+    final codeLang = CodeGenerator.langForPlatform(platform);
+    final codeLabel = CodeGenerator.labelFor(codeLang);
+
+    final monoPrimary = TextStyle(
+      fontFamily: AppConstants.monoFontFamily,
+      fontSize: 13,
+      height: 1.5,
+      color: _textPrimary(isDark),
+    );
+    final monoSecondary = TextStyle(
+      fontFamily: AppConstants.monoFontFamily,
+      fontSize: 11,
+      height: 1.5,
+      color: _textSecondary(isDark),
+    );
+
+    return SingleChildScrollView(
+      controller: _scrollController,
+      physics: const ClampingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ──────────────────────────────────────────────────────────
+          // 1) HEADER — operation accent + storage type + key chip
+          // ──────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _OpBadge(label: widget.entry.operation, color: _opColor()),
+                const SizedBox(width: 8),
+                _TypeBadge(label: widget.entry.storageType.name),
+                const Spacer(),
+                _HeaderIconButton(
+                  icon: LucideIcons.copy,
+                  tooltip: S.of(context).copyKey,
+                  isDark: isDark,
+                  onTap: () => _copyText(context, widget.entry.key, 'Key'),
+                ),
+                const SizedBox(width: 4),
+                _HeaderIconButton(
+                  icon: LucideIcons.camera,
+                  tooltip: _isJsonLike
+                      ? S.of(context).captureDataJson
+                      : S.of(context).captureDataText,
+                  isDark: isDark,
+                  onTap: () =>
+                      _captureData(isDark, devices, codeLang, codeLabel),
+                ),
+                const SizedBox(width: 4),
+                _HeaderIconButton(
+                  icon: LucideIcons.x,
+                  tooltip: S.of(context).close,
+                  isDark: isDark,
+                  onTap: () => widget.onClose?.call(),
+                ),
+              ],
+            ),
+          ),
+
+          // ──────────────────────────────────────────────────────────
+          // 2) KEY DISPLAY — large monospace, hero element
+          // ──────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _Label(text: 'KEY', isDark: isDark),
+                    const Spacer(),
+                    _HeaderIconButton(
+                      icon: LucideIcons.copy,
+                      tooltip: 'Copy key',
+                      isDark: isDark,
+                      onTap: () => _copyText(context, widget.entry.key, 'Key'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  widget.entry.key,
+                  style: TextStyle(
+                    fontFamily: AppConstants.monoFontFamily,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                    color: _textPrimary(isDark),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ──────────────────────────────────────────────────────────
+          // 3) METADATA GRID — 2x2 bento layout
+          // ──────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Label(text: 'METADATA', isDark: isDark),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _MetaCell(
+                        label: 'SHAPE',
+                        value: _shapeOf(widget.entry.value),
+                        valueStyle: monoPrimary,
+                        isDark: isDark,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MetaCell(
+                        label: 'SIZE',
+                        value: _sizeLabel(),
+                        valueStyle: monoPrimary,
+                        isDark: isDark,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _MetaCell(
+                        label: 'DEVICE',
+                        value: widget.entry.deviceId,
+                        valueStyle: monoSecondary,
+                        isDark: isDark,
+                        monospace: true,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MetaCell(
+                        label: 'CAPTURED',
+                        value: DateFormat('HH:mm:ss.SSS').format(
+                          DateTime.fromMillisecondsSinceEpoch(
+                              widget.entry.timestamp),
+                        ),
+                        valueStyle: monoPrimary,
+                        isDark: isDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // ──────────────────────────────────────────────────────────
+          // 4) DIVIDER — separates data zones
+          // ──────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+            child: Container(height: 1, color: _divider(isDark)),
+          ),
+
+          // ──────────────────────────────────────────────────────────
+          // 5) VALUE SECTION — switcher + content
+          // ──────────────────────────────────────────────────────────
+          if (widget.entry.value != null && _isJsonLike) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ViewModeSwitcher(
+                  current: mode,
+                  codeLabel: codeLabel,
+                  onChanged: (m) =>
+                      ref.read(bodyViewModeProvider.notifier).set(m),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: _buildValueContent(
+                isDark: isDark,
+                mode: mode,
+                codeLang: codeLang,
+                codeLabel: codeLabel,
+              ),
+            ),
+          ] else if (widget.entry.value != null) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: Row(
+                children: [
+                  _Label(text: 'VALUE', isDark: isDark),
+                  const Spacer(),
+                  _HeaderIconButton(
+                    icon: LucideIcons.copy,
+                    tooltip: 'Copy value',
+                    isDark: isDark,
+                    onTap: () => _copyText(context, _captureText(), 'Value'),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.03)
+                      : Colors.black.withValues(alpha: 0.025),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _divider(isDark)),
+                ),
+                child: SelectableText(
+                  widget.entry.value.toString(),
+                  style: TextStyle(
+                    fontFamily: AppConstants.monoFontFamily,
+                    fontSize: 12,
+                    height: 1.6,
+                    color: _textPrimary(isDark),
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+              child: _EmptyValue(isDark: isDark),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildValueContent({
+    required bool isDark,
+    required BodyViewMode mode,
+    required CodeLang codeLang,
+    required String codeLabel,
+  }) {
+    final value = _displayValue();
+
+    return DeferredBuilder(
+      key: ValueKey(mode),
+      builder: (_) {
+        switch (mode) {
+          case BodyViewMode.tree:
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: JsonViewer(data: value, initiallyExpanded: true),
+            );
+          case BodyViewMode.json:
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: JsonPrettyViewer(data: value),
+            );
+          case BodyViewMode.code:
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: CodeViewer(
+                generated: CodeGenerator.generate(value, codeLang),
+                lang: codeLang,
+                languageLabel: codeLabel,
+              ),
+            );
+        }
+      },
+    );
+  }
+
+  void _copyText(BuildContext context, String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    showCopiedToast(context, label: '$label copied');
+  }
+
+  // ── Screenshot: data only (KEY + VALUE in current view mode) ──
+  void _captureData(
+    bool isDark,
+    List<DeviceInfo> devices,
+    CodeLang codeLang,
+    String codeLabel,
+  ) {
+    final value = _displayValue();
+    final monoKey = TextStyle(
+      fontFamily: AppConstants.monoFontFamily,
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      letterSpacing: -0.2,
+      color: _textPrimary(isDark),
+    );
+    final labelStyle = TextStyle(
+      fontSize: 10,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 1.2,
+      color: isDark ? const Color(0xFF6B6B6B) : const Color(0xFF8B8B8B),
+    );
+    final divider = _divider(isDark);
+    final mode = ref.read(bodyViewModeProvider);
+
+    // Value widget: respect 3-mode only when the payload is JSON-like.
+    // Plain text/number/bool capture as raw text — no switcher chrome.
+    final Widget valueWidget;
+    if (_isJsonLike) {
+      valueWidget = switch (mode) {
+        BodyViewMode.tree => JsonViewer(data: value, initiallyExpanded: true),
+        BodyViewMode.json => JsonPrettyViewer(data: value),
+        BodyViewMode.code => CodeViewer(
+            generated: CodeGenerator.generate(value, codeLang),
+            lang: codeLang,
+            languageLabel: codeLabel,
+          ),
+      };
+    } else if (widget.entry.value == null) {
+      valueWidget = const SizedBox.shrink();
+    } else {
+      valueWidget = Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.03)
+              : Colors.black.withValues(alpha: 0.025),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: divider),
+        ),
+        child: SelectableText(
+          widget.entry.value.toString(),
+          style: TextStyle(
+            fontFamily: AppConstants.monoFontFamily,
+            fontSize: 12,
+            height: 1.6,
+            color: _textPrimary(isDark),
+          ),
+        ),
+      );
+    }
+
+    // Header style matches _storageScreenshot for visual consistency
+    // between full and data captures.
+    final capturedAt = DateTime.now().toIso8601String().split('.').first;
+    final labelColor = isDark ? Colors.grey[500] : Colors.grey[600];
+
+    final capture = Container(
+      color: isDark ? const Color(0xFF121212) : const Color(0xFFFAFAFA),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header context (matches _storageScreenshot) ──
+          Row(
+            children: [
+              Icon(LucideIcons.database,
+                  size: 14, color: ColorTokens.warning),
+              const SizedBox(width: 6),
+              Text(
+                'Storage Detail',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                  color: labelColor,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '· ${widget.entry.storageType.name.toUpperCase()} · $capturedAt',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: labelColor,
+                    letterSpacing: 0.3,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          // ── Badges (mirror _StorageDetailRedesign header row) ──
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _OpBadge(label: widget.entry.operation, color: _opColor()),
+              const SizedBox(width: 8),
+              _TypeBadge(label: widget.entry.storageType.name),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(height: 1, color: divider),
+          const SizedBox(height: 18),
+          Text('KEY', style: labelStyle),
+          const SizedBox(height: 8),
+          SelectableText(widget.entry.key, style: monoKey),
+          const SizedBox(height: 18),
+          Container(height: 1, color: divider),
+          const SizedBox(height: 18),
+          Text('VALUE', style: labelStyle),
+          const SizedBox(height: 10),
+          valueWidget,
+        ],
+      ),
+    );
+
+    captureWidgetAsImage(
+      context,
+      capture,
+      fileName: _buildScreenshotName(devices, '_data'),
+      onSaved: (path) {
+        if (mounted) showScreenshotSavedToast(context, filePath: path);
+      },
+    );
+  }
+
+  String _buildScreenshotName(List<DeviceInfo> devices, String suffix) {
+    final entry = widget.entry;
+    // Note: appName intentionally omitted to avoid leaking the app
+    // identifier into filenames shared with clients.
+    return buildRichScreenshotName(
+      type: entry.storageType.name,
+      subject: entry.key,
+      suffix: suffix,
+    );
+  }
+}
+
+// ── Helper widgets for the redesign ───────────────────────────
+
+class _Label extends StatelessWidget {
+  final String text;
+  final bool isDark;
+  const _Label({required this.text, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.2,
+        color: isDark ? const Color(0xFF6B6B6B) : const Color(0xFF8B8B8B),
+      ),
+    );
+  }
+}
+
+class _OpBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _OpBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.28), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontFamily: AppConstants.monoFontFamily,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TypeBadge extends StatelessWidget {
+  final String label;
+  const _TypeBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = isDark ? const Color(0xFFB0B0B0) : const Color(0xFF4A4A4A);
+    final border = isDark
+        ? Colors.white.withValues(alpha: 0.10)
+        : Colors.black.withValues(alpha: 0.08);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: AppConstants.monoFontFamily,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: fg,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_HeaderIconButton> createState() => _HeaderIconButtonState();
+}
+
+class _HeaderIconButtonState extends State<_HeaderIconButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = widget.isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.05);
+    final iconColor = widget.isDark
+        ? const Color(0xFF9A9A9A)
+        : const Color(0xFF6B6B6B);
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            curve: const Cubic(0.16, 1, 0.3, 1),
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: _hovered ? hoverColor : Colors.transparent,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(widget.icon, size: 14, color: iconColor),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaCell extends StatelessWidget {
+  final String label;
+  final String value;
+  final TextStyle valueStyle;
+  final bool isDark;
+  final bool monospace;
+
+  const _MetaCell({
+    required this.label,
+    required this.value,
+    required this.valueStyle,
+    required this.isDark,
+    this.monospace = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Label(text: label, isDark: isDark),
+        const SizedBox(height: 6),
+        SelectableText(
+          value,
+          style: valueStyle,
+          maxLines: 1,
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyValue extends StatelessWidget {
+  final bool isDark;
+  const _EmptyValue({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+      alignment: Alignment.center,
+      child: Column(
+        children: [
+          Icon(
+            LucideIcons.database,
+            size: 24,
+            color: isDark ? const Color(0xFF4A4A4A) : const Color(0xFFB0B0B0),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'No value stored',
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? const Color(0xFF8B8B8B) : const Color(0xFF6B6B6B),
+            ),
+          ),
         ],
       ),
     );

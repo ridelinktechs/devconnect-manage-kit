@@ -80,7 +80,6 @@ bool _isBetterBody(dynamic body) {
 
 /// Merge two duplicate network entries, preferring the one with better data.
 NetworkEntry _mergeNetworkEntries(NetworkEntry existing, NetworkEntry incoming) {
-  // Prefer the entry with the more complete response body
   final useExistingBody = _isBetterBody(existing.responseBody);
   final useIncomingBody = _isBetterBody(incoming.responseBody);
 
@@ -88,13 +87,16 @@ NetworkEntry _mergeNetworkEntries(NetworkEntry existing, NetworkEntry incoming) 
       ? incoming.responseBody
       : (useExistingBody ? existing.responseBody : incoming.responseBody);
 
+  final bestRequestBody = _isBetterBody(incoming.requestBody)
+      ? incoming.requestBody
+      : existing.requestBody;
+
   final bestStatusCode = incoming.statusCode != 0 ? incoming.statusCode : existing.statusCode;
   final bestError = incoming.error ?? existing.error;
   final bestIsComplete = incoming.isComplete || existing.isComplete;
   final bestEndTime = incoming.endTime ?? existing.endTime;
   final bestDuration = incoming.duration ?? existing.duration;
 
-  // Merge request headers from both sources
   final mergedReqHeaders = {...existing.requestHeaders, ...incoming.requestHeaders};
   final mergedResHeaders = {...existing.responseHeaders, ...incoming.responseHeaders};
 
@@ -102,6 +104,7 @@ NetworkEntry _mergeNetworkEntries(NetworkEntry existing, NetworkEntry incoming) 
     statusCode: bestStatusCode,
     requestHeaders: mergedReqHeaders,
     responseHeaders: mergedResHeaders,
+    requestBody: bestRequestBody,
     responseBody: bestBody,
     endTime: bestEndTime,
     duration: bestDuration,
@@ -110,35 +113,33 @@ NetworkEntry _mergeNetworkEntries(NetworkEntry existing, NetworkEntry incoming) 
   );
 }
 
+/// Requests that have been pending (no response) for longer than this
+/// are considered stale — usually the client app crashed, the network
+/// dropped, or the server never got a complete message. The toolbar
+/// surfaces a "Clear stale (N)" button so users can prune them.
+const Duration kStaleRequestThreshold = Duration(minutes: 10);
+
 class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
   late final StreamSubscription<NetworkEntry> _sub;
 
   NetworkNotifier(WsMessageHandler wsMessageHandler) : super([]) {
     _sub = wsMessageHandler.onNetwork.listen((entry) {
-      // Update existing or add new
+      if (entry.method.toUpperCase() == 'OPTIONS') return;
+      if (entry.method.toUpperCase() == 'HEAD' && !entry.isComplete) return;
+      // Server guarantees unique ids, so a row always represents one
+      // logical request — update if seen before, otherwise append.
       final index = state.indexWhere((e) => e.id == entry.id);
       if (index >= 0) {
         final updated = List<NetworkEntry>.from(state);
-        updated[index] = entry;
+        // Prefer the richer of the two rows — keeps completed data if
+        // we already have a partial one (start → complete round-trip).
+        updated[index] = _mergeNetworkEntries(state[index], entry);
         state = updated;
       } else {
-        // Deduplicate: same method+url+device within 500ms = duplicate interceptors
-        final dupeIndex = state.indexWhere((e) =>
-            e.method == entry.method &&
-            e.url == entry.url &&
-            e.deviceId == entry.deviceId &&
-            (e.startTime - entry.startTime).abs() < 500);
-        if (dupeIndex >= 0) {
-          final merged = _mergeNetworkEntries(state[dupeIndex], entry);
-          final updated = List<NetworkEntry>.from(state);
-          updated[dupeIndex] = merged;
-          state = updated;
+        if (state.length > 5000) {
+          state = [...state.skip(500), entry];
         } else {
-          if (state.length > 5000) {
-            state = [...state.skip(500), entry];
-          } else {
-            state = [...state, entry];
-          }
+          state = [...state, entry];
         }
       }
     });
@@ -147,4 +148,37 @@ class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
   void cancelSubscription() => _sub.cancel();
 
   void clear() => state = [];
+
+  /// Count entries still waiting for a response after the stale threshold.
+  /// These usually mean the client crashed before sending a complete, or
+  /// the network died mid-flight.
+  int countStale({DateTime? now}) {
+    final cutoff = (now ?? DateTime.now())
+        .subtract(kStaleRequestThreshold)
+        .millisecondsSinceEpoch;
+    return state.where((e) => !e.isComplete && e.startTime < cutoff).length;
+  }
+
+  /// Drop every stale entry. Returns how many rows were removed so the
+  /// UI can show a confirmation toast.
+  int clearStale({DateTime? now}) {
+    final cutoff = (now ?? DateTime.now())
+        .subtract(kStaleRequestThreshold)
+        .millisecondsSinceEpoch;
+    final before = state.length;
+    state = state
+        .where((e) => e.isComplete || e.startTime >= cutoff)
+        .toList(growable: false);
+    return before - state.length;
+  }
 }
+
+/// Live count of stale (unanswered > 10min) network entries. Drives the
+/// "Clear stale (N)" button visibility on the network toolbar.
+final staleNetworkCountProvider = Provider<int>((ref) {
+  final entries = ref.watch(networkEntriesProvider);
+  final cutoff = DateTime.now()
+      .subtract(kStaleRequestThreshold)
+      .millisecondsSinceEpoch;
+  return entries.where((e) => !e.isComplete && e.startTime < cutoff).length;
+});

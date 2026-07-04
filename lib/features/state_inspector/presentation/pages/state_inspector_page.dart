@@ -12,6 +12,7 @@ import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/screenshot_filename.dart';
 import '../../../../models/state/state_change.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
@@ -208,17 +209,18 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                               },
                               builder: (context, index) {
                                 final entry = _entries[index];
-                                final isSelected = selected?.id == entry.id;
                                 return RepaintBoundary(
                                   key: ValueKey(entry.id),
                                   child: _StateChangeTile(
                                     entry: entry,
-                                    isSelected: isSelected,
                                     onTap: () {
+                                      final currentlySelected =
+                                          ref.read(selectedStateChangeIdProvider) ==
+                                              entry.id;
                                       ref
                                           .read(selectedStateChangeIdProvider.notifier)
-                                          .state = isSelected ? null : entry.id;
-                                      if (!isSelected && _autoScroll) {
+                                          .state = currentlySelected ? null : entry.id;
+                                      if (!currentlySelected && _autoScroll) {
                                         _autoScroll = false;
                                         _programmaticScroll = false;
                                         if (_scrollController.hasClients) {
@@ -353,20 +355,20 @@ class _Toolbar extends ConsumerWidget {
   }
 }
 
-class _StateChangeTile extends StatelessWidget {
+class _StateChangeTile extends ConsumerWidget {
   final StateChange entry;
-  final bool isSelected;
   final VoidCallback onTap;
 
   const _StateChangeTile({
     super.key,
     required this.entry,
-    required this.isSelected,
     required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedId = ref.watch(selectedStateChangeIdProvider);
+    final isSelected = selectedId == entry.id;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final time = DateFormat('HH:mm:ss.SSS').format(
       DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
@@ -492,6 +494,15 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
   StateChange get entry => widget.entry;
 
   void _takeScreenshot(BuildContext context, bool isDark) {
+    // Resolve a descriptive file name: state_<action>_<ts>_full.png
+    final fileName = buildRichScreenshotName(
+      type: 'state',
+      subject: entry.actionName.isNotEmpty
+          ? entry.actionName
+          : entry.stateManagerType,
+      suffix: '_full',
+    );
+
     final screenshotWidget = Container(
       color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
@@ -600,7 +611,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
         ],
       ),
     );
-    captureWidgetAsImage(context, screenshotWidget);
+    captureWidgetAsImage(context, screenshotWidget, fileName: fileName);
   }
 
   @override
@@ -709,17 +720,23 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
           Expanded(
             child: TabBarView(
               children: [
-                // Diff tab
-                _DiffView(diff: entry.diff),
-                // Before tab
-                _StateJsonToggleView(
-                  data: entry.previousState,
-                  jsonMode: _jsonPrettyMode,
+                LazyTab(
+                  index: 0,
+                  builder: (_) => _DiffView(diff: entry.diff),
                 ),
-                // After tab
-                _StateJsonToggleView(
-                  data: entry.nextState,
-                  jsonMode: _jsonPrettyMode,
+                LazyTab(
+                  index: 1,
+                  builder: (_) => _StateJsonToggleView(
+                    data: entry.previousState,
+                    jsonMode: _jsonPrettyMode,
+                  ),
+                ),
+                LazyTab(
+                  index: 2,
+                  builder: (_) => _StateJsonToggleView(
+                    data: entry.nextState,
+                    jsonMode: _jsonPrettyMode,
+                  ),
                 ),
               ],
             ),

@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../../../core/constants/app_constants.dart';
 
 import '../../../../components/text/text_component.dart';
 import '../../../../core/utils/toast_utils.dart';
@@ -685,11 +686,7 @@ class _LeakDetailState extends State<_LeakDetail> {
     );
   }
 
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
+  String _formatBytes(int bytes) => AppConstants.formatBytes(bytes);
 }
 
 // ---- Detail Section ----

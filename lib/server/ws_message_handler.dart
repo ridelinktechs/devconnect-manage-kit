@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import '../core/constants/ws_constants.dart';
+import '../core/utils/network_service_detector.dart';
+import '../core/utils/network_url_utils.dart';
 import '../models/device_info.dart';
 import '../models/log/log_entry.dart';
 import '../models/log/error_event.dart';
@@ -11,6 +13,7 @@ import '../models/performance/performance_entry.dart';
 import '../models/storage/storage_entry.dart';
 import 'protocol/dc_message.dart';
 import 'ws_server.dart';
+import 'package:uuid/uuid.dart';
 
 class WsMessageHandler {
   final WsServer server;
@@ -48,6 +51,133 @@ class WsMessageHandler {
   late final StreamSubscription<DCMessage> _messageSub;
   late final StreamSubscription<DeviceInfo> _connectionSub;
   late final StreamSubscription<String> _disconnectionSub;
+
+  /// State for an open round-trip (start seen, complete still pending).
+  /// All messages — start, complete, success, error — of a single
+  /// logical request share the same canonical id.
+  ///
+  /// Key = canonical id (which we mint once per round-trip).
+  /// Value = the bare `requestId` so we can look up "is this requestId
+  /// currently busy with another open round-trip?" when a new message
+  /// arrives.
+  final _openTrips = <String, String>{}; // canonicalId -> base requestId
+  int _networkSeq = 0;
+  final _uuid = const Uuid();
+
+  /// Tracks ids we've already emitted for one-shot entries (log, state,
+  /// storage, performance, display, async, error). If a client reuses
+  /// the same `message.id` across two messages — e.g. a retried log or
+  /// a state snapshot sent twice — we disambiguate so the row in the
+  /// UI list stays a distinct entry.
+  final _seenMessageIds = <String>{};
+  int _genericSeq = 0;
+
+  /// Build a unique id for one logical network request.
+  ///
+  /// One round-trip = one start + one complete (whether success or
+  /// error) sharing a `requestId`. All messages of that round-trip
+  /// must emit the SAME id so the provider can merge them into a
+  /// single row.
+  ///
+  /// When two genuinely concurrent requests arrive with the same
+  /// `requestId`, the first start mints `base` as the canonical id and
+  /// marks it open; the second start sees the open trip and mints a
+  /// fresh disambiguated id (also marked open). Each round-trip's
+  /// complete then finds its own canonical id via the open-trips map.
+  String _uniqueNetworkId(DCMessage message, Map<String, dynamic> payload) {
+    final raw = payload['requestId'] as String?;
+    final base = (raw != null && raw.isNotEmpty) ? raw : message.id;
+    final isComplete =
+        message.type == WsMessageTypes.clientNetworkRequestComplete;
+    final canonical = _mintOrReuseCanonical(base, isComplete);
+    if (!isComplete) {
+      // Start — register the round-trip as open so the matching
+      // complete can find it. Also remember the base for dedup.
+      _openTrips[canonical] = base;
+    } else {
+      // Complete — drop the open-trip entry. If no open trip existed
+      // (orphan complete or disambiguated start whose complete we
+      // also disambiguated), nothing to remove.
+      _openTrips.remove(canonical);
+    }
+    _trimOpenTrips();
+    return canonical;
+  }
+
+  /// For a start: if no round-trip is currently open for this base,
+  /// mint a fresh canonical id and remember it as open. If another
+  /// round-trip is already open for the same base, disambiguate and
+  /// remember a fresh id.
+  ///
+  /// For a complete: locate the open round-trip for this base and
+  /// reuse its canonical id (this is the start→complete round-trip
+  /// case). If no open trip exists (orphan complete), mint a fresh
+  /// canonical id and don't open a trip (it'll just stand alone).
+  String _mintOrReuseCanonical(String base, bool isComplete) {
+    if (!isComplete) {
+      // Find any existing open trip for this base.
+      final existing = _existingOpenCanonicalForBase(base);
+      if (existing != null && _isOpenFor(existing)) {
+        return _disambiguate(base);
+      }
+      return base;
+    }
+    // Complete: find the open round-trip for this base.
+    final existing = _existingOpenCanonicalForBase(base);
+    if (existing != null) {
+      return existing;
+    }
+    return base;
+  }
+
+  String? _existingOpenCanonicalForBase(String base) {
+    for (final entry in _openTrips.entries) {
+      if (entry.value == base) return entry.key;
+    }
+    return null;
+  }
+
+  bool _isOpenFor(String canonical) => _openTrips.containsKey(canonical);
+
+  String _disambiguate(String base) {
+    final seq = (++_networkSeq).toRadixString(36);
+    final micros = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final rand = _uuid.v4().substring(0, 4);
+    return '$base-$micros-$seq-$rand';
+  }
+
+  void _trimOpenTrips() {
+    if (_openTrips.length <= 2048) return;
+    final drop = _openTrips.length - 1024;
+    final keys = _openTrips.keys.toList(growable: false);
+    for (var i = 0; i < drop; i++) {
+      _openTrips.remove(keys[i]);
+    }
+  }
+
+  /// Mint a unique id for a one-shot entry (log, state, storage, etc.).
+  /// Unlike network round-trips these don't have a `start`/`complete`
+  /// pair, so we just guarantee that no two entries ever share the
+  /// same id — if `message.id` was already seen, disambiguate.
+  String _uniqueOneShotId(String messageId) {
+    if (_seenMessageIds.add(messageId)) return messageId;
+    final seq = (++_genericSeq).toRadixString(36);
+    final micros = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final rand = _uuid.v4().substring(0, 4);
+    final newId = '$messageId-$micros-$seq-$rand';
+    _seenMessageIds.add(newId);
+    _trimSeenMessageIds();
+    return newId;
+  }
+
+  void _trimSeenMessageIds() {
+    if (_seenMessageIds.length <= 4096) return;
+    final drop = _seenMessageIds.length - 2048;
+    final keys = _seenMessageIds.toList(growable: false);
+    for (var i = 0; i < drop; i++) {
+      _seenMessageIds.remove(keys[i]);
+    }
+  }
 
   WsMessageHandler({required this.server}) {
     _messageSub = server.onMessage.listen(_handleMessage);
@@ -191,7 +321,7 @@ class WsMessageHandler {
 
   void _handleLog(DCMessage message) {
     final entry = LogEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       level: _parseLogLevel(message.payload['level'] as String? ?? 'info'),
       message: message.payload['message'] as String? ?? '',
@@ -205,22 +335,31 @@ class WsMessageHandler {
 
   void _handleNetwork(DCMessage message) {
     final p = message.payload;
+    final reqHeaders = _castStringMap(p['requestHeaders']);
+    final resHeaders = _castStringMap(p['responseHeaders']);
+    final reqBody = p['requestBody'];
+    final resBody = p['responseBody'];
+    final url = normalizeNetworkUrl(p['url'] as String?);
+    final detected = detectService(url,
+        headers: {...reqHeaders, ...resHeaders}, body: reqBody);
     final entry = NetworkEntry(
-      id: p['requestId'] as String? ?? message.id,
+      id: _uniqueNetworkId(message, p),
       deviceId: message.deviceId,
       method: p['method'] as String? ?? 'GET',
-      url: p['url'] as String? ?? '',
+      url: url,
       statusCode: p['statusCode'] as int? ?? 0,
-      requestHeaders: _castStringMap(p['requestHeaders']),
-      responseHeaders: _castStringMap(p['responseHeaders']),
-      requestBody: p['requestBody'],
-      responseBody: p['responseBody'],
+      requestHeaders: reqHeaders,
+      responseHeaders: resHeaders,
+      requestBody: reqBody,
+      responseBody: resBody,
       startTime: p['startTime'] as int? ?? message.timestamp,
       endTime: p['endTime'] as int?,
       duration: p['duration'] as int?,
       error: p['error'] as String?,
       isComplete: message.type == WsMessageTypes.clientNetworkRequestComplete,
       source: p['source'] as String? ?? 'app',
+      serviceName: detected?.name,
+      serviceAction: detected?.action,
     );
     _networkController.add(entry);
   }
@@ -236,7 +375,7 @@ class WsMessageHandler {
         [];
 
     final entry = StateChange(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       stateManagerType: p['stateManager'] as String? ?? 'unknown',
       actionName: p['action'] as String? ?? '',
@@ -252,7 +391,7 @@ class WsMessageHandler {
   void _handleStorage(DCMessage message) {
     final p = message.payload;
     final entry = StorageEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       storageType: _parseStorageType(p['storageType'] as String? ?? ''),
       key: p['key'] as String? ?? '',
@@ -319,7 +458,7 @@ class WsMessageHandler {
   void _handlePerformance(DCMessage message) {
     final p = message.payload;
     final entry = PerformanceEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       metricType: _parseMetricType(p['metricType'] as String? ?? 'fps'),
       value: (p['value'] as num?)?.toDouble() ?? 0.0,
@@ -332,7 +471,7 @@ class WsMessageHandler {
   void _handleMemoryLeak(DCMessage message) {
     final p = message.payload;
     final entry = MemoryLeakEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       leakType: _parseLeakType(p['leakType'] as String? ?? 'custom'),
       objectName: p['objectName'] as String? ?? '',
@@ -383,7 +522,7 @@ class WsMessageHandler {
   void _handleDisplay(DCMessage message) {
     final p = message.payload;
     final entry = DisplayEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       name: p['name'] as String? ?? 'Display',
       timestamp: message.timestamp,
@@ -398,7 +537,7 @@ class WsMessageHandler {
   void _handleAsyncOperation(DCMessage message) {
     final p = message.payload;
     final entry = AsyncOperationEntry(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       operationType: _parseAsyncOpType(p['operationType'] as String? ?? 'custom'),
       description: p['description'] as String? ?? '',
@@ -416,7 +555,7 @@ class WsMessageHandler {
   void _handleError(DCMessage message) {
     final p = message.payload;
     final entry = ErrorEvent(
-      id: message.id,
+      id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
       platform: _parseErrorPlatform(p['platform'] as String? ?? 'js'),
       severity: _parseErrorSeverity(p['severity'] as String? ?? 'error'),
