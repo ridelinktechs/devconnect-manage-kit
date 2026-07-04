@@ -1259,23 +1259,31 @@ class _LogMessageBlock extends ConsumerWidget {
     return AsyncJsonParser(
       rawData: message,
       builder: (context, parsed, isJson) {
-        Widget body;
-        body = DeferredBuilder(
-          key: ValueKey('$mode-$isJson'),
+        // Plain text: skip the 3-mode toggle entirely. The user gets the
+        // raw message without any view-mode chrome.
+        if (!isJson) {
+          return Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? ColorTokens.darkBackground
+                  : const Color(0xFFF0F0F0),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.06),
+                width: 1,
+              ),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: _PlainMessageBlock(text: message, isDark: isDark),
+          );
+        }
+
+        final body = DeferredBuilder(
+          key: ValueKey(mode),
           builder: (_) {
-            // When the message isn't JSON we fall back to a plain text
-            // rendering for Tree/JSON (no node hierarchy exists), while
-            // Code still wraps it as a string literal so the toggle has
-            // something meaningful to switch between.
-            if (!isJson) {
-              switch (mode) {
-                case BodyViewMode.tree:
-                case BodyViewMode.json:
-                  return _PlainMessageBlock(text: message, isDark: isDark);
-                case BodyViewMode.code:
-                  return _CodeBlock(text: message, isDark: isDark);
-              }
-            }
             switch (mode) {
               case BodyViewMode.tree:
                 return JsonViewer(data: parsed, initiallyExpanded: true);
@@ -1306,16 +1314,15 @@ class _LogMessageBlock extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (true)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                  child: ViewModeSwitcher(
-                    current: mode,
-                    codeLabel: CodeGenerator.labelFor(codeLang),
-                    onChanged: (BodyViewMode m) =>
-                        ref.read(bodyViewModeProvider.notifier).set(m),
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: ViewModeSwitcher(
+                  current: mode,
+                  codeLabel: CodeGenerator.labelFor(codeLang),
+                  onChanged: (BodyViewMode m) =>
+                      ref.read(bodyViewModeProvider.notifier).set(m),
                 ),
+              ),
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: body,
@@ -1345,28 +1352,6 @@ class _PlainMessageBlock extends StatelessWidget {
         color: isDark
             ? const Color(0xFFCCCCCC)
             : const Color(0xFF333333),
-      ),
-    );
-  }
-}
-
-/// Plain monospace text block with theme-aware colors. Used by Code mode
-/// (and as the fallback for Tree/JSON when the message isn't valid JSON).
-class _CodeBlock extends StatelessWidget {
-  final String text;
-  final bool isDark;
-
-  const _CodeBlock({required this.text, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return TextComponent(
-      text,
-      style: TextStyle(
-        fontFamily: AppConstants.monoFontFamily,
-        fontSize: 12,
-        color: isDark ? ColorTokens.lightBackground : ColorTokens.darkNeutral,
-        height: 1.6,
       ),
     );
   }

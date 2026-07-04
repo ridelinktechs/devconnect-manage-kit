@@ -1071,6 +1071,75 @@ class _StorageDetailPanelState extends ConsumerState<_StorageDetailPanel> {
                     ? entry.value
                     : (parsedJson ?? entry.value);
 
+                // Plain text payload: skip the 3-mode toggle entirely and
+                // show the raw value as a single styled block. Users can
+                // still copy via the icon-button in the header.
+                if (!isJson) {
+                  return SingleChildScrollView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            TextComponent(
+                              'Value',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _MetaChip(
+                              icon: LucideIcons.hardDrive,
+                              label: _sizeLabel(),
+                              color: Colors.grey,
+                              isDark: isDark,
+                              isMono: true,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF1E1E1E)
+                                : const Color(0xFFFAFAFA),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.08)
+                                  : Colors.black.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: SelectableText(
+                            entry.value?.toString() ?? 'null',
+                            style: TextStyle(
+                              fontFamily: AppConstants.monoFontFamily,
+                              fontSize: 12,
+                              height: 1.6,
+                              color: isDark
+                                  ? const Color(0xFFD4D4D4)
+                                  : const Color(0xFF1F2328),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const _MetaDivider(),
+                        const SizedBox(height: 12),
+                        _MetadataFooter(
+                        entry: entry,
+                        isDark: isDark,
+                        stats: _valueStats(),
+                      ),
+                    ],
+                  ),
+                );
+                }
+
                 return SingleChildScrollView(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
