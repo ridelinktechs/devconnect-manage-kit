@@ -600,6 +600,29 @@ class SZh extends S {
   }
 
   @override
+  String get sdkTipsPill => '提示';
+
+  @override
+  String get sdkTipsHeader => '库兼容性';
+
+  @override
+  String get sdkTipsSubtitle => '为确保所有数据完整显示,请确保使用的是最新版本的库。';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -1648,6 +1671,29 @@ class SZhCn extends SZh {
   }
 
   @override
+  String get sdkTipsPill => '提示';
+
+  @override
+  String get sdkTipsHeader => '库兼容性';
+
+  @override
+  String get sdkTipsSubtitle => '为确保所有数据完整显示,请确保使用的是最新版本的库。';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -2693,6 +2739,29 @@ class SZhTw extends SZh {
   @override
   String memorySafetyOverflow(Object count) {
     return '記憶體安全: 已從 open-trips 快取中丟棄 $count 個過期網路條目';
+  }
+
+  @override
+  String get sdkTipsPill => '提示';
+
+  @override
+  String get sdkTipsHeader => '庫相容性';
+
+  @override
+  String get sdkTipsSubtitle => '為確保所有資料完整顯示,請確保使用的是最新版本的庫。';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
   }
 
   @override

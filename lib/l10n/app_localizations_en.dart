@@ -612,6 +612,30 @@ class SEn extends S {
   }
 
   @override
+  String get sdkTipsPill => 'Tips';
+
+  @override
+  String get sdkTipsHeader => 'Library compatibility';
+
+  @override
+  String get sdkTipsSubtitle =>
+      'To ensure all data is fully displayed, make sure the libraries are the latest version.';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
+
+  @override
   String get networkTitle => 'Network';
 
   @override

@@ -1101,6 +1101,48 @@ abstract class S {
   /// **'Memory safety: dropped {count} stale network entry(ies) from the open-trips cache'**
   String memorySafetyOverflow(Object count);
 
+  /// No description provided for @sdkTipsPill.
+  ///
+  /// In en, this message translates to:
+  /// **'Tips'**
+  String get sdkTipsPill;
+
+  /// No description provided for @sdkTipsHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Library compatibility'**
+  String get sdkTipsHeader;
+
+  /// No description provided for @sdkTipsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'To ensure all data is fully displayed, make sure the libraries are the latest version.'**
+  String get sdkTipsSubtitle;
+
+  /// No description provided for @sdkTipsFlutter.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter'**
+  String get sdkTipsFlutter;
+
+  /// No description provided for @sdkTipsReactNative.
+  ///
+  /// In en, this message translates to:
+  /// **'React Native'**
+  String get sdkTipsReactNative;
+
+  /// No description provided for @sdkTipsAndroid.
+  ///
+  /// In en, this message translates to:
+  /// **'Android'**
+  String get sdkTipsAndroid;
+
+  /// No description provided for @sdkTipsVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'v{version}'**
+  String sdkTipsVersionLabel(Object version);
+
   /// No description provided for @networkTitle.
   ///
   /// In en, this message translates to:

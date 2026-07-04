@@ -614,6 +614,30 @@ class SVi extends S {
   }
 
   @override
+  String get sdkTipsPill => 'Mẹo';
+
+  @override
+  String get sdkTipsHeader => 'Tương thích thư viện';
+
+  @override
+  String get sdkTipsSubtitle =>
+      'Để đảm bảo mọi data được hiển thị đầy đủ, hãy đảm bảo thư viện đã là version mới nhất.';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
+
+  @override
   String get networkTitle => 'Mạng';
 
   @override

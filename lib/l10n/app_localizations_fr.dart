@@ -615,6 +615,30 @@ class SFr extends S {
   }
 
   @override
+  String get sdkTipsPill => 'Astuces';
+
+  @override
+  String get sdkTipsHeader => 'Compatibilité des bibliothèques';
+
+  @override
+  String get sdkTipsSubtitle =>
+      'Pour que toutes les données s\'affichent correctement, assurez-vous que les bibliothèques sont à la dernière version.';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
+
+  @override
   String get networkTitle => 'Réseau';
 
   @override

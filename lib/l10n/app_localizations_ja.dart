@@ -609,6 +609,30 @@ class SJa extends S {
   }
 
   @override
+  String get sdkTipsPill => 'ヒント';
+
+  @override
+  String get sdkTipsHeader => 'ライブラリの互換性';
+
+  @override
+  String get sdkTipsSubtitle =>
+      'すべてのデータが完全に表示されるよう、ライブラリが最新バージョンであることを確認してください。';
+
+  @override
+  String get sdkTipsFlutter => 'Flutter';
+
+  @override
+  String get sdkTipsReactNative => 'React Native';
+
+  @override
+  String get sdkTipsAndroid => 'Android';
+
+  @override
+  String sdkTipsVersionLabel(Object version) {
+    return 'v$version';
+  }
+
+  @override
   String get networkTitle => 'ネットワーク';
 
   @override
