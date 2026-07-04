@@ -843,6 +843,18 @@ abstract class S {
   /// **'Code mode exports as TypeScript / Dart / Kotlin based on the connected SDK.'**
   String get codeModeDesc;
 
+  /// No description provided for @treeModeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Tree mode shows the data as an expandable, collapsible node hierarchy. Best for navigating deeply nested values.'**
+  String get treeModeDesc;
+
+  /// No description provided for @jsonModeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'JSON mode renders the data as a single, syntax-highlighted, copy-friendly JSON document.'**
+  String get jsonModeDesc;
+
   /// No description provided for @usbConnection.
   ///
   /// In en, this message translates to:

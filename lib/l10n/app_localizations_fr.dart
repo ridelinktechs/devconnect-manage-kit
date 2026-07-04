@@ -302,7 +302,7 @@ class SFr extends S {
   String get json => 'JSON';
 
   @override
-  String get tree => 'Arborescence';
+  String get tree => 'Tree';
 
   @override
   String get code => 'Code';
@@ -460,6 +460,14 @@ class SFr extends S {
   @override
   String get codeModeDesc =>
       'Le mode code exporte en TypeScript / Dart / Kotlin selon le SDK connecté.';
+
+  @override
+  String get treeModeDesc =>
+      'Le mode arborescence affiche les données sous forme de hiérarchie de nœuds dépliables. Idéal pour parcourir des valeurs profondément imbriquées.';
+
+  @override
+  String get jsonModeDesc =>
+      'Le mode JSON affiche les données sous forme de document JSON unique, coloré syntaxiquement et facile à copier.';
 
   @override
   String get usbConnection => 'Connexion USB';

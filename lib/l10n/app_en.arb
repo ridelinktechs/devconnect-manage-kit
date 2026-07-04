@@ -123,6 +123,8 @@
   "tabAnimation": "Tab animation",
   "tabAnimationDuration": "Duration",
   "codeModeDesc": "Code mode exports as TypeScript / Dart / Kotlin based on the connected SDK.",
+  "treeModeDesc": "Tree mode shows the data as an expandable, collapsible node hierarchy. Best for navigating deeply nested values.",
+  "jsonModeDesc": "JSON mode renders the data as a single, syntax-highlighted, copy-friendly JSON document.",
   "usbConnection": "USB Connection",
   "android": "Android",
   "ios": "iOS",

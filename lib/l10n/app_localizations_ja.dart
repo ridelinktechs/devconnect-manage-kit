@@ -302,10 +302,10 @@ class SJa extends S {
   String get json => 'JSON';
 
   @override
-  String get tree => 'ツリー';
+  String get tree => 'Tree';
 
   @override
-  String get code => 'コード';
+  String get code => 'Code';
 
   @override
   String get raw => 'Raw';
@@ -458,6 +458,14 @@ class SJa extends S {
   @override
   String get codeModeDesc =>
       'コードモードは接続されたSDKに基づいてTypeScript / Dart / Kotlinとしてエクスポートします。';
+
+  @override
+  String get treeModeDesc =>
+      'ツリーモードはデータを展開/折りたたみ可能なノード階層で表示します。深くネストされた値の閲覧に適しています。';
+
+  @override
+  String get jsonModeDesc =>
+      'JSONモードはデータを構文強調表示付きの単一のコピーしやすいJSONドキュメントとして表示します。';
 
   @override
   String get usbConnection => 'USB接続';

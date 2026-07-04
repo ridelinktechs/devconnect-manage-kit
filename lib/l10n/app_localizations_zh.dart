@@ -298,10 +298,10 @@ class SZh extends S {
   String get json => 'JSON';
 
   @override
-  String get tree => '树形';
+  String get tree => 'Tree';
 
   @override
-  String get code => '代码';
+  String get code => 'Code';
 
   @override
   String get raw => '原始';
@@ -452,6 +452,12 @@ class SZh extends S {
 
   @override
   String get codeModeDesc => '代码模式根据已连接的 SDK 导出为 TypeScript / Dart / Kotlin。';
+
+  @override
+  String get treeModeDesc => '树形模式以可展开/折叠的节点层级显示数据,适合浏览深度嵌套的值。';
+
+  @override
+  String get jsonModeDesc => 'JSON 模式将数据呈现为单一、带语法高亮、易于复制的 JSON 文档。';
 
   @override
   String get usbConnection => 'USB 连接';
@@ -1317,10 +1323,10 @@ class SZhCn extends SZh {
   String get json => 'JSON';
 
   @override
-  String get tree => '树形';
+  String get tree => 'Tree';
 
   @override
-  String get code => '代码';
+  String get code => 'Code';
 
   @override
   String get raw => '原始';
@@ -2336,10 +2342,10 @@ class SZhTw extends SZh {
   String get json => 'JSON';
 
   @override
-  String get tree => '樹狀';
+  String get tree => 'Tree';
 
   @override
-  String get code => '程式碼';
+  String get code => 'Code';
 
   @override
   String get raw => '原始';

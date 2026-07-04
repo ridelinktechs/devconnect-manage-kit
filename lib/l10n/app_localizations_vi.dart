@@ -302,10 +302,10 @@ class SVi extends S {
   String get json => 'JSON';
 
   @override
-  String get tree => 'Cây';
+  String get tree => 'Tree';
 
   @override
-  String get code => 'Mã';
+  String get code => 'Code';
 
   @override
   String get raw => 'Thô';
@@ -460,6 +460,14 @@ class SVi extends S {
   @override
   String get codeModeDesc =>
       'Chế độ mã xuất dưới dạng TypeScript / Dart / Kotlin dựa trên SDK đã kết nối.';
+
+  @override
+  String get treeModeDesc =>
+      'Chế độ cây hiển thị dữ liệu dưới dạng cây nút có thể mở rộng/thu gọn. Phù hợp để duyệt các giá trị lồng nhau sâu.';
+
+  @override
+  String get jsonModeDesc =>
+      'Chế độ JSON hiển thị dữ liệu dưới dạng tài liệu JSON tô màu cú pháp, dễ sao chép.';
 
   @override
   String get usbConnection => 'Kết nối USB';

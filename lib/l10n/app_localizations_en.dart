@@ -462,6 +462,14 @@ class SEn extends S {
       'Code mode exports as TypeScript / Dart / Kotlin based on the connected SDK.';
 
   @override
+  String get treeModeDesc =>
+      'Tree mode shows the data as an expandable, collapsible node hierarchy. Best for navigating deeply nested values.';
+
+  @override
+  String get jsonModeDesc =>
+      'JSON mode renders the data as a single, syntax-highlighted, copy-friendly JSON document.';
+
+  @override
   String get usbConnection => 'USB Connection';
 
   @override
