@@ -46,7 +46,12 @@ class _BodyViewState extends ConsumerState<BodyView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final viewMode = ref.watch(bodyViewModeProvider);
 
-    if (widget.body == null) {
+    // Treat null OR empty/whitespace-only strings as "no data" so the
+    // caller renders an EmptyState instead of a blank JSON viewer.
+    // AsyncJsonParser also normalises empty strings to null internally,
+    // but checking here avoids spinning the parser for the obvious case.
+    if (widget.body == null ||
+        (widget.body is String && (widget.body as String).trim().isEmpty)) {
       return EmptyState(icon: LucideIcons.fileText, title: 'No ${widget.label}');
     }
 
