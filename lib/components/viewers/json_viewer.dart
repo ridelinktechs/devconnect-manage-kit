@@ -1423,7 +1423,16 @@ class _AsyncJsonParserState extends State<AsyncJsonParser> {
     }
     if (raw is String) {
       final trimmed = raw.trim();
-      if (trimmed.isEmpty || (trimmed[0] != '{' && trimmed[0] != '[')) {
+      // Normalise empty / whitespace-only strings to `null` so consumers
+      // can treat them uniformly as "no data" (renders an EmptyState)
+      // instead of falling through to a blank JSON viewer.
+      if (trimmed.isEmpty) {
+        _parsedData = null;
+        _isJson = false;
+        _ready = true;
+        return true;
+      }
+      if (trimmed[0] != '{' && trimmed[0] != '[') {
         _parsedData = raw;
         _isJson = false;
         _ready = true;
