@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/log/error_event.dart';
 import '../shared/error_tokens.dart' show severityColor;
 import '../shared/platform_badge.dart';
@@ -48,15 +49,19 @@ class ErrorListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
-              ? (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05))
-              : null,
+              ? ColorTokens.selectedBg(isDark)
+              : Colors.transparent,
           border: Border(
-            left: BorderSide(
-              color: severityClr,
-              width: 3,
-            ),
             bottom: BorderSide(
               color: isDark ? Colors.white10 : Colors.black12,
+            ),
+            // Left border mirrors the storage_viewer / all_events pattern:
+            // tinted with the row's severity color, but flips to the
+            // shared teal selection accent (3px vs the default 2px)
+            // when the user picks the row.
+            left: BorderSide(
+              color: isSelected ? ColorTokens.selectedAccent : severityClr,
+              width: isSelected ? 3 : 2,
             ),
           ),
         ),

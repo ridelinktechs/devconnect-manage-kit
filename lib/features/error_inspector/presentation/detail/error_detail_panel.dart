@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -11,8 +12,10 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/screenshot_filename.dart';
 import '../../../../core/utils/screenshot_utils.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../models/log/error_event.dart';
+import '../shared/copy_button.dart';
 import '../shared/error_tokens.dart' show severityColor;
 import '../shared/platform_badge.dart';
 import '../shared/severity_badge.dart';
@@ -74,6 +77,11 @@ class _ErrorDetailPanelState extends ConsumerState<ErrorDetailPanel>
       initialIndex: oldIndex,
     );
     setState(() {});
+  }
+
+  void _copyText(BuildContext context, String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    showCopiedToast(context, label: '$label copied');
   }
 
   @override
@@ -257,13 +265,40 @@ class _ErrorDetailPanelState extends ConsumerState<ErrorDetailPanel>
                 builder: (_) => SingleChildScrollView(
                   controller: _messageScrollController,
                   padding: const EdgeInsets.all(16),
-                  child: TextComponent(
-                    entry.message,
-                    style: TextStyle(
-                      fontFamily: AppConstants.monoFontFamily,
-                      fontSize: 13,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          TextComponent(
+                            S.of(context).message,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                          const Spacer(),
+                          CopyButton(
+                            tooltip: 'Copy message',
+                            onTap: () => _copyText(
+                              context,
+                              entry.message,
+                              'Message',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextComponent(
+                        entry.message,
+                        style: TextStyle(
+                          fontFamily: AppConstants.monoFontFamily,
+                          fontSize: 13,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -275,13 +310,40 @@ class _ErrorDetailPanelState extends ConsumerState<ErrorDetailPanel>
                     ? SingleChildScrollView(
                         controller: _stackTraceScrollController,
                         padding: const EdgeInsets.all(16),
-                        child: TextComponent(
-                          entry.stackTrace!,
-                          style: TextStyle(
-                            fontFamily: AppConstants.monoFontFamily,
-                            fontSize: 11,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                TextComponent(
+                                  'Stack Trace',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                                const Spacer(),
+                                CopyButton(
+                                  tooltip: 'Copy stack trace',
+                                  onTap: () => _copyText(
+                                    context,
+                                    entry.stackTrace!,
+                                    'Stack trace',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            TextComponent(
+                              entry.stackTrace!,
+                              style: TextStyle(
+                                fontFamily: AppConstants.monoFontFamily,
+                                fontSize: 11,
+                                color: isDark ? Colors.white70 : Colors.black87,
+                              ),
+                            ),
+                          ],
                         ),
                       )
                     : Center(

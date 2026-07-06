@@ -21,6 +21,7 @@ import '../../../../core/utils/duration_format.dart';
 import '../../../../core/utils/screenshot_filename.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../models/log/error_event.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../../models/state/state_change.dart';
@@ -30,6 +31,7 @@ import '../../provider/all_events_provider.dart';
 import '../buttons/pressable_button.dart';
 import '../detail/detail_header.dart';
 import '../detail/diff_row.dart';
+import '../detail/error_detail.dart';
 import '../detail/fallback_detail.dart';
 import '../detail/log_detail.dart';
 import '../detail/network_detail.dart';
@@ -1426,7 +1428,11 @@ class _EventDetailPanelState extends ConsumerState<EventDetailPanel> {
         return FallbackDetail(event: widget.event);
       case EventType.display:
       case EventType.asyncOp:
+        return FallbackDetail(event: widget.event);
       case EventType.error:
+        if (widget.event.rawData is ErrorEvent) {
+          return ErrorDetail(entry: widget.event.rawData as ErrorEvent);
+        }
         return FallbackDetail(event: widget.event);
     }
   }
