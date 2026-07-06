@@ -75,6 +75,17 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
       },
       fireImmediately: true,
     );
+    // Selection changes must also bump generation — StableBuilderDelegate
+    // short-circuits shouldRebuild when generation is unchanged, which
+    // would otherwise leave the selected row's tint stuck on the
+    // previously-selected item.
+    _selectedId.addListener(_onSelectionChanged);
+  }
+
+  void _onSelectionChanged() {
+    if (!mounted) return;
+    _generation++;
+    setState(() {});
   }
 
   void _onScroll() {
