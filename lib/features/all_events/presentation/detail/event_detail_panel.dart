@@ -26,6 +26,7 @@ import '../../../../models/log/log_entry.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../../models/state/state_change.dart';
 import '../../../../models/storage/storage_entry.dart';
+import '../../../../core/utils/network_url_formatter.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../provider/all_events_provider.dart';
 import '../buttons/pressable_button.dart';
@@ -675,10 +676,11 @@ class _EventDetailPanelState extends ConsumerState<EventDetailPanel> {
               ],
               Expanded(
                 child: TextComponent(
-                  entry.url,
+                  formatUrlPretty(entry.url),
                   style: TextStyle(
                     fontFamily: AppConstants.monoFontFamily,
                     fontSize: 11,
+                    height: 1.35,
                     color:
                         isDark ? ColorTokens.lightBackground : Colors.black87,
                   ),
@@ -1172,13 +1174,16 @@ class _EventDetailPanelState extends ConsumerState<EventDetailPanel> {
               const SizedBox(width: 8),
             ],
             Expanded(
-              child: TextComponent(entry.url,
+              child: TextComponent(formatUrlPretty(entry.url),
                   style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
+                      height: 1.35,
                       color: isDark
                           ? ColorTokens.lightBackground
-                          : Colors.black87)),
+                          : Colors.black87),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis),
             ),
           ],
         ),

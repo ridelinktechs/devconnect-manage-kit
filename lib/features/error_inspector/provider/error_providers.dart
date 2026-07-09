@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/retention_provider.dart';
+import '../../../core/utils/list_retention.dart';
 import '../../../models/log/error_event.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -11,7 +13,7 @@ import '../../../server/ws_message_handler.dart';
 final errorEntriesProvider =
     StateNotifierProvider<ErrorNotifier, List<ErrorEvent>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = ErrorNotifier(handler);
+  final notifier = ErrorNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
 });
@@ -88,14 +90,12 @@ final errorCountBySeverityProvider = Provider<Map<ErrorSeverity, int>>((ref) {
 
 class ErrorNotifier extends StateNotifier<List<ErrorEvent>> {
   late final StreamSubscription<ErrorEvent> _sub;
+  final Ref _ref;
 
-  ErrorNotifier(WsMessageHandler handler) : super([]) {
+  ErrorNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onError.listen((entry) {
-      if (state.length > 5000) {
-        state = [...state.skip(500), entry];
-      } else {
-        state = [...state, entry];
-      }
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
     });
   }
 

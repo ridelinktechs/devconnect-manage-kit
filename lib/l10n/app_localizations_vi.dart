@@ -449,6 +449,31 @@ class SVi extends S {
       'Ghi nhớ cách hiển thị nội dung yêu cầu/phản hồi và điều khiển hoạt ảnh chuyển tab.';
 
   @override
+  String get dataRetention => 'Giữ dữ liệu';
+
+  @override
+  String get dataRetentionDesc =>
+      'Giới hạn cứng áp dụng cho từng danh sách theo tính năng. Khi danh sách vượt giới hạn, các mục cũ nhất sẽ bị xóa theo FIFO. Tác vụ bất đồng bộ đang chờ được giữ lại.';
+
+  @override
+  String get maxItems => 'Số mục tối đa';
+
+  @override
+  String get dataRetentionHelper =>
+      'Không giới hạn giữ mọi mục. Giá trị thấp hơn giải phóng bộ nhớ nhưng mất lịch sử.';
+
+  @override
+  String get allEventsDisplay => 'Hiển thị Tất cả sự kiện';
+
+  @override
+  String get allEventsDisplayDesc =>
+      'Bộ lọc chỉ hiển thị cho danh sách Tất cả sự kiện tổng hợp. Log gốc không bị xóa — chuyển về Không giới hạn để khôi phục.';
+
+  @override
+  String get allEventsDisplayHelper =>
+      'Giá trị thấp hơn chỉ giữ N mục mới nhất, đánh đổi bằng lịch sử cũ hơn.';
+
+  @override
   String get bodyView => 'Hiển thị nội dung';
 
   @override

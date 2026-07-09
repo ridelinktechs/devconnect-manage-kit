@@ -18,6 +18,7 @@ import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/code_generator.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/utils/network_url_formatter.dart';
 import '../../../../core/utils/screenshot_filename.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -149,11 +150,14 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                         message: entry.url,
                         waitDuration: const Duration(milliseconds: 300),
                         child: TextComponent(
-                          entry.url,
+                          // Two-line URL: scheme+host+path on line 1,
+                          // ?k=v&k=v on line 2. Raw URL still on clipboard.
+                          formatUrlPretty(entry.url),
                           style: TextStyle(
                             fontFamily: AppConstants.monoFontFamily,
                             fontSize: 12,
                             color: isDark ? Colors.white : Colors.black87,
+                            height: 1.35,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -210,7 +214,10 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                       icon: LucideIcons.link,
                       label: S.of(context).copyUrl,
                       onTap: () {
-                        Clipboard.setData(ClipboardData(text: entry.url));
+                        // Decoded single-line URL: %2C → ',' so the
+                        // pasted value is readable, but still a valid URL.
+                        Clipboard.setData(
+                            ClipboardData(text: formatUrlOneLine(entry.url)));
                         _showCopied(S.of(context).urlCopied);
                       },
                     ),
@@ -743,10 +750,11 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                   ],
                 ),
                 const SizedBox(height: 6),
-                TextComponent(entry.url,
+                TextComponent(formatUrlPretty(entry.url),
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
+                      height: 1.35,
                       color: (entry.isComplete &&
                               (entry.statusCode <= 0 ||
                                   entry.statusCode >= 400))
@@ -754,7 +762,9 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                           : isDark
                               ? ColorTokens.lightBackground
                               : ColorTokens.darkNeutral,
-                    )),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
                 if (entry.duration != null) ...[
                   const SizedBox(height: 6),
                   TimingBar(duration: entry.duration!),
@@ -887,9 +897,10 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                   StatusBadge(statusCode: entry.statusCode),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: TextComponent(entry.url,
+                  child: TextComponent(formatUrlPretty(entry.url),
                       style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
+                        height: 1.35,
                         fontSize: 11,
                         color: isDark
                             ? ColorTokens.lightBackground

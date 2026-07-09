@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/retention_provider.dart';
+import '../../../core/utils/list_retention.dart';
 import '../../../models/network/network_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -9,7 +11,7 @@ import '../../../server/ws_message_handler.dart';
 final networkEntriesProvider =
     StateNotifierProvider<NetworkNotifier, List<NetworkEntry>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = NetworkNotifier(handler);
+  final notifier = NetworkNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
 });
@@ -121,8 +123,9 @@ const Duration kStaleRequestThreshold = Duration(minutes: 10);
 
 class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
   late final StreamSubscription<NetworkEntry> _sub;
+  final Ref _ref;
 
-  NetworkNotifier(WsMessageHandler wsMessageHandler) : super([]) {
+  NetworkNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onNetwork.listen((entry) {
       if (entry.method.toUpperCase() == 'OPTIONS') return;
       if (entry.method.toUpperCase() == 'HEAD' && !entry.isComplete) return;
@@ -136,11 +139,8 @@ class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
         updated[index] = _mergeNetworkEntries(state[index], entry);
         state = updated;
       } else {
-        if (state.length > 5000) {
-          state = [...state.skip(500), entry];
-        } else {
-          state = [...state, entry];
-        }
+        final limit = _ref.read(retentionLimitProvider).limit;
+        state = truncateList([...state, entry], limit);
       }
     });
   }

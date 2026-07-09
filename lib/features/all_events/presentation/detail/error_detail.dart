@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../components/text/text_component.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../core/utils/toast_utils.dart';
@@ -76,7 +77,7 @@ class _ErrorDetailState extends State<ErrorDetail> {
             ],
           ),
           const SizedBox(height: 6),
-          Text(
+          TextComponent(
             entry.message,
             style: TextStyle(
               fontFamily: AppConstants.monoFontFamily,
@@ -159,7 +160,7 @@ class _DetailRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
+            child: TextComponent(
               value,
               style: TextStyle(
                 fontFamily: AppConstants.monoFontFamily,

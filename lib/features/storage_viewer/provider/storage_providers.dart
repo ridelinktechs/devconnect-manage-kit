@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/retention_provider.dart';
+import '../../../core/utils/list_retention.dart';
 import '../../../models/storage/storage_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -9,7 +11,7 @@ import '../../../server/ws_message_handler.dart';
 final storageEntriesProvider =
     StateNotifierProvider<StorageNotifier, List<StorageEntry>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = StorageNotifier(handler);
+  final notifier = StorageNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
 });
@@ -59,8 +61,9 @@ final selectedStorageEntryProvider = Provider<StorageEntry?>((ref) {
 
 class StorageNotifier extends StateNotifier<List<StorageEntry>> {
   late final StreamSubscription<StorageEntry> _sub;
+  final Ref _ref;
 
-  StorageNotifier(WsMessageHandler wsMessageHandler) : super([]) {
+  StorageNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onStorage.listen((entry) {
       // Update existing key or add new
       final index = state.indexWhere(
@@ -70,12 +73,8 @@ class StorageNotifier extends StateNotifier<List<StorageEntry>> {
         updated[index] = entry;
         state = updated;
       } else {
-        // Cap at 5000 entries
-        if (state.length > 5000) {
-          state = [...state.skip(500), entry];
-        } else {
-          state = [...state, entry];
-        }
+        final limit = _ref.read(retentionLimitProvider).limit;
+        state = truncateList([...state, entry], limit);
       }
     });
   }

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/retention_provider.dart';
+import '../../../core/utils/list_retention.dart';
 import '../../../models/log/benchmark_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -9,7 +11,7 @@ import '../../../server/ws_message_handler.dart';
 final benchmarkEntriesProvider =
     StateNotifierProvider<BenchmarkNotifier, List<BenchmarkEntry>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = BenchmarkNotifier(handler);
+  final notifier = BenchmarkNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
 });
@@ -74,8 +76,9 @@ class BenchmarkStats {
 
 class BenchmarkNotifier extends StateNotifier<List<BenchmarkEntry>> {
   late final StreamSubscription<Map<String, dynamic>> _sub;
+  final Ref _ref;
 
-  BenchmarkNotifier(WsMessageHandler handler) : super([]) {
+  BenchmarkNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onBenchmark.listen((data) {
       final steps = (data['steps'] as List<dynamic>?)
               ?.map((s) => BenchmarkStep(
@@ -97,11 +100,8 @@ class BenchmarkNotifier extends StateNotifier<List<BenchmarkEntry>> {
         steps: steps,
       );
 
-      if (state.length > 5000) {
-        state = [...state.skip(500), entry];
-      } else {
-        state = [...state, entry];
-      }
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
     });
   }
 

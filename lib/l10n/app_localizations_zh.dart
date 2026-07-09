@@ -442,6 +442,28 @@ class SZh extends S {
   String get detailViewDesc => '记住请求/响应内容的显示方式并控制标签页切换动画。';
 
   @override
+  String get dataRetention => '数据保留';
+
+  @override
+  String get dataRetentionDesc =>
+      '应用于每个功能列表的硬上限。当列表超过上限时,最早的条目将按 FIFO 顺序删除。待处理的异步操作将被保留。';
+
+  @override
+  String get maxItems => '最大条目数';
+
+  @override
+  String get dataRetentionHelper => '无限制保留所有条目。较低的值可释放内存,但会丢失历史记录。';
+
+  @override
+  String get allEventsDisplay => '所有事件显示';
+
+  @override
+  String get allEventsDisplayDesc => '聚合的所有事件列表的仅查看过滤器。底层日志不会被删除 — 切换回无限制即可恢复。';
+
+  @override
+  String get allEventsDisplayHelper => '较低的值仅保留最近的 N 条记录,代价是较早的历史记录。';
+
+  @override
   String get bodyView => '内容视图';
 
   @override
@@ -1519,6 +1541,28 @@ class SZhCn extends SZh {
   String get detailViewDesc => '记住请求/响应内容的显示方式并控制标签页切换动画。';
 
   @override
+  String get dataRetention => '数据保留';
+
+  @override
+  String get dataRetentionDesc =>
+      '应用于每个功能列表的硬上限。当列表超过上限时,最早的条目将按 FIFO 顺序删除。待处理的异步操作将被保留。';
+
+  @override
+  String get maxItems => '最大条目数';
+
+  @override
+  String get dataRetentionHelper => '无限制保留所有条目。较低的值可释放内存,但会丢失历史记录。';
+
+  @override
+  String get allEventsDisplay => '所有事件显示';
+
+  @override
+  String get allEventsDisplayDesc => '聚合的所有事件列表的仅查看过滤器。底层日志不会被删除 — 切换回无限制即可恢复。';
+
+  @override
+  String get allEventsDisplayHelper => '较低的值仅保留最近的 N 条记录,代价是较早的历史记录。';
+
+  @override
   String get bodyView => '内容视图';
 
   @override
@@ -1529,6 +1573,12 @@ class SZhCn extends SZh {
 
   @override
   String get codeModeDesc => '代码模式根据已连接的 SDK 导出为 TypeScript / Dart / Kotlin。';
+
+  @override
+  String get treeModeDesc => '树形模式以可展开/折叠的节点层级显示数据,适合浏览深度嵌套的值。';
+
+  @override
+  String get jsonModeDesc => 'JSON 模式将数据呈现为单一、带语法高亮、易于复制的 JSON 文档。';
 
   @override
   String get captureDataJson => '截图数据(当前模式下的键 + 值)';
@@ -2590,6 +2640,28 @@ class SZhTw extends SZh {
   String get detailViewDesc => '記住請求/回應內容的顯示方式並控制分頁切換動畫。';
 
   @override
+  String get dataRetention => '資料保留';
+
+  @override
+  String get dataRetentionDesc =>
+      '套用於每個功能清單的硬上限。當清單超過上限時,最舊的條目將依 FIFO 順序刪除。等待中的非同步操作將被保留。';
+
+  @override
+  String get maxItems => '最大項目數';
+
+  @override
+  String get dataRetentionHelper => '無限制保留所有項目。較低的值可釋放記憶體,但會遺失歷史記錄。';
+
+  @override
+  String get allEventsDisplay => '所有事件顯示';
+
+  @override
+  String get allEventsDisplayDesc => '彙總的所有事件清單的僅檢視篩選器。底層記錄不會被刪除 — 切換回無限制即可還原。';
+
+  @override
+  String get allEventsDisplayHelper => '較低的值僅保留最近的 N 筆記錄,代價是較舊的歷史記錄。';
+
+  @override
   String get bodyView => '內容檢視';
 
   @override
@@ -2600,6 +2672,12 @@ class SZhTw extends SZh {
 
   @override
   String get codeModeDesc => '程式碼模式根據已連線的 SDK 匯出為 TypeScript / Dart / Kotlin。';
+
+  @override
+  String get treeModeDesc => '樹狀模式以可展開/摺疊的節點階層顯示資料,適合瀏覽深度巢狀的值。';
+
+  @override
+  String get jsonModeDesc => 'JSON 模式將資料呈現為單一、帶語法醒目提示、易於複製的 JSON 文件。';
 
   @override
   String get captureDataJson => '擷取資料 (目前模式的金鑰 + 值)';

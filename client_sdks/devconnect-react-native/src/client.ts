@@ -482,6 +482,14 @@ export class DevConnect {
   private originalFetch: typeof global.fetch | null = null;
   private originalXHR: typeof global.XMLHttpRequest | null = null;
   private originalConsole: { log: Function; warn: Function; error: Function; debug: Function; info: Function; trace?: Function } | null = null;
+  /**
+   * Map of `METHOD\0URL` keys currently in flight through the fetch
+   * interceptor to the number of active concurrent requests. The XHR
+   * interceptor (which React Native 0.85's fetch transport triggers
+   * internally for the same call) checks this map and suppresses its
+   * own duplicate report if the count is > 0.
+   */
+  private fetchInFlight: Map<string, number> = new Map();
 
   private constructor(config: DevConnectConfig & { resolvedHost: string }) {
     this.config = {
@@ -536,20 +544,30 @@ export class DevConnect {
       return dc;
     }
 
-    const port = config.port ?? 9090;
-    const shouldAuto = (config.auto ?? true) && (!config.host || config.host === 'auto');
-
-    const resolvedHost = shouldAuto
-      ? await autoDetectHost(port)
-      : (config.host ?? 'localhost');
-
-    const dc = new DevConnect({ ...config, resolvedHost });
+    // Create instance immediately with placeholder host so we can patch synchronously
+    const dc = new DevConnect({ ...config, resolvedHost: 'localhost' });
     DevConnect.instance = dc;
 
-    dc.connect();
+    // Patch interceptors synchronously so no early network requests or logs are missed
     if (dc.config.autoInterceptFetch) dc.patchFetch();
     if (dc.config.autoInterceptXHR) dc.patchXHR();
     if (dc.config.autoInterceptConsole) dc.patchConsole();
+
+    // Resolve real host and connect asynchronously in the background
+    const port = config.port ?? 9090;
+    const shouldAuto = (config.auto ?? true) && (!config.host || config.host === 'auto');
+
+    if (shouldAuto) {
+      autoDetectHost(port).then((resolvedHost) => {
+        dc.config.host = resolvedHost;
+        dc.connect();
+      }).catch(() => {
+        dc.connect();
+      });
+    } else {
+      dc.config.host = config.host ?? 'localhost';
+      dc.connect();
+    }
 
     // Auto-start monitoring plugins
     // Using dynamic require() to avoid circular dependency at module load time
@@ -896,7 +914,11 @@ export class DevConnect {
       }
 
       const source = classifyUrl(url);
-      dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source });
+      // Track this fetch so the XHR interceptor (which fires on RN's
+      // internal XHR transport for the same call) can dedup against us.
+      const fetchKey = `${method}\0${url}`;
+      dc.fetchInFlight.set(fetchKey, (dc.fetchInFlight.get(fetchKey) ?? 0) + 1);
+      dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source, via: 'fetch' });
 
       try {
         const response = await originalFetch(input, init);
@@ -910,14 +932,28 @@ export class DevConnect {
           requestId, method, url, statusCode: response.status, startTime,
           endTime: Date.now(), duration: Date.now() - startTime,
           requestHeaders: reqHeaders, responseHeaders: resHeaders, requestBody, responseBody, source,
+          via: 'fetch',
         });
+        const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
+        if (currentCount <= 1) {
+          dc.fetchInFlight.delete(fetchKey);
+        } else {
+          dc.fetchInFlight.set(fetchKey, currentCount - 1);
+        }
         return response;
       } catch (error: any) {
         dc.send('client:network:request_complete', {
           requestId, method, url, statusCode: 0, startTime,
           endTime: Date.now(), duration: Date.now() - startTime,
           requestHeaders: reqHeaders, requestBody, error: error?.message ?? String(error), source,
+          via: 'fetch',
         });
+        const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
+        if (currentCount <= 1) {
+          dc.fetchInFlight.delete(fetchKey);
+        } else {
+          dc.fetchInFlight.set(fetchKey, currentCount - 1);
+        }
         throw error;
       }
     };
@@ -967,29 +1003,72 @@ export class DevConnect {
             try { requestBody = JSON.parse(body); } catch (_) { requestBody = body; }
           }
         }
-        dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source: classifyUrl(url) });
+        // Skip the start report if the fetch interceptor already
+        // covers this call (see handleLoadEnd for the matching skip).
+        const xhrKey = `${method}\0${url}`;
+        const isFetchRequest = (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
+        if (!isFetchRequest) {
+          dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source: classifyUrl(url), via: 'xhr' });
+        }
         return origSend(body);
       };
 
-      const handleLoadEnd = () => {
+      const handleLoadEnd = async () => {
         xhr.removeEventListener('loadend', handleLoadEnd);
+        // Skip if the fetch interceptor already reported this call —
+        // RN 0.85's fetch goes through XHR internally, so without this
+        // every fetch would double-fire (once via fetch path, once via
+        // XHR path) with different requestIds, which the server
+        // cannot merge downstream.
+        const xhrKey = `${method}\0${url}`;
+        const isFetchRequest = (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
+        if (isFetchRequest) {
+          return;
+        }
         const resHeaders: Record<string, string> = {};
         try { xhr.getAllResponseHeaders().split('\r\n').forEach((l: string) => { const i = l.indexOf(':'); if (i > 0) resHeaders[l.substring(0, i).trim()] = l.substring(i + 1).trim(); }); } catch (_) {}
         let responseBody: any;
-        // Only read responseText if responseType allows it (not blob/arraybuffer)
         const rt = xhr.responseType;
         if (!rt || rt === 'text' || (rt as string) === '') {
           try { responseBody = JSON.parse(xhr.responseText); } catch (_) { responseBody = xhr.responseText; }
         } else if (rt === 'json') {
           responseBody = xhr.response;
         } else {
-          responseBody = `<${rt} ${xhr.response?.size ?? xhr.response?.byteLength ?? '?'} bytes>`;
+          // Non-text responseType (blob, arraybuffer, ...). If the
+          // server's Content-Type looks like JSON or text, try to read
+          // it as text — saves the user from seeing `<blob 2852 bytes>`
+          // when the server actually sent JSON. No size cap: a mis-set
+          // responseType on a JSON API response can be arbitrarily
+          // large, and we trust the Content-Type to tell us when the
+          // body is genuinely binary (image/*, video/*, audio/*,
+          // application/octet-stream, ...).
+          const ct = (resHeaders['content-type'] ?? '').toLowerCase();
+          const isJsonCt = ct.includes('json') || ct.includes('+json');
+          const isTextCt = ct.startsWith('text/') || ct === 'application/javascript' || ct === 'application/x-www-form-urlencoded';
+          const blob = xhr.response as any;
+          const blobSize = blob?.size ?? blob?.byteLength ?? 0;
+          if ((isJsonCt || isTextCt) && blob && typeof blob.text === 'function') {
+            try {
+              const text = await blob.text();
+              if (isJsonCt) {
+                try { responseBody = JSON.parse(text); }
+                catch (_) { responseBody = text; }
+              } else {
+                responseBody = text;
+              }
+            } catch (_) {
+              responseBody = `<${rt} ${blobSize || '?'} bytes>`;
+            }
+          } else {
+            responseBody = `<${rt} ${blobSize || xhr.response?.byteLength || '?'} bytes>`;
+          }
         }
         dc.send('client:network:request_complete', {
           requestId, method, url, statusCode: xhr.status, startTime,
           endTime: Date.now(), duration: Date.now() - startTime,
           requestHeaders: reqHeaders, responseHeaders: resHeaders, requestBody, responseBody,
           source: classifyUrl(url),
+          via: 'xhr',
           ...(xhr.status === 0 ? { error: 'Network request failed' } : {}),
         });
       };

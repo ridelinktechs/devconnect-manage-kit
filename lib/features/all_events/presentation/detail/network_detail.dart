@@ -10,6 +10,7 @@ import '../../../../components/text/text_component.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/utils/network_url_formatter.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/duration_format.dart';
 import '../../../../core/utils/toast_utils.dart';
@@ -158,10 +159,11 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
                       message: entry.url,
                       waitDuration: const Duration(milliseconds: 300),
                       child: TextComponent(
-                        entry.url,
+                        formatUrlPretty(entry.url),
                         style: TextStyle(
                           fontFamily: AppConstants.monoFontFamily,
                           fontSize: 11,
+                          height: 1.35,
                           color: isDark
                               ? ColorTokens.lightBackground
                               : Colors.black87,
@@ -185,8 +187,8 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
                   CopyButton(
                     tooltip: 'Copy URL',
                     icon: LucideIcons.link,
-                    onTap: () =>
-                        _copyText(context, entry.url, 'URL'),
+                    onTap: () => _copyText(
+                        context, formatUrlOneLine(entry.url), 'URL'),
                   ),
                   const SizedBox(width: 4),
                   CopyButton(

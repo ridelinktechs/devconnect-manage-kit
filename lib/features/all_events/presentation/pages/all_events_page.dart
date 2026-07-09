@@ -10,6 +10,7 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../models/device_info.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../benchmark/provider/benchmark_providers.dart';
 import '../../../console/provider/console_providers.dart';
@@ -47,6 +48,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
   final _scrollController = SmoothScrollController();
   final _selectedEventId = ValueNotifier<String?>(null);
   final _eventCount = ValueNotifier<int>(0);
+  final _untrimmedCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
   bool _programmaticScroll = false;
   int _visibleCount = 0;
@@ -60,9 +62,10 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
     ref.listenManual(
       filteredAllEventsProvider,
       (previous, next) {
-        _events..clear()..addAll(next);
-        _eventCount.value = _events.length;
-        _visibleCount = _events.length;
+        _events..clear()..addAll(next.items);
+        _eventCount.value = next.items.length;
+        _visibleCount = next.items.length;
+        _untrimmedCount.value = next.total;
         _generation++;
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
@@ -77,6 +80,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
     _scrollController.dispose();
     _selectedEventId.dispose();
     _eventCount.dispose();
+    _untrimmedCount.dispose();
     super.dispose();
   }
 
@@ -177,6 +181,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
     _selectedEventId.value = null;
     _events.clear();
     _eventCount.value = 0;
+    _untrimmedCount.value = 0;
     _visibleCount = 0;
     setState(() {});
   }
@@ -350,6 +355,14 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
 
     final sortOrder = ref.watch(allEventsSortOrderProvider);
 
+    // Pre-index devices by id so each EventRow can resolve its device
+    // in O(1). Without this, every row did `devices.where(...)` which
+    // was O(M) per row × N rows = O(N×M) per rebuild — visible jank
+    // around 500+ events with several connected devices.
+    final deviceById = <String, DeviceInfo>{
+      for (final d in devices) d.deviceId: d,
+    };
+
     return Stack(
       children: [
         Column(
@@ -357,6 +370,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
             // ── Header ──
             Header(
               eventCount: _eventCount,
+              untrimmedCount: _untrimmedCount,
               serverRunning: server.isRunning,
               port: server.isRunning ? server.port : 9090,
               deviceCount: devices.length,
@@ -419,10 +433,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                                       return const SizedBox.shrink();
                                     }
                                     final event = _events[actualIndex];
-                                    final device = devices
-                                        .where((d) =>
-                                            d.deviceId == event.deviceId)
-                                        .firstOrNull;
+                                    final device = deviceById[event.deviceId];
                                     return RepaintBoundary(
                                       key: ValueKey(event.id),
                                       child: ValueListenableBuilder<String?>(

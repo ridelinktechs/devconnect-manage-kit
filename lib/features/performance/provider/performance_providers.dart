@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/retention_provider.dart';
+import '../../../core/utils/list_retention.dart';
 import '../../../models/network/network_entry.dart';
 import '../../../models/performance/performance_entry.dart';
 import '../../../server/providers/server_providers.dart';
@@ -13,7 +15,7 @@ import '../../network_inspector/provider/network_providers.dart';
 final performanceEntriesProvider =
     StateNotifierProvider<PerformanceNotifier, List<PerformanceEntry>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = PerformanceNotifier(handler);
+  final notifier = PerformanceNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
 });
@@ -335,14 +337,12 @@ final networkErrorRateProvider = Provider<double>((ref) {
 
 class PerformanceNotifier extends StateNotifier<List<PerformanceEntry>> {
   late final StreamSubscription<PerformanceEntry> _sub;
+  final Ref _ref;
 
-  PerformanceNotifier(WsMessageHandler handler) : super([]) {
+  PerformanceNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onPerformance.listen((entry) {
-      if (state.length > 10000) {
-        state = [...state.skip(1000), entry];
-      } else {
-        state = [...state, entry];
-      }
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
     });
   }
 
@@ -355,7 +355,7 @@ class PerformanceNotifier extends StateNotifier<List<PerformanceEntry>> {
 final memoryLeakEntriesProvider =
     StateNotifierProvider<MemoryLeakNotifier, List<MemoryLeakEntry>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = MemoryLeakNotifier(handler);
+  final notifier = MemoryLeakNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
 });
@@ -393,14 +393,12 @@ final memoryLeakCountsProvider =
 
 class MemoryLeakNotifier extends StateNotifier<List<MemoryLeakEntry>> {
   late final StreamSubscription<MemoryLeakEntry> _sub;
+  final Ref _ref;
 
-  MemoryLeakNotifier(WsMessageHandler handler) : super([]) {
+  MemoryLeakNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onMemoryLeak.listen((entry) {
-      if (state.length > 5000) {
-        state = [...state.skip(500), entry];
-      } else {
-        state = [...state, entry];
-      }
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
     });
   }
 

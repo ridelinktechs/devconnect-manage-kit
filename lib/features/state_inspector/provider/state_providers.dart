@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/retention_provider.dart';
+import '../../../core/utils/list_retention.dart';
 import '../../../models/state/state_change.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -9,7 +11,7 @@ import '../../../server/ws_message_handler.dart';
 final stateChangesProvider =
     StateNotifierProvider<StateChangesNotifier, List<StateChange>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = StateChangesNotifier(handler);
+  final notifier = StateChangesNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
 });
@@ -43,14 +45,12 @@ final filteredStateChangesProvider = Provider<List<StateChange>>((ref) {
 
 class StateChangesNotifier extends StateNotifier<List<StateChange>> {
   late final StreamSubscription<StateChange> _sub;
+  final Ref _ref;
 
-  StateChangesNotifier(WsMessageHandler wsMessageHandler) : super([]) {
+  StateChangesNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onState.listen((entry) {
-      if (state.length > 5000) {
-        state = [...state.skip(500), entry];
-      } else {
-        state = [...state, entry];
-      }
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
     });
   }
 

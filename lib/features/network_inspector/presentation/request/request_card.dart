@@ -7,6 +7,7 @@ import '../../../../components/misc/status_badge.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/utils/network_url_formatter.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../models/network/network_entry.dart';
@@ -52,10 +53,22 @@ class RequestCard extends ConsumerWidget {
     } catch (_) {}
     final displayUrl = uri?.path ?? entry.url;
     final host = uri?.host ?? '';
+    final formatted = parseFormattedUrl(entry.url);
     final isRootPath = displayUrl == '/' || displayUrl.isEmpty;
     final titleText = (entry.serviceAction != null && isRootPath)
         ? entry.serviceAction!
         : displayUrl;
+    // Compact query hint for the second line of the title block. Empty when
+    // the URL has no query string — the row stays a single line in that case.
+    final queryHint = formatted == null || formatted.queryParams.isEmpty
+        ? null
+        : formatted.queryParams
+            .take(2)
+            .map((p) => p.value.isEmpty ? p.key : '${p.key}=${p.value}')
+            .join(', ') +
+            (formatted.queryParams.length > 2
+                ? ' + ${formatted.queryParams.length - 2}'
+                : '');
 
     // Left bar color based on status code
     final Color leftBarColor;
@@ -168,6 +181,20 @@ class RequestCard extends ConsumerWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
+                                if (queryHint != null) ...[
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    '? $queryHint',
+                                    style: TextStyle(
+                                      fontFamily: AppConstants.monoFontFamily,
+                                      fontSize: 10,
+                                      color: Colors.grey[500],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                                 const SizedBox(height: 2),
                                 Row(
                                   children: [

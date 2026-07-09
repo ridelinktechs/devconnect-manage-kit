@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/retention_provider.dart';
+import '../../../core/utils/list_retention.dart';
 import '../../../models/log/log_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -9,7 +11,7 @@ import '../../../server/ws_message_handler.dart';
 final consoleEntriesProvider =
     StateNotifierProvider<ConsoleNotifier, List<LogEntry>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = ConsoleNotifier(handler);
+  final notifier = ConsoleNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
 });
@@ -40,14 +42,12 @@ final filteredConsoleEntriesProvider = Provider<List<LogEntry>>((ref) {
 
 class ConsoleNotifier extends StateNotifier<List<LogEntry>> {
   late final StreamSubscription<LogEntry> _sub;
+  final Ref _ref;
 
-  ConsoleNotifier(WsMessageHandler wsMessageHandler) : super([]) {
+  ConsoleNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onLog.listen((entry) {
-      if (state.length > 10000) {
-        state = [...state.skip(1000), entry];
-      } else {
-        state = [...state, entry];
-      }
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
     });
   }
 

@@ -8,14 +8,35 @@ final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
 );
 
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
-  ThemeModeNotifier() : super(ThemeMode.dark);
+  ThemeModeNotifier() : super(_load());
 
-  void toggle() {
-    state = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+  static const _key = 'themeMode';
+
+  static ThemeMode _load() {
+    final raw = AppPreferences().get<String>(_key);
+    switch (raw) {
+      case 'light':
+        return ThemeMode.light;
+      case 'system':
+        return ThemeMode.system;
+      case 'dark':
+      default:
+        return ThemeMode.dark;
+    }
   }
 
-  void setDark() => state = ThemeMode.dark;
-  void setLight() => state = ThemeMode.light;
+  void _set(ThemeMode mode) {
+    state = mode;
+    AppPreferences().set(_key, mode.name);
+  }
+
+  void toggle() {
+    _set(state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
+  }
+
+  void setDark() => _set(ThemeMode.dark);
+  void setLight() => _set(ThemeMode.light);
+  void setSystem() => _set(ThemeMode.system);
 }
 
 /// Auto-scroll direction: true = scroll to bottom (newest at bottom),
