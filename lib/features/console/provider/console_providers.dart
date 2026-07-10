@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
 import '../../../core/utils/list_retention.dart';
+import '../../../core/utils/retention_capped.dart';
 import '../../../models/log/log_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -16,13 +17,23 @@ final consoleEntriesProvider =
   return notifier;
 });
 
+/// Source-cached list (unlimited) trimmed to the user's
+/// retention cap. Toolbars consume this so they can surface a
+/// "Showing N of M" note when entries were dropped.
+final consoleDisplayProvider =
+    Provider<RetentionCapped<LogEntry>>((ref) {
+  final all = ref.watch(consoleEntriesProvider);
+  final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
+  return applyRetentionCap(all, limit);
+});
+
 final consoleSearchProvider = StateProvider<String>((ref) => '');
 final consoleFilterProvider = StateProvider<Set<LogLevel>>(
   (ref) => LogLevel.values.toSet(),
 );
 
 final filteredConsoleEntriesProvider = Provider<List<LogEntry>>((ref) {
-  final entries = ref.watch(consoleEntriesProvider);
+  final entries = ref.watch(consoleDisplayProvider).items;
   final search = ref.watch(consoleSearchProvider).toLowerCase();
   final filters = ref.watch(consoleFilterProvider);
   final selectedDevice = ref.watch(selectedDeviceProvider);
@@ -46,8 +57,7 @@ class ConsoleNotifier extends StateNotifier<List<LogEntry>> {
 
   ConsoleNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onLog.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit;
-      state = truncateList([...state, entry], limit);
+      state = truncateList([...state, entry], null);
     });
   }
 

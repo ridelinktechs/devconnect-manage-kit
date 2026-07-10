@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
 import '../../../core/utils/list_retention.dart';
+import '../../../core/utils/retention_capped.dart';
 import '../../../models/network/network_entry.dart';
 import '../../../models/performance/performance_entry.dart';
 import '../../../server/providers/server_providers.dart';
@@ -18,6 +19,16 @@ final performanceEntriesProvider =
   final notifier = PerformanceNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
+});
+
+/// Source-cached list (unlimited) trimmed to the user's
+/// retention cap. Toolbars consume this so they can surface a
+/// "Showing N of M" note when entries were dropped.
+final performanceDisplayProvider =
+    Provider<RetentionCapped<PerformanceEntry>>((ref) {
+  final all = ref.watch(performanceEntriesProvider);
+  final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
+  return applyRetentionCap(all, limit);
 });
 
 final filteredPerformanceEntriesProvider =
@@ -341,8 +352,7 @@ class PerformanceNotifier extends StateNotifier<List<PerformanceEntry>> {
 
   PerformanceNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onPerformance.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit;
-      state = truncateList([...state, entry], limit);
+      state = truncateList([...state, entry], null);
     });
   }
 
@@ -358,6 +368,15 @@ final memoryLeakEntriesProvider =
   final notifier = MemoryLeakNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
+});
+
+/// Source-cached list (unlimited) trimmed to the user's
+/// retention cap.
+final memoryLeakDisplayProvider =
+    Provider<RetentionCapped<MemoryLeakEntry>>((ref) {
+  final all = ref.watch(memoryLeakEntriesProvider);
+  final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
+  return applyRetentionCap(all, limit);
 });
 
 final memoryLeakFilterProvider =
@@ -397,8 +416,7 @@ class MemoryLeakNotifier extends StateNotifier<List<MemoryLeakEntry>> {
 
   MemoryLeakNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onMemoryLeak.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit;
-      state = truncateList([...state, entry], limit);
+      state = truncateList([...state, entry], null);
     });
   }
 

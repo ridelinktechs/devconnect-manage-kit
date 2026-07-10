@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
 import '../../../core/utils/list_retention.dart';
+import '../../../core/utils/retention_capped.dart';
 import '../../../models/network/network_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -14,6 +15,16 @@ final networkEntriesProvider =
   final notifier = NetworkNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
+});
+
+/// Source-cached list (unlimited) trimmed to the user's
+/// retention cap. Toolbars consume this so they can surface a
+/// "Showing N of M" note when entries were dropped.
+final networkDisplayProvider =
+    Provider<RetentionCapped<NetworkEntry>>((ref) {
+  final all = ref.watch(networkEntriesProvider);
+  final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
+  return applyRetentionCap(all, limit);
 });
 
 final networkSearchProvider = StateProvider<String>((ref) => '');
@@ -39,7 +50,7 @@ bool _isSystemUrl(String url) {
 }
 
 final filteredNetworkEntriesProvider = Provider<List<NetworkEntry>>((ref) {
-  final entries = ref.watch(networkEntriesProvider);
+  final entries = ref.watch(networkDisplayProvider).items;
   final search = ref.watch(networkSearchProvider).toLowerCase();
   final methodFilter = ref.watch(networkMethodFilterProvider);
   final selectedDevice = ref.watch(selectedDeviceProvider);
@@ -139,8 +150,7 @@ class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
         updated[index] = _mergeNetworkEntries(state[index], entry);
         state = updated;
       } else {
-        final limit = _ref.read(retentionLimitProvider).limit;
-        state = truncateList([...state, entry], limit);
+        state = truncateList([...state, entry], null);
       }
     });
   }

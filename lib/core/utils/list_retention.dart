@@ -16,9 +16,7 @@ List<T> truncateList<T>(
   bool Function(T item)? shouldDrop,
 }) {
   if (limit == null || list.length <= limit) return list;
-  final dropCount = list.length - limit;
-  final chunk = (limit * 0.1).ceil().clamp(50, list.length);
-  final toDrop = dropCount < chunk ? dropCount : chunk;
+  final toDrop = list.length - limit;
 
   // When a "drop first" predicate is supplied, sort indices so that
   // droppable items come first; otherwise drop the oldest (head) entries.

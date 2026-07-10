@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
 import '../../../core/utils/list_retention.dart';
+import '../../../core/utils/retention_capped.dart';
 import '../../../models/storage/storage_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -14,6 +15,16 @@ final storageEntriesProvider =
   final notifier = StorageNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
+});
+
+/// Source-cached list (unlimited) trimmed to the user's
+/// retention cap. Toolbars consume this so they can surface a
+/// "Showing N of M" note when entries were dropped.
+final storageDisplayProvider =
+    Provider<RetentionCapped<StorageEntry>>((ref) {
+  final all = ref.watch(storageEntriesProvider);
+  final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
+  return applyRetentionCap(all, limit);
 });
 
 final storageSearchProvider = StateProvider<String>((ref) => '');
@@ -27,7 +38,7 @@ final storageTypeFilterProvider = StateProvider<Set<StorageType>>(
 );
 
 final filteredStorageEntriesProvider = Provider<List<StorageEntry>>((ref) {
-  final entries = ref.watch(storageEntriesProvider);
+  final entries = ref.watch(storageDisplayProvider).items;
   final search = ref.watch(storageSearchProvider).toLowerCase();
   final selectedDevice = ref.watch(selectedDeviceProvider);
   final opFilter = ref.watch(storageOperationFilterProvider);
@@ -73,8 +84,7 @@ class StorageNotifier extends StateNotifier<List<StorageEntry>> {
         updated[index] = entry;
         state = updated;
       } else {
-        final limit = _ref.read(retentionLimitProvider).limit;
-        state = truncateList([...state, entry], limit);
+        state = truncateList([...state, entry], null);
       }
     });
   }

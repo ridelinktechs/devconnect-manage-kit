@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
 import '../../../core/utils/list_retention.dart';
+import '../../../core/utils/retention_capped.dart';
 import '../../../models/log/error_event.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -16,6 +17,16 @@ final errorEntriesProvider =
   final notifier = ErrorNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
+});
+
+/// Source-cached list (unlimited) trimmed to the user's
+/// retention cap. Toolbars consume this so they can surface a
+/// "Showing N of M" note when entries were dropped.
+final errorDisplayProvider =
+    Provider<RetentionCapped<ErrorEvent>>((ref) {
+  final all = ref.watch(errorEntriesProvider);
+  final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
+  return applyRetentionCap(all, limit);
 });
 
 final errorSearchProvider = StateProvider<String>((ref) => '');
@@ -94,8 +105,7 @@ class ErrorNotifier extends StateNotifier<List<ErrorEvent>> {
 
   ErrorNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onError.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit;
-      state = truncateList([...state, entry], limit);
+      state = truncateList([...state, entry], null);
     });
   }
 

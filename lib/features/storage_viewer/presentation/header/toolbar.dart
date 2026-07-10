@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/inputs/search_field.dart';
+import '../../../../components/misc/retention_hint.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../models/storage/storage_entry.dart';
+import '../../../../core/providers/retention_provider.dart';
 import '../../provider/storage_providers.dart';
 import '../shared/storage_tokens.dart';
 import 'icon_btn.dart';
@@ -35,6 +37,10 @@ class Toolbar extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
     final opFilter = ref.watch(storageOperationFilterProvider);
     final typeFilter = ref.watch(storageTypeFilterProvider);
+    final retentionPreset = ref.watch(retentionLimitProvider);
+    final retentionLimit = retentionPreset.limit;
+    final retentionLabel = retentionPreset.label;
+    final capped = ref.watch(storageDisplayProvider);
 
     return Container(
       height: 48,
@@ -58,21 +64,14 @@ class Toolbar extends ConsumerWidget {
           const SizedBox(width: 8),
           ValueListenableBuilder<int>(
             valueListenable: totalCount,
-            builder: (_, c, _) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: ColorTokens.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '$c',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: ColorTokens.primary,
-                ),
-              ),
-            ),
+            builder: (_, c, _) {
+              return RetentionHint(
+                count: c,
+                total: capped.total,
+                limit: retentionLimit,
+                limitLabel: retentionLabel,
+              );
+            },
           ),
           const SizedBox(width: 16),
 

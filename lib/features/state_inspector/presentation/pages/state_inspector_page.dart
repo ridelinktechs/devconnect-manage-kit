@@ -18,6 +18,7 @@ import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
+import '../../../../core/providers/retention_provider.dart';
 import '../../provider/state_providers.dart';
 
 class StateInspectorPage extends ConsumerStatefulWidget {
@@ -279,6 +280,11 @@ class _Toolbar extends ConsumerWidget {
     final scrollDir = ref.watch(scrollDirectionProvider);
     final isTop = scrollDir == ScrollDirection.top;
 
+    final retentionPreset = ref.watch(retentionLimitProvider);
+    final retentionLimit = retentionPreset.limit;
+    final retentionLabel = retentionPreset.label;
+    final capped = ref.watch(stateChangesDisplayProvider);
+
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -293,7 +299,31 @@ class _Toolbar extends ConsumerWidget {
           const SizedBox(width: 8),
           ValueListenableBuilder<int>(
             valueListenable: totalCount,
-            builder: (_, c, __) => Text('$c changes', style: theme.textTheme.bodySmall),
+            builder: (_, c, __) {
+              final isTrimmed =
+                  retentionLimit != null && capped.total > c;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    retentionLimit == null
+                        ? '$c changes'
+                        : '$c / $retentionLabel changes',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  if (isTrimmed)
+                    Text(
+                      'Showing $c of ${capped.total}',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontFamily: AppConstants.monoFontFamily,
+                        color: isDark ? Colors.grey[600] : Colors.grey[500],
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
           const Spacer(),
           SizedBox(

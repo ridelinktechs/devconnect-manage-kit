@@ -6,9 +6,9 @@ import '../../../../core/constants/app_constants.dart';
 /// colored count pill in error_inspector). Local copy — color/alpha
 /// palette differs from `error_inspector/shared/count_pill.dart`.
 class CountPill extends StatelessWidget {
-  final int count;
+  final String text;
 
-  const CountPill({super.key, required this.count});
+  const CountPill({super.key, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +23,7 @@ class CountPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        '$count',
+        text,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,

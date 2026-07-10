@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
 import '../../../core/utils/list_retention.dart';
+import '../../../core/utils/retention_capped.dart';
 import '../../../models/display/display_entry.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -18,6 +19,16 @@ final displayEntriesProvider =
   return notifier;
 });
 
+/// Source-cached list (unlimited) trimmed to the user's
+/// retention cap. Toolbars consume this so they can surface a
+/// "Showing N of M" note when entries were dropped.
+final displayDisplayProvider =
+    Provider<RetentionCapped<DisplayEntry>>((ref) {
+  final all = ref.watch(displayEntriesProvider);
+  final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
+  return applyRetentionCap(all, limit);
+});
+
 class DisplayEntriesNotifier extends StateNotifier<List<DisplayEntry>> {
   late final StreamSubscription<DisplayEntry> _sub;
   final Ref _ref;
@@ -27,8 +38,7 @@ class DisplayEntriesNotifier extends StateNotifier<List<DisplayEntry>> {
   }
 
   void add(DisplayEntry entry) {
-    final limit = _ref.read(retentionLimitProvider).limit;
-    state = truncateList([...state, entry], limit);
+    state = truncateList([...state, entry], null);
   }
 
   void cancelSubscription() => _sub.cancel();
@@ -46,6 +56,15 @@ final asyncOperationEntriesProvider =
   return notifier;
 });
 
+/// Source-cached list (unlimited) trimmed to the user's
+/// retention cap.
+final asyncOpDisplayProvider =
+    Provider<RetentionCapped<AsyncOperationEntry>>((ref) {
+  final all = ref.watch(asyncOperationEntriesProvider);
+  final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
+  return applyRetentionCap(all, limit);
+});
+
 /// Async ops have a "drop resolved/rejected first" rule — the user cares
 /// more about pending `start` rows (they're waiting on them) than
 /// historical `resolve`/`reject` rows. The drop happens before the
@@ -59,10 +78,9 @@ class AsyncOpEntriesNotifier extends StateNotifier<List<AsyncOperationEntry>> {
   }
 
   void add(AsyncOperationEntry entry) {
-    final limit = _ref.read(retentionLimitProvider).limit;
     state = truncateList(
       [...state, entry],
-      limit,
+      null,
       // `start` is the "pending" state — keep these in preference to
       // completed (resolve) or failed (reject) entries when trimming.
       shouldDrop: (e) => e.status != AsyncOperationStatus.start,
