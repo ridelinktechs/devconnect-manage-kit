@@ -112,9 +112,6 @@ class Header extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        // When a display cap is configured, surface it
-                        // inline ("417 / 1K") so the user can see the
-                        // headroom. Unlimited → bare count.
                         displayLimit == null
                             ? '$count'
                             : '$count / $displayLabel',

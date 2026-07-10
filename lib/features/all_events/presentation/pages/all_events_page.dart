@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
-import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
@@ -52,7 +51,6 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
   bool _autoScroll = true;
   bool _programmaticScroll = false;
   int _visibleCount = 0;
-  int _generation = 0;
   final List<UnifiedEvent> _events = [];
 
   @override
@@ -66,7 +64,6 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
         _eventCount.value = next.items.length;
         _visibleCount = next.items.length;
         _untrimmedCount.value = next.total;
-        _generation++;
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
       },
@@ -412,18 +409,8 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                               child: ListView.custom(
                                 controller: _scrollController,
                                 itemExtent: 44,
-                                childrenDelegate: StableBuilderDelegate(
-                                  generation: _generation,
-                                  childCount: _visibleCount,
-                                  findChildIndexCallback: (key) {
-                                    if (key is ValueKey<String>) {
-                                      final idx = _events
-                                          .indexWhere((e) => e.id == key.value);
-                                      return idx == -1 ? null : idx;
-                                    }
-                                    return null;
-                                  },
-                                  builder: (context, index) {
+                                childrenDelegate: SliverChildBuilderDelegate(
+                                  (context, index) {
                                     final actualIndex = sortOrder ==
                                             SortOrder.newestFirst
                                         ? _visibleCount - 1 - index
@@ -467,6 +454,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                                       ),
                                     );
                                   },
+                                  childCount: _visibleCount,
                                 ),
                               ),
                             ),

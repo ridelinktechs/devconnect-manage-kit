@@ -17,6 +17,7 @@ import '../../../../core/utils/toast_utils.dart';
 import '../../../../models/network/network_entry.dart';
 import '../shared/body_view.dart';
 import '../shared/detail_tab_bar.dart';
+import '../shared/params_tab.dart';
 import '../network/headers_view.dart';
 import '../network/timing_view.dart';
 import '../shared/copy_button.dart';
@@ -54,13 +55,22 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
     _tabController.addListener(_onTabIndexChange);
   }
 
-  TabController _makeController([int initialIndex = 0]) {
+  TabController _makeController([int initialIndex = 0, int length = 4]) {
     return TabController(
-      length: 4,
+      length: length,
       vsync: this,
       animationDuration: ref.read(tabAnimationProvider),
       initialIndex: initialIndex,
     );
+  }
+
+  void _resizeControllerIfNeeded(int newLength) {
+    if (_tabController.length == newLength) return;
+    final oldIndex = _tabController.index.clamp(0, newLength - 1);
+    _tabController.removeListener(_onTabIndexChange);
+    _tabController.dispose();
+    _tabController = _makeController(oldIndex, newLength);
+    _tabController.addListener(_onTabIndexChange);
   }
 
   void _onTabIndexChange() {
@@ -93,6 +103,16 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
     ref.listen(tabAnimationProvider, (prev, next) {
       if (prev != next) _rebuildController();
     });
+
+    // Postman-style "Params" tab — only shown when the URL actually
+    // has a query string. Hidden otherwise to avoid a useless empty
+    // tab taking up real estate.
+    final hasParams =
+        (Uri.tryParse(entry.url)?.queryParametersAll.isNotEmpty) ?? false;
+    final tabLabels = hasParams
+        ? const ['Headers', 'Params', 'Request', 'Response', 'Timing']
+        : const ['Headers', 'Request', 'Response', 'Timing'];
+    _resizeControllerIfNeeded(tabLabels.length);
 
     return Column(
       children: [
@@ -156,7 +176,13 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
                   ],
                   Expanded(
                     child: Tooltip(
-                      message: entry.url,
+                      message: (() {
+                        try {
+                          return Uri.decodeFull(entry.url);
+                        } catch (_) {
+                          return entry.url;
+                        }
+                      })(),
                       waitDuration: const Duration(milliseconds: 300),
                       child: TextComponent(
                         formatUrlPretty(entry.url),
@@ -181,9 +207,16 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
                 children: [
                   if (entry.duration != null) ...[
                     TimingBar(duration: entry.duration!),
+                    if (NetworkVia.isKnown(entry.via)) ...[
+                      const SizedBox(width: 10),
+                      _ViaTag(via: entry.via),
+                    ],
                     const Spacer(),
-                  ] else
+                  ] else ...[
+                    if (NetworkVia.isKnown(entry.via))
+                      _ViaTag(via: entry.via),
                     const Spacer(),
+                  ],
                   CopyButton(
                     tooltip: 'Copy URL',
                     icon: LucideIcons.link,
@@ -251,7 +284,7 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
           controller: _tabController,
           isDark: isDark,
           accentColor: ColorTokens.primary,
-          tabs: const ['Headers', 'Request', 'Response', 'Timing'],
+          tabs: tabLabels,
         ),
         Expanded(
           child: TabBarView(
@@ -262,9 +295,15 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
                 index: 0,
                 builder: (_) => HeadersView(entry: entry),
               ),
+              if (hasParams)
+                LazyTab(
+                  controller: _tabController,
+                  index: 1,
+                  builder: (_) => ParamsTab(uri: Uri.parse(entry.url)),
+                ),
               LazyTab(
                 controller: _tabController,
-                index: 1,
+                index: hasParams ? 2 : 1,
                 builder: (_) => BodyView(
                   body: entry.requestBody,
                   label: 'Request Body',
@@ -274,7 +313,7 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
               ),
               LazyTab(
                 controller: _tabController,
-                index: 2,
+                index: hasParams ? 3 : 2,
                 builder: (_) => BodyView(
                   body: entry.responseBody,
                   label: 'Response Body',
@@ -284,7 +323,7 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
               ),
               LazyTab(
                 controller: _tabController,
-                index: 3,
+                index: hasParams ? 4 : 3,
                 builder: (_) => TimingView(entry: entry),
               ),
             ],
@@ -362,4 +401,53 @@ class TimingBar extends StatelessWidget {
 void _copyText(BuildContext context, String text, String label) {
   Clipboard.setData(ClipboardData(text: text));
   showCopiedToast(context, label: '$label copied');
+}
+
+/// Compact tag rendered in the action row, right after the [TimingBar].
+/// Lower visual weight than the row-1 [HttpMethodBadge] / [StatusBadge]
+/// so it doesn't compete for attention with the URL or status.
+class _ViaTag extends StatelessWidget {
+  final String via;
+
+  const _ViaTag({required this.via});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    final String label;
+    switch (via) {
+      case NetworkVia.fetch:
+        color = ColorTokens.info;
+        label = 'FETCH';
+        break;
+      case NetworkVia.xhr:
+        color = ColorTokens.warning;
+        label = 'XHR';
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(
+          color: color.withValues(alpha: 0.25),
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: AppConstants.monoFontFamily,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color.withValues(alpha: 0.9),
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
 }
