@@ -17,14 +17,25 @@ final storageEntriesProvider =
   return notifier;
 });
 
-/// Source-cached list (unlimited) trimmed to the user's
-/// retention cap. Toolbars consume this so they can surface a
-/// "Showing N of M" note when entries were dropped.
+/// Total storage entries ever received by [StorageNotifier],
+/// including ones dropped by the retention cap.
+///
+/// Watches [storageEntriesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [StorageNotifier.totalSeen] getter is otherwise non-reactive.
+final storageTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(storageEntriesProvider); // subscribe to state changes
+  return ref.read(storageEntriesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries).
 final storageDisplayProvider =
     Provider<RetentionCapped<StorageEntry>>((ref) {
   final all = ref.watch(storageEntriesProvider);
   final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
-  return applyRetentionCap(all, limit);
+  final totalSeen = ref.watch(storageTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 final storageSearchProvider = StateProvider<String>((ref) => '');
@@ -74,6 +85,10 @@ class StorageNotifier extends StateNotifier<List<StorageEntry>> {
   late final StreamSubscription<StorageEntry> _sub;
   final Ref _ref;
 
+  /// Total storage entries ever received, including ones dropped by the cap.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
   StorageNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onStorage.listen((entry) {
       // Update existing key or add new
@@ -84,7 +99,9 @@ class StorageNotifier extends StateNotifier<List<StorageEntry>> {
         updated[index] = entry;
         state = updated;
       } else {
-        state = truncateList([...state, entry], null);
+        final limit = _ref.read(retentionLimitProvider).limit;
+        state = truncateList([...state, entry], limit);
+        _totalSeen++;
       }
     });
   }

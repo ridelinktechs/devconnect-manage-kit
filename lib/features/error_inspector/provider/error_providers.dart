@@ -19,14 +19,25 @@ final errorEntriesProvider =
   return notifier;
 });
 
-/// Source-cached list (unlimited) trimmed to the user's
-/// retention cap. Toolbars consume this so they can surface a
-/// "Showing N of M" note when entries were dropped.
+/// Total errors ever received by [ErrorNotifier], including ones
+/// dropped by the retention cap.
+///
+/// Watches [errorEntriesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [ErrorNotifier.totalSeen] getter is otherwise non-reactive.
+final errorTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(errorEntriesProvider); // subscribe to state changes
+  return ref.read(errorEntriesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries).
 final errorDisplayProvider =
     Provider<RetentionCapped<ErrorEvent>>((ref) {
   final all = ref.watch(errorEntriesProvider);
   final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
-  return applyRetentionCap(all, limit);
+  final totalSeen = ref.watch(errorTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 final errorSearchProvider = StateProvider<String>((ref) => '');
@@ -103,9 +114,15 @@ class ErrorNotifier extends StateNotifier<List<ErrorEvent>> {
   late final StreamSubscription<ErrorEvent> _sub;
   final Ref _ref;
 
+  /// Total errors ever received, including ones dropped by the cap.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
   ErrorNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onError.listen((entry) {
-      state = truncateList([...state, entry], null);
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
+      _totalSeen++;
     });
   }
 

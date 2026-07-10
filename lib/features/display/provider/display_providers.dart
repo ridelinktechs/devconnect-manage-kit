@@ -19,26 +19,43 @@ final displayEntriesProvider =
   return notifier;
 });
 
-/// Source-cached list (unlimited) trimmed to the user's
-/// retention cap. Toolbars consume this so they can surface a
-/// "Showing N of M" note when entries were dropped.
+/// Total display entries ever received by [DisplayEntriesNotifier],
+/// including ones dropped by the retention cap.
+///
+/// Watches [displayEntriesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [DisplayEntriesNotifier.totalSeen] getter is otherwise non-reactive.
+final displayTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(displayEntriesProvider); // subscribe to state changes
+  return ref.read(displayEntriesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries).
 final displayDisplayProvider =
     Provider<RetentionCapped<DisplayEntry>>((ref) {
   final all = ref.watch(displayEntriesProvider);
   final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
-  return applyRetentionCap(all, limit);
+  final totalSeen = ref.watch(displayTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 class DisplayEntriesNotifier extends StateNotifier<List<DisplayEntry>> {
   late final StreamSubscription<DisplayEntry> _sub;
   final Ref _ref;
 
+  /// Total display entries ever received, including ones dropped by the cap.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
   DisplayEntriesNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onDisplay.listen(add);
   }
 
   void add(DisplayEntry entry) {
-    state = truncateList([...state, entry], null);
+    final limit = _ref.read(retentionLimitProvider).limit;
+    state = truncateList([...state, entry], limit);
+    _totalSeen++;
   }
 
   void cancelSubscription() => _sub.cancel();
@@ -56,13 +73,25 @@ final asyncOperationEntriesProvider =
   return notifier;
 });
 
-/// Source-cached list (unlimited) trimmed to the user's
-/// retention cap.
+/// Total async-op entries ever received by [AsyncOpEntriesNotifier],
+/// including ones dropped by the retention cap.
+///
+/// Watches [asyncOperationEntriesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [AsyncOpEntriesNotifier.totalSeen] getter is otherwise non-reactive.
+final asyncOpTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(asyncOperationEntriesProvider); // subscribe to state changes
+  return ref.read(asyncOperationEntriesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries).
 final asyncOpDisplayProvider =
     Provider<RetentionCapped<AsyncOperationEntry>>((ref) {
   final all = ref.watch(asyncOperationEntriesProvider);
   final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
-  return applyRetentionCap(all, limit);
+  final totalSeen = ref.watch(asyncOpTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 /// Async ops have a "drop resolved/rejected first" rule — the user cares
@@ -73,18 +102,24 @@ class AsyncOpEntriesNotifier extends StateNotifier<List<AsyncOperationEntry>> {
   late final StreamSubscription<AsyncOperationEntry> _sub;
   final Ref _ref;
 
+  /// Total async-op entries ever received, including ones dropped by the cap.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
   AsyncOpEntriesNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onAsyncOperation.listen(add);
   }
 
   void add(AsyncOperationEntry entry) {
+    final limit = _ref.read(retentionLimitProvider).limit;
     state = truncateList(
       [...state, entry],
-      null,
+      limit,
       // `start` is the "pending" state — keep these in preference to
       // completed (resolve) or failed (reject) entries when trimming.
       shouldDrop: (e) => e.status != AsyncOperationStatus.start,
     );
+    _totalSeen++;
   }
 
   void cancelSubscription() => _sub.cancel();

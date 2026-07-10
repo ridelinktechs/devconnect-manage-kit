@@ -17,14 +17,28 @@ final networkEntriesProvider =
   return notifier;
 });
 
-/// Source-cached list (unlimited) trimmed to the user's
-/// retention cap. Toolbars consume this so they can surface a
-/// "Showing N of M" note when entries were dropped.
+/// Total entries ever received by [NetworkNotifier], including ones
+/// dropped by the retention cap. Toolbars consume this so they can
+/// surface a "Showing N of M" hint when entries were dropped.
+///
+/// Watches [networkEntriesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [NetworkNotifier.totalSeen] getter is otherwise non-reactive.
+final networkTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(networkEntriesProvider); // subscribe to state changes
+  return ref.read(networkEntriesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries). Toolbars consume this
+/// so they can surface a "Showing N of M" hint when entries were
+/// dropped by the cap.
 final networkDisplayProvider =
     Provider<RetentionCapped<NetworkEntry>>((ref) {
   final all = ref.watch(networkEntriesProvider);
   final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
-  return applyRetentionCap(all, limit);
+  final totalSeen = ref.watch(networkTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 final networkSearchProvider = StateProvider<String>((ref) => '');
@@ -136,6 +150,12 @@ class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
   late final StreamSubscription<NetworkEntry> _sub;
   final Ref _ref;
 
+  /// Total entries ever received, including ones dropped by the cap.
+  /// Used by the toolbar to surface a "Showing N of M" hint when the
+  /// cap has trimmed older entries.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
   NetworkNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onNetwork.listen((entry) {
       if (entry.method.toUpperCase() == 'OPTIONS') return;
@@ -150,7 +170,9 @@ class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
         updated[index] = _mergeNetworkEntries(state[index], entry);
         state = updated;
       } else {
-        state = truncateList([...state, entry], null);
+        final limit = _ref.read(retentionLimitProvider).limit;
+        state = truncateList([...state, entry], limit);
+        _totalSeen++;
       }
     });
   }

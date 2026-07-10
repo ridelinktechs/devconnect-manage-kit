@@ -21,14 +21,25 @@ final performanceEntriesProvider =
   return notifier;
 });
 
-/// Source-cached list (unlimited) trimmed to the user's
-/// retention cap. Toolbars consume this so they can surface a
-/// "Showing N of M" note when entries were dropped.
+/// Total performance entries ever received by [PerformanceNotifier],
+/// including ones dropped by the retention cap.
+///
+/// Watches [performanceEntriesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [PerformanceNotifier.totalSeen] getter is otherwise non-reactive.
+final performanceTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(performanceEntriesProvider); // subscribe to state changes
+  return ref.read(performanceEntriesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries).
 final performanceDisplayProvider =
     Provider<RetentionCapped<PerformanceEntry>>((ref) {
   final all = ref.watch(performanceEntriesProvider);
   final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
-  return applyRetentionCap(all, limit);
+  final totalSeen = ref.watch(performanceTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 final filteredPerformanceEntriesProvider =
@@ -350,9 +361,15 @@ class PerformanceNotifier extends StateNotifier<List<PerformanceEntry>> {
   late final StreamSubscription<PerformanceEntry> _sub;
   final Ref _ref;
 
+  /// Total performance entries ever received, including ones dropped by the cap.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
   PerformanceNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onPerformance.listen((entry) {
-      state = truncateList([...state, entry], null);
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
+      _totalSeen++;
     });
   }
 
@@ -370,13 +387,25 @@ final memoryLeakEntriesProvider =
   return notifier;
 });
 
-/// Source-cached list (unlimited) trimmed to the user's
-/// retention cap.
+/// Total memory-leak entries ever received by [MemoryLeakNotifier],
+/// including ones dropped by the retention cap.
+///
+/// Watches [memoryLeakEntriesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [MemoryLeakNotifier.totalSeen] getter is otherwise non-reactive.
+final memoryLeakTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(memoryLeakEntriesProvider); // subscribe to state changes
+  return ref.read(memoryLeakEntriesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries).
 final memoryLeakDisplayProvider =
     Provider<RetentionCapped<MemoryLeakEntry>>((ref) {
   final all = ref.watch(memoryLeakEntriesProvider);
   final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
-  return applyRetentionCap(all, limit);
+  final totalSeen = ref.watch(memoryLeakTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 final memoryLeakFilterProvider =
@@ -414,9 +443,15 @@ class MemoryLeakNotifier extends StateNotifier<List<MemoryLeakEntry>> {
   late final StreamSubscription<MemoryLeakEntry> _sub;
   final Ref _ref;
 
+  /// Total memory-leak entries ever received, including ones dropped by the cap.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
   MemoryLeakNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onMemoryLeak.listen((entry) {
-      state = truncateList([...state, entry], null);
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
+      _totalSeen++;
     });
   }
 

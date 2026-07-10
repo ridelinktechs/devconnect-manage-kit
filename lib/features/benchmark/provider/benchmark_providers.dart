@@ -17,14 +17,25 @@ final benchmarkEntriesProvider =
   return notifier;
 });
 
-/// Source-cached list (unlimited) trimmed to the user's
-/// retention cap. Toolbars consume this so they can surface a
-/// "Showing N of M" note when entries were dropped.
+/// Total benchmark entries ever received by [BenchmarkNotifier],
+/// including ones dropped by the retention cap.
+///
+/// Watches [benchmarkEntriesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [BenchmarkNotifier.totalSeen] getter is otherwise non-reactive.
+final benchmarkTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(benchmarkEntriesProvider); // subscribe to state changes
+  return ref.read(benchmarkEntriesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries).
 final benchmarkDisplayProvider =
     Provider<RetentionCapped<BenchmarkEntry>>((ref) {
   final all = ref.watch(benchmarkEntriesProvider);
   final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
-  return applyRetentionCap(all, limit);
+  final totalSeen = ref.watch(benchmarkTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 final filteredBenchmarkEntriesProvider =
@@ -89,6 +100,10 @@ class BenchmarkNotifier extends StateNotifier<List<BenchmarkEntry>> {
   late final StreamSubscription<Map<String, dynamic>> _sub;
   final Ref _ref;
 
+  /// Total benchmark entries ever received, including ones dropped by the cap.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
   BenchmarkNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onBenchmark.listen((data) {
       final steps = (data['steps'] as List<dynamic>?)
@@ -111,7 +126,9 @@ class BenchmarkNotifier extends StateNotifier<List<BenchmarkEntry>> {
         steps: steps,
       );
 
-      state = truncateList([...state, entry], null);
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
+      _totalSeen++;
     });
   }
 

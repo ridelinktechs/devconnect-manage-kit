@@ -17,14 +17,25 @@ final stateChangesProvider =
   return notifier;
 });
 
-/// Source-cached list (unlimited) trimmed to the user's
-/// retention cap. Toolbars consume this so they can surface a
-/// "Showing N of M" note when entries were dropped.
+/// Total state changes ever received by [StateChangesNotifier],
+/// including ones dropped by the retention cap.
+///
+/// Watches [stateChangesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [StateChangesNotifier.totalSeen] getter is otherwise non-reactive.
+final stateChangesTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(stateChangesProvider); // subscribe to state changes
+  return ref.read(stateChangesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries).
 final stateChangesDisplayProvider =
     Provider<RetentionCapped<StateChange>>((ref) {
   final all = ref.watch(stateChangesProvider);
   final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
-  return applyRetentionCap(all, limit);
+  final totalSeen = ref.watch(stateChangesTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 final selectedStateChangeIdProvider = StateProvider<String?>((ref) => null);
@@ -58,9 +69,15 @@ class StateChangesNotifier extends StateNotifier<List<StateChange>> {
   late final StreamSubscription<StateChange> _sub;
   final Ref _ref;
 
+  /// Total state changes ever received, including ones dropped by the cap.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
   StateChangesNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onState.listen((entry) {
-      state = truncateList([...state, entry], null);
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
+      _totalSeen++;
     });
   }
 
