@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/providers/sdk_versions_provider.dart';
-import '../../core/utils/sdk_version.dart';
 import '../../l10n/app_localizations.dart';
 
 /// Compact, dismissible "Tips" pill anchored at the top-right of the
@@ -255,14 +254,22 @@ class _ExpandedPanel extends StatelessWidget {
 class _SdkEntry {
   final _SdkPlatform platform;
   final String name;
-  final String version;
+
+  /// Fallback version shown only when there's no live fetch for this
+  /// platform (currently just Android — no Maven fetch wired in).
+  /// For Flutter / React Native the row always renders the version
+  /// returned by [sdkVersionsProvider].
+  final String? version;
+
+  /// Install hint shown under the version pill. Static copy — the
+  /// command doesn't change between releases, only the version tag.
   final String note;
 
   const _SdkEntry({
     required this.platform,
     required this.name,
-    required this.version,
     required this.note,
+    this.version,
   });
 }
 
@@ -273,14 +280,12 @@ class _SdkCatalog {
     _SdkEntry(
       platform: _SdkPlatform.flutter,
       name: 'devconnect_manage_kit',
-      version: '1.0.5',
-      note: 'pubspec.yaml → devconnect_manage_kit: ^1.0.5',
+      note: 'pubspec.yaml → devconnect_manage_kit: ^<version>',
     ),
     _SdkEntry(
       platform: _SdkPlatform.reactNative,
       name: 'devconnect-manage-kit',
-      version: '1.0.6',
-      note: 'npm i / yarn add / pnpm add devconnect-manage-kit@1.0.6',
+      note: 'npm i / yarn add / pnpm add devconnect-manage-kit@<version>',
     ),
     _SdkEntry(
       platform: _SdkPlatform.android,
@@ -348,14 +353,13 @@ class _SdkRowState extends State<_SdkRow>
     final latest = widget.latest;
     final status = widget.status;
 
-    // Default to "up to date" when we have no live data — never
-    // flash an "Update" badge off a null/empty fetch.
-    final hasUpdate = latest != null &&
-        compareSdkVersions(e.version, latest) < 0;
-    // Semantic equality — `"1.2.0"` and `"1.2"` should both register
-    // as "up to date" rather than failing string match.
-    final isUpToDate =
-        latest != null && compareSdkVersions(e.version, latest) == 0;
+    // What the top-row version pill shows:
+    //   - Android (entry has hardcoded `version`): always that version.
+    //     No fetch wired in, so `latest` is null.
+    //   - Flutter / RN (entry has no baseline): the fetched latest,
+    //     or "—" while loading / on error.
+    final pillVersion = e.version ?? latest ?? '—';
+    final isLive = e.version == null;
 
     String platformLabel(_SdkPlatform p) {
       switch (p) {
@@ -433,7 +437,7 @@ class _SdkRowState extends State<_SdkRow>
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    loc.sdkTipsVersionLabel(e.version),
+                    loc.sdkTipsVersionLabel(pillVersion),
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
@@ -444,141 +448,70 @@ class _SdkRowState extends State<_SdkRow>
                 ),
               ],
             ),
-            // Second-line status strip. Three render branches:
-            //   loading — spinner + muted "Checking"
-            //   error   — cloud-off + "Live check unavailable" + Retry
-            //   loaded  — version pill (amber if outdated) + Update chip
-            // The separator "→" anchors the strip visually so the eye
-            // reads it as a continuation of the row above.
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.only(left: 2),
-              child: Row(
-                children: [
-                  Text(
-                    '→',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      color: isDark ? Colors.white38 : Colors.black45,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  if (status == SdkVersionFetch.loading) ...[
-                    RotationTransition(
-                      turns: _loadingSpin,
-                      child: Icon(
-                        LucideIcons.loader,
-                        size: 11,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
+            // Second-line status strip. Only meaningful for live-fetched
+            // platforms (Flutter / RN). Android (no fetch) gets just the
+            // install note — no spinner / no retry / no Update badge,
+            // since there's nothing to compare against.
+            // In the "loaded" state the top-row pill already shows the
+            // fetched version, so the second row is intentionally empty
+            // — the install note below the row carries the rest.
+            if (isLive) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Row(
+                  children: [
                     Text(
-                      loc.sdkTipsChecking,
+                      '→',
                       style: TextStyle(
-                        fontSize: 9.5,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                      ),
-                    ),
-                  ] else if (status == SdkVersionFetch.error) ...[
-                    Icon(
-                      LucideIcons.cloudOff,
-                      size: 11,
-                      color: isDark ? Colors.white38 : Colors.black45,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      loc.sdkTipsOffline,
-                      style: TextStyle(
-                        fontSize: 9.5,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
                         color: isDark ? Colors.white38 : Colors.black45,
                       ),
                     ),
                     const SizedBox(width: 6),
-                    _RetryChip(
-                      label: loc.sdkTipsRetry,
-                      isDark: isDark,
-                      onTap: widget.onRetry,
-                    ),
-                  ] else ...[
-                    Text(
-                      loc.sdkTipsLatestLabel,
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: hasUpdate
-                            ? accent.withValues(alpha: isDark ? 0.16 : 0.14)
-                            : (isDark
-                                ? Colors.white.withValues(alpha: 0.06)
-                                : Colors.black.withValues(alpha: 0.05)),
-                        borderRadius: BorderRadius.circular(4),
-                        border: hasUpdate
-                            ? Border.all(
-                                color: accent.withValues(alpha: 0.4),
-                                width: 0.7,
-                              )
-                            : null,
-                      ),
-                      child: Text(
-                        loc.sdkTipsVersionLabel(latest!),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'monospace',
-                          color: hasUpdate
-                              ? accent
-                              : (isDark
-                                  ? Colors.white70
-                                  : Colors.black87),
+                    if (status == SdkVersionFetch.loading) ...[
+                      RotationTransition(
+                        turns: _loadingSpin,
+                        child: Icon(
+                          LucideIcons.loader,
+                          size: 11,
+                          color: isDark ? Colors.white54 : Colors.black54,
                         ),
                       ),
-                    ),
-                    if (hasUpdate) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: accent,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                        child: Text(
-                          loc.sdkTipsUpdate,
-                          style: TextStyle(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.4,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (isUpToDate) ...[
                       const SizedBox(width: 6),
                       Text(
-                        // Tiny "✓" hint when the user is on the current
-                        // version — confirms the data is live.
-                        '✓',
+                        loc.sdkTipsChecking,
                         style: TextStyle(
-                          fontSize: 10,
-                          color: isDark
-                              ? const Color(0xFF4ADE80)
-                              : const Color(0xFF16A34A),
+                          fontSize: 9.5,
+                          color: isDark ? Colors.white54 : Colors.black54,
                         ),
+                      ),
+                    ] else if (status == SdkVersionFetch.error) ...[
+                      Icon(
+                        LucideIcons.cloudOff,
+                        size: 11,
+                        color: isDark ? Colors.white38 : Colors.black45,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        loc.sdkTipsOffline,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          color: isDark ? Colors.white38 : Colors.black45,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      _RetryChip(
+                        label: loc.sdkTipsRetry,
+                        isDark: isDark,
+                        onTap: widget.onRetry,
                       ),
                     ],
                   ],
-                ],
+                ),
               ),
-            ),
+            ],
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.only(left: 2),
