@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.7
+
+- **Fetch / XHR dedup**: when the same request runs through both
+  transports (e.g. `fetch` internally calls `XMLHttpRequest`, or a
+  library wraps `fetch` with its own XHR wrapper), the SDK now
+  tracks in-flight calls via a `fetchInFlight` counter and only
+  emits a single `client:network:request_start` event. Previously
+  duplicate rows showed up in DevConnect Manage Tool's network
+  inspector. Hot-reload + host-cache features from 1.0.6 unchanged.
+
 ## 1.0.6
 
 - **Hot reload from desktop**: new public API
