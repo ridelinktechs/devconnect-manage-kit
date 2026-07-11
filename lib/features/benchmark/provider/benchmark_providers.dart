@@ -126,7 +126,7 @@ class BenchmarkNotifier extends StateNotifier<List<BenchmarkEntry>> {
         steps: steps,
       );
 
-      final limit = _ref.read(retentionLimitProvider).limit;
+      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });

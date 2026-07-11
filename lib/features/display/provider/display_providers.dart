@@ -53,7 +53,7 @@ class DisplayEntriesNotifier extends StateNotifier<List<DisplayEntry>> {
   }
 
   void add(DisplayEntry entry) {
-    final limit = _ref.read(retentionLimitProvider).limit;
+    final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
     state = truncateList([...state, entry], limit);
     _totalSeen++;
   }
@@ -111,7 +111,7 @@ class AsyncOpEntriesNotifier extends StateNotifier<List<AsyncOperationEntry>> {
   }
 
   void add(AsyncOperationEntry entry) {
-    final limit = _ref.read(retentionLimitProvider).limit;
+    final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
     state = truncateList(
       [...state, entry],
       limit,

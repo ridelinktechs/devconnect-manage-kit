@@ -2,6 +2,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../preferences/app_preferences.dart';
 
+/// User-facing retention caps surfaced in the Settings dropdown.
+///
+/// The matching `RetentionPreset.pXXX` enum values map directly to these
+/// numbers via [RetentionPresetX.limit]. Keeping them as named constants
+/// means a future bump (say `kRetentionSafetyCap` 5000 → 8000) only has to
+/// be done in one place — both the dropdown choice and the safety-net
+/// fallback pick up the new value automatically.
+const int kRetentionCap100 = 100;
+const int kRetentionCap500 = 500;
+const int kRetentionCap1k = 1000;
+
+/// Safety-net cap applied when the user picks `RetentionPreset.unlimited`.
+/// The preset exposes `limit == null` (= no user cap), but a totally
+/// unbounded list is a memory-leak hazard: each event source appends on
+/// every WebSocket frame for the lifetime of the app. We fall back to a
+/// conservative upper bound so the desktop client doesn't OOM when the
+/// user opts out of explicit capping.
+const int kRetentionSafetyCap = 5000;
+
+/// Looser cap for high-frequency, low-size streams (console logs,
+/// performance samples). Each entry is small so a higher ceiling is
+/// affordable, and these streams are the first thing the user notices
+/// when truncated.
+const int kRetentionHighVolumeCap = 10000;
+
 /// Preset values for the data-retention dropdown. `null` = unlimited (no
 /// cap, the historical default). Stored as a `String` in the dropdown so
 /// we can render human-friendly labels (`1K`, `10K`) without losing
@@ -13,17 +38,17 @@ extension RetentionPresetX on RetentionPreset {
   /// > limit` (per-list FIFO trim).
   int? get limit => switch (this) {
         RetentionPreset.unlimited => null,
-        RetentionPreset.p100 => 100,
-        RetentionPreset.p500 => 500,
-        RetentionPreset.p1k => 1000,
-        RetentionPreset.p5k => 5000,
-        RetentionPreset.p10k => 10000,
+        RetentionPreset.p100 => kRetentionCap100,
+        RetentionPreset.p500 => kRetentionCap500,
+        RetentionPreset.p1k => kRetentionCap1k,
+        RetentionPreset.p5k => kRetentionSafetyCap,
+        RetentionPreset.p10k => kRetentionHighVolumeCap,
       };
 
   String get label => switch (this) {
         RetentionPreset.unlimited => 'Unlimited',
-        RetentionPreset.p100 => '100',
-        RetentionPreset.p500 => '500',
+        RetentionPreset.p100 => '$kRetentionCap100',
+        RetentionPreset.p500 => '$kRetentionCap500',
         RetentionPreset.p1k => '1K',
         RetentionPreset.p5k => '5K',
         RetentionPreset.p10k => '10K',

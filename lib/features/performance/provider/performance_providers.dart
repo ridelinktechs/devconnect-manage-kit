@@ -367,7 +367,7 @@ class PerformanceNotifier extends StateNotifier<List<PerformanceEntry>> {
 
   PerformanceNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onPerformance.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit;
+      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionHighVolumeCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });
@@ -449,7 +449,7 @@ class MemoryLeakNotifier extends StateNotifier<List<MemoryLeakEntry>> {
 
   MemoryLeakNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onMemoryLeak.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit;
+      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });

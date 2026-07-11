@@ -75,7 +75,7 @@ class StateChangesNotifier extends StateNotifier<List<StateChange>> {
 
   StateChangesNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onState.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit;
+      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });

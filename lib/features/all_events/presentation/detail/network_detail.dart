@@ -81,11 +81,26 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
 
   void _rebuildController() {
     final oldIndex = _tabController.index;
+    final length = _tabController.length;
     _tabController.removeListener(_onTabIndexChange);
     _tabController.dispose();
-    _tabController = _makeController(oldIndex);
+    _tabController = _makeController(oldIndex, length);
     _tabController.addListener(_onTabIndexChange);
     setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(NetworkDetail old) {
+    super.didUpdateWidget(old);
+    // Resize the TabController only when the URL (and therefore the
+    // "Params" tab visibility) actually changes. Doing this in
+    // `build()` disposes the controller mid-build which is unsafe.
+    if (old.entry.url != widget.entry.url) {
+      final hasParams =
+          (Uri.tryParse(widget.entry.url)?.queryParametersAll.isNotEmpty) ??
+              false;
+      _resizeControllerIfNeeded(hasParams ? 5 : 4);
+    }
   }
 
   @override
@@ -112,7 +127,6 @@ class _NetworkDetailState extends ConsumerState<NetworkDetail>
     final tabLabels = hasParams
         ? const ['Headers', 'Params', 'Request', 'Response', 'Timing']
         : const ['Headers', 'Request', 'Response', 'Timing'];
-    _resizeControllerIfNeeded(tabLabels.length);
 
     return Column(
       children: [

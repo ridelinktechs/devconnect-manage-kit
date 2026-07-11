@@ -74,7 +74,7 @@ class ConsoleNotifier extends StateNotifier<List<LogEntry>> {
 
   ConsoleNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onLog.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit;
+      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionHighVolumeCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });

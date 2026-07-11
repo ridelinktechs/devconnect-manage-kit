@@ -120,7 +120,7 @@ class ErrorNotifier extends StateNotifier<List<ErrorEvent>> {
 
   ErrorNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onError.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit;
+      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });

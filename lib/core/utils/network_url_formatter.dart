@@ -55,22 +55,31 @@ FormattedUrl? parseFormattedUrl(String? url) {
     return FormattedUrl(host: null, path: trimmed, queryParams: const [], raw: trimmed);
   }
 
-  // `uri.queryParametersAll` keeps insertion order AND preserves repeated
-  // keys as lists — the former matters for `?order=` style params, the
-  // latter for Supabase-style `?id=in.(1,2,3)` filters.
-  final params = <FormattedQueryParam>[];
-  uri.queryParametersAll.forEach((k, values) {
-    for (final v in values) {
-      params.add(FormattedQueryParam(k, _decode(v)));
-    }
-  });
+  try {
+    // `uri.queryParametersAll` keeps insertion order AND preserves repeated
+    // keys as lists — the former matters for `?order=` style params, the
+    // latter for Supabase-style `?id=in.(1,2,3)` filters. Can throw
+    // `FormatException` on invalid percent-encoding (e.g. `?q=%g1`).
+    final params = <FormattedQueryParam>[];
+    uri.queryParametersAll.forEach((k, values) {
+      for (final v in values) {
+        params.add(FormattedQueryParam(k, _decode(v)));
+      }
+    });
 
-  return FormattedUrl(
-    host: uri.host.isEmpty ? null : uri.host,
-    path: uri.path.isEmpty ? '/' : uri.path,
-    queryParams: params,
-    raw: trimmed,
-  );
+    return FormattedUrl(
+      host: uri.host.isEmpty ? null : uri.host,
+      path: uri.path.isEmpty ? '/' : uri.path,
+      queryParams: params,
+      raw: trimmed,
+    );
+  } catch (_) {
+    return FormattedUrl(
+        host: uri.host.isEmpty ? null : uri.host,
+        path: uri.path.isEmpty ? '/' : uri.path,
+        queryParams: const [],
+        raw: trimmed);
+  }
 }
 
 /// Compact single-line view: `/path ?key=value, key2=value2 + N more`.
