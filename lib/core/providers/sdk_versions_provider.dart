@@ -83,6 +83,10 @@ class SdkVersionsNotifier extends StateNotifier<SdkLatestVersions> {
       'https://pub.dev/api/packages/devconnect_manage_kit';
 
   Timer? _refresh;
+  // Guard against concurrent fetches — Rapid Retry clicks would
+  // otherwise stack parallel HTTP requests and the second one's
+  // state assignment would race the first.
+  bool _inFlight = false;
 
   SdkVersionsNotifier() : super(SdkLatestVersions.empty) {
     // Kick off the first fetch asynchronously so the StateNotifier
@@ -97,23 +101,40 @@ class SdkVersionsNotifier extends StateNotifier<SdkLatestVersions> {
   Future<void> refresh() => _refreshNow();
 
   Future<void> _refreshNow() async {
-    // Run both fetches in parallel. Each is wrapped in its own
-    // try/catch so a failure on one platform doesn't poison the other.
-    final results = await Future.wait([_fetchNpm(), _fetchPub()]);
-    // Guard against "use after dispose": the widget tree holding us
-    // could tear down (user closes the panel mid-fetch). Without this
-    // check, the `state =` below would throw "Bad state: Cannot use a
-    // StateNotifier after its dispose()".
-    if (!mounted) return;
-    final npm = results[0]; // _fetchNpm() -> reactNative
-    final pub = results[1]; // _fetchPub() -> flutter
+    if (_inFlight) return;
+    _inFlight = true;
+    // Reset the per-platform error flags so the UI transitions from
+    // "Live check unavailable" back to the spinner immediately on
+    // retry, instead of waiting up to 5s for the new fetch to land.
+    // Keep the previous values so the pill doesn't briefly read
+    // "missing" — once the fetch finishes the new values overwrite.
     state = SdkLatestVersions(
-      flutter: pub.value,
-      reactNative: npm.value,
-      fetchedAt: DateTime.now(),
-      flutterError: pub.error,
-      reactNativeError: npm.error,
+      flutter: state.flutter,
+      reactNative: state.reactNative,
+      flutterError: null,
+      reactNativeError: null,
     );
+    try {
+      // Run both fetches in parallel. Each is wrapped in its own
+      // try/catch so a failure on one platform doesn't poison the other.
+      final results = await Future.wait([_fetchNpm(), _fetchPub()]);
+      // Guard against "use after dispose": the widget tree holding us
+      // could tear down (user closes the panel mid-fetch). Without this
+      // check, the `state =` below would throw "Bad state: Cannot use a
+      // StateNotifier after its dispose()".
+      if (!mounted) return;
+      final npm = results[0]; // _fetchNpm() -> reactNative
+      final pub = results[1]; // _fetchPub() -> flutter
+      state = SdkLatestVersions(
+        flutter: pub.value,
+        reactNative: npm.value,
+        fetchedAt: DateTime.now(),
+        flutterError: pub.error,
+        reactNativeError: npm.error,
+      );
+    } finally {
+      _inFlight = false;
+    }
   }
 
   Future<_Result> _fetchNpm() async {

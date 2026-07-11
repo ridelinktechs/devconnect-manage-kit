@@ -110,7 +110,11 @@ class _AppUpdatePillState extends ConsumerState<AppUpdatePill> {
 
   Future<void> _openRelease(String? url) async {
     final target = url ?? _releasePageFallback;
-    final uri = Uri.parse(target);
+    // `Uri.tryParse` returns null on malformed input instead of
+    // throwing — safer than `Uri.parse` here since the URL comes
+    // from a third-party API response.
+    final uri = Uri.tryParse(target);
+    if (uri == null) return;
     // `externalApplication` asks the OS to open in the default browser
     // (Safari on macOS). Falls back to in-app webview if no handler.
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);

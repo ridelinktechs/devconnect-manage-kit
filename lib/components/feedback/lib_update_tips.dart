@@ -352,8 +352,10 @@ class _SdkRowState extends State<_SdkRow>
     // flash an "Update" badge off a null/empty fetch.
     final hasUpdate = latest != null &&
         compareSdkVersions(e.version, latest) < 0;
+    // Semantic equality — `"1.2.0"` and `"1.2"` should both register
+    // as "up to date" rather than failing string match.
     final isUpToDate =
-        latest != null && !hasUpdate && e.version == latest;
+        latest != null && compareSdkVersions(e.version, latest) == 0;
 
     String platformLabel(_SdkPlatform p) {
       switch (p) {

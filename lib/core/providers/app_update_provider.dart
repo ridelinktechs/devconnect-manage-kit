@@ -88,7 +88,18 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
   /// One-shot init: load the running version, then kick off the
   /// GitHub fetch. Order matters — `hasUpdate` needs both pieces.
   Future<void> _bootstrap() async {
-    final cur = await _ref.read(appVersionProvider.future);
+    // PackageInfo.fromPlatform() can throw on rare platform-channel
+    // failures. Without this try/catch the exception bubbles out of
+    // the StateNotifier constructor (which ignores it) AND leaves the
+    // GitHub fetch never started.
+    String? cur;
+    try {
+      cur = await _ref.read(appVersionProvider.future);
+    } catch (e) {
+      if (!mounted) return;
+      state = AppReleaseState(error: 'package_info: $e');
+      return;
+    }
     if (!mounted) return;
     state = AppReleaseState(currentVersion: cur);
     await _refreshNow();
@@ -98,8 +109,19 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
     // Make sure we have the running version before checking
     // `hasUpdate`. Subsequent fetches after the first will already
     // have it cached in state.
-    final cur = state.currentVersion ??
-        await _ref.read(appVersionProvider.future);
+    String? cur;
+    try {
+      cur = state.currentVersion ?? await _ref.read(appVersionProvider.future);
+    } catch (e) {
+      if (!mounted) return;
+      state = AppReleaseState(
+        release: state.release,
+        currentVersion: state.currentVersion,
+        fetchedAt: DateTime.now(),
+        error: 'package_info: $e',
+      );
+      return;
+    }
     if (!mounted) return;
 
     try {
@@ -113,8 +135,12 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
           .timeout(_timeout);
       if (!mounted) return;
       if (resp.statusCode != 200) {
+        // Preserve the last-known release so a transient 5xx / 403
+        // doesn't suddenly flip the UI from "Update available" back
+        // to a stale "loading" state.
         state = AppReleaseState(
           currentVersion: cur,
+          release: state.release,
           fetchedAt: DateTime.now(),
           error: 'HTTP ${resp.statusCode}',
         );
@@ -124,6 +150,7 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
       if (json is! Map<String, dynamic>) {
         state = AppReleaseState(
           currentVersion: cur,
+          release: state.release,
           fetchedAt: DateTime.now(),
           error: 'unexpected payload',
         );
@@ -134,6 +161,7 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
       if (tag is! String || url is! String) {
         state = AppReleaseState(
           currentVersion: cur,
+          release: state.release,
           fetchedAt: DateTime.now(),
           error: 'missing tag_name / html_url',
         );
@@ -154,6 +182,7 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
       if (!mounted) return;
       state = AppReleaseState(
         currentVersion: cur,
+        release: state.release,
         fetchedAt: DateTime.now(),
         error: 'timeout',
       );
@@ -161,6 +190,7 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
       if (!mounted) return;
       state = AppReleaseState(
         currentVersion: cur,
+        release: state.release,
         fetchedAt: DateTime.now(),
         error: e.toString(),
       );
