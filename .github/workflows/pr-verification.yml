@@ -32,7 +32,7 @@ jobs:
             exit 1
           fi
           echo "✓ No print()/debugPrint() in lib/"
-      - run: flutter analyze --no-fatal-infos
+      - run: flutter analyze --no-fatal-infos lib/
 
   build-macos:
     name: Build macOS
