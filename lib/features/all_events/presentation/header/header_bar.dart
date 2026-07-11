@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/inputs/search_field.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/providers/retention_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../models/device_info.dart';
@@ -23,6 +24,11 @@ import '../status/server_status_pill.dart';
 ///      single rounded container.
 class Header extends ConsumerWidget {
   final ValueNotifier<int> eventCount;
+  /// Count BEFORE the display-limit trim. When this is greater than
+  /// [eventCount], the header renders a "Showing N of M" hint so users
+  /// know entries are being hidden (not deleted) by the All Events
+  /// display cap.
+  final ValueNotifier<int> untrimmedCount;
   final bool serverRunning;
   final int port;
   final int deviceCount;
@@ -40,6 +46,7 @@ class Header extends ConsumerWidget {
   const Header({
     super.key,
     required this.eventCount,
+    required this.untrimmedCount,
     required this.serverRunning,
     required this.port,
     required this.deviceCount,
@@ -63,6 +70,14 @@ class Header extends ConsumerWidget {
     // already in use") AND is currently not running.
     final startError = ref.watch(serverStartErrorProvider);
     final portOccupied = !serverRunning && startError != null;
+    // When a retention cap is set, show "current / cap" so the user can
+    // Show "current / cap" whenever the aggregated All Events list is
+    // capped (display-only filter or retention, whichever is active).
+    // Counts against [allEventsDisplayLimitProvider] first because the
+    // page header counts what's actually drawn.
+    final displayPreset = ref.watch(allEventsDisplayLimitProvider);
+    final displayLimit = displayPreset.limit;
+    final displayLabel = displayPreset.label;
 
     return Container(
       height: 48,
@@ -79,23 +94,53 @@ class Header extends ConsumerWidget {
           const SizedBox(width: 8),
           ValueListenableBuilder<int>(
             valueListenable: eventCount,
-            builder: (_, count, __) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: AppConstants.monoFontFamily,
-                  color: isDark ? Colors.grey[400] : Colors.grey[600],
-                ),
-              ),
+            builder: (_, count, __) => ValueListenableBuilder<int>(
+              valueListenable: untrimmedCount,
+              builder: (_, untrimmed, __) {
+                final isTrimmed = displayLimit != null && untrimmed > count;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        displayLimit == null
+                            ? '$count'
+                            : '$count / $displayLabel',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: AppConstants.monoFontFamily,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                    if (isTrimmed) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        // Sort order is oldestFirst (set in
+                        // all_events_provider.dart), so `untrimmed -
+                        // count` is exactly the number of oldest
+                        // entries being hidden by the cap.
+                        'Showing $count of $untrimmed',
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: isDark ? Colors.grey[600] : Colors.grey[500],
+                          fontFamily: AppConstants.monoFontFamily,
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(width: 14),

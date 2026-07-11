@@ -819,6 +819,48 @@ abstract class S {
   /// **'Remembers how request/response bodies are shown and controls tab switching animation.'**
   String get detailViewDesc;
 
+  /// No description provided for @dataRetention.
+  ///
+  /// In en, this message translates to:
+  /// **'Data Retention'**
+  String get dataRetention;
+
+  /// No description provided for @dataRetentionDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Hard cap applied to each per-feature list. When a list exceeds the limit, oldest entries are dropped FIFO. Pending async ops are preserved.'**
+  String get dataRetentionDesc;
+
+  /// No description provided for @maxItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Max items'**
+  String get maxItems;
+
+  /// No description provided for @dataRetentionHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlimited keeps every entry. Lower values free memory but lose history.'**
+  String get dataRetentionHelper;
+
+  /// No description provided for @allEventsDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'All Events Display'**
+  String get allEventsDisplay;
+
+  /// No description provided for @allEventsDisplayDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'View-only filter for the aggregated All Events list. The underlying logs are not deleted — flip back to Unlimited to restore.'**
+  String get allEventsDisplayDesc;
+
+  /// No description provided for @allEventsDisplayHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Lower values keep the most recent N entries visible at the cost of older history.'**
+  String get allEventsDisplayHelper;
+
   /// No description provided for @bodyView.
   ///
   /// In en, this message translates to:

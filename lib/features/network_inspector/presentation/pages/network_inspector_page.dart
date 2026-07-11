@@ -194,7 +194,6 @@ class _NetworkInspectorPageState
                                 ? const PositionRetainedScrollPhysics()
                                 : null,
                             padding: const EdgeInsets.symmetric(vertical: 6),
-                            itemExtent: 62,
                             childrenDelegate: StableBuilderDelegate(
                               generation: _generation,
                               childCount: _visibleCount,

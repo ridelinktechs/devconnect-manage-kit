@@ -447,6 +447,30 @@ class SJa extends S {
   String get detailViewDesc => 'リクエスト/レスポンスの表示方法を記憶し、タブ切り替えアニメーションを制御します。';
 
   @override
+  String get dataRetention => 'データ保持';
+
+  @override
+  String get dataRetentionDesc =>
+      '各機能リストに適用されるハードキャップ。リストが上限を超えると、最も古いエントリがFIFOで削除されます。保留中の非同期操作は保持されます。';
+
+  @override
+  String get maxItems => '最大件数';
+
+  @override
+  String get dataRetentionHelper =>
+      '無制限はすべてのエントリを保持します。値を小さくするとメモリを解放しますが履歴を失います。';
+
+  @override
+  String get allEventsDisplay => '全イベント表示';
+
+  @override
+  String get allEventsDisplayDesc =>
+      '集約された全イベントリストの表示専用フィルター。元のログは削除されません — 無制限に戻すとすべて復元されます。';
+
+  @override
+  String get allEventsDisplayHelper => '値を小さくすると最新のN件のみ表示され、過去の履歴は失われます。';
+
+  @override
   String get bodyView => 'ボディ表示';
 
   @override

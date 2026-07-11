@@ -1,11 +1,1 @@
-{
-  "zh_CN": [
-    "treeModeDesc",
-    "jsonModeDesc"
-  ],
-
-  "zh_TW": [
-    "treeModeDesc",
-    "jsonModeDesc"
-  ]
-}
+{}

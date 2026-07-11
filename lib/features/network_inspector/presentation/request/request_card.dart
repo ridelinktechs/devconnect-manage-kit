@@ -7,6 +7,7 @@ import '../../../../components/misc/status_badge.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/utils/network_url_formatter.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../models/network/network_entry.dart';
@@ -50,12 +51,31 @@ class RequestCard extends ConsumerWidget {
     try {
       uri = Uri.parse(entry.url);
     } catch (_) {}
-    final displayUrl = uri?.path ?? entry.url;
-    final host = uri?.host ?? '';
-    final isRootPath = displayUrl == '/' || displayUrl.isEmpty;
+    final path = uri?.path ?? entry.url;
+    // Prefix scheme so the user can read the request at a glance —
+    // matches what curl-style tooling shows.
+    final host = uri == null
+        ? ''
+        : '${uri.scheme.isEmpty ? 'https' : uri.scheme}://${uri.host}';
+    // Card title is the path (compact) — the full scheme+host lives
+    // in the badge row below, so we don't repeat it on the title.
+    final displayUrl = path;
+    final formatted = parseFormattedUrl(entry.url);
+    final isRootPath = path == '/' || path.isEmpty;
     final titleText = (entry.serviceAction != null && isRootPath)
         ? entry.serviceAction!
         : displayUrl;
+    // Compact query hint for the second line of the title block. Empty when
+    // the URL has no query string — the row stays a single line in that case.
+    final queryHint = formatted == null || formatted.queryParams.isEmpty
+        ? null
+        : formatted.queryParams
+            .take(2)
+            .map((p) => p.value.isEmpty ? p.key : '${p.key}=${p.value}')
+            .join(', ') +
+            (formatted.queryParams.length > 2
+                ? ' + ${formatted.queryParams.length - 2}'
+                : '');
 
     // Left bar color based on status code
     final Color leftBarColor;
@@ -84,6 +104,22 @@ class RequestCard extends ConsumerWidget {
       default:
         sourceColor = ColorTokens.primary;
         sourceLabel = 'APP';
+    }
+
+    // Via badge (fetch / xhr) — distinguishes which interceptor path
+    // reported this entry. Hidden when unknown (older clients / other
+    // platforms).
+    Color? viaColor;
+    String? viaLabel;
+    switch (entry.via) {
+      case NetworkVia.fetch:
+        viaColor = ColorTokens.info;
+        viaLabel = 'FETCH';
+        break;
+      case NetworkVia.xhr:
+        viaColor = ColorTokens.warning;
+        viaLabel = 'XHR';
+        break;
     }
 
     return GestureDetector(
@@ -118,162 +154,207 @@ class RequestCard extends ConsumerWidget {
                 width: 1,
               ),
             ),
-            child: IntrinsicHeight(
-              child: Row(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(
                 children: [
                   // Left color bar
-                  Container(
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
                     width: 4,
-                    decoration: BoxDecoration(
+                    child: Container(
                       color: leftBarColor,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(8),
-                        bottomLeft: Radius.circular(8),
-                      ),
                     ),
                   ),
 
                   // Content
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                      child: Row(
-                        children: [
-                          // Badges row (compact)
-                          if (device != null) ...[
-                            PlatformBadge(platform: device.platform),
-                            const SizedBox(width: 4),
-                          ],
-                          HttpMethodBadge(method: entry.method),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+                    child: Row(
+                      children: [
+                        // Badges row (compact)
+                        if (device != null) ...[
+                          PlatformBadge(platform: device.platform),
                           const SizedBox(width: 4),
-                          // URL + host
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
+                        ],
+                        HttpMethodBadge(method: entry.method),
+                        const SizedBox(width: 4),
+                        // URL + host
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                titleText,
+                                style: TextStyle(
+                                  fontFamily: AppConstants.monoFontFamily,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: (entry.isComplete && (entry.statusCode <= 0 || entry.statusCode >= 400))
+                                      ? ColorTokens.error
+                                      : isDark
+                                          ? ColorTokens.lightBackground
+                                          : ColorTokens.darkNeutral,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (queryHint != null) ...[
+                                const SizedBox(height: 4),
                                 Text(
-                                  titleText,
+                                  '? $queryHint',
                                   style: TextStyle(
                                     fontFamily: AppConstants.monoFontFamily,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: (entry.isComplete && (entry.statusCode <= 0 || entry.statusCode >= 400))
-                                        ? ColorTokens.error
-                                        : isDark
-                                            ? ColorTokens.lightBackground
-                                            : ColorTokens.darkNeutral,
+                                    fontSize: 10,
+                                    color: Colors.grey[500],
+                                    fontStyle: FontStyle.italic,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    if (entry.serviceName != null) ...[
-                                      ServiceTag(name: entry.serviceName!),
-                                      const SizedBox(width: 4),
-                                    ],
-                                    // Source badge
+                              ],
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  if (entry.serviceName != null) ...[
+                                    ServiceTag(name: entry.serviceName!),
+                                    const SizedBox(width: 4),
+                                  ],
+                                  // Source badge
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: sourceColor.withValues(alpha: 0.10),
+                                      border: Border.all(
+                                        color: sourceColor.withValues(alpha: 0.22),
+                                        width: 1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      sourceLabel,
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: sourceColor,
+                                        letterSpacing: 0.3,
+                                        fontFamily: AppConstants.monoFontFamily,
+                                      ),
+                                    ),
+                                  ),
+                                  // Via badge (fetch / xhr path) — same
+                                  // chrome as source badge so the two
+                                  // read as siblings.
+                                  if (viaLabel != null) ...[
+                                    const SizedBox(width: 6),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 1),
+                                          horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: sourceColor.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(3),
+                                        color: viaColor!.withValues(alpha: 0.10),
+                                        border: Border.all(
+                                          color: viaColor.withValues(alpha: 0.22),
+                                          width: 1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
-                                        sourceLabel,
+                                        viaLabel,
                                         style: TextStyle(
-                                          fontSize: 8,
+                                          fontSize: 9,
                                           fontWeight: FontWeight.w700,
-                                          color: sourceColor,
+                                          color: viaColor,
+                                          letterSpacing: 0.3,
+                                          fontFamily: AppConstants.monoFontFamily,
                                         ),
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(width: 4),
+                                  if (entry.isComplete)
+                                    StatusBadge(statusCode: entry.statusCode)
+                                  else ...[
+                                    SizedBox(
+                                      width: 10,
+                                      height: 10,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1.5,
+                                        color: ColorTokens.warning,
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    if (entry.isComplete)
-                                      StatusBadge(statusCode: entry.statusCode)
-                                    else ...[
-                                      SizedBox(
-                                        width: 10,
-                                        height: 10,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 1.5,
-                                          color: ColorTokens.warning,
-                                        ),
+                                    Text(
+                                      S.of(context).inProgress,
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        color: ColorTokens.warning,
+                                        fontFamily: AppConstants.monoFontFamily,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        S.of(context).inProgress,
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          color: ColorTokens.warning,
-                                          fontFamily: AppConstants.monoFontFamily,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                    if (host.isNotEmpty) ...[
-                                      const SizedBox(width: 6),
-                                      Flexible(
-                                        child: Text(
-                                          host,
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey[500],
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(width: 8),
-
-                          // Duration + timestamp
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (entry.duration != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: _durationColor(entry.duration!)
-                                        .withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    formatDuration(entry.duration!),
-                                    style: TextStyle(
-                                      fontFamily: AppConstants.monoFontFamily,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: _durationColor(entry.duration!),
                                     ),
-                                  ),
-                                ),
-                              const SizedBox(height: 4),
-                              Text(
-                                time,
-                                style: TextStyle(
-                                  fontFamily: AppConstants.monoFontFamily,
-                                  fontSize: 10,
-                                  color: Colors.grey[600],
-                                ),
+                                  ],
+                                  if (host.isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        host,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey[500],
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Duration + timestamp
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (entry.duration != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _durationColor(entry.duration!)
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  formatDuration(entry.duration!),
+                                  style: TextStyle(
+                                    fontFamily: AppConstants.monoFontFamily,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: _durationColor(entry.duration!),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 4),
+                            Text(
+                              time,
+                              style: TextStyle(
+                                fontFamily: AppConstants.monoFontFamily,
+                                fontSize: 10,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],

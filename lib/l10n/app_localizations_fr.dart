@@ -449,6 +449,31 @@ class SFr extends S {
       'Mémorise l\'affichage des corps de requête/réponse et contrôle l\'animation de changement d\'onglet.';
 
   @override
+  String get dataRetention => 'Rétention des données';
+
+  @override
+  String get dataRetentionDesc =>
+      'Limite stricte appliquée à chaque liste par fonctionnalité. Lorsqu\'une liste dépasse la limite, les entrées les plus anciennes sont supprimées en FIFO. Les opérations asynchrones en attente sont préservées.';
+
+  @override
+  String get maxItems => 'Éléments max';
+
+  @override
+  String get dataRetentionHelper =>
+      'Illimité conserve toutes les entrées. Des valeurs plus faibles libèrent de la mémoire mais perdent l\'historique.';
+
+  @override
+  String get allEventsDisplay => 'Affichage Tous les événements';
+
+  @override
+  String get allEventsDisplayDesc =>
+      'Filtre en lecture seule pour la liste agrégée Tous les événements. Les logs sous-jacents ne sont pas supprimés — repassez sur Illimité pour tout restaurer.';
+
+  @override
+  String get allEventsDisplayHelper =>
+      'Des valeurs plus faibles conservent les N entrées les plus récentes au prix de l\'historique plus ancien.';
+
+  @override
   String get bodyView => 'Affichage du corps';
 
   @override

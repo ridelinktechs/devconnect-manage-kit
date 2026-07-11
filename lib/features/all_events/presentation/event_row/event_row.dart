@@ -141,6 +141,14 @@ class EventRow extends StatelessWidget {
                   ],
                 ),
               ),
+              // Via badge (fetch / xhr) — only for network events that
+              // reported which interceptor path handled the call.
+              if (event.type == EventType.network &&
+                  event.rawData is NetworkEntry) ...[
+                _ViaBadge(
+                    via: (event.rawData as NetworkEntry).via),
+                const SizedBox(width: 4),
+              ],
               const SizedBox(width: 8),
               // Platform badge
               if (platform != null) ...[
@@ -149,19 +157,23 @@ class EventRow extends StatelessWidget {
               ],
               // Title
               Expanded(
-                child: Text(
-                  event.title,
-                  style: TextStyle(
-                    fontFamily: AppConstants.monoFontFamily,
-                    fontSize: 12,
-                    color: event.level == 'error'
-                        ? ColorTokens.error
-                        : isDark
-                            ? ColorTokens.lightBackground
-                            : ColorTokens.darkNeutral,
+                child: Tooltip(
+                  message: _tooltipFor(event),
+                  waitDuration: const Duration(milliseconds: 300),
+                  child: Text(
+                    event.title,
+                    style: TextStyle(
+                      fontFamily: AppConstants.monoFontFamily,
+                      fontSize: 12,
+                      color: event.level == 'error'
+                          ? ColorTokens.error
+                          : isDark
+                              ? ColorTokens.lightBackground
+                              : ColorTokens.darkNeutral,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 8),
@@ -305,5 +317,68 @@ class EventRow extends StatelessWidget {
       default:
         return ColorTokens.logInfo;
     }
+  }
+
+  /// Tooltip text shown on hover of the row title. For network events
+  /// the user sees the full URL (URI-decoded so `%2C` becomes `,` etc.);
+  /// for other event types the title itself is informative enough.
+  static String _tooltipFor(UnifiedEvent event) {
+    if (event.type == EventType.network &&
+        event.rawData is NetworkEntry) {
+      final raw = (event.rawData as NetworkEntry).url;
+      try {
+        return Uri.decodeFull(raw);
+      } catch (_) {
+        return raw;
+      }
+    }
+    return event.title;
+  }
+}
+
+/// Compact pill rendered next to the type badge on network event rows.
+/// Shows `FETCH` / `XHR` so the user can see which interceptor path
+/// reported the call. Hidden when `via` is unknown (older clients or
+/// other platforms).
+class _ViaBadge extends StatelessWidget {
+  final String via;
+
+  const _ViaBadge({required this.via});
+
+  @override
+  Widget build(BuildContext context) {
+    Color? color;
+    String? label;
+    switch (via) {
+      case NetworkVia.fetch:
+        color = ColorTokens.info;
+        label = 'FETCH';
+        break;
+      case NetworkVia.xhr:
+        color = ColorTokens.warning;
+        label = 'XHR';
+        break;
+    }
+    if (label == null) return const SizedBox.shrink();
+
+    return Container(
+      height: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color!.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: AppConstants.monoFontFamily,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
   }
 }

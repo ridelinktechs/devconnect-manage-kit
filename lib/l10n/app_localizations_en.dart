@@ -449,6 +449,31 @@ class SEn extends S {
       'Remembers how request/response bodies are shown and controls tab switching animation.';
 
   @override
+  String get dataRetention => 'Data Retention';
+
+  @override
+  String get dataRetentionDesc =>
+      'Hard cap applied to each per-feature list. When a list exceeds the limit, oldest entries are dropped FIFO. Pending async ops are preserved.';
+
+  @override
+  String get maxItems => 'Max items';
+
+  @override
+  String get dataRetentionHelper =>
+      'Unlimited keeps every entry. Lower values free memory but lose history.';
+
+  @override
+  String get allEventsDisplay => 'All Events Display';
+
+  @override
+  String get allEventsDisplayDesc =>
+      'View-only filter for the aggregated All Events list. The underlying logs are not deleted — flip back to Unlimited to restore.';
+
+  @override
+  String get allEventsDisplayHelper =>
+      'Lower values keep the most recent N entries visible at the cost of older history.';
+
+  @override
   String get bodyView => 'Body view';
 
   @override

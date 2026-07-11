@@ -13,7 +13,9 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../header/card.dart';
 import '../header/page_header.dart';
+import '../sections/all_events_display_section.dart';
 import '../sections/appearance_section.dart';
+import '../sections/data_retention_section.dart';
 import '../sections/device_history_section.dart';
 import '../sections/detail_view_section.dart';
 import '../sections/devices_section.dart';
@@ -220,6 +222,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             surface: surface,
                             border: border,
                             child: const DetailViewSection(),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Data Retention
+                          SettingsCard(
+                            surface: surface,
+                            border: border,
+                            child: const DataRetentionSection(),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // All Events Display
+                          SettingsCard(
+                            surface: surface,
+                            border: border,
+                            child: const AllEventsDisplaySection(),
                           ),
                           const SizedBox(height: 16),
 

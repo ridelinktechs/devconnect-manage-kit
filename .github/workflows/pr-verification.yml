@@ -18,7 +18,21 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Block print/debugPrint in lib/
+        run: |
+          set -e
+          hits=$(grep -rEn '\b(print|debugPrint)\(' lib/ \
+            --include='*.dart' \
+            --exclude='*.freezed.dart' \
+            --exclude='*.g.dart' || true)
+          if [ -n "$hits" ]; then
+            echo "❌ print()/debugPrint() found in lib/:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "✓ No print()/debugPrint() in lib/"
+      - run: flutter analyze --no-fatal-infos lib/
 
   build-macos:
     name: Build macOS
@@ -29,6 +43,7 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
       - run: flutter build macos --release
 
   build-windows:
@@ -40,6 +55,7 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
       - run: flutter build windows --release
 
   sdk-check:

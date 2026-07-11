@@ -8,6 +8,7 @@ import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../models/log/error_event.dart';
+import '../../../../core/providers/retention_provider.dart';
 import '../../provider/error_providers.dart';
 import '../shared/count_up.dart';
 import '../shared/error_tokens.dart' show platformColor, platformLabel;
@@ -45,6 +46,10 @@ class Toolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeFilters = ref.watch(errorFilterProvider);
+    final retentionPreset = ref.watch(retentionLimitProvider);
+    final retentionLimit = retentionPreset.limit;
+    final retentionLabel = retentionPreset.label;
+    final capped = ref.watch(errorDisplayProvider);
 
     return Column(
       children: [
@@ -80,44 +85,66 @@ class Toolbar extends ConsumerWidget {
               ValueListenableBuilder<int>(
                 valueListenable: entryCount,
                 builder: (context, count, _) {
-                  return Row(
+                  final isTrimmed =
+                      retentionLimit != null && capped.total > count;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (count > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: PulsingDot(
-                            color: ColorTokens.logError,
-                            size: 7,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (count > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: PulsingDot(
+                                color: ColorTokens.logError,
+                                size: 7,
+                              ),
+                            ),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: count > 0
+                                  ? ColorTokens.logError.withValues(alpha: 0.12)
+                                  : (isDark
+                                      ? Colors.white.withValues(alpha: 0.06)
+                                      : Colors.black.withValues(alpha: 0.04)),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: CountUp(
+                              value: count,
+                              formatter: (n) => retentionLimit == null
+                                  ? '$n'
+                                  : '$n / $retentionLabel',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: AppConstants.monoFontFamily,
+                                color: count > 0
+                                    ? ColorTokens.logError
+                                    : (isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[600]),
+                              ),
+                            ),
                           ),
-                        ),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOutCubic,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: count > 0
-                              ? ColorTokens.logError.withValues(alpha: 0.12)
-                              : (isDark
-                                  ? Colors.white.withValues(alpha: 0.06)
-                                  : Colors.black.withValues(alpha: 0.04)),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: CountUp(
-                          value: count,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: AppConstants.monoFontFamily,
-                            color: count > 0
-                                ? ColorTokens.logError
-                                : (isDark
-                                    ? Colors.grey[400]
-                                    : Colors.grey[600]),
-                          ),
-                        ),
+                        ],
                       ),
+                      if (isTrimmed) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Showing $count of ${capped.total}',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontFamily: AppConstants.monoFontFamily,
+                            color: isDark ? Colors.grey[600] : Colors.grey[500],
+                          ),
+                        ),
+                      ],
                     ],
                   );
                 },

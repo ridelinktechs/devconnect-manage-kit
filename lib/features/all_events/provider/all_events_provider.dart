@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/retention_provider.dart';
 import '../../../core/providers/tab_visibility_provider.dart';
 import '../../../core/utils/duration_format.dart';
 import '../../../core/utils/log_message_summary.dart';
@@ -238,14 +239,28 @@ final allEventsSortOrderProvider = StateProvider<SortOrder>(
 /// Whether to show system/connectivity check URLs
 final showSystemUrlsProvider = StateProvider<bool>((ref) => false);
 
-final filteredAllEventsProvider = Provider<List<UnifiedEvent>>((ref) {
+/// Result of filtering All Events. [items] is the (possibly trimmed)
+/// list shown in the page; [total] is the count BEFORE the display
+/// trim — used by the header to render "Showing N of M" hints when
+/// the cap is active.
+class FilteredAllEventsResult {
+  final List<UnifiedEvent> items;
+  final int total;
+
+  const FilteredAllEventsResult({required this.items, required this.total});
+}
+
+final filteredAllEventsProvider =
+    Provider<FilteredAllEventsResult>((ref) {
   final events = ref.watch(allEventsProvider);
   final search = ref.watch(allEventsSearchProvider).toLowerCase();
   final filters = ref.watch(allEventsFilterProvider);
   final errorsOnly = ref.watch(allEventsErrorsOnlyProvider);
   final selectedDevice = ref.watch(selectedDeviceProvider);
+  final displayLimit =
+      ref.watch(allEventsDisplayLimitProvider.select((p) => p.limit));
 
-  return events.where((e) {
+  final filtered = events.where((e) {
     if (selectedDevice == null) return false;
     if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
     if (!filters.contains(e.type)) return false;
@@ -256,6 +271,21 @@ final filteredAllEventsProvider = Provider<List<UnifiedEvent>>((ref) {
     }
     return true;
   }).toList();
+
+  // View-only cap — keeps the most recent N entries. Source providers
+  // are untouched, so toggling the setting back to Unlimited restores
+  // every entry. `total` stays at the pre-trim count so the header can
+  // surface the "Showing N of M" hint.
+  if (displayLimit != null && filtered.length > displayLimit) {
+    return FilteredAllEventsResult(
+      items: filtered.sublist(filtered.length - displayLimit),
+      total: filtered.length,
+    );
+  }
+  return FilteredAllEventsResult(
+    items: filtered,
+    total: filtered.length,
+  );
 });
 
 String _shortenUrl(String url) {

@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/inputs/search_field.dart';
+import '../../../../components/misc/retention_hint.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../models/log/log_entry.dart';
+import '../../../../core/providers/retention_provider.dart';
 import '../../provider/console_providers.dart';
-import '../shared/count_pill.dart';
 import '../shared/level_color.dart';
 import 'icon_btn.dart';
 import 'level_filter_chip.dart';
@@ -35,6 +36,10 @@ class Toolbar extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final activeFilters = ref.watch(consoleFilterProvider);
+    final retentionPreset = ref.watch(retentionLimitProvider);
+    final retentionLimit = retentionPreset.limit;
+    final retentionLabel = retentionPreset.label;
+    final capped = ref.watch(consoleDisplayProvider);
 
     return Container(
       height: 48,
@@ -51,7 +56,14 @@ class Toolbar extends ConsumerWidget {
           const SizedBox(width: 8),
           ValueListenableBuilder<int>(
             valueListenable: entryCount,
-            builder: (_, count, _) => CountPill(count: count),
+            builder: (_, count, _) {
+              return RetentionHint(
+                count: count,
+                total: capped.total,
+                limit: retentionLimit,
+                limitLabel: retentionLabel,
+              );
+            },
           ),
           const SizedBox(width: 16),
 

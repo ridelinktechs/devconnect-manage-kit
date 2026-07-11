@@ -360,6 +360,7 @@ class WsMessageHandler {
       source: p['source'] as String? ?? 'app',
       serviceName: detected?.name,
       serviceAction: detected?.action,
+      via: p['via'] as String? ?? NetworkVia.unknown,
     );
     _networkController.add(entry);
   }

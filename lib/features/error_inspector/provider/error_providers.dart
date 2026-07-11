@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/retention_provider.dart';
+import '../../../core/utils/list_retention.dart';
+import '../../../core/utils/retention_capped.dart';
 import '../../../models/log/error_event.dart';
 import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
@@ -11,9 +14,30 @@ import '../../../server/ws_message_handler.dart';
 final errorEntriesProvider =
     StateNotifierProvider<ErrorNotifier, List<ErrorEvent>>((ref) {
   final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = ErrorNotifier(handler);
+  final notifier = ErrorNotifier(handler, ref);
   ref.onDispose(() => notifier.cancelSubscription());
   return notifier;
+});
+
+/// Total errors ever received by [ErrorNotifier], including ones
+/// dropped by the retention cap.
+///
+/// Watches [errorEntriesProvider] (not just the notifier) so this
+/// rebuilds every time a new entry is appended — the notifier's
+/// [ErrorNotifier.totalSeen] getter is otherwise non-reactive.
+final errorTotalSeenProvider = Provider<int>((ref) {
+  ref.watch(errorEntriesProvider); // subscribe to state changes
+  return ref.read(errorEntriesProvider.notifier).totalSeen;
+});
+
+/// Source-cached list (capped to the user's retention limit) plus the
+/// lifetime total (including dropped entries).
+final errorDisplayProvider =
+    Provider<RetentionCapped<ErrorEvent>>((ref) {
+  final all = ref.watch(errorEntriesProvider);
+  final limit = ref.watch(retentionLimitProvider.select((p) => p.limit));
+  final totalSeen = ref.watch(errorTotalSeenProvider);
+  return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
 final errorSearchProvider = StateProvider<String>((ref) => '');
@@ -88,14 +112,17 @@ final errorCountBySeverityProvider = Provider<Map<ErrorSeverity, int>>((ref) {
 
 class ErrorNotifier extends StateNotifier<List<ErrorEvent>> {
   late final StreamSubscription<ErrorEvent> _sub;
+  final Ref _ref;
 
-  ErrorNotifier(WsMessageHandler handler) : super([]) {
+  /// Total errors ever received, including ones dropped by the cap.
+  int _totalSeen = 0;
+  int get totalSeen => _totalSeen;
+
+  ErrorNotifier(WsMessageHandler handler, this._ref) : super([]) {
     _sub = handler.onError.listen((entry) {
-      if (state.length > 5000) {
-        state = [...state.skip(500), entry];
-      } else {
-        state = [...state, entry];
-      }
+      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+      state = truncateList([...state, entry], limit);
+      _totalSeen++;
     });
   }
 

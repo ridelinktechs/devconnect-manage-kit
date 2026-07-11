@@ -7,19 +7,19 @@ import '../../../../components/misc/status_badge.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../models/log/log_entry.dart';
+import '../shared/body_view.dart' show InlineJsonView;
 import '../shared/code_block.dart';
 import '../shared/copy_button.dart';
 import '../shared/error_block.dart';
 import '../shared/section_label.dart';
 import '../shared/tag_chip.dart';
-import 'log_inline_json.dart';
 
 /// Right-pane detail for log events.
 ///
 /// Renders the level badge + optional tag chip + copy button in the header
-/// row, then either a [CodeBlock] (for plain text) or a [LogInlineJson]
-/// (for embedded JSON), and finally the optional metadata block and stack
-/// trace.
+/// row, then a [CodeBlock] (for plain text) or an [InlineJsonView] with
+/// the Tree/JSON/Code toggle (for embedded JSON), and finally the
+/// optional metadata block and stack trace.
 class LogDetail extends StatefulWidget {
   final LogEntry entry;
 
@@ -97,12 +97,12 @@ class _LogDetailState extends State<LogDetail> {
               CodeBlock(text: jsonResult.$1, isDark: isDark),
               const SizedBox(height: 10),
             ],
-            LogInlineJson(data: jsonResult.$2, label: 'Data'),
+            InlineJsonView(data: jsonResult.$2, label: 'Data'),
           ] else
             CodeBlock(text: entry.message, isDark: isDark),
           if (entry.metadata != null && entry.metadata!.isNotEmpty) ...[
             const SizedBox(height: 16),
-            LogInlineJson(data: entry.metadata, label: 'Metadata'),
+            InlineJsonView(data: entry.metadata, label: 'Metadata'),
           ],
           if (entry.stackTrace != null) ...[
             const SizedBox(height: 16),

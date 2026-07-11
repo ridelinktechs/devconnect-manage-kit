@@ -18,6 +18,7 @@ import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/code_generator.dart';
 import '../../../../core/utils/duration_format.dart';
+import '../../../../core/utils/network_url_formatter.dart';
 import '../../../../core/utils/screenshot_filename.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -30,6 +31,7 @@ import '../shared/copy_action_chip.dart';
 import '../shared/detail_tab_bar.dart';
 import '../shared/detect_blob_payload.dart';
 import '../shared/header_icon_button.dart';
+import '../shared/params_tab.dart';
 
 /// Right-pane detail panel that swaps content based on the selected
 /// network request. Owns the screenshot machinery (full + per-tab) and
@@ -88,6 +90,28 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
     final isDark = theme.brightness == Brightness.dark;
     final entry = widget.entry;
 
+    // Decide whether to surface the "Params" tab. The tab only exists
+    // when the URL has at least one `?key=value` segment — Postman-style
+    // gating so the tab list never shows a useless empty tab.
+    final hasParams = (Uri.tryParse(entry.url)?.queryParametersAll.isNotEmpty) ?? false;
+    final tabLabels = hasParams
+        ? const ['Headers', 'Params', 'Request', 'Response', 'Timing']
+        : const ['Headers', 'Request', 'Response', 'Timing'];
+
+    // Keep the controller in sync with the tab list length. Without
+    // this, switching from a param-less request to a param-heavy one
+    // (or vice versa) crashes the TabBarView.
+    if (_tabController.length != tabLabels.length) {
+      final oldIndex = _tabController.index.clamp(0, tabLabels.length - 1);
+      _tabController.dispose();
+      _tabController = TabController(
+        length: tabLabels.length,
+        vsync: this,
+        animationDuration: ref.read(tabAnimationProvider),
+        initialIndex: oldIndex,
+      );
+    }
+
     ref.listen(tabAnimationProvider, (prev, next) {
       if (prev != next) _rebuildController();
     });
@@ -100,18 +124,18 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Method + status + URL + screenshot buttons + close
+              // Row 1: method + status (left) and action buttons (right).
+              // Kept on its own line so the URL row below can take the
+              // full width without competing for horizontal space.
               Padding(
-                padding:
-                    const EdgeInsets.only(left: 12, right: 4, top: 8, bottom: 4),
+                padding: const EdgeInsets.fromLTRB(12, 10, 4, 6),
                 child: Row(
                   children: [
                     HttpMethodBadge(method: entry.method),
                     const SizedBox(width: 6),
-                    if (entry.isComplete) ...[
-                      StatusBadge(statusCode: entry.statusCode),
-                      const SizedBox(width: 8),
-                    ] else ...[
+                    if (entry.isComplete)
+                      StatusBadge(statusCode: entry.statusCode)
+                    else
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
@@ -142,25 +166,7 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(
-                      child: Tooltip(
-                        message: entry.url,
-                        waitDuration: const Duration(milliseconds: 300),
-                        child: TextComponent(
-                          entry.url,
-                          style: TextStyle(
-                            fontFamily: AppConstants.monoFontFamily,
-                            fontSize: 12,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
+                    const Spacer(),
                     // Screenshot buttons
                     Tooltip(
                       message: S.of(context).captureFullTooltip,
@@ -192,12 +198,76 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                 ),
               ),
 
-              // Timing bar
-              if (entry.duration != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: TimingBar(duration: entry.duration!),
+              // Row 2: full URL on its own line, multi-line so a long
+              // URL stays readable. Selectable so the user can drag
+              // a substring (e.g. an ID) into the clipboard.
+              Padding(
+                padding:
+                    const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: SelectableText(
+                  _decoded(entry.url),
+                  style: TextStyle(
+                    fontFamily: AppConstants.monoFontFamily,
+                    fontSize: 12,
+                    color: isDark ? Colors.white : Colors.black87,
+                    height: 1.4,
+                  ),
+                  maxLines: 2,
                 ),
+              ),
+
+              // Row 3: timing + via tag on a single meta line. Subtle
+              // border-bottom separates the header from the tab bar.
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : Colors.black.withValues(alpha: 0.06),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    if (entry.duration != null) ...[
+                      TimingBar(duration: entry.duration!),
+                    ],
+                    if (NetworkVia.isKnown(entry.via)) ...[
+                      const SizedBox(width: 8),
+                      Builder(builder: (context) {
+                        final viaColor = entry.via == NetworkVia.fetch
+                            ? ColorTokens.info
+                            : ColorTokens.warning;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: viaColor.withValues(alpha: 0.10),
+                            border: Border.all(
+                              color: viaColor.withValues(alpha: 0.22),
+                              width: 1,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            entry.via.toUpperCase(),
+                            style: TextStyle(
+                              fontFamily: AppConstants.monoFontFamily,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                              color: viaColor,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ],
+                ),
+              ),
 
               const SizedBox(height: 6),
 
@@ -210,7 +280,10 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                       icon: LucideIcons.link,
                       label: S.of(context).copyUrl,
                       onTap: () {
-                        Clipboard.setData(ClipboardData(text: entry.url));
+                        // Decoded single-line URL: %2C → ',' so the
+                        // pasted value is readable, but still a valid URL.
+                        Clipboard.setData(
+                            ClipboardData(text: formatUrlOneLine(entry.url)));
                         _showCopied(S.of(context).urlCopied);
                       },
                     ),
@@ -276,14 +349,12 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                 ),
               ),
 
-              const SizedBox(height: 8),
-
               // Tabs
               DetailTabBar(
                 controller: _tabController,
                 isDark: isDark,
                 accentColor: ColorTokens.primary,
-                tabs: const ['Headers', 'Request', 'Response', 'Timing'],
+                tabs: tabLabels,
               ),
             ],
           ),
@@ -301,9 +372,15 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                   index: 0,
                   builder: (_) => HeadersTab(entry: entry),
                 ),
+                if (hasParams)
+                  LazyTab(
+                    controller: _tabController,
+                    index: 1,
+                    builder: (_) => ParamsTab(uri: Uri.parse(entry.url)),
+                  ),
                 LazyTab(
                   controller: _tabController,
-                  index: 1,
+                  index: hasParams ? 2 : 1,
                   builder: (_) => BodyTab(
                     body: entry.requestBody,
                     label: 'Request',
@@ -312,7 +389,7 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                 ),
                 LazyTab(
                   controller: _tabController,
-                  index: 2,
+                  index: hasParams ? 3 : 2,
                   builder: (_) => BodyTab(
                     body: entry.responseBody,
                     label: 'Response',
@@ -321,7 +398,7 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                 ),
                 LazyTab(
                   controller: _tabController,
-                  index: 3,
+                  index: hasParams ? 4 : 3,
                   builder: (_) => TimingTab(entry: entry),
                 ),
               ],
@@ -694,6 +771,16 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
     }
   }
 
+  /// Decode percent-encoded characters so users see `,` instead of
+  /// `%2C` etc. — matches the All Events detail panel.
+  String _decoded(String url) {
+    try {
+      return Uri.decodeFull(url);
+    } catch (_) {
+      return url;
+    }
+  }
+
   Widget _buildFullScreenshotWidget(bool isDark) {
     final entry = widget.entry;
     final time = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
@@ -743,10 +830,12 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                   ],
                 ),
                 const SizedBox(height: 6),
-                TextComponent(entry.url,
+                TextComponent(
+                    _decoded(entry.url),
                     style: TextStyle(
                       fontFamily: AppConstants.monoFontFamily,
                       fontSize: 11,
+                      height: 1.35,
                       color: (entry.isComplete &&
                               (entry.statusCode <= 0 ||
                                   entry.statusCode >= 400))
@@ -754,7 +843,9 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                           : isDark
                               ? ColorTokens.lightBackground
                               : ColorTokens.darkNeutral,
-                    )),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
                 if (entry.duration != null) ...[
                   const SizedBox(height: 6),
                   TimingBar(duration: entry.duration!),
@@ -887,9 +978,11 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                   StatusBadge(statusCode: entry.statusCode),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: TextComponent(entry.url,
+                  child: TextComponent(
+                      _decoded(entry.url),
                       style: TextStyle(
                         fontFamily: AppConstants.monoFontFamily,
+                        height: 1.35,
                         fontSize: 11,
                         color: isDark
                             ? ColorTokens.lightBackground
