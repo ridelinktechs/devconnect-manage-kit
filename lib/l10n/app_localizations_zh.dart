@@ -645,6 +645,21 @@ class SZh extends S {
   }
 
   @override
+  String get sdkTipsLatestLabel => '最新';
+
+  @override
+  String get sdkTipsUpdate => '更新';
+
+  @override
+  String get sdkTipsChecking => '检查中';
+
+  @override
+  String get sdkTipsOffline => '无法检查';
+
+  @override
+  String get sdkTipsRetry => '重试';
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -1744,6 +1759,21 @@ class SZhCn extends SZh {
   }
 
   @override
+  String get sdkTipsLatestLabel => '最新';
+
+  @override
+  String get sdkTipsUpdate => '更新';
+
+  @override
+  String get sdkTipsChecking => '检查中';
+
+  @override
+  String get sdkTipsOffline => '无法检查';
+
+  @override
+  String get sdkTipsRetry => '重试';
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -2841,6 +2871,21 @@ class SZhTw extends SZh {
   String sdkTipsVersionLabel(Object version) {
     return 'v$version';
   }
+
+  @override
+  String get sdkTipsLatestLabel => '最新';
+
+  @override
+  String get sdkTipsUpdate => '更新';
+
+  @override
+  String get sdkTipsChecking => '檢查中';
+
+  @override
+  String get sdkTipsOffline => '無法檢查';
+
+  @override
+  String get sdkTipsRetry => '重試';
 
   @override
   String get networkTitle => '網路';
