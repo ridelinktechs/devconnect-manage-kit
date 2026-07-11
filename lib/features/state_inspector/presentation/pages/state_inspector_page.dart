@@ -390,7 +390,6 @@ class _StateChangeTile extends ConsumerWidget {
   final VoidCallback onTap;
 
   const _StateChangeTile({
-    super.key,
     required this.entry,
     required this.onTap,
   });
