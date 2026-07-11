@@ -657,6 +657,21 @@ class SJa extends S {
   }
 
   @override
+  String get sdkTipsLatestLabel => '最新';
+
+  @override
+  String get sdkTipsUpdate => '更新';
+
+  @override
+  String get sdkTipsChecking => '確認中';
+
+  @override
+  String get sdkTipsOffline => '確認できません';
+
+  @override
+  String get sdkTipsRetry => '再試行';
+
+  @override
   String get networkTitle => 'ネットワーク';
 
   @override

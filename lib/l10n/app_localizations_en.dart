@@ -661,6 +661,21 @@ class SEn extends S {
   }
 
   @override
+  String get sdkTipsLatestLabel => 'Latest';
+
+  @override
+  String get sdkTipsUpdate => 'Update';
+
+  @override
+  String get sdkTipsChecking => 'Checking';
+
+  @override
+  String get sdkTipsOffline => 'Live check unavailable';
+
+  @override
+  String get sdkTipsRetry => 'Retry';
+
+  @override
   String get networkTitle => 'Network';
 
   @override

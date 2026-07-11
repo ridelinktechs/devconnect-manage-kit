@@ -1185,6 +1185,36 @@ abstract class S {
   /// **'v{version}'**
   String sdkTipsVersionLabel(Object version);
 
+  /// No description provided for @sdkTipsLatestLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest'**
+  String get sdkTipsLatestLabel;
+
+  /// No description provided for @sdkTipsUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get sdkTipsUpdate;
+
+  /// No description provided for @sdkTipsChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking'**
+  String get sdkTipsChecking;
+
+  /// No description provided for @sdkTipsOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Live check unavailable'**
+  String get sdkTipsOffline;
+
+  /// No description provided for @sdkTipsRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get sdkTipsRetry;
+
   /// No description provided for @networkTitle.
   ///
   /// In en, this message translates to:

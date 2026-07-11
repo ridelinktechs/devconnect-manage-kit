@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../components/feedback/app_update_pill.dart';
 import '../../components/feedback/lib_update_tips.dart';
 import '../../components/layout/device_bottom_bar.dart';
 import '../../components/layout/sidebar.dart';
@@ -114,6 +115,17 @@ class _AppShellState extends ConsumerState<AppShell> {
                     },
                   ),
                 ),
+              // ── App version pill (anchored to title bar, top-LEFT) ──
+              // macOS traffic lights occupy the leftmost ~78px; we
+              // start the pill at `left: 84` to stay clear of them
+              // and the drag area. On Windows / Linux the pill starts
+              // at the very edge since there's no system chrome to
+              // dodge.
+              Positioned(
+                top: Platform.isMacOS ? 20 : 4,
+                left: Platform.isMacOS ? 84 : 8,
+                child: const AppUpdatePill(),
+              ),
               // ── Update tips pill (anchored to OS title bar, top-right) ──
               // Sits in the title-bar strip so it stays above every
               // page's toolbar and never overlaps page content.

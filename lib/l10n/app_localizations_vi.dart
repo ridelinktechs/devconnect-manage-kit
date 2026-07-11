@@ -663,6 +663,21 @@ class SVi extends S {
   }
 
   @override
+  String get sdkTipsLatestLabel => 'Mới nhất';
+
+  @override
+  String get sdkTipsUpdate => 'Cập nhật';
+
+  @override
+  String get sdkTipsChecking => 'Đang kiểm tra';
+
+  @override
+  String get sdkTipsOffline => 'Không kiểm tra được';
+
+  @override
+  String get sdkTipsRetry => 'Thử lại';
+
+  @override
   String get networkTitle => 'Mạng';
 
   @override

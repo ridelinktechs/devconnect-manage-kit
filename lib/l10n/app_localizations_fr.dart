@@ -664,6 +664,21 @@ class SFr extends S {
   }
 
   @override
+  String get sdkTipsLatestLabel => 'Récent';
+
+  @override
+  String get sdkTipsUpdate => 'Mettre à jour';
+
+  @override
+  String get sdkTipsChecking => 'Vérification';
+
+  @override
+  String get sdkTipsOffline => 'Vérification indisponible';
+
+  @override
+  String get sdkTipsRetry => 'Réessayer';
+
+  @override
   String get networkTitle => 'Réseau';
 
   @override
