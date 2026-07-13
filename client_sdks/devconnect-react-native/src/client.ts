@@ -490,6 +490,7 @@ export class DevConnect {
    * own duplicate report if the count is > 0.
    */
   private fetchInFlight: Map<string, number> = new Map();
+  private isInsideFetch = false;
 
   private constructor(config: DevConnectConfig & { resolvedHost: string }) {
     this.config = {
@@ -920,8 +921,16 @@ export class DevConnect {
       dc.fetchInFlight.set(fetchKey, (dc.fetchInFlight.get(fetchKey) ?? 0) + 1);
       dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source, via: 'fetch' });
 
+      let responsePromise: Promise<Response>;
+      dc.isInsideFetch = true;
       try {
-        const response = await originalFetch(input, init);
+        responsePromise = originalFetch(input, init);
+      } finally {
+        dc.isInsideFetch = false;
+      }
+
+      try {
+        const response = await responsePromise;
         const clone = response.clone();
         let responseBody: any;
         try { const text = await clone.text(); try { responseBody = JSON.parse(text); } catch (_) { responseBody = text; } } catch (_) {}
@@ -968,6 +977,7 @@ export class DevConnect {
 
     function PatchedXHR(this: any) {
       const xhr = new OriginalXHR();
+      const isFetchXhr = dc.isInsideFetch;
       const requestId = generateId();
       let method = 'GET', url = '', startTime = 0;
       const reqHeaders: Record<string, string> = {};
@@ -1006,7 +1016,7 @@ export class DevConnect {
         // Skip the start report if the fetch interceptor already
         // covers this call (see handleLoadEnd for the matching skip).
         const xhrKey = `${method}\0${url}`;
-        const isFetchRequest = (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
+        const isFetchRequest = isFetchXhr || (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
         if (!isFetchRequest) {
           dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source: classifyUrl(url), via: 'xhr' });
         }
@@ -1021,7 +1031,7 @@ export class DevConnect {
         // XHR path) with different requestIds, which the server
         // cannot merge downstream.
         const xhrKey = `${method}\0${url}`;
-        const isFetchRequest = (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
+        const isFetchRequest = isFetchXhr || (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
         if (isFetchRequest) {
           return;
         }
