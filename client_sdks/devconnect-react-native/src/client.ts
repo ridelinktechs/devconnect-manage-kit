@@ -490,7 +490,7 @@ export class DevConnect {
    * own duplicate report if the count is > 0.
    */
   private fetchInFlight: Map<string, number> = new Map();
-  private isInsideFetch = false;
+  private fetchStackCount = 0;
 
   private constructor(config: DevConnectConfig & { resolvedHost: string }) {
     this.config = {
@@ -922,11 +922,33 @@ export class DevConnect {
       dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source, via: 'fetch' });
 
       let responsePromise: Promise<Response>;
-      dc.isInsideFetch = true;
+      dc.fetchStackCount++;
       try {
         responsePromise = originalFetch(input, init);
+      } catch (err: any) {
+        dc.send('client:network:request_complete', {
+          requestId,
+          method,
+          url,
+          statusCode: 0,
+          startTime,
+          endTime: Date.now(),
+          duration: Date.now() - startTime,
+          requestHeaders: reqHeaders,
+          requestBody,
+          error: err?.message ?? String(err),
+          source,
+          via: 'fetch',
+        });
+        const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
+        if (currentCount <= 1) {
+          dc.fetchInFlight.delete(fetchKey);
+        } else {
+          dc.fetchInFlight.set(fetchKey, currentCount - 1);
+        }
+        throw err;
       } finally {
-        dc.isInsideFetch = false;
+        dc.fetchStackCount--;
       }
 
       try {
@@ -977,7 +999,7 @@ export class DevConnect {
 
     function PatchedXHR(this: any) {
       const xhr = new OriginalXHR();
-      const isFetchXhr = dc.isInsideFetch;
+      const isFetchXhr = dc.fetchStackCount > 0;
       const requestId = generateId();
       let method = 'GET', url = '', startTime = 0;
       const reqHeaders: Record<string, string> = {};
