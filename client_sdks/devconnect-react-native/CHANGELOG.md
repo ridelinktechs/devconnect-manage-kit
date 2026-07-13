@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.8
+
+- **Nested fetch dedup correctness**: the in-flight `fetch` tracker
+  is now a `fetchStackCount` counter instead of an `isInsideFetch`
+  boolean. When `fetch` calls itself recursively (e.g. a wrapper that
+  internally calls `fetch` again), the counter stays positive for
+  the entire outer call and only drops back to zero after both
+  frames finish — preventing premature false negatives in XHR
+  interception. Synchronous throws from `originalFetch()` are also
+  handled separately so the counter always cleans up.
+
 ## 1.0.7
 
 - **Fetch / XHR dedup**: when the same request runs through both
