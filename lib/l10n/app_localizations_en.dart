@@ -1142,4 +1142,99 @@ class SEn extends S {
   @override
   String get binaryBodyHint =>
       'Identify the action via the X-Amz-Target header.';
+
+  @override
+  String get mcpSectionTitle => 'MCP';
+
+  @override
+  String get mcpSectionSubtitle =>
+      'Install DevConnect MCP into your AI coding assistant. No auth required — the server runs locally and trusts your network.';
+
+  @override
+  String get mcpClaudeCodeCard => 'Claude Code';
+
+  @override
+  String get mcpCodexCard => 'Codex';
+
+  @override
+  String get mcpCopyInstallCommand => 'Copy install command';
+
+  @override
+  String get mcpRunInstall => 'Run install';
+
+  @override
+  String get mcpCommandCopied => 'Install command copied';
+
+  @override
+  String get mcpInstallResult => 'Install result';
+
+  @override
+  String get mcpInstallSuccess => 'Install successful';
+
+  @override
+  String get mcpInstallFailed => 'Install failed';
+
+  @override
+  String get mcpInstallTimeout =>
+      'Install timed out after 30s. The process was killed.';
+
+  @override
+  String mcpInstallBinaryMissing(String client, String url) {
+    return '$client CLI not found. Install from $url';
+  }
+
+  @override
+  String get mcpInstallHistory => 'Recent activity';
+
+  @override
+  String get mcpUninstall => 'Uninstall';
+
+  @override
+  String get mcpCopyUninstallCommand => 'Copy uninstall command';
+
+  @override
+  String get mcpUninstallConfirmTitle => 'Uninstall DevConnect MCP?';
+
+  @override
+  String mcpUninstallConfirmBody(String client) {
+    return 'This will remove the devconnect entry from $client. You can reinstall at any time by clicking Run install.';
+  }
+
+  @override
+  String get mcpConfirmationTitle => 'Require MCP Confirmation';
+
+  @override
+  String get mcpConfirmationSubtitle =>
+      'Prompt for approval before executing clicks, typing, files, or recording on devices';
+
+  @override
+  String get mcpDevicePort => 'Device Port';
+
+  @override
+  String get mcpServerPort => 'MCP Port';
+
+  @override
+  String get mcpAutoStartTitle => 'Auto-start MCP server';
+
+  @override
+  String get mcpAutoStartSubtitle =>
+      'Start the MCP WebSocket server automatically when the app launches';
+
+  @override
+  String get mcpAutoSpawnLocalTitle => 'Auto-spawn local MCP server';
+
+  @override
+  String get mcpAutoSpawnLocalSubtitle =>
+      'Launch node dist/index.js as a child process when the MCP panel opens (localhost mode)';
+
+  @override
+  String get mcpReconfiguringTitle => 'Reconfiguring MCP…';
+
+  @override
+  String get mcpReconfiguringBody =>
+      'Updating MCP port configurations across all active clients.';
+
+  @override
+  String get mcpReconfiguredSuccess =>
+      'Successfully reconfigured all active MCP clients!';
 }

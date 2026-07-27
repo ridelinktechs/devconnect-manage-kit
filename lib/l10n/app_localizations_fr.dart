@@ -1146,4 +1146,100 @@ class SFr extends S {
   @override
   String get binaryBodyHint =>
       'Identifiez l\'action via l\'en-tête X-Amz-Target.';
+
+  @override
+  String get mcpSectionTitle => 'MCP';
+
+  @override
+  String get mcpSectionSubtitle =>
+      'Installez DevConnect MCP dans votre assistant IA. Aucune authentification requise — le serveur tourne en local et fait confiance à votre réseau.';
+
+  @override
+  String get mcpClaudeCodeCard => 'Claude Code';
+
+  @override
+  String get mcpCodexCard => 'Codex';
+
+  @override
+  String get mcpCopyInstallCommand => 'Copier la commande';
+
+  @override
+  String get mcpRunInstall => 'Exécuter l\'installation';
+
+  @override
+  String get mcpCommandCopied => 'Commande d\'installation copiée';
+
+  @override
+  String get mcpInstallResult => 'Résultat de l\'installation';
+
+  @override
+  String get mcpInstallSuccess => 'Installation réussie';
+
+  @override
+  String get mcpInstallFailed => 'Échec de l\'installation';
+
+  @override
+  String get mcpInstallTimeout =>
+      'Installation expirée après 30s. Le processus a été tué.';
+
+  @override
+  String mcpInstallBinaryMissing(String client, String url) {
+    return 'CLI $client introuvable. Installez depuis $url';
+  }
+
+  @override
+  String get mcpInstallHistory => 'Activité récente';
+
+  @override
+  String get mcpUninstall => 'Désinstaller';
+
+  @override
+  String get mcpCopyUninstallCommand => 'Copier la commande de désinstallation';
+
+  @override
+  String get mcpUninstallConfirmTitle => 'Désinstaller DevConnect MCP ?';
+
+  @override
+  String mcpUninstallConfirmBody(String client) {
+    return 'Cela supprimera l\'entrée devconnect de $client. Vous pouvez la réinstaller à tout moment en cliquant sur Exécuter l\'installation.';
+  }
+
+  @override
+  String get mcpConfirmationTitle => 'Confirmation MCP requise';
+
+  @override
+  String get mcpConfirmationSubtitle =>
+      'Demander l\'approbation avant d\'exécuter des clics, des saisies, des fichiers ou des enregistrements sur les appareils';
+
+  @override
+  String get mcpDevicePort => 'Port de l\'appareil';
+
+  @override
+  String get mcpServerPort => 'Port MCP';
+
+  @override
+  String get mcpAutoStartTitle => 'Démarrer automatiquement le serveur MCP';
+
+  @override
+  String get mcpAutoStartSubtitle =>
+      'Démarrer le serveur WebSocket MCP au lancement de l\'application';
+
+  @override
+  String get mcpAutoSpawnLocalTitle =>
+      'Lancer automatiquement le serveur MCP local';
+
+  @override
+  String get mcpAutoSpawnLocalSubtitle =>
+      'Démarrer node dist/index.js à l\'ouverture du panneau MCP (mode localhost)';
+
+  @override
+  String get mcpReconfiguringTitle => 'Reconfiguration du MCP…';
+
+  @override
+  String get mcpReconfiguringBody =>
+      'Mise à jour des configurations de port MCP pour tous les clients actifs.';
+
+  @override
+  String get mcpReconfiguredSuccess =>
+      'Tous les clients MCP actifs ont été reconfigurés avec succès !';
 }

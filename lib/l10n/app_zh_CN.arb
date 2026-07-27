@@ -330,5 +330,45 @@
   "smoothScrollingDurationDesc": "滚动动画的持续时间（毫秒）。",
   "binaryBody": "{label} 正文为二进制",
   "binaryBodySize": "{kb} KB ({bytes} 字节)",
-  "binaryBodyHint": "通过 X-Amz-Target 请求头识别操作。"
+  "binaryBodyHint": "通过 X-Amz-Target 请求头识别操作。",
+
+  "mcpSectionTitle": "MCP",
+  "mcpSectionSubtitle": "将 DevConnect MCP 安装到您的 AI 编程助手中。无需身份验证 — 服务器在本地运行,信任您的网络。",
+  "mcpClaudeCodeCard": "Claude Code",
+  "mcpCodexCard": "Codex",
+  "mcpCopyInstallCommand": "复制安装命令",
+  "mcpRunInstall": "运行安装",
+  "mcpCommandCopied": "已复制安装命令",
+  "mcpInstallResult": "安装结果",
+  "mcpInstallSuccess": "安装成功",
+  "mcpInstallFailed": "安装失败",
+  "mcpInstallTimeout": "30 秒后超时,进程已被终止。",
+  "mcpInstallBinaryMissing": "未找到 {client} CLI。请从 {url} 安装",
+  "@mcpInstallBinaryMissing": {
+    "placeholders": {
+      "client": { "type": "String" },
+      "url": { "type": "String" }
+    }
+  },
+  "mcpInstallHistory": "最近活动",
+  "mcpUninstall": "卸载",
+  "mcpCopyUninstallCommand": "复制卸载命令",
+  "mcpUninstallConfirmTitle": "卸载 DevConnect MCP?",
+  "mcpUninstallConfirmBody": "这将从 {client} 中移除 devconnect 条目。随时可以点击\"运行安装\"重新安装。",
+  "@mcpUninstallConfirmBody": {
+    "placeholders": {
+      "client": { "type": "String" }
+    }
+  },
+  "mcpConfirmationTitle": "需要 MCP 确认",
+  "mcpConfirmationSubtitle": "在设备上执行点击、输入、文件传输或录屏前进行提示确认",
+  "mcpDevicePort": "设备端口",
+  "mcpServerPort": "MCP 端口",
+  "mcpAutoStartTitle": "自动启动 MCP 服务",
+  "mcpAutoStartSubtitle": "应用启动时自动启动 MCP WebSocket 服务",
+  "mcpAutoSpawnLocalTitle": "自动启动本地 MCP 服务",
+  "mcpAutoSpawnLocalSubtitle": "打开 MCP 面板时启动 node dist/index.js（localhost 模式）",
+  "mcpReconfiguringTitle": "正在重新配置 MCP…",
+  "mcpReconfiguringBody": "正在更新所有活跃客户端的 MCP 端口配置。",
+  "mcpReconfiguredSuccess": "已成功重新配置所有活跃的 MCP 客户端！"
 }

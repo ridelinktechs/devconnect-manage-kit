@@ -226,9 +226,17 @@ class WsServer {
     if (_handshookSockets.contains(socket)) return;
     _handshookSockets.add(socket);
 
-    final deviceInfo = DeviceInfo.fromJson(
-      message.payload['deviceInfo'] as Map<String, dynamic>,
-    );
+    final rawInfo = message.payload['deviceInfo'] as Map<String, dynamic>;
+    final enrichedInfo = <String, dynamic>{
+      'deviceId': 'unknown-device',
+      'deviceName': 'Unknown Device',
+      'platform': 'unknown',
+      'osVersion': 'unknown',
+      'appName': 'unknown-app',
+      'appVersion': '0.0.0',
+      ...rawInfo,
+    };
+    final deviceInfo = DeviceInfo.fromJson(enrichedInfo);
     final deviceId = deviceInfo.deviceId;
 
     final connection = WsConnection(

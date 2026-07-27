@@ -1130,4 +1130,95 @@ class SJa extends S {
 
   @override
   String get binaryBodyHint => 'アクションは X-Amz-Target ヘッダーで識別してください。';
+
+  @override
+  String get mcpSectionTitle => 'MCP';
+
+  @override
+  String get mcpSectionSubtitle =>
+      'DevConnect MCP を AI コーディングアシスタントにインストールします。認証不要 — サーバーはローカルで動作し、ネットワークを信頼します。';
+
+  @override
+  String get mcpClaudeCodeCard => 'Claude Code';
+
+  @override
+  String get mcpCodexCard => 'Codex';
+
+  @override
+  String get mcpCopyInstallCommand => 'インストールコマンドをコピー';
+
+  @override
+  String get mcpRunInstall => 'インストールを実行';
+
+  @override
+  String get mcpCommandCopied => 'インストールコマンドをコピーしました';
+
+  @override
+  String get mcpInstallResult => 'インストール結果';
+
+  @override
+  String get mcpInstallSuccess => 'インストール成功';
+
+  @override
+  String get mcpInstallFailed => 'インストール失敗';
+
+  @override
+  String get mcpInstallTimeout => '30秒後にタイムアウト。プロセスは強制終了されました。';
+
+  @override
+  String mcpInstallBinaryMissing(String client, String url) {
+    return '$client CLI が見つかりません。 $url からインストール';
+  }
+
+  @override
+  String get mcpInstallHistory => '最近のアクティビティ';
+
+  @override
+  String get mcpUninstall => 'アンインストール';
+
+  @override
+  String get mcpCopyUninstallCommand => 'アンインストールコマンドをコピー';
+
+  @override
+  String get mcpUninstallConfirmTitle => 'DevConnect MCP をアンインストールしますか?';
+
+  @override
+  String mcpUninstallConfirmBody(String client) {
+    return '$client から devconnect エントリが削除されます。「インストールを実行」をクリックすればいつでも再インストールできます。';
+  }
+
+  @override
+  String get mcpConfirmationTitle => 'MCP 確認が必要';
+
+  @override
+  String get mcpConfirmationSubtitle =>
+      'デバイス上でのクリック、入力、ファイル転送、または録画を実行する前に承認を求めます';
+
+  @override
+  String get mcpDevicePort => 'デバイスポート';
+
+  @override
+  String get mcpServerPort => 'MCP ポート';
+
+  @override
+  String get mcpAutoStartTitle => 'MCP サーバーを自動起動';
+
+  @override
+  String get mcpAutoStartSubtitle => 'アプリ起動時に MCP WebSocket サーバーを自動的に起動';
+
+  @override
+  String get mcpAutoSpawnLocalTitle => 'ローカル MCP サーバーを自動起動';
+
+  @override
+  String get mcpAutoSpawnLocalSubtitle =>
+      'MCP パネルを開いた時に node dist/index.js を起動（localhost モード）';
+
+  @override
+  String get mcpReconfiguringTitle => 'MCP を再設定中…';
+
+  @override
+  String get mcpReconfiguringBody => 'アクティブなクライアントの MCP ポート設定を更新しています。';
+
+  @override
+  String get mcpReconfiguredSuccess => 'アクティブなすべての MCP クライアントの再設定に成功しました！';
 }

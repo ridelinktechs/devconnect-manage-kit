@@ -11,6 +11,7 @@ import '../../features/performance/provider/performance_providers.dart';
 import '../../features/state_inspector/provider/state_providers.dart';
 import '../../features/storage_viewer/provider/storage_providers.dart';
 import '../../models/device_info.dart';
+import '../mcp_handler.dart';
 import '../ws_message_handler.dart';
 import '../ws_server.dart';
 
@@ -20,10 +21,31 @@ final wsServerProvider = Provider<WsServer>((ref) {
   return server;
 });
 
+final mcpWsServerProvider = Provider<WsServer>((ref) {
+  final server = WsServer();
+  ref.onDispose(() { server.dispose(); });
+  return server;
+});
+
 final wsMessageHandlerProvider = Provider<WsMessageHandler>((ref) {
   final server = ref.watch(wsServerProvider);
   final handler = WsMessageHandler(server: server);
   ref.onDispose(() => handler.dispose());
+  return handler;
+});
+
+/// MCP control-channel dispatcher. `register()` subscribes to the WS
+/// server's `onMessage` stream and responds to `mcp:command` messages
+/// from the `devconnect-manage` npm package. Kept as a Provider so the
+/// notifier subscription is disposed cleanly with the app lifecycle.
+final mcpHandlerProvider = Provider<McpHandler>((ref) {
+  final deviceServer = ref.watch(wsServerProvider);
+  final mcpServer = ref.watch(mcpWsServerProvider);
+  final handler = McpHandler(mcpServer, deviceServer, ref);
+  handler.register();
+  ref.onDispose(() {
+    handler.dispose();
+  });
   return handler;
 });
 
@@ -159,3 +181,47 @@ class SelectedDeviceNotifier extends StateNotifier<String?> {
     state = null;
   }
 }
+
+class McpConfirmationRequest {
+  final String id;
+  final String command;
+  final Map<String, dynamic> payload;
+  final Completer<bool> completer;
+
+  McpConfirmationRequest({
+    required this.id,
+    required this.command,
+    required this.payload,
+    required this.completer,
+  });
+}
+
+class McpConfirmationNotifier extends StateNotifier<McpConfirmationRequest?> {
+  McpConfirmationNotifier() : super(null);
+
+  void addRequest(McpConfirmationRequest req) {
+    if (state != null) {
+      state!.completer.complete(false);
+    }
+    state = req;
+  }
+
+  void approve() {
+    if (state != null) {
+      state!.completer.complete(true);
+      state = null;
+    }
+  }
+
+  void deny() {
+    if (state != null) {
+      state!.completer.complete(false);
+      state = null;
+    }
+  }
+}
+
+final mcpConfirmationProvider =
+    StateNotifierProvider<McpConfirmationNotifier, McpConfirmationRequest?>((ref) {
+  return McpConfirmationNotifier();
+});

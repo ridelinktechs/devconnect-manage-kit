@@ -3,10 +3,15 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'components/viewers/json_viewer.dart';
+import 'components/misc/mcp_confirmation_overlay.dart';
+import 'core/preferences/app_preferences.dart';
 import 'core/providers/locale_provider.dart';
+import 'core/providers/mcp_install_mode_provider.dart';
 import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
+import 'core/utils/local_mcp_server_manager.dart';
+import 'core/utils/toast_utils.dart';
 import 'l10n/app_localizations.dart';
 import 'server/providers/server_providers.dart';
 
@@ -41,6 +46,9 @@ class _DevConnectAppState extends ConsumerState<DevConnectApp> {
 
   Future<void> _autoStartServer() async {
     final server = ref.read(wsServerProvider);
+    final mcpServer = ref.read(mcpWsServerProvider);
+    final mcpAutoStart = ref.read(mcpAutoStartProvider);
+
     if (!server.isRunning) {
       try {
         await server.start();
@@ -49,9 +57,33 @@ class _DevConnectAppState extends ConsumerState<DevConnectApp> {
         ref.read(serverStartErrorProvider.notifier).state =
             _describeStartError(e);
       }
-      // Force rebuild to update UI with server status
-      if (mounted) setState(() {});
     }
+
+    if (mcpAutoStart && !mcpServer.isRunning) {
+      try {
+        final mcpPort = AppPreferences().get<int>('mcp_server_port') ?? 5564;
+        await mcpServer.start(port: mcpPort);
+        ref.read(mcpStartErrorProvider.notifier).state = null;
+      } catch (e) {
+        ref.read(mcpStartErrorProvider.notifier).state = e.toString();
+      }
+    }
+
+        // Once the desktop's MCP control channel is up (or attempted), kick
+    // off the local HTTP MCP server too if the user opted into auto-
+    // spawn. The MCP panel just reflects this state — opening it does
+    // not trigger a spawn — so making sure it starts at launch means
+    // a healthy green dot by the time the user looks.
+    if (ref.read(mcpAutoSpawnLocalProvider)) {
+      final localStatus = ref.read(localMcpServerProvider);
+      if (localStatus.state == LocalMcpServerState.stopped) {
+        ref.read(localMcpServerProvider.notifier).start(
+              desktopWsPort: mcpServer.isRunning ? mcpServer.port : 5564,
+            );
+      }
+    }
+
+    if (mounted) setState(() {});
   }
 
   String _describeStartError(Object error) {
@@ -71,10 +103,49 @@ class _DevConnectAppState extends ConsumerState<DevConnectApp> {
 
     // Keep message handler alive so it processes incoming messages
     ref.watch(wsMessageHandlerProvider);
+    // Activate the MCP control-channel dispatcher so `devconnect-manage`
+    // can talk to the desktop even when no Settings page is open.
+    ref.watch(mcpHandlerProvider);
 
     // Activate the persistent device-history mirror so connect/disconnect
     // events are recorded even when no Settings page is open.
     ref.watch(deviceHistoryMirrorProvider);
+
+    // Watch the local-node status so we can surface a toast when the
+    // auto-spawn at launch succeeds / fails. ignore: true so we don't
+    // rebuild on every state change — only the ref.listen below fires.
+    ref.watch(localMcpServerProvider);
+    ref.listen<LocalMcpServerStatus>(
+      localMcpServerProvider,
+      (prev, next) {
+        if (!mounted) return;
+        final ps = prev?.state;
+        if (ps == next.state) return;
+        final toastContext = rootNavigatorKey.currentContext ?? context;
+        final overlay = rootNavigatorKey.currentState?.overlay;
+        switch (next.state) {
+          case LocalMcpServerState.running:
+            showSuccessToast(
+              toastContext,
+              message: 'Local MCP server running',
+              subtitle: 'http://127.0.0.1:${next.port}/mcp — '
+                  'ready for Claude Code / Codex / Cursor',
+              overlay: overlay,
+            );
+            break;
+          case LocalMcpServerState.crashed:
+            showErrorToast(
+              toastContext,
+              message: 'Local MCP server crashed',
+              error: next.lastError ?? 'see MCP panel → Details',
+              overlay: overlay,
+            );
+            break;
+          default:
+            break;
+        }
+      },
+    );
 
     // A. Invalidate the JSON highlight cache when the user picks a
     // different device — data is filtered per-device, so old highlights
@@ -110,6 +181,14 @@ class _DevConnectAppState extends ConsumerState<DevConnectApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: appRouter,
+      builder: (context, child) {
+        return Stack(
+          children: [
+            if (child != null) child,
+            const McpConfirmationOverlay(),
+          ],
+        );
+      },
     );
   }
 }

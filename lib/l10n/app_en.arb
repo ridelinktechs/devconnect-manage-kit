@@ -337,5 +337,45 @@
       "bytes": { "type": "int" }
     }
   },
-  "binaryBodyHint": "Identify the action via the X-Amz-Target header."
+  "binaryBodyHint": "Identify the action via the X-Amz-Target header.",
+
+  "mcpSectionTitle": "MCP",
+  "mcpSectionSubtitle": "Install DevConnect MCP into your AI coding assistant. No auth required — the server runs locally and trusts your network.",
+  "mcpClaudeCodeCard": "Claude Code",
+  "mcpCodexCard": "Codex",
+  "mcpCopyInstallCommand": "Copy install command",
+  "mcpRunInstall": "Run install",
+  "mcpCommandCopied": "Install command copied",
+  "mcpInstallResult": "Install result",
+  "mcpInstallSuccess": "Install successful",
+  "mcpInstallFailed": "Install failed",
+  "mcpInstallTimeout": "Install timed out after 30s. The process was killed.",
+  "mcpInstallBinaryMissing": "{client} CLI not found. Install from {url}",
+  "@mcpInstallBinaryMissing": {
+    "placeholders": {
+      "client": { "type": "String" },
+      "url": { "type": "String" }
+    }
+  },
+  "mcpInstallHistory": "Recent activity",
+  "mcpUninstall": "Uninstall",
+  "mcpCopyUninstallCommand": "Copy uninstall command",
+  "mcpUninstallConfirmTitle": "Uninstall DevConnect MCP?",
+  "mcpUninstallConfirmBody": "This will remove the devconnect entry from {client}. You can reinstall at any time by clicking Run install.",
+  "@mcpUninstallConfirmBody": {
+    "placeholders": {
+      "client": { "type": "String" }
+    }
+  },
+  "mcpConfirmationTitle": "Require MCP Confirmation",
+  "mcpConfirmationSubtitle": "Prompt for approval before executing clicks, typing, files, or recording on devices",
+  "mcpDevicePort": "Device Port",
+  "mcpServerPort": "MCP Port",
+  "mcpAutoStartTitle": "Auto-start MCP server",
+  "mcpAutoStartSubtitle": "Start the MCP WebSocket server automatically when the app launches",
+  "mcpAutoSpawnLocalTitle": "Auto-spawn local MCP server",
+  "mcpAutoSpawnLocalSubtitle": "Launch node dist/index.js as a child process when the MCP panel opens (localhost mode)",
+  "mcpReconfiguringTitle": "Reconfiguring MCP…",
+  "mcpReconfiguringBody": "Updating MCP port configurations across all active clients.",
+  "mcpReconfiguredSuccess": "Successfully reconfigured all active MCP clients!"
 }

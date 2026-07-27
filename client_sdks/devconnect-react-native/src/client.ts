@@ -461,6 +461,8 @@ function readFinalHeaders(
 
 export class DevConnect {
   private static instance: DevConnect | null = null;
+  private static rootRefStatic: any = null;
+  private rootRef: any = null;
   private ws: WebSocket | null = null;
   private config: Omit<Required<DevConnectConfig>, 'versionCode'> & { versionCode?: string };
   /** Pre-init queue: messages sent before init() is called */
@@ -510,6 +512,14 @@ export class DevConnect {
       autoError: config.autoError ?? true,
     };
     this.deviceId = generateStableDeviceId(config.appName);
+    this.rootRef = DevConnect.rootRefStatic;
+  }
+
+  public static registerRootRef(ref: any): void {
+    DevConnect.rootRefStatic = ref;
+    if (DevConnect.instance) {
+      DevConnect.instance.rootRef = ref;
+    }
   }
 
   /**
@@ -679,21 +689,35 @@ export class DevConnect {
               this._stateRestoreHandler(msg.payload.state);
             }
           } else if (msg.type === 'server:custom:command') {
-            // Desktop sending a custom command
             const cmd = msg.payload?.command;
-            const handler = this._customCommandHandlers.get(cmd);
-            if (handler) {
+            if (cmd === 'get_react_hierarchy') {
               try {
-                const result = handler(msg.payload?.args);
+                const result = this.dumpReactHierarchy();
                 this.send('client:custom:command_result', {
                   command: cmd,
                   result,
                 }, msg.correlationId);
-              } catch (cmdErr: any) {
+              } catch (err: any) {
                 this.send('client:custom:command_result', {
                   command: cmd,
-                  error: cmdErr?.message ?? String(cmdErr),
+                  error: err?.message ?? String(err),
                 }, msg.correlationId);
+              }
+            } else {
+              const handler = this._customCommandHandlers.get(cmd);
+              if (handler) {
+                try {
+                  const result = handler(msg.payload?.args);
+                  this.send('client:custom:command_result', {
+                    command: cmd,
+                    result,
+                  }, msg.correlationId);
+                } catch (cmdErr: any) {
+                  this.send('client:custom:command_result', {
+                    command: cmd,
+                    error: cmdErr?.message ?? String(cmdErr),
+                  }, msg.correlationId);
+                }
               }
             }
           } else if (msg.type === 'server:reload') {
@@ -1711,6 +1735,99 @@ export class DevConnect {
       }, 100);
       setTimeout(() => clearInterval(interval), 10000);
     }
+  }
+
+  private dumpReactHierarchy(): any {
+    if (!this.rootRef) {
+      throw new Error('No root component registered. Call DevConnect.registerRootRef(rootRef) in your app root.');
+    }
+    const fiber = this.rootRef._reactInternals || 
+                  this.rootRef._reactInternalFiber || 
+                  (this.rootRef.current && (this.rootRef.current._reactInternals || this.rootRef.current._reactInternalFiber));
+    if (!fiber) {
+      throw new Error('Could not resolve React Fiber node from the registered rootRef.');
+    }
+    return this.serializeFiberNode(fiber);
+  }
+
+  private serializeFiberNode(fiber: any): any {
+    if (!fiber) return null;
+    let name = 'Unknown';
+    if (typeof fiber.type === 'function') {
+      name = fiber.type.name || fiber.type.displayName || 'FunctionComponent';
+    } else if (typeof fiber.type === 'string') {
+      name = fiber.type;
+    } else if (fiber.type && typeof fiber.type === 'object') {
+      name = fiber.type.name || fiber.type.displayName || 'ObjectComponent';
+    } else if (fiber.elementType && typeof fiber.elementType === 'function') {
+      name = fiber.elementType.name || fiber.elementType.displayName || 'ElementComponent';
+    }
+    const children: any[] = [];
+    let child = fiber.child;
+    while (child) {
+      const childDump = this.serializeFiberNode(child);
+      if (childDump) {
+        children.push(childDump);
+      }
+      child = child.sibling;
+    }
+    return {
+      name,
+      props: fiber.pendingProps ? this.sanitizeProps(fiber.pendingProps) : {},
+      state: fiber.memoizedState ? this.sanitizeState(fiber.memoizedState) : {},
+      children,
+    };
+  }
+
+  private sanitizeProps(props: any): any {
+    const result: Record<string, any> = {};
+    for (const key in props) {
+      if (key === 'children') continue;
+      const val = props[key];
+      if (typeof val === 'function') continue;
+      if (val && typeof val === 'object') {
+        result[key] = Array.isArray(val) ? '[Array]' : '[Object]';
+      } else {
+        result[key] = val;
+      }
+    }
+    return result;
+  }
+
+  private sanitizeState(state: any): any {
+    if (!state) return {};
+    const result: Record<string, any> = {};
+    if (typeof state === 'object' && state !== null) {
+      if (state.memoizedState !== undefined) {
+        let hook = state;
+        let hookIndex = 0;
+        while (hook) {
+          const val = hook.memoizedState;
+          if (typeof val !== 'function') {
+            if (val && typeof val === 'object') {
+              result[`hook_${hookIndex}`] = '[Object]';
+            } else {
+              result[`hook_${hookIndex}`] = val;
+            }
+          }
+          hook = hook.next;
+          hookIndex++;
+        }
+      } else {
+        for (const key in state) {
+          const val = state[key];
+          if (typeof val === 'function') continue;
+          if (val && typeof val === 'object') {
+            result[key] = '[Object]';
+          } else {
+            result[key] = val;
+          }
+        }
+      }
+    } else {
+      result['value'] = state;
+    }
+    return result;
   }
 }
 

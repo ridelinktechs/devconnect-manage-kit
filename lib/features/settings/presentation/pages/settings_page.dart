@@ -7,8 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/providers/mcp_install_mode_provider.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/mcp_installer.dart';
+import '../../../../core/constants/mcp_clients.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../header/card.dart';
@@ -24,6 +27,7 @@ import '../sections/network_section.dart';
 import '../sections/quick_start_section.dart';
 import '../sections/server_section.dart';
 import '../sections/tab_visibility_section.dart';
+import '../../../../core/preferences/app_preferences.dart';
 import '../sections/usb_tools_section.dart';
 import '../shared/network_info.dart';
 
@@ -40,6 +44,7 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   late TextEditingController _portController;
+  late TextEditingController _mcpPortController;
   final _scrollController = SmoothScrollController();
   List<NetworkInfo> _networkInfos = [];
   String _hostName = '';
@@ -48,8 +53,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   void initState() {
     super.initState();
     final server = ref.read(wsServerProvider);
+    final mcpServer = ref.read(mcpWsServerProvider);
     final actualPort = server.isRunning ? server.port : AppConstants.defaultPort;
+    final actualMcpPort = mcpServer.isRunning ? mcpServer.port : (AppPreferences().get<int>('mcp_server_port') ?? 5564);
     _portController = TextEditingController(text: '$actualPort');
+    _mcpPortController = TextEditingController(text: '$actualMcpPort');
+    _portController.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _mcpPortController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _loadNetworkInfo();
   }
 
@@ -84,6 +98,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   void dispose() {
     _portController.dispose();
+    _mcpPortController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -98,6 +113,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final server = ref.watch(wsServerProvider);
+    final mcpServer = ref.watch(mcpWsServerProvider);
     final devices = ref.watch(connectedDevicesProvider);
 
     final surface = isDark ? ColorTokens.darkBackground : Colors.white;
@@ -136,28 +152,112 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             border: border,
                             child: ServerSection(
                               portController: _portController,
+                              mcpPortController: _mcpPortController,
                               server: server,
+                              mcpServer: mcpServer,
+                              showApply: (int.tryParse(_portController.text) ?? AppConstants.defaultPort) != (server.isRunning ? server.port : AppConstants.defaultPort) ||
+                                         (int.tryParse(_mcpPortController.text) ?? 5564) != (mcpServer.isRunning ? mcpServer.port : (AppPreferences().get<int>('mcp_server_port') ?? 5564)),
+                              onApply: () async {
+                                final p = int.tryParse(_portController.text) ?? AppConstants.defaultPort;
+                                final mcpP = int.tryParse(_mcpPortController.text) ?? 5564;
+
+                                // 1. Save configuration parameters
+                                await AppPreferences().set('mcp_server_port', mcpP);
+
+                                // 2. Restart device WebSocket server if port changed
+                                if (p != server.port) {
+                                  if (server.isRunning) {
+                                    await server.stop();
+                                  }
+                                  try {
+                                    await server.start(port: p);
+                                    ref.read(serverStartErrorProvider.notifier).state = null;
+                                  } catch (e) {
+                                    ref.read(serverStartErrorProvider.notifier).state = describeStartError(e, p);
+                                  }
+                                }
+
+                                // 3. Restart MCP server if port changed
+                                final mcpPortChanged = mcpP != mcpServer.port;
+                                if (mcpPortChanged) {
+                                  if (mcpServer.isRunning) {
+                                    await mcpServer.stop();
+                                  }
+                                  try {
+                                    await mcpServer.start(port: mcpP);
+                                    ref.read(mcpStartErrorProvider.notifier).state = null;
+                                  } catch (e) {
+                                    ref.read(mcpStartErrorProvider.notifier).state = describeStartError(e, mcpP);
+                                  }
+                                }
+
+                                // 4. If MCP port changed, trigger auto-reinstall flow for active clients!
+                                final installedList = AppPreferences().get<List<dynamic>>('installed_mcp_clients')?.cast<String>() ?? [];
+                                if (mcpPortChanged && installedList.isNotEmpty && context.mounted) {
+                                  showDialog(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (ctx) => AlertDialog(
+                                      title: Text(S.of(ctx).mcpReconfiguringTitle),
+                                      content: Row(
+                                        children: [
+                                          const CircularProgressIndicator(),
+                                          const SizedBox(width: 16),
+                                          Expanded(child: Text(S.of(ctx).mcpReconfiguringBody)),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+
+                                  final container = ProviderScope.containerOf(context, listen: false);
+                                  final installModeMap = container.read(mcpInstallModeProvider);
+                                  for (final idName in installedList) {
+                                    final clientId = McpClientId.values.firstWhere((c) => c.name == idName);
+                                    final mode = installModeMap[clientId.name] ?? McpInstallMode.npx;
+                                    final args = McpInstallArgs(
+                                      wsPort: mcpP,
+                                      httpPort: defaultLocalMcpHttpPort,
+                                      localhostMode: mode == McpInstallMode.localhost,
+                                    );
+                                    await McpInstaller.runUninstall(container, clientId);
+                                    await McpInstaller.runInstall(container, clientId, args);
+                                  }
+
+                                  if (context.mounted) {
+                                    Navigator.of(context).pop(); // dismiss loading dialog
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(S.of(context).mcpReconfiguredSuccess)),
+                                    );
+                                  }
+                                }
+                                setState(() {});
+                              },
                               onStartStop: () async {
-                                final p = int.tryParse(_portController.text) ??
-                                    AppConstants.defaultPort;
+                                final p = int.tryParse(_portController.text) ?? AppConstants.defaultPort;
                                 if (server.isRunning) {
                                   await server.stop();
-                                  ref
-                                      .read(serverStartErrorProvider.notifier)
-                                      .state = null;
+                                  ref.read(serverStartErrorProvider.notifier).state = null;
                                 } else {
                                   try {
                                     await server.start(port: p);
-                                    ref
-                                        .read(
-                                            serverStartErrorProvider.notifier)
-                                        .state = null;
+                                    ref.read(serverStartErrorProvider.notifier).state = null;
                                   } catch (e) {
-                                    ref
-                                            .read(serverStartErrorProvider
-                                                .notifier)
-                                            .state =
-                                        describeStartError(e, p);
+                                    ref.read(serverStartErrorProvider.notifier).state = describeStartError(e, p);
+                                  }
+                                }
+                                setState(() {});
+                              },
+                              onMcpStartStop: () async {
+                                final mcpP = int.tryParse(_mcpPortController.text) ?? 5564;
+                                if (mcpServer.isRunning) {
+                                  await mcpServer.stop();
+                                  ref.read(mcpStartErrorProvider.notifier).state = null;
+                                } else {
+                                  try {
+                                    await mcpServer.start(port: mcpP);
+                                    ref.read(mcpStartErrorProvider.notifier).state = null;
+                                  } catch (e) {
+                                    ref.read(mcpStartErrorProvider.notifier).state = describeStartError(e, mcpP);
                                   }
                                 }
                                 setState(() {});
@@ -249,6 +349,69 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               port: port,
                               onCopy: _copy,
                             ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // MCP Security Sandbox
+                          SettingsCard(
+                            surface: surface,
+                            border: border,
+                            child: StatefulBuilder(
+                              builder: (context, setState) {
+                                final confirm = AppPreferences().get<bool>('mcpConfirmationRequired') ?? true;
+                                return SwitchListTile.adaptive(
+                                  title: Text(S.of(context).mcpConfirmationTitle),
+                                  subtitle: Text(S.of(context).mcpConfirmationSubtitle),
+                                  value: confirm,
+                                  contentPadding: EdgeInsets.zero,
+                                  activeTrackColor: ColorTokens.secondary,
+                                  onChanged: (val) {
+                                    AppPreferences().set('mcpConfirmationRequired', val);
+                                    setState(() {});
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // MCP Behavior — auto-start pref + auto-spawn-local pref.
+                          // Two independent toggles: auto-start controls whether the
+                          // MCP WebSocket server is brought up on app launch;
+                          // auto-spawn-local controls whether opening the MCP panel
+                          // also launches the local `node dist/index.js` child when
+                          // localhost install mode is selected.
+                          SettingsCard(
+                            surface: surface,
+                            border: border,
+                            child: Consumer(builder: (context, ref, _) {
+                              final autoStart = ref.watch(mcpAutoStartProvider);
+                              final autoSpawnLocal = ref.watch(mcpAutoSpawnLocalProvider);
+                              return Column(
+                                children: [
+                                  SwitchListTile.adaptive(
+                                    title: Text(S.of(context).mcpAutoStartTitle),
+                                    subtitle: Text(S.of(context).mcpAutoStartSubtitle),
+                                    value: autoStart,
+                                    contentPadding: EdgeInsets.zero,
+                                    activeTrackColor: ColorTokens.secondary,
+                                    onChanged: (val) => ref
+                                        .read(mcpAutoStartProvider.notifier)
+                                        .set(val),
+                                  ),
+                                  SwitchListTile.adaptive(
+                                    title: Text(S.of(context).mcpAutoSpawnLocalTitle),
+                                    subtitle: Text(S.of(context).mcpAutoSpawnLocalSubtitle),
+                                    value: autoSpawnLocal,
+                                    contentPadding: EdgeInsets.zero,
+                                    activeTrackColor: ColorTokens.secondary,
+                                    onChanged: (val) => ref
+                                        .read(mcpAutoSpawnLocalProvider.notifier)
+                                        .set(val),
+                                  ),
+                                ],
+                              );
+                            }),
                           ),
                         ],
                       ),

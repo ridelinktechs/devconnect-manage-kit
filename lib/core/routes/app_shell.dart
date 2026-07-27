@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../components/feedback/app_update_pill.dart';
 import '../../components/feedback/lib_update_tips.dart';
+import '../../components/feedback/mcp_pill.dart';
 import '../../components/layout/device_bottom_bar.dart';
 import '../../components/layout/sidebar.dart';
 import '../providers/tab_visibility_provider.dart';
@@ -135,6 +136,17 @@ class _AppShellState extends ConsumerState<AppShell> {
                 top: Platform.isMacOS ? 20 : 6,
                 right: 14,
                 child: const LibUpdateTips(),
+              ),
+              // ── MCP pill (anchored next to Tips pill) ──
+              // sits to the LEFT of LibUpdateTips so the MCP
+              // // Dynamic Island trigger is reachable in one
+              // // glance from the user. Offset right: 138 to clear
+              // // the Tips pill's typical 110px collapsed footprint
+              // // plus 14px gap.
+              Positioned(
+                top: Platform.isMacOS ? 20 : 6,
+                right: 138,
+                child: const McpPill(),
               ),
             ],
           );

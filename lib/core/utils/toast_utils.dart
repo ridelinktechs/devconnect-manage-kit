@@ -261,6 +261,7 @@ void showSuccessToast(
   BuildContext context, {
   required String message,
   String? subtitle,
+  OverlayState? overlay,
 }) {
   _showCustomToast(
     context,
@@ -269,6 +270,7 @@ void showSuccessToast(
     accentColor: ColorTokens.success,
     subtitle: subtitle,
     durationMs: 2400,
+    overlay: overlay,
   );
 }
 
@@ -277,14 +279,16 @@ void showErrorToast(
   BuildContext context, {
   required String message,
   String? error,
+  OverlayState? overlay,
 }) {
   _showCustomToast(
     context,
-    icon: LucideIcons.triangleAlert,
+    icon: LucideIcons.xCircle,
     label: message,
     accentColor: ColorTokens.error,
     subtitle: error,
-    durationMs: 4000,
+    durationMs: 3200,
+    overlay: overlay,
   );
 }
 
@@ -312,8 +316,9 @@ void _showCustomToast(
   required Color accentColor,
   String? subtitle,
   int durationMs = 1500,
+  OverlayState? overlay,
 }) {
-  final overlay = Overlay.of(context);
+  final overlayState = overlay ?? Overlay.of(context);
   late OverlayEntry entry;
   entry = OverlayEntry(
     builder: (_) => _ToastWidget(
@@ -327,7 +332,7 @@ void _showCustomToast(
       },
     ),
   );
-  overlay.insert(entry);
+  overlayState.insert(entry);
 }
 
 class _ToastWidget extends StatefulWidget {

@@ -174,3 +174,6 @@ final smoothScrollDurationProvider =
 /// Holds the last server start failure message, or null when healthy.
 /// Written by callers of [WsServer.start]; consumed by the settings UI.
 final serverStartErrorProvider = StateProvider<String?>((ref) => null);
+
+/// Holds the last MCP server start failure message, or null when healthy.
+final mcpStartErrorProvider = StateProvider<String?>((ref) => null);

@@ -328,5 +328,45 @@
   "smoothScrollingDurationDesc": "スクロールアニメーションの時間（ミリ秒）。",
   "binaryBody": "{label}のボディはバイナリです",
   "binaryBodySize": "{kb} KB ({bytes} バイト)",
-  "binaryBodyHint": "アクションは X-Amz-Target ヘッダーで識別してください。"
+  "binaryBodyHint": "アクションは X-Amz-Target ヘッダーで識別してください。",
+
+  "mcpSectionTitle": "MCP",
+  "mcpSectionSubtitle": "DevConnect MCP を AI コーディングアシスタントにインストールします。認証不要 — サーバーはローカルで動作し、ネットワークを信頼します。",
+  "mcpClaudeCodeCard": "Claude Code",
+  "mcpCodexCard": "Codex",
+  "mcpCopyInstallCommand": "インストールコマンドをコピー",
+  "mcpRunInstall": "インストールを実行",
+  "mcpCommandCopied": "インストールコマンドをコピーしました",
+  "mcpInstallResult": "インストール結果",
+  "mcpInstallSuccess": "インストール成功",
+  "mcpInstallFailed": "インストール失敗",
+  "mcpInstallTimeout": "30秒後にタイムアウト。プロセスは強制終了されました。",
+  "mcpInstallBinaryMissing": "{client} CLI が見つかりません。 {url} からインストール",
+  "@mcpInstallBinaryMissing": {
+    "placeholders": {
+      "client": { "type": "String" },
+      "url": { "type": "String" }
+    }
+  },
+  "mcpInstallHistory": "最近のアクティビティ",
+  "mcpUninstall": "アンインストール",
+  "mcpCopyUninstallCommand": "アンインストールコマンドをコピー",
+  "mcpUninstallConfirmTitle": "DevConnect MCP をアンインストールしますか?",
+  "mcpUninstallConfirmBody": "{client} から devconnect エントリが削除されます。「インストールを実行」をクリックすればいつでも再インストールできます。",
+  "@mcpUninstallConfirmBody": {
+    "placeholders": {
+      "client": { "type": "String" }
+    }
+  },
+  "mcpConfirmationTitle": "MCP 確認が必要",
+  "mcpConfirmationSubtitle": "デバイス上でのクリック、入力、ファイル転送、または録画を実行する前に承認を求めます",
+  "mcpDevicePort": "デバイスポート",
+  "mcpServerPort": "MCP ポート",
+  "mcpAutoStartTitle": "MCP サーバーを自動起動",
+  "mcpAutoStartSubtitle": "アプリ起動時に MCP WebSocket サーバーを自動的に起動",
+  "mcpAutoSpawnLocalTitle": "ローカル MCP サーバーを自動起動",
+  "mcpAutoSpawnLocalSubtitle": "MCP パネルを開いた時に node dist/index.js を起動（localhost モード）",
+  "mcpReconfiguringTitle": "MCP を再設定中…",
+  "mcpReconfiguringBody": "アクティブなクライアントの MCP ポート設定を更新しています。",
+  "mcpReconfiguredSuccess": "アクティブなすべての MCP クライアントの再設定に成功しました！"
 }

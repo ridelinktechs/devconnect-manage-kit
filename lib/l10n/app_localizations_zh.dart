@@ -1116,6 +1116,96 @@ class SZh extends S {
 
   @override
   String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
+
+  @override
+  String get mcpSectionTitle => 'MCP';
+
+  @override
+  String get mcpSectionSubtitle =>
+      '将 DevConnect MCP 安装到您的 AI 编程助手中。无需身份验证 — 服务器在本地运行,信任您的网络。';
+
+  @override
+  String get mcpClaudeCodeCard => 'Claude Code';
+
+  @override
+  String get mcpCodexCard => 'Codex';
+
+  @override
+  String get mcpCopyInstallCommand => '复制安装命令';
+
+  @override
+  String get mcpRunInstall => '运行安装';
+
+  @override
+  String get mcpCommandCopied => '已复制安装命令';
+
+  @override
+  String get mcpInstallResult => '安装结果';
+
+  @override
+  String get mcpInstallSuccess => '安装成功';
+
+  @override
+  String get mcpInstallFailed => '安装失败';
+
+  @override
+  String get mcpInstallTimeout => '30 秒后超时,进程已被终止。';
+
+  @override
+  String mcpInstallBinaryMissing(String client, String url) {
+    return '未找到 $client CLI。请从 $url 安装';
+  }
+
+  @override
+  String get mcpInstallHistory => '最近活动';
+
+  @override
+  String get mcpUninstall => '卸载';
+
+  @override
+  String get mcpCopyUninstallCommand => '复制卸载命令';
+
+  @override
+  String get mcpUninstallConfirmTitle => '卸载 DevConnect MCP?';
+
+  @override
+  String mcpUninstallConfirmBody(String client) {
+    return '这将从 $client 中移除 devconnect 条目。随时可以点击\"运行安装\"重新安装。';
+  }
+
+  @override
+  String get mcpConfirmationTitle => '需要 MCP 确认';
+
+  @override
+  String get mcpConfirmationSubtitle => '在设备上执行点击、输入、文件传输或录屏前进行提示确认';
+
+  @override
+  String get mcpDevicePort => '设备端口';
+
+  @override
+  String get mcpServerPort => 'MCP 端口';
+
+  @override
+  String get mcpAutoStartTitle => '自动启动 MCP 服务';
+
+  @override
+  String get mcpAutoStartSubtitle => '应用启动时自动启动 MCP WebSocket 服务';
+
+  @override
+  String get mcpAutoSpawnLocalTitle => '自动启动本地 MCP 服务';
+
+  @override
+  String get mcpAutoSpawnLocalSubtitle =>
+      '打开 MCP 面板时启动 node dist/index.js（localhost 模式）';
+
+  @override
+  String get mcpReconfiguringTitle => '正在重新配置 MCP…';
+
+  @override
+  String get mcpReconfiguringBody => '正在更新所有活跃客户端的 MCP 端口配置。';
+
+  @override
+  String get mcpReconfiguredSuccess => '已成功重新配置所有活跃的 MCP 客户端！';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -2230,6 +2320,96 @@ class SZhCn extends SZh {
 
   @override
   String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
+
+  @override
+  String get mcpSectionTitle => 'MCP';
+
+  @override
+  String get mcpSectionSubtitle =>
+      '将 DevConnect MCP 安装到您的 AI 编程助手中。无需身份验证 — 服务器在本地运行,信任您的网络。';
+
+  @override
+  String get mcpClaudeCodeCard => 'Claude Code';
+
+  @override
+  String get mcpCodexCard => 'Codex';
+
+  @override
+  String get mcpCopyInstallCommand => '复制安装命令';
+
+  @override
+  String get mcpRunInstall => '运行安装';
+
+  @override
+  String get mcpCommandCopied => '已复制安装命令';
+
+  @override
+  String get mcpInstallResult => '安装结果';
+
+  @override
+  String get mcpInstallSuccess => '安装成功';
+
+  @override
+  String get mcpInstallFailed => '安装失败';
+
+  @override
+  String get mcpInstallTimeout => '30 秒后超时,进程已被终止。';
+
+  @override
+  String mcpInstallBinaryMissing(String client, String url) {
+    return '未找到 $client CLI。请从 $url 安装';
+  }
+
+  @override
+  String get mcpInstallHistory => '最近活动';
+
+  @override
+  String get mcpUninstall => '卸载';
+
+  @override
+  String get mcpCopyUninstallCommand => '复制卸载命令';
+
+  @override
+  String get mcpUninstallConfirmTitle => '卸载 DevConnect MCP?';
+
+  @override
+  String mcpUninstallConfirmBody(String client) {
+    return '这将从 $client 中移除 devconnect 条目。随时可以点击\"运行安装\"重新安装。';
+  }
+
+  @override
+  String get mcpConfirmationTitle => '需要 MCP 确认';
+
+  @override
+  String get mcpConfirmationSubtitle => '在设备上执行点击、输入、文件传输或录屏前进行提示确认';
+
+  @override
+  String get mcpDevicePort => '设备端口';
+
+  @override
+  String get mcpServerPort => 'MCP 端口';
+
+  @override
+  String get mcpAutoStartTitle => '自动启动 MCP 服务';
+
+  @override
+  String get mcpAutoStartSubtitle => '应用启动时自动启动 MCP WebSocket 服务';
+
+  @override
+  String get mcpAutoSpawnLocalTitle => '自动启动本地 MCP 服务';
+
+  @override
+  String get mcpAutoSpawnLocalSubtitle =>
+      '打开 MCP 面板时启动 node dist/index.js（localhost 模式）';
+
+  @override
+  String get mcpReconfiguringTitle => '正在重新配置 MCP…';
+
+  @override
+  String get mcpReconfiguringBody => '正在更新所有活跃客户端的 MCP 端口配置。';
+
+  @override
+  String get mcpReconfiguredSuccess => '已成功重新配置所有活跃的 MCP 客户端！';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -3344,4 +3524,94 @@ class SZhTw extends SZh {
 
   @override
   String get binaryBodyHint => '透過 X-Amz-Target 標頭識別操作。';
+
+  @override
+  String get mcpSectionTitle => 'MCP';
+
+  @override
+  String get mcpSectionSubtitle =>
+      '將 DevConnect MCP 安裝到您的 AI 程式輔助工具。無需身份驗證 — 伺服器在本機執行,信任您的網路。';
+
+  @override
+  String get mcpClaudeCodeCard => 'Claude Code';
+
+  @override
+  String get mcpCodexCard => 'Codex';
+
+  @override
+  String get mcpCopyInstallCommand => '複製安裝指令';
+
+  @override
+  String get mcpRunInstall => '執行安裝';
+
+  @override
+  String get mcpCommandCopied => '已複製安裝指令';
+
+  @override
+  String get mcpInstallResult => '安裝結果';
+
+  @override
+  String get mcpInstallSuccess => '安裝成功';
+
+  @override
+  String get mcpInstallFailed => '安裝失敗';
+
+  @override
+  String get mcpInstallTimeout => '30 秒後逾時,行程已終止。';
+
+  @override
+  String mcpInstallBinaryMissing(String client, String url) {
+    return '找不到 $client CLI。請從 $url 安裝';
+  }
+
+  @override
+  String get mcpInstallHistory => '最近活動';
+
+  @override
+  String get mcpUninstall => '解除安裝';
+
+  @override
+  String get mcpCopyUninstallCommand => '複製解除安裝指令';
+
+  @override
+  String get mcpUninstallConfirmTitle => '解除安裝 DevConnect MCP?';
+
+  @override
+  String mcpUninstallConfirmBody(String client) {
+    return '這將從 $client 中移除 devconnect 條目。隨時可以點選「執行安裝」重新安裝。';
+  }
+
+  @override
+  String get mcpConfirmationTitle => '需要 MCP 確認';
+
+  @override
+  String get mcpConfirmationSubtitle => '在裝置上執行點擊、輸入、檔案傳輸或錄影前進行提示確認';
+
+  @override
+  String get mcpDevicePort => '裝置連接埠';
+
+  @override
+  String get mcpServerPort => 'MCP 連接埠';
+
+  @override
+  String get mcpAutoStartTitle => '自動啟動 MCP 服務';
+
+  @override
+  String get mcpAutoStartSubtitle => '應用啟動時自動啟動 MCP WebSocket 服務';
+
+  @override
+  String get mcpAutoSpawnLocalTitle => '自動啟動本地 MCP 服務';
+
+  @override
+  String get mcpAutoSpawnLocalSubtitle =>
+      '開啟 MCP 面板時啟動 node dist/index.js（localhost 模式）';
+
+  @override
+  String get mcpReconfiguringTitle => '正在重新設定 MCP…';
+
+  @override
+  String get mcpReconfiguringBody => '正在更新所有作用中客戶端的 MCP 連接埠設定。';
+
+  @override
+  String get mcpReconfiguredSuccess => '已成功重新設定所有作用中的 MCP 客戶端！';
 }

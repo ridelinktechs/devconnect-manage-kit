@@ -48,4 +48,11 @@ class WsMessageTypes {
   static const String clientAsyncOperation = 'client:async:operation';
   static const String clientError = 'client:error';
   static const String clientCrash = 'client:crash';
+
+  // MCP control channel — `client` here is the `devconnect-manage`
+  // server (npm package) talking TO the desktop, NOT a mobile app. The
+  // device-side `client:handshake` reuses the same handshake shape, just
+  // with `appName: "devconnect-manage"` so the desktop can tell them apart.
+  static const String clientMcpCommand = 'mcp:command';
+  static const String serverMcpResponse = 'mcp:response';
 }

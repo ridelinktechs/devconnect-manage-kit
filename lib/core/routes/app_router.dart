@@ -15,11 +15,11 @@ import '../../features/error_inspector/presentation/pages/error_inspector_page.d
 import '../../features/storage_viewer/presentation/pages/storage_viewer_page.dart';
 import '../routes/app_shell.dart';
 
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouter = GoRouter(
-  navigatorKey: _rootNavigatorKey,
+  navigatorKey: rootNavigatorKey,
   initialLocation: '/all',
   routes: [
     ShellRoute(

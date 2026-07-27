@@ -1,0 +1,60 @@
+{
+  "name": "devconnect-manage",
+  "version": "0.1.0",
+  "description": "DevConnect MCP server — control mobile devices (iOS/Android) from AI coding assistants via DevConnect Manage Tool.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "devconnect-manage": "dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "devconnect",
+    "devconnect-manage",
+    "mobile",
+    "ios",
+    "android",
+    "adb",
+    "simctl",
+    "debugging",
+    "ai",
+    "claude",
+    "codex"
+  ],
+  "author": "Ridelink Techs",
+  "license": "MIT",
+  "homepage": "https://github.com/ridelinktechs/devconnect-manage-kit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ridelinktechs/devconnect-manage-kit.git",
+    "directory": "client_sdks/devconnect-mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/ridelinktechs/devconnect-manage-kit/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^5.2.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

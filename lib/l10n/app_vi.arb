@@ -328,5 +328,45 @@
   "smoothScrollingDurationDesc": "Thời gian chạy hiệu ứng cuộn mượt mà tính bằng mili-giây.",
   "binaryBody": "Body {label} là nhị phân",
   "binaryBodySize": "{kb} KB ({bytes} byte)",
-  "binaryBodyHint": "Xác định action thông qua header X-Amz-Target."
+  "binaryBodyHint": "Xác định action thông qua header X-Amz-Target.",
+
+  "mcpSectionTitle": "MCP",
+  "mcpSectionSubtitle": "Cài DevConnect MCP vào AI coding assistant của bạn. Không cần xác thực — server chạy local và tin tưởng mạng nội bộ của bạn.",
+  "mcpClaudeCodeCard": "Claude Code",
+  "mcpCodexCard": "Codex",
+  "mcpCopyInstallCommand": "Sao chép lệnh cài",
+  "mcpRunInstall": "Chạy lệnh cài",
+  "mcpCommandCopied": "Đã sao chép lệnh cài",
+  "mcpInstallResult": "Kết quả cài đặt",
+  "mcpInstallSuccess": "Cài đặt thành công",
+  "mcpInstallFailed": "Cài đặt thất bại",
+  "mcpInstallTimeout": "Quá thời gian sau 30s. Tiến trình đã bị kill.",
+  "mcpInstallBinaryMissing": "Không tìm thấy {client} CLI. Cài từ {url}",
+  "@mcpInstallBinaryMissing": {
+    "placeholders": {
+      "client": { "type": "String" },
+      "url": { "type": "String" }
+    }
+  },
+  "mcpInstallHistory": "Hoạt động gần đây",
+  "mcpUninstall": "Gỡ cài đặt",
+  "mcpCopyUninstallCommand": "Sao chép lệnh gỡ",
+  "mcpUninstallConfirmTitle": "Gỡ cài đặt DevConnect MCP?",
+  "mcpUninstallConfirmBody": "Thao tác này sẽ xoá entry devconnect khỏi {client}. Bạn có thể cài lại bất cứ lúc nào bằng cách bấm Chạy lệnh cài.",
+  "@mcpUninstallConfirmBody": {
+    "placeholders": {
+      "client": { "type": "String" }
+    }
+  },
+  "mcpConfirmationTitle": "Yêu cầu xác nhận MCP",
+  "mcpConfirmationSubtitle": "Hỏi ý kiến trước khi AI thực hiện click, nhập chữ, truyền file hoặc ghi hình trên thiết bị",
+  "mcpDevicePort": "Cổng thiết bị",
+  "mcpServerPort": "Cổng MCP",
+  "mcpAutoStartTitle": "Tự động khởi động MCP server",
+  "mcpAutoStartSubtitle": "Tự khởi động MCP WebSocket server khi mở app",
+  "mcpAutoSpawnLocalTitle": "Tự khởi chạy MCP server cục bộ",
+  "mcpAutoSpawnLocalSubtitle": "Chạy node dist/index.js khi mở panel MCP (chế độ localhost)",
+  "mcpReconfiguringTitle": "Đang cấu hình lại MCP…",
+  "mcpReconfiguringBody": "Đang cập nhật cổng MCP cho các client đang hoạt động.",
+  "mcpReconfiguredSuccess": "Đã cấu hình lại thành công tất cả MCP client đang hoạt động!"
 }

@@ -67,6 +67,15 @@ client_sdks/devconnect-react-native/dist/
 client_sdks/devconnect-react-native/package-lock.json
 client_sdks/devconnect-react-native/yarn.lock
 
+# Node (MCP server: devconnect-manage-mcp)
+# package-lock.json IS committed — npm best practice for reproducible
+# publishes. node_modules/ + dist/ + tsbuildinfo are local-only.
+client_sdks/devconnect-mcp/node_modules/
+client_sdks/devconnect-mcp/dist/
+client_sdks/devconnect-mcp/*.tsbuildinfo
+client_sdks/devconnect-mcp/.npm/
+client_sdks/devconnect-mcp/package-lock.json
+
 # Android SDK build
 client_sdks/devconnect-android/build/
 client_sdks/devconnect-android/.gradle/
@@ -82,3 +91,6 @@ macos/Podfile.lock
 *.env
 *.key
 *.pem
+
+.specify
+/specs

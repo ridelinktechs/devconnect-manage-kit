@@ -328,5 +328,45 @@
   "smoothScrollingDurationDesc": "La durée de l'animation de défilement en millisecondes.",
   "binaryBody": "Le corps de {label} est binaire",
   "binaryBodySize": "{kb} Ko ({bytes} octets)",
-  "binaryBodyHint": "Identifiez l'action via l'en-tête X-Amz-Target."
+  "binaryBodyHint": "Identifiez l'action via l'en-tête X-Amz-Target.",
+
+  "mcpSectionTitle": "MCP",
+  "mcpSectionSubtitle": "Installez DevConnect MCP dans votre assistant IA. Aucune authentification requise — le serveur tourne en local et fait confiance à votre réseau.",
+  "mcpClaudeCodeCard": "Claude Code",
+  "mcpCodexCard": "Codex",
+  "mcpCopyInstallCommand": "Copier la commande",
+  "mcpRunInstall": "Exécuter l'installation",
+  "mcpCommandCopied": "Commande d'installation copiée",
+  "mcpInstallResult": "Résultat de l'installation",
+  "mcpInstallSuccess": "Installation réussie",
+  "mcpInstallFailed": "Échec de l'installation",
+  "mcpInstallTimeout": "Installation expirée après 30s. Le processus a été tué.",
+  "mcpInstallBinaryMissing": "CLI {client} introuvable. Installez depuis {url}",
+  "@mcpInstallBinaryMissing": {
+    "placeholders": {
+      "client": { "type": "String" },
+      "url": { "type": "String" }
+    }
+  },
+  "mcpInstallHistory": "Activité récente",
+  "mcpUninstall": "Désinstaller",
+  "mcpCopyUninstallCommand": "Copier la commande de désinstallation",
+  "mcpUninstallConfirmTitle": "Désinstaller DevConnect MCP ?",
+  "mcpUninstallConfirmBody": "Cela supprimera l'entrée devconnect de {client}. Vous pouvez la réinstaller à tout moment en cliquant sur Exécuter l'installation.",
+  "@mcpUninstallConfirmBody": {
+    "placeholders": {
+      "client": { "type": "String" }
+    }
+  },
+  "mcpConfirmationTitle": "Confirmation MCP requise",
+  "mcpConfirmationSubtitle": "Demander l'approbation avant d'exécuter des clics, des saisies, des fichiers ou des enregistrements sur les appareils",
+  "mcpDevicePort": "Port de l'appareil",
+  "mcpServerPort": "Port MCP",
+  "mcpAutoStartTitle": "Démarrer automatiquement le serveur MCP",
+  "mcpAutoStartSubtitle": "Démarrer le serveur WebSocket MCP au lancement de l'application",
+  "mcpAutoSpawnLocalTitle": "Lancer automatiquement le serveur MCP local",
+  "mcpAutoSpawnLocalSubtitle": "Démarrer node dist/index.js à l'ouverture du panneau MCP (mode localhost)",
+  "mcpReconfiguringTitle": "Reconfiguration du MCP…",
+  "mcpReconfiguringBody": "Mise à jour des configurations de port MCP pour tous les clients actifs.",
+  "mcpReconfiguredSuccess": "Tous les clients MCP actifs ont été reconfigurés avec succès !"
 }

@@ -2078,6 +2078,174 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Identify the action via the X-Amz-Target header.'**
   String get binaryBodyHint;
+
+  /// No description provided for @mcpSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP'**
+  String get mcpSectionTitle;
+
+  /// No description provided for @mcpSectionSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Install DevConnect MCP into your AI coding assistant. No auth required — the server runs locally and trusts your network.'**
+  String get mcpSectionSubtitle;
+
+  /// No description provided for @mcpClaudeCodeCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude Code'**
+  String get mcpClaudeCodeCard;
+
+  /// No description provided for @mcpCodexCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Codex'**
+  String get mcpCodexCard;
+
+  /// No description provided for @mcpCopyInstallCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy install command'**
+  String get mcpCopyInstallCommand;
+
+  /// No description provided for @mcpRunInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Run install'**
+  String get mcpRunInstall;
+
+  /// No description provided for @mcpCommandCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Install command copied'**
+  String get mcpCommandCopied;
+
+  /// No description provided for @mcpInstallResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Install result'**
+  String get mcpInstallResult;
+
+  /// No description provided for @mcpInstallSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Install successful'**
+  String get mcpInstallSuccess;
+
+  /// No description provided for @mcpInstallFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Install failed'**
+  String get mcpInstallFailed;
+
+  /// No description provided for @mcpInstallTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Install timed out after 30s. The process was killed.'**
+  String get mcpInstallTimeout;
+
+  /// No description provided for @mcpInstallBinaryMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'{client} CLI not found. Install from {url}'**
+  String mcpInstallBinaryMissing(String client, String url);
+
+  /// No description provided for @mcpInstallHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent activity'**
+  String get mcpInstallHistory;
+
+  /// No description provided for @mcpUninstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Uninstall'**
+  String get mcpUninstall;
+
+  /// No description provided for @mcpCopyUninstallCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy uninstall command'**
+  String get mcpCopyUninstallCommand;
+
+  /// No description provided for @mcpUninstallConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Uninstall DevConnect MCP?'**
+  String get mcpUninstallConfirmTitle;
+
+  /// No description provided for @mcpUninstallConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This will remove the devconnect entry from {client}. You can reinstall at any time by clicking Run install.'**
+  String mcpUninstallConfirmBody(String client);
+
+  /// No description provided for @mcpConfirmationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Require MCP Confirmation'**
+  String get mcpConfirmationTitle;
+
+  /// No description provided for @mcpConfirmationSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt for approval before executing clicks, typing, files, or recording on devices'**
+  String get mcpConfirmationSubtitle;
+
+  /// No description provided for @mcpDevicePort.
+  ///
+  /// In en, this message translates to:
+  /// **'Device Port'**
+  String get mcpDevicePort;
+
+  /// No description provided for @mcpServerPort.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP Port'**
+  String get mcpServerPort;
+
+  /// No description provided for @mcpAutoStartTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-start MCP server'**
+  String get mcpAutoStartTitle;
+
+  /// No description provided for @mcpAutoStartSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start the MCP WebSocket server automatically when the app launches'**
+  String get mcpAutoStartSubtitle;
+
+  /// No description provided for @mcpAutoSpawnLocalTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-spawn local MCP server'**
+  String get mcpAutoSpawnLocalTitle;
+
+  /// No description provided for @mcpAutoSpawnLocalSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Launch node dist/index.js as a child process when the MCP panel opens (localhost mode)'**
+  String get mcpAutoSpawnLocalSubtitle;
+
+  /// No description provided for @mcpReconfiguringTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconfiguring MCP…'**
+  String get mcpReconfiguringTitle;
+
+  /// No description provided for @mcpReconfiguringBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating MCP port configurations across all active clients.'**
+  String get mcpReconfiguringBody;
+
+  /// No description provided for @mcpReconfiguredSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Successfully reconfigured all active MCP clients!'**
+  String get mcpReconfiguredSuccess;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

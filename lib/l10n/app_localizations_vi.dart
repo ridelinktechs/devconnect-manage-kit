@@ -1145,4 +1145,99 @@ class SVi extends S {
 
   @override
   String get binaryBodyHint => 'Xác định action thông qua header X-Amz-Target.';
+
+  @override
+  String get mcpSectionTitle => 'MCP';
+
+  @override
+  String get mcpSectionSubtitle =>
+      'Cài DevConnect MCP vào AI coding assistant của bạn. Không cần xác thực — server chạy local và tin tưởng mạng nội bộ của bạn.';
+
+  @override
+  String get mcpClaudeCodeCard => 'Claude Code';
+
+  @override
+  String get mcpCodexCard => 'Codex';
+
+  @override
+  String get mcpCopyInstallCommand => 'Sao chép lệnh cài';
+
+  @override
+  String get mcpRunInstall => 'Chạy lệnh cài';
+
+  @override
+  String get mcpCommandCopied => 'Đã sao chép lệnh cài';
+
+  @override
+  String get mcpInstallResult => 'Kết quả cài đặt';
+
+  @override
+  String get mcpInstallSuccess => 'Cài đặt thành công';
+
+  @override
+  String get mcpInstallFailed => 'Cài đặt thất bại';
+
+  @override
+  String get mcpInstallTimeout =>
+      'Quá thời gian sau 30s. Tiến trình đã bị kill.';
+
+  @override
+  String mcpInstallBinaryMissing(String client, String url) {
+    return 'Không tìm thấy $client CLI. Cài từ $url';
+  }
+
+  @override
+  String get mcpInstallHistory => 'Hoạt động gần đây';
+
+  @override
+  String get mcpUninstall => 'Gỡ cài đặt';
+
+  @override
+  String get mcpCopyUninstallCommand => 'Sao chép lệnh gỡ';
+
+  @override
+  String get mcpUninstallConfirmTitle => 'Gỡ cài đặt DevConnect MCP?';
+
+  @override
+  String mcpUninstallConfirmBody(String client) {
+    return 'Thao tác này sẽ xoá entry devconnect khỏi $client. Bạn có thể cài lại bất cứ lúc nào bằng cách bấm Chạy lệnh cài.';
+  }
+
+  @override
+  String get mcpConfirmationTitle => 'Yêu cầu xác nhận MCP';
+
+  @override
+  String get mcpConfirmationSubtitle =>
+      'Hỏi ý kiến trước khi AI thực hiện click, nhập chữ, truyền file hoặc ghi hình trên thiết bị';
+
+  @override
+  String get mcpDevicePort => 'Cổng thiết bị';
+
+  @override
+  String get mcpServerPort => 'Cổng MCP';
+
+  @override
+  String get mcpAutoStartTitle => 'Tự động khởi động MCP server';
+
+  @override
+  String get mcpAutoStartSubtitle =>
+      'Tự khởi động MCP WebSocket server khi mở app';
+
+  @override
+  String get mcpAutoSpawnLocalTitle => 'Tự khởi chạy MCP server cục bộ';
+
+  @override
+  String get mcpAutoSpawnLocalSubtitle =>
+      'Chạy node dist/index.js khi mở panel MCP (chế độ localhost)';
+
+  @override
+  String get mcpReconfiguringTitle => 'Đang cấu hình lại MCP…';
+
+  @override
+  String get mcpReconfiguringBody =>
+      'Đang cập nhật cổng MCP cho các client đang hoạt động.';
+
+  @override
+  String get mcpReconfiguredSuccess =>
+      'Đã cấu hình lại thành công tất cả MCP client đang hoạt động!';
 }
