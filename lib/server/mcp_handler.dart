@@ -37,11 +37,17 @@ class McpHandler {
   final Ref ref;
   final _uuid = const Uuid();
   final _recordings = <String, Process>{};
+  /// Tracks the output file path used when starting each recording so that
+  /// stop_screen_recording returns the correct path even when the caller
+  /// does not re-supply it.
+  final _recordingPaths = <String, String>{};
+  StreamSubscription<DCMessage>? _mcpSub;
 
   McpHandler(this.mcpServer, this.deviceServer, this.ref);
 
   void register() {
-    mcpServer.onMessage.listen((msg) {
+    _mcpSub?.cancel();
+    _mcpSub = mcpServer.onMessage.listen((msg) {
       if (msg.type == WsMessageTypes.clientMcpCommand) {
         _dispatch(msg);
       }
@@ -49,12 +55,15 @@ class McpHandler {
   }
 
   void dispose() {
+    _mcpSub?.cancel();
+    _mcpSub = null;
     for (final process in _recordings.values) {
       try {
         process.kill();
       } catch (_) {}
     }
     _recordings.clear();
+    _recordingPaths.clear();
   }
 
   Future<void> _dispatch(DCMessage msg) async {
@@ -100,7 +109,10 @@ class McpHandler {
               completer: completer,
             ),
           );
-          final approved = await completer.future;
+          // Auto-deny after 60s to prevent hanging when the user
+          // minimises the app or ignores the confirmation overlay.
+          final approved = await completer.future
+              .timeout(const Duration(seconds: 60), onTimeout: () => false);
           if (!approved) {
             _respond(msg.deviceId, correlationId, {'ok': false, 'error': 'Action denied by developer'});
             return;
@@ -398,8 +410,12 @@ class McpHandler {
         args = ['-s', serial, 'shell', 'input', 'tap', '${p['x']}', '${p['y']}'];
         break;
       case 'double_tap':
-        args = ['-s', serial, 'shell', 'input', 'tap', '${p['x']}', '${p['y']}',
-                '&&', 'sleep', '0.1', '&&', 'adb', '-s', serial, 'shell', 'input', 'tap', '${p['x']}', '${p['y']}'];
+        // Two separate taps with a short delay — shell operators like &&
+        // don't work when passed as Process.run arguments.
+        await Process.run(adb, ['-s', serial, 'shell', 'input', 'tap', '${p['x']}', '${p['y']}'])
+            .timeout(const Duration(seconds: 10));
+        await Future.delayed(const Duration(milliseconds: 100));
+        args = ['-s', serial, 'shell', 'input', 'tap', '${p['x']}', '${p['y']}'];
         break;
       case 'long_press':
         final ms = p['durationMs'] ?? 500;
@@ -540,18 +556,21 @@ class McpHandler {
 
   Future<Map<String, dynamic>> _adbTakeScreenshot(String adb, String serial) async {
     try {
-      final r = await Process.run(adb, ['-s', serial, 'exec-out', 'screencap', '-p'])
-          .timeout(const Duration(seconds: 15));
+      // stdoutEncoding: null → stdout is List<int> (raw bytes), not String.
+      final r = await Process.run(
+        adb,
+        ['-s', serial, 'exec-out', 'screencap', '-p'],
+        stdoutEncoding: null,
+      ).timeout(const Duration(seconds: 15));
       if (r.exitCode != 0) {
         return {'ok': false, 'error': 'screencap failed: ${r.stderr}'};
       }
       final bytes = r.stdout as List<int>;
-      // adb exec-out returns raw PNG bytes; encode as base64.
       return {
         'ok': true,
         'data': {
           'format': 'png',
-          'width': 0,    // adb screencap doesn't return dims cheaply
+          'width': 0,
           'height': 0,
           'base64': base64Encode(bytes),
         },
@@ -563,15 +582,19 @@ class McpHandler {
 
   Future<Map<String, dynamic>> _adbSaveScreenshot(String adb, String serial, String path) async {
     try {
-      final r = await Process.run(adb, ['-s', serial, 'exec-out', 'screencap', '-p'])
-          .timeout(const Duration(seconds: 15));
+      final r = await Process.run(
+        adb,
+        ['-s', serial, 'exec-out', 'screencap', '-p'],
+        stdoutEncoding: null,
+      ).timeout(const Duration(seconds: 15));
       if (r.exitCode != 0) {
         return {'ok': false, 'error': 'screencap failed: ${r.stderr}'};
       }
+      final bytes = r.stdout as List<int>;
       final file = File(path);
       await file.parent.create(recursive: true);
-      await file.writeAsBytes(r.stdout as List<int>);
-      return {'ok': true, 'data': {'path': path, 'bytes': (r.stdout as List).length}};
+      await file.writeAsBytes(bytes);
+      return {'ok': true, 'data': {'path': path, 'bytes': bytes.length}};
     } on Exception catch (e) {
       return {'ok': false, 'error': e.toString()};
     }
@@ -836,6 +859,14 @@ class McpHandler {
           return {'ok': false, 'error': 'Failed to resolve app container: ${containerRes.stderr}'};
         }
         final containerPath = containerRes.stdout.toString().trim();
+        // Sanitize: the path must be non-empty, absolute, and look like a
+        // valid simulator container (~/Library/Developer/CoreSimulator/…)
+        // to prevent accidental rm -rf of unrelated directories.
+        if (containerPath.isEmpty ||
+            !containerPath.startsWith('/') ||
+            !containerPath.contains('CoreSimulator')) {
+          return {'ok': false, 'error': 'Unexpected container path: $containerPath'};
+        }
         try {
           await Process.run('rm', ['-rf', '$containerPath/Documents']);
           await Process.run('rm', ['-rf', '$containerPath/Library']);
@@ -863,10 +894,12 @@ class McpHandler {
             _recordings[udid]?.kill();
           } catch (_) {}
           _recordings.remove(udid);
+          _recordingPaths.remove(udid);
         }
         final localPath = p['path'] as String? ?? '${Directory.systemTemp.path}/devconnect_sim_record_$udid.mp4';
         final process = await Process.start('xcrun', ['simctl', 'io', udid, 'record-video', '--force', localPath]);
         _recordings[udid] = process;
+        _recordingPaths[udid] = localPath;
         return {'ok': true, 'message': 'Screen recording started on iOS Simulator'};
       case 'stop_screen_recording':
         final process = _recordings[udid];
@@ -877,8 +910,11 @@ class McpHandler {
           process.kill(ProcessSignal.sigint);
           await process.exitCode.timeout(const Duration(seconds: 5), onTimeout: () => 0);
         } catch (_) {}
+        // Use the path stored at start-time so the caller gets the
+        // correct file even if they omit/change `path` at stop-time.
+        final localPath = _recordingPaths[udid] ?? p['path'] as String? ?? '${Directory.systemTemp.path}/devconnect_sim_record_$udid.mp4';
         _recordings.remove(udid);
-        final localPath = p['path'] as String? ?? '${Directory.systemTemp.path}/devconnect_sim_record_$udid.mp4';
+        _recordingPaths.remove(udid);
         return {
           'ok': true,
           'data': {'path': localPath}
@@ -989,10 +1025,30 @@ class McpHandler {
   }
 
   Future<Map<String, dynamic>> _simctlScreenSize() async {
-    // simctl doesn't expose screen size cleanly; default to a sensible
-    // portrait iPhone size and let the AI adapt. The real device list
-    // returns from list_devices already, so the AI can usually see
-    // model identifier.
+    // Try to get actual screen dimensions via system_profiler.
+    // Falls back to a sensible iPhone 15 portrait size.
+    try {
+      final r = await Process.run(
+        'xcrun',
+        ['simctl', 'io', 'booted', 'enumerate'],
+      ).timeout(const Duration(seconds: 5));
+      if (r.exitCode == 0) {
+        final out = r.stdout.toString();
+        final wm = RegExp(r'(\d{3,4})\s*x\s*(\d{3,4})').firstMatch(out);
+        if (wm != null) {
+          final w = int.parse(wm.group(1)!);
+          final h = int.parse(wm.group(2)!);
+          return {
+            'ok': true,
+            'data': {
+              'width': w,
+              'height': h,
+              'orientation': w > h ? 'landscape' : 'portrait',
+            },
+          };
+        }
+      }
+    } catch (_) {}
     return {'ok': true, 'data': {'width': 393, 'height': 852, 'orientation': 'portrait'}};
   }
 
@@ -1063,14 +1119,13 @@ class McpHandler {
           e.url.toLowerCase().contains(lower) ||
           (e.error != null && e.error!.toLowerCase().contains(lower))).toList();
     }
-    if (statusMin != null) {
-      // NetworkEntry doesn't carry status code directly — derive from
-      // endTime presence (errors logged when present). For richer status
-      // matching the SDK needs to surface status code in future.
-      // No-op fallback: include only completed (endTime != null).
-      filtered = filtered.where((e) => e.endTime != null).toList();
-    }
-    if (statusMax != null) {
+    // TODO(mcp): statusMin/statusMax filtering is a no-op placeholder.
+    // NetworkEntry doesn't carry HTTP status code — the SDK needs to
+    // surface it in a future version. For now, when the caller supplies
+    // statusMin/statusMax we only filter to completed requests so the
+    // results are at least semantically reasonable. Document this
+    // limitation in the MCP tool description so AI agents know.
+    if (statusMin != null || statusMax != null) {
       filtered = filtered.where((e) => e.endTime != null).toList();
     }
 

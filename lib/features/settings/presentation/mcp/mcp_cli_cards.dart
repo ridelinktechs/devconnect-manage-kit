@@ -28,7 +28,10 @@ class McpCliCards extends ConsumerWidget {
     final loc = S.of(context);
     final port = ref.watch(mcpWsServerProvider).port;
     final localMcp = ref.watch(localMcpServerProvider);
-    final workspacePath = Directory.current.path;
+    // Resolve the workspace path used for Cursor's stdio JSON snippet.
+    // Directory.current returns '/' in packaged .app bundles — fall
+    // back to DEVCONNECT_WORKSPACE env or common dev locations.
+    final workspacePath = _resolveWorkspaceForSnippet();
     final mcpScriptPath = '$workspacePath/client_sdks/devconnect-mcp/dist/index.js';
 
     final cursorNpxSnippet = '''
@@ -530,6 +533,7 @@ final isCursor = widget.client.clientId == McpClientId.cursor;
           }
         }
         await AppPreferences().set('installed_mcp_clients', list);
+        _refreshInstallStatusAfterAction(ref, client.clientId);
       }
       final status = success ? McpResult.success : McpResult.failed;
       final command = action == McpAction.uninstall
@@ -1207,4 +1211,29 @@ void _refreshInstallStatusAfterAction(
   McpClientId clientId,
 ) {
   ref.read(mcpInstallStatusProvider.notifier).refreshOne(clientId);
+}
+
+/// Resolve the workspace root for the Cursor JSON snippet shown in
+/// the card. `Directory.current.path` returns `/` inside a packaged
+/// macOS .app — fall back to env / common dev locations.
+String _resolveWorkspaceForSnippet() {
+  final home = Platform.environment['HOME'] ?? '';
+  final candidates = <String>[
+    if (Platform.environment.containsKey('DEVCONNECT_WORKSPACE'))
+      Platform.environment['DEVCONNECT_WORKSPACE']!,
+    Directory.current.path,
+    '$home/Documents/ridelink-techs/connect-totron',
+    '$home/Documents/connect-totron',
+    '$home/ridelink-techs/connect-totron',
+    '$home/connect-totron',
+  ];
+  for (final root in candidates) {
+    if (root.isEmpty || root == '/') continue;
+    if (File('$root/client_sdks/devconnect-mcp/package.json').existsSync()) {
+      return root;
+    }
+  }
+  // Last resort — at least show something selectable so the user can
+  // manually fix the path in the snippet.
+  return Directory.current.path;
 }

@@ -24,11 +24,11 @@ class _McpConfirmationOverlayState extends ConsumerState<McpConfirmationOverlay>
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dialogBg = isDark
-        ? ColorTokens.darkSurface.withOpacity(0.85)
-        : Colors.white.withOpacity(0.85);
+        ? ColorTokens.darkSurface.withValues(alpha: 0.85)
+        : Colors.white.withValues(alpha: 0.85);
 
     return Material(
-      color: Colors.black.withOpacity(0.4),
+      color: Colors.black.withValues(alpha: 0.4),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: Center(
@@ -43,7 +43,7 @@ class _McpConfirmationOverlayState extends ConsumerState<McpConfirmationOverlay>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -84,7 +84,9 @@ class _McpConfirmationOverlayState extends ConsumerState<McpConfirmationOverlay>
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : Colors.black.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: isDark ? Colors.white10 : Colors.black12,
@@ -125,7 +127,7 @@ class _McpConfirmationOverlayState extends ConsumerState<McpConfirmationOverlay>
                     ),
                     const Expanded(
                       child: Text(
-                        'Trust always (disable future security prompts)',
+                        'Trust always (can be re-enabled in Settings → Server)',
                         style: TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ),

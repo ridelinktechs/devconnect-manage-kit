@@ -120,3 +120,29 @@ final mcpAutoSpawnLocalProvider =
     StateNotifierProvider<McpAutoSpawnLocalNotifier, bool>(
   (ref) => McpAutoSpawnLocalNotifier(),
 );
+
+/// Whether to show the security confirmation overlay when an MCP agent
+/// requests a device-control action (tap, swipe, install, etc.).
+///
+/// Defaults to `true`. The user can disable it via the "Trust always"
+/// checkbox in the confirmation overlay. This provider exposes a way
+/// to **re-enable** it from Settings → Server so the user isn't
+/// permanently locked out of the safety prompt.
+class McpConfirmationRequiredNotifier extends StateNotifier<bool> {
+  static const _key = 'mcpConfirmationRequired';
+
+  McpConfirmationRequiredNotifier() : super(true) {
+    final stored = AppPreferences().get<bool>(_key);
+    if (stored != null) state = stored;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    await AppPreferences().set(_key, value);
+  }
+}
+
+final mcpConfirmationRequiredProvider =
+    StateNotifierProvider<McpConfirmationRequiredNotifier, bool>(
+  (ref) => McpConfirmationRequiredNotifier(),
+);

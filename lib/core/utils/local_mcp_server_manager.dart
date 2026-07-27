@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/mcp_clients.dart';
-import '../../features/settings/presentation/mcp/cli_resolver.dart'
+import 'cli_resolver.dart'
     show augmentedEnv;
 
 /// Lifecycle state of the local HTTP MCP server. Surfaced through a
@@ -284,7 +284,9 @@ class LocalMcpServerManager {
 
   void _update(LocalMcpServerStatus next) {
     _status = next;
-    _statusCtrl.add(next);
+    if (!_statusCtrl.isClosed) {
+      _statusCtrl.add(next);
+    }
   }
 
   void dispose() {

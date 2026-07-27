@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../constants/mcp_clients.dart';
-import '../../features/settings/presentation/mcp/cli_resolver.dart'
+import 'cli_resolver.dart'
     show augmentedEnv, resolveCliBinary;
 
 /// Status of a client's installed MCP-server entry. `unknown` means we

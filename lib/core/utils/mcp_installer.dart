@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/mcp_clients.dart';
-import '../../features/settings/presentation/mcp/cli_resolver.dart';
+import 'cli_resolver.dart';
 import 'cursor_configurator.dart';
 
 /// Args threaded into the install/uninstall flows so the right transport
@@ -60,7 +60,15 @@ class McpInstaller {
                   '--url',
                   'http://127.0.0.1:${args.httpPort}/mcp',
                 ])
-          : ['mcp', 'add', 'devconnect-manage'];
+          : [
+              'mcp',
+              'add',
+              'devconnect-manage',
+              '--',
+              'npx',
+              '-y',
+              'devconnect-manage',
+            ];
       final result = await Process.run(exe, cliArgs, environment: augmentedEnv())
           .timeout(const Duration(seconds: 30));
       return result.exitCode == 0;

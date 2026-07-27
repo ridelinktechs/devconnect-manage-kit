@@ -21,7 +21,8 @@ class CursorConfigurator {
       final mcpServers = config['mcpServers'] as Map<String, dynamic>? ?? {};
       config['mcpServers'] = mcpServers;
 
-      final workspacePath = Directory.current.path;
+      final workspacePath = _resolveWorkspacePath();
+      if (workspacePath == null) return false;
       final mcpScriptPath = '$workspacePath/client_sdks/devconnect-mcp/dist/index.js';
 
       mcpServers['devconnect-manage'] = {
@@ -39,6 +40,7 @@ class CursorConfigurator {
       return false;
     }
   }
+
 
   /// Localhost install: writes an HTTP entry pointing at the local MCP
   /// server. The user must have the local server running (the desktop
@@ -116,4 +118,27 @@ class CursorConfigurator {
       return {};
     }
   }
+
+  /// Resolve the workspace root directory. `Directory.current` is
+  /// unreliable inside a packaged macOS .app (returns `/`), so we also
+  /// probe common dev locations and the DEVCONNECT_WORKSPACE env override.
+  static String? _resolveWorkspacePath() {
+    final home = _homeDir() ?? '';
+    final candidates = <String>[
+      if (Platform.environment.containsKey('DEVCONNECT_WORKSPACE'))
+        Platform.environment['DEVCONNECT_WORKSPACE']!,
+      Directory.current.path,
+      '$home/Documents/ridelink-techs/connect-totron',
+      '$home/Documents/connect-totron',
+      '$home/ridelink-techs/connect-totron',
+      '$home/connect-totron',
+    ];
+    for (final root in candidates) {
+      if (root.isEmpty || root == '/') continue;
+      final pkg = File('$root/client_sdks/devconnect-mcp/package.json');
+      if (pkg.existsSync()) return root;
+    }
+    return null;
+  }
 }
+

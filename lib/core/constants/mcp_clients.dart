@@ -50,7 +50,7 @@ String localhostCommandAt(McpClientId client, int port) {
   }
 }
 
-const Map<McpClientId, TokenCommandTemplate> mcpClients = {
+final Map<McpClientId, TokenCommandTemplate> mcpClients = {
   McpClientId.claudeCode: TokenCommandTemplate(
     clientId: McpClientId.claudeCode,
     displayName: 'Claude Code',
@@ -58,7 +58,7 @@ const Map<McpClientId, TokenCommandTemplate> mcpClients = {
     command:
         'claude mcp add -s user --transport stdio devconnect-manage -- npx -y devconnect-manage',
     localhostCommand:
-        'claude mcp add --transport http devconnect-manage http://127.0.0.1:5565/mcp --scope user',
+        'claude mcp add --transport http devconnect-manage http://127.0.0.1:$defaultLocalMcpHttpPort/mcp --scope user',
     uninstallCommand: 'claude mcp remove -s user devconnect-manage',
     downloadUrl: 'https://claude.com/download',
   ),
@@ -68,7 +68,7 @@ const Map<McpClientId, TokenCommandTemplate> mcpClients = {
     binaryName: 'codex',
     command: 'codex mcp add devconnect-manage -- npx -y devconnect-manage',
     localhostCommand:
-        'codex mcp add devconnect-manage --url http://127.0.0.1:5565/mcp',
+        'codex mcp add devconnect-manage --url http://127.0.0.1:$defaultLocalMcpHttpPort/mcp',
     uninstallCommand: 'codex mcp remove devconnect-manage',
     downloadUrl: 'https://github.com/openai/codex',
   ),
@@ -78,7 +78,7 @@ const Map<McpClientId, TokenCommandTemplate> mcpClients = {
     binaryName: 'cursor',
     command: 'Click "Run install" to automatically configure ~/.cursor/mcp.json',
     localhostCommand:
-        'Click "Run install" to automatically configure ~/.cursor/mcp.json (http://127.0.0.1:5565/mcp)',
+        'Click "Run install" to automatically configure ~/.cursor/mcp.json (http://127.0.0.1:$defaultLocalMcpHttpPort/mcp)',
     uninstallCommand: 'Click "Uninstall" to automatically remove the configuration',
     downloadUrl: 'https://cursor.com',
   ),
