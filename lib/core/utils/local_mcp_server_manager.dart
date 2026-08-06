@@ -131,7 +131,7 @@ class LocalMcpServerManager {
       // throws and the process exits before binding the HTTP listener —
       // the user would see a misleading "port already in use" error.
       // Probe the port first so we can fail with an actionable message.
-      if (!await _isPortListening(desktopWsPort)) {
+      if (!await isPortListening(desktopWsPort)) {
         _update(LocalMcpServerStatus(
           state: LocalMcpServerState.crashed,
           port: httpPort,
@@ -149,7 +149,7 @@ class LocalMcpServerManager {
       // crashed process stuck in TIME_WAIT would make the new node exit
       // with EADDRINUSE within milliseconds — before stdout flush —
       // and we'd surface a generic "did not become healthy" error.
-      final chosenPort = await _pickFreePort(httpPort);
+      final chosenPort = await pickFreePort(httpPort);
       if (chosenPort == null) {
         _update(LocalMcpServerStatus(
           state: LocalMcpServerState.crashed,
@@ -373,7 +373,8 @@ Future<bool> _autoBuildScript(String pkgDir) async {
 /// desktop's MCP WebSocket server is up before we spawn the local
 /// Node child — saves us from the "Node silently exits because
 /// desktop.connect() refused" failure mode.
-Future<bool> _isPortListening(int port) async {
+
+static Future<bool> isPortListening(int port) async {
   try {
     final s = await Socket.connect('127.0.0.1', port,
         timeout: const Duration(milliseconds: 500));
@@ -390,7 +391,8 @@ Future<bool> _isPortListening(int port) async {
 /// [Socket.connect] probe would mis-report as "free" — is detected
 /// correctly. Returns the chosen port, or null if every candidate is
 /// occupied.
-Future<int?> _pickFreePort(int start) async {
+
+static Future<int?> pickFreePort(int start) async {
   for (var p = start; p < start + 11; p++) {
     try {
       final s = await ServerSocket.bind(

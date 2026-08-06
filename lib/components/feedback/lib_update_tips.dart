@@ -136,13 +136,17 @@ class _CollapsedPill extends StatelessWidget {
           color: accent,
         ),
         const SizedBox(width: 6),
-        Text(
-          loc.sdkTipsPill,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
-            color: isDark ? Colors.white : Colors.black87,
+        Flexible(
+          child: Text(
+            loc.sdkTipsPill,
+            overflow: TextOverflow.fade,
+            softWrap: false,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
           ),
         ),
       ],

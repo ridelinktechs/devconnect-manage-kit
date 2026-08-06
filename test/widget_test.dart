@@ -20,6 +20,10 @@ void main() {
     await tester.pumpWidget(
       const ProviderScope(child: DevConnectApp()),
     );
-    await tester.pump(const Duration(milliseconds: 500));
+    // Drain the auto-start timers (most expensive is the 2s
+    // Process.run timeout in LocalMcpServerManager._resolveNodeBinary,
+    // plus the 3.2s toast dismiss timer that fires whenever a toast
+    // shows up during the first frame).
+    await tester.pump(const Duration(seconds: 5));
   });
 }

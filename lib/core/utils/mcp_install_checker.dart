@@ -83,27 +83,14 @@ class McpInstallChecker {
       ).timeout(_checkTimeout);
       final out = result.stdout.toString();
       final err = result.stderr.toString();
-      if (out.toLowerCase().contains('not found') ||
-          err.toLowerCase().contains('not found')) {
-        return const ClientInstallInfo(status: McpInstallStatus.notInstalled);
-      }
-      if (result.exitCode != 0) {
-        return ClientInstallInfo(
-          status: McpInstallStatus.unknown,
-          detail: 'claude mcp get exited ${result.exitCode}',
-        );
-      }
-      // Parse the Status line. Examples:
-      //   "Status: ! Connected"
-      //   "Status: X Failed to connect"
-      final statusMatch = RegExp(r'Status:\s*([^\n]+)').firstMatch(out);
-      final statusLine = statusMatch?.group(1)?.trim() ?? '';
-      final connected = statusLine.toLowerCase().contains('connected');
+      final parsed = parseClaudeGetOutput(
+        stdout: out,
+        stderr: err,
+        exitCode: result.exitCode,
+      );
       return ClientInstallInfo(
-        status: connected
-            ? McpInstallStatus.installed
-            : McpInstallStatus.unhealthy,
-        detail: statusLine.isEmpty ? null : statusLine,
+        status: parsed.status,
+        detail: parsed.detail,
       );
     } on TimeoutException {
       return const ClientInstallInfo(
@@ -143,26 +130,20 @@ class McpInstallChecker {
       // text instead — fall through to grep on raw text.
       final dyn = _tryParseJsonArray(raw);
       if (dyn != null) {
-        for (final entry in dyn) {
-          if (entry is Map && entry['name'] == 'devconnect-manage') {
-            final enabled = entry['enabled'] != false;
-            final transport = entry['transport'];
-            final isStreaming =
-                transport is Map &&
-                    (transport['type']?.toString().contains('http') ?? false);
-            return ClientInstallInfo(
-              status: enabled
-                  ? McpInstallStatus.installed
-                  : McpInstallStatus.unhealthy,
-              detail: enabled
-                  ? (isStreaming ? 'HTTP' : 'stdio')
-                  : 'disabled in codex config',
+        final picked = pickCodexEntry(dyn);
+        if (picked.found) {
+          if (!picked.enabled) {
+            return const ClientInstallInfo(
+              status: McpInstallStatus.unhealthy,
+              detail: 'disabled in codex config',
             );
           }
+          return ClientInstallInfo(
+            status: McpInstallStatus.installed,
+            detail: picked.transportKind,
+          );
         }
-        return const ClientInstallInfo(
-          status: McpInstallStatus.notInstalled,
-        );
+        return const ClientInstallInfo(status: McpInstallStatus.notInstalled);
       }
       if (raw.split('\n').any((l) => l.contains('devconnect-manage'))) {
         return const ClientInstallInfo(
@@ -213,15 +194,11 @@ class McpInstallChecker {
           detail: '~/.cursor/mcp.json is not valid JSON',
         );
       }
-      final servers = decoded['mcpServers'];
-      if (servers is Map && servers.containsKey('devconnect-manage')) {
-        final entry = servers['devconnect-manage'];
-        final isHttp = entry is Map &&
-            (entry['url'] != null ||
-                entry['type']?.toString().contains('http') == true);
+      final picked = pickCursorEntry(Map<String, dynamic>.from(decoded));
+      if (picked.found) {
         return ClientInstallInfo(
           status: McpInstallStatus.installed,
-          detail: isHttp ? 'HTTP' : 'stdio',
+          detail: picked.transportKind,
         );
       }
       return const ClientInstallInfo(status: McpInstallStatus.notInstalled);
@@ -259,6 +236,80 @@ Object? jsonDecodeSafe(String s) {
   } catch (_) {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Pure parsers — exported so unit tests can hit them without spawning a
+// real `claude`/`codex` subprocess or reading a real ~/.cursor/mcp.json.
+// ---------------------------------------------------------------------------
+
+/// Parses the output of `claude mcp get <name>`. Returns the inferred
+/// status + a detail string (the raw "Status: …" line) for tooltips.
+({McpInstallStatus status, String? detail}) parseClaudeGetOutput({
+  required String stdout,
+  required String stderr,
+  required int exitCode,
+}) {
+  if (stdout.toLowerCase().contains('not found') ||
+      stderr.toLowerCase().contains('not found')) {
+    return (status: McpInstallStatus.notInstalled, detail: null);
+  }
+  if (exitCode != 0) {
+    return (
+      status: McpInstallStatus.unknown,
+      detail: 'claude mcp get exited $exitCode',
+    );
+  }
+  final match = RegExp(r'Status:\s*([^\n]+)').firstMatch(stdout);
+  final statusLine = match?.group(1)?.trim() ?? '';
+  final connected = statusLine.toLowerCase().contains('connected');
+  return (
+    status:
+        connected ? McpInstallStatus.installed : McpInstallStatus.unhealthy,
+    detail: statusLine.isEmpty ? null : statusLine,
+  );
+}
+
+/// Picks our server's entry out of a parsed Codex list. Returns
+/// `(found: false)` when not present. The transport kind is exposed
+/// for tooltips ("HTTP" vs "stdio") so users see what they configured.
+({bool found, bool enabled, String transportKind}) pickCodexEntry(
+  List<dynamic> entries,
+) {
+  for (final entry in entries) {
+    if (entry is Map && entry['name'] == 'devconnect-manage') {
+      final enabled = entry['enabled'] != false;
+      final transport = entry['transport'];
+      final isHttp = transport is Map &&
+          (transport['type']?.toString().contains('http') ?? false);
+      return (
+        found: true,
+        enabled: enabled,
+        transportKind: isHttp ? 'HTTP' : 'stdio',
+      );
+    }
+  }
+  return (found: false, enabled: false, transportKind: 'unknown');
+}
+
+/// Extracts our entry from a parsed Cursor mcpServers map. Cursor's
+/// config is a hand-edited JSON file; `null` keys, alternate
+/// capitalization, etc. shouldn't crash the checker.
+({bool found, String transportKind}) pickCursorEntry(
+  Map<String, dynamic> root,
+) {
+  final servers = root['mcpServers'];
+  if (servers is! Map) return (found: false, transportKind: 'unknown');
+  for (final entry in servers.entries) {
+    if (entry.key.toLowerCase() != 'devconnect-manage') continue;
+    final value = entry.value;
+    if (value is Map) {
+      final isHttp = value['url'] != null ||
+          value['type']?.toString().contains('http') == true;
+      return (found: true, transportKind: isHttp ? 'HTTP' : 'stdio');
+    }
+  }
+  return (found: false, transportKind: 'unknown');
 }
 
 /// Riverpod notifier that fans the checker out across all 3 clients

@@ -1,14 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 class CursorConfigurator {
   /// npx install: writes a stdio entry pointing at
   /// `$workspace/client_sdks/devconnect-mcp/dist/index.js`. Cursor spawns
   /// the node process itself, so no separate server has to be running.
-  static Future<bool> configure({required int wsPort}) async {
+  static Future<bool> configure({
+    required int wsPort,
+    @visibleForTesting String? homeOverride,
+  }) async {
     try {
-      final home = _homeDir();
-      if (home == null) return false;
+      final home = homeOverride ?? _homeDir();
+      if (home == null || home.isEmpty) return false;
 
       final cursorDir = Directory('$home/.cursor');
       if (!await cursorDir.exists()) {
@@ -21,7 +26,7 @@ class CursorConfigurator {
       final mcpServers = config['mcpServers'] as Map<String, dynamic>? ?? {};
       config['mcpServers'] = mcpServers;
 
-      final workspacePath = _resolveWorkspacePath();
+      final workspacePath = _resolveWorkspacePath(home);
       if (workspacePath == null) return false;
       final mcpScriptPath = '$workspacePath/client_sdks/devconnect-mcp/dist/index.js';
 
@@ -45,10 +50,13 @@ class CursorConfigurator {
   /// Localhost install: writes an HTTP entry pointing at the local MCP
   /// server. The user must have the local server running (the desktop
   /// auto-spawns it when the panel opens, see [LocalMcpServerManager]).
-  static Future<bool> configureHttp({required int httpPort}) async {
+  static Future<bool> configureHttp({
+    required int httpPort,
+    @visibleForTesting String? homeOverride,
+  }) async {
     try {
-      final home = _homeDir();
-      if (home == null) return false;
+      final home = homeOverride ?? _homeDir();
+      if (home == null || home.isEmpty) return false;
 
       final cursorDir = Directory('$home/.cursor');
       if (!await cursorDir.exists()) {
@@ -73,10 +81,12 @@ class CursorConfigurator {
     }
   }
 
-  static Future<bool> uninstall() async {
+  static Future<bool> uninstall({
+    @visibleForTesting String? homeOverride,
+  }) async {
     try {
-      final home = _homeDir();
-      if (home == null) return false;
+      final home = homeOverride ?? _homeDir();
+      if (home == null || home.isEmpty) return false;
 
       final configFile = File('$home/.cursor/mcp.json');
       if (await configFile.exists()) {
@@ -122,8 +132,7 @@ class CursorConfigurator {
   /// Resolve the workspace root directory. `Directory.current` is
   /// unreliable inside a packaged macOS .app (returns `/`), so we also
   /// probe common dev locations and the DEVCONNECT_WORKSPACE env override.
-  static String? _resolveWorkspacePath() {
-    final home = _homeDir() ?? '';
+  static String? _resolveWorkspacePath(String home) {
     final candidates = <String>[
       if (Platform.environment.containsKey('DEVCONNECT_WORKSPACE'))
         Platform.environment['DEVCONNECT_WORKSPACE']!,
