@@ -518,8 +518,6 @@ class _StateDetailPanel extends StatefulWidget {
 }
 
 class _StateDetailPanelState extends State<_StateDetailPanel> {
-  bool _jsonPrettyMode = false;
-
   StateChange get entry => widget.entry;
 
   void _takeScreenshot(BuildContext context, bool isDark) {
@@ -608,10 +606,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                         color: Colors.grey[500],
                         letterSpacing: 1)),
                 const SizedBox(height: 8),
-                _jsonPrettyMode
-                    ? JsonPrettyViewer(data: entry.previousState)
-                    : JsonViewer(
-                        data: entry.previousState, initiallyExpanded: true),
+                _StateJsonTabView(data: entry.previousState),
               ],
             ),
           ),
@@ -630,10 +625,7 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                         color: Colors.grey[500],
                         letterSpacing: 1)),
                 const SizedBox(height: 8),
-                _jsonPrettyMode
-                    ? JsonPrettyViewer(data: entry.nextState)
-                    : JsonViewer(
-                        data: entry.nextState, initiallyExpanded: true),
+                _StateJsonTabView(data: entry.nextState),
               ],
             ),
           ),
@@ -674,51 +666,6 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                           ),
                         ),
                       ),
-                      // JSON mode toggle
-                      GestureDetector(
-                        onTap: () =>
-                            setState(() => _jsonPrettyMode = !_jsonPrettyMode),
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(6),
-                              color: _jsonPrettyMode
-                                  ? ColorTokens.secondary.withValues(alpha: 0.15)
-                                  : (isDark
-                                      ? Colors.white.withValues(alpha: 0.06)
-                                      : Colors.black.withValues(alpha: 0.06)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _jsonPrettyMode
-                                      ? LucideIcons.braces
-                                      : LucideIcons.list,
-                                  size: 12,
-                                  color: _jsonPrettyMode
-                                      ? ColorTokens.secondary
-                                      : Colors.grey[500],
-                                ),
-                                const SizedBox(width: 4),
-                                TextComponent(
-                                  _jsonPrettyMode ? S.of(context).pretty : S.of(context).tree,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: _jsonPrettyMode
-                                        ? ColorTokens.secondary
-                                        : Colors.grey[500],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
                       const SizedBox(width: 6),
                       // Screenshot button
                       _DetailIconBtn(
@@ -755,16 +702,14 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                 ),
                 LazyTab(
                   index: 1,
-                  builder: (_) => _StateJsonToggleView(
+                  builder: (_) => _StateJsonTabView(
                     data: entry.previousState,
-                    jsonMode: _jsonPrettyMode,
                   ),
                 ),
                 LazyTab(
                   index: 2,
-                  builder: (_) => _StateJsonToggleView(
+                  builder: (_) => _StateJsonTabView(
                     data: entry.nextState,
-                    jsonMode: _jsonPrettyMode,
                   ),
                 ),
               ],
@@ -776,61 +721,53 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
   }
 }
 
-class _StateJsonToggleView extends StatefulWidget {
+/// Tree / Pretty viewer with a segmented-control tab bar at the top.
+///
+/// Each instance owns its own [DefaultTabController], so the Before and
+/// After tabs in the parent panel keep their Tree/Pretty selection
+/// independently.
+class _StateJsonTabView extends StatelessWidget {
   final dynamic data;
-  final bool jsonMode;
 
-  const _StateJsonToggleView({
-    required this.data,
-    required this.jsonMode,
-  });
-
-  @override
-  State<_StateJsonToggleView> createState() => _StateJsonToggleViewState();
-}
-
-class _StateJsonToggleViewState extends State<_StateJsonToggleView> {
-  bool _jsonEverOpened = false;
-  final _scrollController = SmoothScrollController();
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(_StateJsonToggleView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.jsonMode && !_jsonEverOpened) {
-      _jsonEverOpened = true;
-    }
-  }
+  const _StateJsonTabView({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    if (widget.jsonMode && !_jsonEverOpened) {
-      _jsonEverOpened = true;
-    }
-    return Stack(
-      children: [
-        Offstage(
-          offstage: widget.jsonMode,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            child: JsonViewer(data: widget.data, initiallyExpanded: true),
-          ),
-        ),
-        if (_jsonEverOpened)
-          Offstage(
-            offstage: !widget.jsonMode,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: JsonPrettyViewer(data: widget.data),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: _DetailTabBar(
+              isDark: isDark,
+              accentColor: ColorTokens.secondary,
+              tabs: const ['Tree', 'Pretty'],
             ),
           ),
-      ],
+          Expanded(
+            child: TabBarView(
+              children: [
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: JsonViewer(
+                    data: data,
+                    initiallyExpanded: true,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: JsonPrettyViewer(data: data),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

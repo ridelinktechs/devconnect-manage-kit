@@ -91,18 +91,13 @@ class StorageNotifier extends StateNotifier<List<StorageEntry>> {
 
   StorageNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
     _sub = wsMessageHandler.onStorage.listen((entry) {
-      // Update existing key or add new
-      final index = state.indexWhere(
-          (e) => e.key == entry.key && e.storageType == entry.storageType);
-      if (index >= 0) {
-        final updated = List<StorageEntry>.from(state);
-        updated[index] = entry;
-        state = updated;
-      } else {
-        final limit = _ref.read(retentionLimitProvider).limit;
-        state = truncateList([...state, entry], limit);
-        _totalSeen++;
-      }
+      // Pure event-log: every reported operation is its own row. The
+      // SDK mints a fresh UUID per `_send()` and the handler's
+      // `_uniqueOneShotId` disambiguates on retry, so every entry that
+      // reaches us has a unique id — no content-based dedup needed.
+      final limit = _ref.read(retentionLimitProvider).limit;
+      state = truncateList([...state, entry], limit);
+      _totalSeen++;
     });
   }
 

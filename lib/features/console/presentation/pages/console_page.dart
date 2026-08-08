@@ -44,25 +44,21 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Mirror the network_inspector listener pattern: always bump
+    // `_generation` on every provider change. The earlier incremental
+    // vs full-replace split skipped the bump on the append path, so
+    // `StableListView.shouldRebuild` returned false and new entries
+    // were never materialised in the viewport even though
+    // `_visibleCount` had grown.
     ref.listenManual<List<LogEntry>>(
       filteredConsoleEntriesProvider,
       (previous, next) {
-        final prevLen = _entries.length;
-        if (next.length > prevLen && previous != null && next.length - prevLen == next.length - previous.length) {
-          _entries.addAll(next.sublist(prevLen));
-          _entryCount.value = _entries.length;
-          if (!_autoScroll) return;
-          _visibleCount = _entries.length;
-          setState(() {});
-          _autoScrollIfNeeded();
-        } else {
-          _entries..clear()..addAll(next);
-          _entryCount.value = _entries.length;
-          _visibleCount = _entries.length;
-          _generation++;
-          setState(() {});
-          if (_autoScroll) _autoScrollIfNeeded();
-        }
+        _entries..clear()..addAll(next);
+        _entryCount.value = _entries.length;
+        _visibleCount = _entries.length;
+        _generation++;
+        setState(() {});
+        if (_autoScroll) _autoScrollIfNeeded();
       },
       fireImmediately: true,
     );

@@ -53,6 +53,14 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
   int _visibleCount = 0;
   final List<UnifiedEvent> _events = [];
 
+  /// Pin of the currently-selected [UnifiedEvent]. Survives the
+  /// `_events..clear()..addAll(next.items)` churn in the listener and
+  /// survives the display-limit trim that drops older entries — so the
+  /// detail panel never disappears just because a new entry arrived
+  /// (Bug B) or because the user picked an older entry that's now
+  /// outside the visible window.
+  UnifiedEvent? _pinnedSelectedEvent;
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +72,24 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
         _eventCount.value = next.items.length;
         _visibleCount = next.items.length;
         _untrimmedCount.value = next.total;
+        // Keep `_pinnedSelectedEvent` in sync with the latest copy of
+        // the selected entry — content (e.g. network body after a
+        // start→complete merge) updates without dropping the user's
+        // pinned tab/scroll position.
+        //
+        // Only refresh the pin when the refresh list still contains the
+        // selected ID. If display-limit trimming removed the older entry,
+        // `_findEvent` returns null and the previous pin stays — the
+        // detail panel survives an out-of-window selection. The pin is
+        // cleared only by explicit selection/reset paths (see
+        // `_clearAll`, `_onSelectRow`, etc.).
+        final selectedId = _selectedEventId.value;
+        if (selectedId != null) {
+          final updated = _findEvent(selectedId);
+          if (updated != null) {
+            _pinnedSelectedEvent = updated;
+          }
+        }
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
       },
@@ -176,6 +202,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
     ref.read(memoryLeakEntriesProvider.notifier).clear();
     ref.read(benchmarkEntriesProvider.notifier).clear();
     _selectedEventId.value = null;
+    _pinnedSelectedEvent = null;
     _events.clear();
     _eventCount.value = 0;
     _untrimmedCount.value = 0;
@@ -434,8 +461,11 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                                             showDetail: false,
                                             platform: device?.platform,
                                             onTap: () {
-                                              _selectedEventId.value =
+                                              final nextId =
                                                   isSelected ? null : event.id;
+                                              _selectedEventId.value = nextId;
+                                              _pinnedSelectedEvent =
+                                                  nextId == null ? null : event;
                                               if (!isSelected && _autoScroll) {
                                                 _autoScroll = false;
                                                 _programmaticScroll = false;
@@ -463,7 +493,15 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                             ValueListenableBuilder<String?>(
                               valueListenable: _selectedEventId,
                               builder: (context, selectedId, _) {
-                                final selectedEvent = _findEvent(selectedId);
+                                // Prefer the pinned event so the panel
+                                // survives display-limit trims that drop
+                                // older entries and survives the brief
+                                // window during `_events..clear()` when
+                                // `_findEvent` would return null.
+                                final selectedEvent = _pinnedSelectedEvent ??
+                                    (selectedId == null
+                                        ? null
+                                        : _findEvent(selectedId));
                                 if (selectedEvent == null) {
                                   return const SizedBox.shrink();
                                 }
@@ -482,8 +520,10 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
                                       child: EventDetailPanel(
                                         key: ValueKey(selectedEvent.id),
                                         event: selectedEvent,
-                                        onClose: () =>
-                                            _selectedEventId.value = null,
+                                        onClose: () {
+                                          _selectedEventId.value = null;
+                                          _pinnedSelectedEvent = null;
+                                        },
                                       ),
                                     ),
                                   ],

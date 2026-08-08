@@ -15,7 +15,12 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$StorageEntry {
 
- String get id; String get deviceId; StorageType get storageType; String get key; dynamic get value; String get operation; int get timestamp;
+ String get id; String get deviceId; StorageType get storageType;/// Optional instance/namespace label — e.g. for MMKV this carries
+/// the `mmkvId` (`'mmkv:user-storage'` → `mmkv`, `storeId='user-storage'`).
+/// Multiple stores of the same [storageType] with different [storeId]
+/// must coexist; dedup at the viewer is keyed on
+/// `(storageType, storeId, key)`.
+ String? get storeId; String get key; dynamic get value; String get operation; int get timestamp;
 /// Create a copy of StorageEntry
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +33,16 @@ $StorageEntryCopyWith<StorageEntry> get copyWith => _$StorageEntryCopyWithImpl<S
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageEntry&&(identical(other.id, id) || other.id == id)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.storageType, storageType) || other.storageType == storageType)&&(identical(other.key, key) || other.key == key)&&const DeepCollectionEquality().equals(other.value, value)&&(identical(other.operation, operation) || other.operation == operation)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StorageEntry&&(identical(other.id, id) || other.id == id)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.storageType, storageType) || other.storageType == storageType)&&(identical(other.storeId, storeId) || other.storeId == storeId)&&(identical(other.key, key) || other.key == key)&&const DeepCollectionEquality().equals(other.value, value)&&(identical(other.operation, operation) || other.operation == operation)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,deviceId,storageType,key,const DeepCollectionEquality().hash(value),operation,timestamp);
+int get hashCode => Object.hash(runtimeType,id,deviceId,storageType,storeId,key,const DeepCollectionEquality().hash(value),operation,timestamp);
 
 @override
 String toString() {
-  return 'StorageEntry(id: $id, deviceId: $deviceId, storageType: $storageType, key: $key, value: $value, operation: $operation, timestamp: $timestamp)';
+  return 'StorageEntry(id: $id, deviceId: $deviceId, storageType: $storageType, storeId: $storeId, key: $key, value: $value, operation: $operation, timestamp: $timestamp)';
 }
 
 
@@ -48,7 +53,7 @@ abstract mixin class $StorageEntryCopyWith<$Res>  {
   factory $StorageEntryCopyWith(StorageEntry value, $Res Function(StorageEntry) _then) = _$StorageEntryCopyWithImpl;
 @useResult
 $Res call({
- String id, String deviceId, StorageType storageType, String key, dynamic value, String operation, int timestamp
+ String id, String deviceId, StorageType storageType, String? storeId, String key, dynamic value, String operation, int timestamp
 });
 
 
@@ -65,12 +70,13 @@ class _$StorageEntryCopyWithImpl<$Res>
 
 /// Create a copy of StorageEntry
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? deviceId = null,Object? storageType = null,Object? key = null,Object? value = freezed,Object? operation = null,Object? timestamp = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? deviceId = null,Object? storageType = null,Object? storeId = freezed,Object? key = null,Object? value = freezed,Object? operation = null,Object? timestamp = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,deviceId: null == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
 as String,storageType: null == storageType ? _self.storageType : storageType // ignore: cast_nullable_to_non_nullable
-as StorageType,key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
+as StorageType,storeId: freezed == storeId ? _self.storeId : storeId // ignore: cast_nullable_to_non_nullable
+as String?,key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
 as String,value: freezed == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
 as dynamic,operation: null == operation ? _self.operation : operation // ignore: cast_nullable_to_non_nullable
 as String,timestamp: null == timestamp ? _self.timestamp : timestamp // ignore: cast_nullable_to_non_nullable
@@ -159,10 +165,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String deviceId,  StorageType storageType,  String key,  dynamic value,  String operation,  int timestamp)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String deviceId,  StorageType storageType,  String? storeId,  String key,  dynamic value,  String operation,  int timestamp)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _StorageEntry() when $default != null:
-return $default(_that.id,_that.deviceId,_that.storageType,_that.key,_that.value,_that.operation,_that.timestamp);case _:
+return $default(_that.id,_that.deviceId,_that.storageType,_that.storeId,_that.key,_that.value,_that.operation,_that.timestamp);case _:
   return orElse();
 
 }
@@ -180,10 +186,10 @@ return $default(_that.id,_that.deviceId,_that.storageType,_that.key,_that.value,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String deviceId,  StorageType storageType,  String key,  dynamic value,  String operation,  int timestamp)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String deviceId,  StorageType storageType,  String? storeId,  String key,  dynamic value,  String operation,  int timestamp)  $default,) {final _that = this;
 switch (_that) {
 case _StorageEntry():
-return $default(_that.id,_that.deviceId,_that.storageType,_that.key,_that.value,_that.operation,_that.timestamp);case _:
+return $default(_that.id,_that.deviceId,_that.storageType,_that.storeId,_that.key,_that.value,_that.operation,_that.timestamp);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -200,10 +206,10 @@ return $default(_that.id,_that.deviceId,_that.storageType,_that.key,_that.value,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String deviceId,  StorageType storageType,  String key,  dynamic value,  String operation,  int timestamp)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String deviceId,  StorageType storageType,  String? storeId,  String key,  dynamic value,  String operation,  int timestamp)?  $default,) {final _that = this;
 switch (_that) {
 case _StorageEntry() when $default != null:
-return $default(_that.id,_that.deviceId,_that.storageType,_that.key,_that.value,_that.operation,_that.timestamp);case _:
+return $default(_that.id,_that.deviceId,_that.storageType,_that.storeId,_that.key,_that.value,_that.operation,_that.timestamp);case _:
   return null;
 
 }
@@ -215,12 +221,18 @@ return $default(_that.id,_that.deviceId,_that.storageType,_that.key,_that.value,
 @JsonSerializable()
 
 class _StorageEntry implements StorageEntry {
-  const _StorageEntry({required this.id, required this.deviceId, required this.storageType, required this.key, this.value, required this.operation, required this.timestamp});
+  const _StorageEntry({required this.id, required this.deviceId, required this.storageType, this.storeId = null, required this.key, this.value, required this.operation, required this.timestamp});
   factory _StorageEntry.fromJson(Map<String, dynamic> json) => _$StorageEntryFromJson(json);
 
 @override final  String id;
 @override final  String deviceId;
 @override final  StorageType storageType;
+/// Optional instance/namespace label — e.g. for MMKV this carries
+/// the `mmkvId` (`'mmkv:user-storage'` → `mmkv`, `storeId='user-storage'`).
+/// Multiple stores of the same [storageType] with different [storeId]
+/// must coexist; dedup at the viewer is keyed on
+/// `(storageType, storeId, key)`.
+@override@JsonKey() final  String? storeId;
 @override final  String key;
 @override final  dynamic value;
 @override final  String operation;
@@ -239,16 +251,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _StorageEntry&&(identical(other.id, id) || other.id == id)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.storageType, storageType) || other.storageType == storageType)&&(identical(other.key, key) || other.key == key)&&const DeepCollectionEquality().equals(other.value, value)&&(identical(other.operation, operation) || other.operation == operation)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _StorageEntry&&(identical(other.id, id) || other.id == id)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.storageType, storageType) || other.storageType == storageType)&&(identical(other.storeId, storeId) || other.storeId == storeId)&&(identical(other.key, key) || other.key == key)&&const DeepCollectionEquality().equals(other.value, value)&&(identical(other.operation, operation) || other.operation == operation)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,deviceId,storageType,key,const DeepCollectionEquality().hash(value),operation,timestamp);
+int get hashCode => Object.hash(runtimeType,id,deviceId,storageType,storeId,key,const DeepCollectionEquality().hash(value),operation,timestamp);
 
 @override
 String toString() {
-  return 'StorageEntry(id: $id, deviceId: $deviceId, storageType: $storageType, key: $key, value: $value, operation: $operation, timestamp: $timestamp)';
+  return 'StorageEntry(id: $id, deviceId: $deviceId, storageType: $storageType, storeId: $storeId, key: $key, value: $value, operation: $operation, timestamp: $timestamp)';
 }
 
 
@@ -259,7 +271,7 @@ abstract mixin class _$StorageEntryCopyWith<$Res> implements $StorageEntryCopyWi
   factory _$StorageEntryCopyWith(_StorageEntry value, $Res Function(_StorageEntry) _then) = __$StorageEntryCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String deviceId, StorageType storageType, String key, dynamic value, String operation, int timestamp
+ String id, String deviceId, StorageType storageType, String? storeId, String key, dynamic value, String operation, int timestamp
 });
 
 
@@ -276,12 +288,13 @@ class __$StorageEntryCopyWithImpl<$Res>
 
 /// Create a copy of StorageEntry
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? deviceId = null,Object? storageType = null,Object? key = null,Object? value = freezed,Object? operation = null,Object? timestamp = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? deviceId = null,Object? storageType = null,Object? storeId = freezed,Object? key = null,Object? value = freezed,Object? operation = null,Object? timestamp = null,}) {
   return _then(_StorageEntry(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,deviceId: null == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
 as String,storageType: null == storageType ? _self.storageType : storageType // ignore: cast_nullable_to_non_nullable
-as StorageType,key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
+as StorageType,storeId: freezed == storeId ? _self.storeId : storeId // ignore: cast_nullable_to_non_nullable
+as String?,key: null == key ? _self.key : key // ignore: cast_nullable_to_non_nullable
 as String,value: freezed == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
 as dynamic,operation: null == operation ? _self.operation : operation // ignore: cast_nullable_to_non_nullable
 as String,timestamp: null == timestamp ? _self.timestamp : timestamp // ignore: cast_nullable_to_non_nullable

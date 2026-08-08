@@ -32,7 +32,7 @@ export class DevConnectMMKV {
    * @returns A proxied MMKV-like object that auto-reports operations
    */
   static wrap(mmkv: any, label: string = 'mmkv'): any {
-    const storageType = 'mmkv';
+    const storageType = `mmkv:${label}`;
 
     // Resolve delete/remove — v4: .remove(), v3: .delete()
     const deleteFn: ((key: string) => any) | undefined =
