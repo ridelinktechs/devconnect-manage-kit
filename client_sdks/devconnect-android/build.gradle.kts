@@ -1,7 +1,7 @@
 plugins {
     id("com.android.library") version "8.4.0"
     id("org.jetbrains.kotlin.android") version "2.2.0"
-    id("maven-publish")
+    id("com.vanniktech.maven.publish") version "0.34.0"
 }
 
 android {
@@ -21,12 +21,6 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
-    }
-
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
     }
 }
 
@@ -60,29 +54,59 @@ dependencies {
     testImplementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 
-// Publishing config for JitPack or Maven Local
-publishing {
-    publications {
-        register<MavenPublication>("release") {
-            groupId = "com.github.ridelinktechs"
-            artifactId = "devconnect-android"
-            version = "1.0.0"
+// Publishing config for Maven Central via Sonatype Central Portal
+// (https://central.sonatype.com/) using the Vanniktech plugin, which
+// natively bundles the artifacts and uploads via Central Portal's
+// bundle API (the standard `maven-publish` plugin can't hit this API).
+//
+// Credentials + GPG signing config are read from
+// `~/.gradle/gradle.properties` — never committed to the repo.
+//
+// Required properties in ~/.gradle/gradle.properties:
+//   mavenCentralUsername  — User Token username (Sonatype Central Portal)
+//   mavenCentralPassword  — User Token password
+//   signing.keyId          — GPG key ID (short form, last 8 hex of fingerprint)
+//   signing.password       — GPG key passphrase
+//   signing.secretKeyRingFile — path to legacy-format secring.gpg
+//
+// Publish commands:
+//   ./gradlew :publishToMavenLocal                       (test config)
+//   ./gradlew :publishMavenCentralPublicationToCentralPortal   (push to Central)
+mavenPublishing {
+    publishToMavenCentral(automaticRelease = false)
+    signAllPublications()
 
-            afterEvaluate {
-                from(components["release"])
-            }
+    coordinates(
+        groupId = "io.github.buivietphi",
+        artifactId = "devconnect-android",
+        version = "1.0.0"
+    )
 
-            pom {
-                name.set("DevConnect Android SDK")
-                description.set("Android client SDK for DevConnect - auto-intercepts OkHttp, Retrofit, Log, Timber, SharedPreferences")
-                url.set("https://github.com/ridelinktechs/devconnect")
-                licenses {
-                    license {
-                        name.set("MIT License")
-                        url.set("https://opensource.org/licenses/MIT")
-                    }
-                }
+    pom {
+        name.set("DevConnect Android SDK")
+        description.set(
+            "Android client SDK for DevConnect - auto-intercepts OkHttp, Retrofit, " +
+            "Log, Timber, SharedPreferences. Includes ANR watchdog and ViewModel " +
+            "auto-discovery (StateFlow/LiveData)."
+        )
+        url.set("https://github.com/buivietphi/devconnect")
+        licenses {
+            license {
+                name.set("MIT License")
+                url.set("https://opensource.org/licenses/MIT")
             }
+        }
+        developers {
+            developer {
+                id.set("buivietphi")
+                name.set("Bùi Viết Phi")
+                email.set("phibvcfc@gmail.com")
+            }
+        }
+        scm {
+            connection.set("scm:git:git://github.com/buivietphi/devconnect.git")
+            developerConnection.set("scm:git:ssh://git@github.com/buivietphi/devconnect.git")
+            url.set("https://github.com/buivietphi/devconnect")
         }
     }
 }

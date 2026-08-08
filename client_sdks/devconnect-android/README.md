@@ -7,19 +7,53 @@ Debug your Android app with [DevConnect Manage Tool](https://github.com/ridelink
 
 ## Install
 
+The SDK is published to **Maven Central** as `io.github.buivietphi:devconnect-android`.
+`mavenCentral()` is usually already in your repository list, but if you've
+stripped it down, add it back:
+
 ```gradle
 // settings.gradle.kts
 dependencyResolutionManagement {
     repositories {
-        maven { url = uri("https://jitpack.io") }
+        google()
+        mavenCentral()
     }
 }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.ridelinktechs.devconnect-manage-kit:devconnect-manage-android:v1.0.0")
+    implementation("io.github.buivietphi:devconnect-android:1.0.0")
 }
 ```
+
+## Runtime dependencies
+
+The AAR does **not** bundle its runtime dependencies — Gradle AAR
+consumption does not pull transitive `implementation` deps. You must
+declare the following in your `app/build.gradle` if you use the matching
+features (skip any line for features you don't use):
+
+```gradle
+dependencies {
+    // Always required (SDK's own implementation deps).
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("org.json:json:20260522")
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.0")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.11.0")
+
+    // Required only if you wire the OkHttp interceptor (compileOnly in the SDK).
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Required only if you call DevConnect.stateObserver().observe(...) manually.
+    // (autoViewModelDiscovery does NOT need these — it reflects directly.)
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+}
+```
+
+If you forget `kotlin-reflect`, the app crashes on first Activity resume
+with `NoClassDefFoundError: kotlin/reflect/full/KClasses` (the
+`ViewModelAutoDiscoverer` uses `KClass.memberProperties` reflection).
 
 ## Quick Start
 
@@ -52,6 +86,60 @@ DevConnect.INSTANCE.installForApp(
     /* enabled     = */ BuildConfig.DEBUG,
     /* versionCode = */ String.valueOf(BuildConfig.VERSION_CODE)
 );
+```
+
+### Recommended: `DevConnectJava` facade
+
+Calling every entry point through `DevConnect.INSTANCE` and passing every
+default argument positionally gets tedious. The SDK ships with a
+Java-friendly facade — `com.devconnect.DevConnectJava` — that exposes
+every public method as a plain `static` and overloads the most useful
+default-argument combinations:
+
+```java
+import com.devconnect.DevConnectJava;
+
+public class MyApplication extends Application {
+    @Override public void onCreate() {
+        super.onCreate();
+        DevConnectJava.installForApp(this, "MyApp", BuildConfig.DEBUG);
+    }
+}
+```
+
+The full Java reference lives in
+[`docs/java-usage.md`](docs/java-usage.md). The short version:
+
+```java
+// Lifecycle
+DevConnectJava.installForApp(this, "MyApp", BuildConfig.DEBUG);
+DevConnectJava.isConnected();
+DevConnectJava.disconnect();
+
+// Network — add to OkHttpClient.Builder (Retrofit, Firebase, OAuth2…)
+OkHttpClient client = new OkHttpClient.Builder()
+    .addInterceptor(DevConnectJava.okHttpInterceptor())
+    .build();
+
+// Logs
+DevConnectJava.log("User logged in", "AuthService");
+DevConnectJava.error("Network failed", "AuthService", stackTrace);
+DevConnectJava.sendLog("info", "Custom", "MyTag", null);
+
+// Storage reporters
+SharedPrefsReporter sp = DevConnectJava.sharedPrefsReporter();
+sp.reportWrite("token", "abc");
+
+// Custom command (Java-friendly functional interface)
+DevConnectJava.registerCommand("clearCache", args -> {
+    // … do work …
+    return java.util.Collections.singletonMap("cleared", true);
+});
+
+// Reload override (skip the default Activity.recreate)
+DevConnectJava.setOnReloadRequest(() -> {
+    // wipe in-memory state, then trigger your own reload
+});
 ```
 
 `installForApp` looks for OkHttp and Timber on the classpath and prints a
@@ -337,4 +425,4 @@ DevConnect.init(context = this, appName = "MyApp", enabled = BuildConfig.DEBUG)
 
 ## License
 
-MIT - by [ridelinktechs](https://github.com/ridelinktechs)
+MIT - by [buivietphi](https://github.com/buivietphi)
