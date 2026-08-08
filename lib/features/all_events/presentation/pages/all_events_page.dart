@@ -76,9 +76,19 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
         // the selected entry — content (e.g. network body after a
         // start→complete merge) updates without dropping the user's
         // pinned tab/scroll position.
+        //
+        // Only refresh the pin when the refresh list still contains the
+        // selected ID. If display-limit trimming removed the older entry,
+        // `_findEvent` returns null and the previous pin stays — the
+        // detail panel survives an out-of-window selection. The pin is
+        // cleared only by explicit selection/reset paths (see
+        // `_clearAll`, `_onSelectRow`, etc.).
         final selectedId = _selectedEventId.value;
         if (selectedId != null) {
-          _pinnedSelectedEvent = _findEvent(selectedId);
+          final updated = _findEvent(selectedId);
+          if (updated != null) {
+            _pinnedSelectedEvent = updated;
+          }
         }
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
