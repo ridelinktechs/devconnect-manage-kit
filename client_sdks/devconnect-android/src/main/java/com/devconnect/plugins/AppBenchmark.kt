@@ -12,6 +12,11 @@ import java.util.concurrent.atomic.AtomicInteger
 
 private var startupDone = false
 private var appStateDone = false
+// Hold references to registered ActivityLifecycleCallbacks so we can
+// unregister them in stopAppBenchmark() and stop leaking the Application
+// context for the lifetime of the process.
+private val registeredCallbacks =
+    java.util.concurrent.ConcurrentHashMap<Application, MutableList<Application.ActivityLifecycleCallbacks>>()
 
 data class AppBenchmarkOptions(
     val trackStartup: Boolean = true,
@@ -29,7 +34,8 @@ fun setupAppBenchmark(context: Any? = null, opts: AppBenchmarkOptions = AppBench
 
         // Mark first activity visible as "First Render Complete"
         if (context is Application) {
-            context.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            val app = context
+            val callbacks = object : Application.ActivityLifecycleCallbacks {
                 private val firstResume = AtomicBoolean(true)
 
                 override fun onActivityResumed(activity: Activity) {
@@ -53,7 +59,8 @@ fun setupAppBenchmark(context: Any? = null, opts: AppBenchmarkOptions = AppBench
                 override fun onActivityStopped(activity: Activity) {}
                 override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
                 override fun onActivityDestroyed(activity: Activity) {}
-            })
+            }
+            registerCallback(app, callbacks)
         } else {
             // No Application context — use triple post as "ready"
             handler.post {
@@ -72,7 +79,8 @@ fun setupAppBenchmark(context: Any? = null, opts: AppBenchmarkOptions = AppBench
         appStateDone = true
         var backgroundTime = 0L
 
-        context.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+        val app = context
+        val callbacks = object : Application.ActivityLifecycleCallbacks {
             private val activeCount = AtomicInteger(0)
 
             override fun onActivityStarted(activity: Activity) {
@@ -98,8 +106,36 @@ fun setupAppBenchmark(context: Any? = null, opts: AppBenchmarkOptions = AppBench
             override fun onActivityPaused(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
             override fun onActivityDestroyed(activity: Activity) {}
-        })
+        }
+        registerCallback(app, callbacks)
     }
+}
+
+fun stopAppBenchmark() {
+    startupDone = false
+    appStateDone = false
+    // Unregister every callback we've previously registered so the
+    // Application can be GC'd if no other plugin holds it.
+    for ((app, callbacks) in registeredCallbacks) {
+        for (cb in callbacks) {
+            try {
+                app.unregisterActivityLifecycleCallbacks(cb)
+            } catch (_: Exception) {
+                // Application may already be gone (process death) —
+                // nothing to do.
+            }
+        }
+    }
+    registeredCallbacks.clear()
+}
+
+private fun registerCallback(
+    app: Application,
+    cb: Application.ActivityLifecycleCallbacks
+) {
+    app.registerActivityLifecycleCallbacks(cb)
+    val list = registeredCallbacks.getOrPut(app) { mutableListOf() }
+    synchronized(list) { list.add(cb) }
 }
 
 fun benchmarkScreen(screenName: String): () -> Unit {

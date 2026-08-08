@@ -60,29 +60,33 @@ object DevConnectLogcatInterceptor {
 
     private fun installViaReflection() {
         // Square Logcat uses LogcatLogger.install() to set up logging.
-        // We wrap the logger to also forward to DevConnect.
-        //
-        // LogcatLogger has a companion object with:
-        //   fun install(logger: LogcatLogger)
-        //
-        // The default AndroidLogcatLogger implements:
-        //   fun log(priority: LogPriority, tag: String, message: String)
+        // We wrap the existing logger so DevConnect receives every log
+        // call AND the original logger still receives it — the previous
+        // implementation replaced the logger with a proxy that only
+        // forwarded to DevConnect + Android Log, which silently dropped
+        // any custom logger the app had previously installed.
 
         val logcatLoggerClass = Class.forName("logcat.LogcatLogger")
         val companionField = logcatLoggerClass.getDeclaredField("Companion")
         companionField.isAccessible = true
         val companion = companionField.get(null)
 
-        // Create a proxy that intercepts log calls
-        val androidLoggerClass = try {
-            Class.forName("logcat.AndroidLogcatLogger")
+        // Capture the existing logger (if any) before replacing it.
+        // Square Logcat exposes a `LogcatLogger` companion property.
+        var previous: Any? = null
+        try {
+            val loggerGetter = companion.javaClass.methods
+                .firstOrNull { it.name == "getLogger" && it.parameterCount == 0 }
+            previous = loggerGetter?.invoke(companion)
         } catch (_: Exception) {
-            null
+            // No previous logger — that's fine.
         }
 
-        // Use a dynamic proxy to intercept the log method
-        val logcatLoggerInterfaces = arrayOf(logcatLoggerClass)
+        // Build a proxy that forwards to the previous logger (preserving
+        // the app's custom formatting / side-effects) and to DevConnect.
+        val logcatLoggerInterfaces = arrayOf< Class<*>>(logcatLoggerClass)
 
+        val previousLogger = previous
         val proxy = java.lang.reflect.Proxy.newProxyInstance(
             logcatLoggerClass.classLoader,
             logcatLoggerInterfaces
@@ -92,12 +96,27 @@ object DevConnectLogcatInterceptor {
                 val tag = args[1] as? String ?: "Logcat"
                 val message = args[2] as? String ?: ""
 
-                // Forward to DevConnect
+                // Forward to DevConnect.
                 val level = mapPriorityToLevel(priority)
                 DevConnect.sendLog(level, message, tag)
 
-                // Also call Android's Log
+                // Also call Android's Log (the proxy doesn't depend on
+                // the previous logger for system output).
                 logToAndroid(level, tag, message)
+
+                // Chain to the previous logger if it existed.
+                if (previousLogger != null) {
+                    try {
+                        val prevMethod = previousLogger.javaClass
+                            .getMethod("log",
+                                priority.javaClass,
+                                String::class.java,
+                                String::class.java)
+                        prevMethod.invoke(previousLogger, priority, tag, message)
+                    } catch (_: Exception) {
+                        // Don't let a misbehaving custom logger crash us.
+                    }
+                }
             }
             null
         }

@@ -20,6 +20,12 @@ object ErrorMonitor {
     private var running = false
     private var previousHandler: UncaughtExceptionHandler? = null
     private var appContext: android.content.Context? = null
+    // Keep references so we can unregister the callbacks in stop().
+    // Without this, the callbacks would leak the Application context for
+    // the lifetime of the process — every start() also stacks a fresh
+    // set of no-op callbacks on the same Application.
+    private var lifecycleCallbacks: android.app.Application.ActivityLifecycleCallbacks? = null
+    private var lifecycleApp: android.app.Application? = null
 
     data class ErrorMonitorOptions(
         val captureCaughtExceptions: Boolean = true,
@@ -53,7 +59,8 @@ object ErrorMonitor {
 
         // ---- Activity Lifecycle for exception tracking ----
         if (context is Application) {
-            context.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            val app = context
+            val callbacks = object : Application.ActivityLifecycleCallbacks {
                 override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
                 override fun onActivityStarted(activity: Activity) {}
                 override fun onActivityResumed(activity: Activity) {}
@@ -61,7 +68,10 @@ object ErrorMonitor {
                 override fun onActivityStopped(activity: Activity) {}
                 override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
                 override fun onActivityDestroyed(activity: Activity) {}
-            })
+            }
+            app.registerActivityLifecycleCallbacks(callbacks)
+            lifecycleCallbacks = callbacks
+            lifecycleApp = app
         }
     }
 
@@ -83,7 +93,7 @@ object ErrorMonitor {
                 metadata = mapOf(
                     "threadName" to thread.name,
                     "deviceInfo" to deviceInfo,
-                    "isNativeCrash" to true
+                    "isNativeCrash" to "true"
                 )
             )
 
@@ -104,7 +114,7 @@ object ErrorMonitor {
 
                     // Check if main thread is blocked (ANR condition)
                     val stackTrace = Looper.getMainLooper().thread.stackTrace
-                    val mainStack = stackTrace?.filter { it.threadName == "main" }?.take(10)
+                    val mainStack = stackTrace?.take(10)
 
                     sendError(
                         platform = "android",
@@ -237,5 +247,10 @@ object ErrorMonitor {
             Thread.setDefaultUncaughtExceptionHandler(it)
         }
         previousHandler = null
+        // Unregister lifecycle callbacks so the Application context can
+        // be GC'd if no other plugin holds it.
+        lifecycleCallbacks?.let { lifecycleApp?.unregisterActivityLifecycleCallbacks(it) }
+        lifecycleCallbacks = null
+        lifecycleApp = null
     }
 }

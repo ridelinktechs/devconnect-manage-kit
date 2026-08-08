@@ -53,7 +53,11 @@ fun startPerformanceMonitor(context: Any? = null, opts: PerformanceMonitorOption
     }
 
     // ---- FPS + Jank + Frame Timing via Choreographer ----
-    startFrameMonitor(opts)
+    // Choreographer.getInstance() requires a thread with a Looper.
+    // PerformanceMonitor may be invoked from a worker coroutine
+    // (e.g. inside DevConnect.init's IO-dispatched initScope), so
+    // post the frame-callback registration to the main thread.
+    Handler(Looper.getMainLooper()).post { startFrameMonitor(opts) }
 
     // ---- Memory monitor ----
     val handler = Handler(Looper.getMainLooper())
@@ -328,28 +332,49 @@ private fun reportSystemMetrics() {
 }
 
 // ---- ANR detection ----
-private var anrCheckTime = 0L
+private val mainThreadAck = java.util.concurrent.atomic.AtomicBoolean(false)
 
 private fun detectAnr() {
-    val handler = Handler(Looper.getMainLooper())
-    anrCheckTime = System.currentTimeMillis()
+    // The previous implementation reset `anrCheckTime` both on the
+    // worker thread (before sleeping) and on the main thread (via
+    // handler.post). That meant the worker's `delay = now - anrCheckTime`
+    // was always ~5000 ms regardless of whether the main thread was
+    // responsive, so the `> 6000` threshold was never reached — ANRs
+    // were silently dropped.
 
-    // Post to main thread — if it takes >5s to execute, report ANR
+    mainThreadAck.set(false)
+    val handler = Handler(Looper.getMainLooper())
+    handler.post { mainThreadAck.set(true) }
+
     Thread {
         Thread.sleep(5000)
         if (!running) return@Thread
-        val delay = System.currentTimeMillis() - anrCheckTime
-        if (delay > 6000) { // 5s sleep + >1s processing delay = ANR
-            DevConnect.reportPerformanceMetric(
-                metricType = "anr",
-                value = delay.toDouble(),
-                label = "ANR detected: main thread blocked ${delay}ms",
-                metadata = mapOf("blockDuration" to delay)
-            )
-        }
-    }.start()
+        if (mainThreadAck.get()) return@Thread
 
-    handler.post {
-        anrCheckTime = System.currentTimeMillis() // Reset when main thread processes
-    }
+        // Main thread didn't ack within 5 s. Sleep one more second to
+        // rule out transient jank (GC pause, layout inflation, ...) and
+        // re-check. Only report if it still hasn't responded.
+        Thread.sleep(1000)
+        if (!running) return@Thread
+        if (mainThreadAck.get()) return@Thread
+
+        // Capture the main thread's stack trace — we're on a background
+        // thread right now, so reading `Looper.getMainLooper().thread`
+        // is safe.
+        val mainStack = Looper.getMainLooper().thread.stackTrace
+            .take(20)
+            .joinToString("\n") {
+                "${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})"
+            }
+
+        DevConnect.reportPerformanceMetric(
+            metricType = "anr",
+            value = 6000.0,
+            label = "ANR detected: main thread blocked ≥6s",
+            metadata = mapOf(
+                "blockDurationMs" to 6000,
+                "mainThreadStack" to mainStack
+            )
+        )
+    }.start()
 }

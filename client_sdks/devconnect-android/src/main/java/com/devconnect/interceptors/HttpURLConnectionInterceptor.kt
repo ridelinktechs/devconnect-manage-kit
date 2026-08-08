@@ -36,6 +36,10 @@ import java.util.UUID
  */
 object DevConnectHttpURLConnection {
 
+    // Cap captured bodies at 1 MB so a chatty / large-response endpoint
+    // (Firebase Real DB snapshot, S3 list-objects, …) cannot OOM the SDK.
+    private const val MAX_CAPTURED_BODY_BYTES = 1_048_576
+
     fun open(url: String): HttpURLConnection {
         val conn = URL(url).openConnection() as HttpURLConnection
         return wrap(conn)
@@ -80,16 +84,35 @@ object DevConnectHttpURLConnection {
 
             return try {
                 val stream = inner.inputStream
+                // Cap capture at 1 MB so a chatty / large-response endpoint
+                // (Firebase Real DB snapshot, S3 list-objects, …) cannot
+                // OOM the SDK. The consumer still gets the full stream —
+                // we only stop copying into our local buffer.
                 val bytes = ByteArrayOutputStream()
-                stream.copyTo(bytes)
+                val buf = ByteArray(8 * 1024)
+                var copied = 0L
+                var truncated = false
+                while (true) {
+                    val n = stream.read(buf)
+                    if (n == -1) break
+                    if (copied + n > MAX_CAPTURED_BODY_BYTES) {
+                        val remaining = (MAX_CAPTURED_BODY_BYTES - copied).toInt()
+                        if (remaining > 0) bytes.write(buf, 0, remaining)
+                        copied = MAX_CAPTURED_BODY_BYTES.toLong()
+                        truncated = true
+                        break
+                    }
+                    bytes.write(buf, 0, n)
+                    copied += n
+                }
                 val data = bytes.toByteArray()
 
                 // Report response
-                reportComplete(data, null)
+                reportComplete(data, truncated = truncated)
 
                 ByteArrayInputStream(data)
             } catch (e: Exception) {
-                reportComplete(null, e.message)
+                reportComplete(null, error = e.message, truncated = false)
                 throw e
             }
         }
@@ -98,17 +121,36 @@ object DevConnectHttpURLConnection {
             return try {
                 val stream = inner.errorStream ?: return null
                 val bytes = ByteArrayOutputStream()
-                stream.copyTo(bytes)
+                val buf = ByteArray(8 * 1024)
+                var copied = 0L
+                var truncated = false
+                while (true) {
+                    val n = stream.read(buf)
+                    if (n == -1) break
+                    if (copied + n > MAX_CAPTURED_BODY_BYTES) {
+                        val remaining = (MAX_CAPTURED_BODY_BYTES - copied).toInt()
+                        if (remaining > 0) bytes.write(buf, 0, remaining)
+                        copied = MAX_CAPTURED_BODY_BYTES.toLong()
+                        truncated = true
+                        break
+                    }
+                    bytes.write(buf, 0, n)
+                    copied += n
+                }
                 val data = bytes.toByteArray()
-                reportComplete(data, null)
+                reportComplete(data, truncated = truncated)
                 ByteArrayInputStream(data)
             } catch (e: Exception) {
-                reportComplete(null, e.message)
+                reportComplete(null, error = e.message, truncated = false)
                 inner.errorStream
             }
         }
 
-        private fun reportComplete(responseBytes: ByteArray?, error: String?) {
+        private fun reportComplete(
+            responseBytes: ByteArray?,
+            error: String? = null,
+            truncated: Boolean = false
+        ) {
             val resHeaders = mutableMapOf<String, String>()
             inner.headerFields?.forEach { (k, v) ->
                 if (k != null) resHeaders[k] = v.joinToString(", ")
@@ -116,8 +158,19 @@ object DevConnectHttpURLConnection {
 
             var responseBody: Any? = null
             responseBytes?.let {
-                val str = String(it)
-                responseBody = try { JSONObject(str) } catch (_: Exception) { str }
+                if (truncated) {
+                    // Annotate truncation so the desktop UI can show a
+                    // "body was truncated at 1 MB" banner instead of
+                    // appearing to be a complete response.
+                    responseBody = try {
+                        JSONObject(it).put("_truncated", true)
+                    } catch (_: Exception) {
+                        String(it) + "…[truncated at 1 MB]"
+                    }
+                } else {
+                    val str = String(it)
+                    responseBody = try { JSONObject(str) } catch (_: Exception) { str }
+                }
             }
 
             DevConnect.reportNetworkComplete(
