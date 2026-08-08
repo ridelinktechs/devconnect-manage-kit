@@ -27,8 +27,14 @@ import com.devconnect.DevConnect
  *
  * Since MMKV is not a hard dependency, this reporter uses manual reporting.
  * Call the appropriate method after your MMKV operations.
+ *
+ * Pass the MMKV instance label (e.g. `"user_session"`, `"cache"`) to the
+ * constructor so the desktop UI can keep separate MMKV buckets distinct.
+ * The previous implementation always reported `storageType = "mmkv"`, which
+ * forced every wrapped MMKV to share the same filter bucket — see the
+ * matching fix in [com.devconnect.wrappers.DevConnectMMKV].
  */
-class MmkvReporter {
+class MmkvReporter(private val label: String = "default") {
 
     /**
      * Report an MMKV read operation.
@@ -38,7 +44,7 @@ class MmkvReporter {
      */
     fun reportRead(key: String, value: Any?) {
         DevConnect.reportStorageOperation(
-            storageType = "mmkv",
+            storageType = "mmkv:$label",
             key = key,
             value = value,
             operation = "read"
@@ -53,7 +59,7 @@ class MmkvReporter {
      */
     fun reportWrite(key: String, value: Any?) {
         DevConnect.reportStorageOperation(
-            storageType = "mmkv",
+            storageType = "mmkv:$label",
             key = key,
             value = value,
             operation = "write"
@@ -67,7 +73,7 @@ class MmkvReporter {
      */
     fun reportDelete(key: String) {
         DevConnect.reportStorageOperation(
-            storageType = "mmkv",
+            storageType = "mmkv:$label",
             key = key,
             operation = "delete"
         )
@@ -78,7 +84,7 @@ class MmkvReporter {
      */
     fun reportClear() {
         DevConnect.reportStorageOperation(
-            storageType = "mmkv",
+            storageType = "mmkv:$label",
             key = "*",
             operation = "clear"
         )
@@ -115,7 +121,7 @@ class MmkvReporter {
      */
     fun reportAllKeys(keys: List<String>) {
         DevConnect.reportStorageOperation(
-            storageType = "mmkv",
+            storageType = "mmkv:$label",
             key = "*",
             value = keys,
             operation = "read"
@@ -137,7 +143,7 @@ class MmkvReporter {
      */
     fun reportStorageInfo(totalSize: Long, actualSize: Long) {
         DevConnect.reportStorageOperation(
-            storageType = "mmkv",
+            storageType = "mmkv:$label",
             key = "__storage_info__",
             value = mapOf(
                 "totalSize" to totalSize,

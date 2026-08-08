@@ -29,7 +29,14 @@ import com.devconnect.DevConnect
 class DevConnectRealm {
 
     companion object {
-        private const val STORAGE_TYPE = "realm"
+        // `@PublishedApi internal` exposes the constant to the inline
+        // functions below without making it part of the public API.
+        // A plain `private const val` would cause "Public-API inline
+        // function cannot access non-public-API" compile errors; a
+        // plain `internal const val` is not enough either — the inline
+        // body is compiled into the caller where `internal` is hidden.
+        @PublishedApi
+        internal const val STORAGE_TYPE = "realm"
 
         /**
          * Wrap a write/create/update operation for auto-reporting.

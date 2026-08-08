@@ -53,7 +53,11 @@ fun startPerformanceMonitor(context: Any? = null, opts: PerformanceMonitorOption
     }
 
     // ---- FPS + Jank + Frame Timing via Choreographer ----
-    startFrameMonitor(opts)
+    // Choreographer.getInstance() requires a thread with a Looper.
+    // PerformanceMonitor may be invoked from a worker coroutine
+    // (e.g. inside DevConnect.init's IO-dispatched initScope), so
+    // post the frame-callback registration to the main thread.
+    Handler(Looper.getMainLooper()).post { startFrameMonitor(opts) }
 
     // ---- Memory monitor ----
     val handler = Handler(Looper.getMainLooper())
@@ -323,33 +327,7 @@ private fun reportSystemMetrics() {
         }
     } catch (_: Exception) {}
 
-    // ANR detection (main thread responsiveness)
-    detectAnr()
-}
-
-// ---- ANR detection ----
-private var anrCheckTime = 0L
-
-private fun detectAnr() {
-    val handler = Handler(Looper.getMainLooper())
-    anrCheckTime = System.currentTimeMillis()
-
-    // Post to main thread — if it takes >5s to execute, report ANR
-    Thread {
-        Thread.sleep(5000)
-        if (!running) return@Thread
-        val delay = System.currentTimeMillis() - anrCheckTime
-        if (delay > 6000) { // 5s sleep + >1s processing delay = ANR
-            DevConnect.reportPerformanceMetric(
-                metricType = "anr",
-                value = delay.toDouble(),
-                label = "ANR detected: main thread blocked ${delay}ms",
-                metadata = mapOf("blockDuration" to delay)
-            )
-        }
-    }.start()
-
-    handler.post {
-        anrCheckTime = System.currentTimeMillis() // Reset when main thread processes
-    }
+    // ANR detection is delegated to the standalone AnrWatchdog subsystem.
+    // PerformanceMonitor no longer carries ANR logic — see
+    // com.devconnect.plugins.AnrWatchdog.
 }

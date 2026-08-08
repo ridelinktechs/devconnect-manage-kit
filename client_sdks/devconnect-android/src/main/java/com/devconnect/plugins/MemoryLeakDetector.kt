@@ -11,6 +11,12 @@ private var running = false
 private var checkHandler: Handler? = null
 private var checkRunnable: Runnable? = null
 private val heapSnapshots = mutableListOf<Double>()
+// We keep references to both the Application and the callback so we
+// can unregister them in stopMemoryLeakDetector(). Without this, the
+// callback (and its implicit Activity references) leak the Application
+// context for the lifetime of the process.
+private var lifecycleCallbacks: Application.ActivityLifecycleCallbacks? = null
+private var lifecycleApp: Application? = null
 
 data class MemoryLeakDetectorOptions(
     val checkInterval: Long = 10000L,
@@ -24,7 +30,8 @@ fun startMemoryLeakDetector(context: Any? = null, opts: MemoryLeakDetectorOption
 
     // ---- Track Activity lifecycle for leak detection ----
     if (context is Application) {
-        context.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+        val app = context
+        val callbacks = object : Application.ActivityLifecycleCallbacks {
             private val activityCounts = mutableMapOf<String, Int>()
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
@@ -46,7 +53,10 @@ fun startMemoryLeakDetector(context: Any? = null, opts: MemoryLeakDetectorOption
             override fun onActivityPaused(activity: Activity) {}
             override fun onActivityStopped(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-        })
+        }
+        app.registerActivityLifecycleCallbacks(callbacks)
+        lifecycleCallbacks = callbacks
+        lifecycleApp = app
     }
 
     // ---- Periodic heap growth check ----
@@ -69,6 +79,11 @@ fun stopMemoryLeakDetector() {
     checkHandler = null
     checkRunnable = null
     heapSnapshots.clear()
+    // Unregister so the callback (and any captured Activity references)
+    // can be GC'd.
+    lifecycleCallbacks?.let { lifecycleApp?.unregisterActivityLifecycleCallbacks(it) }
+    lifecycleCallbacks = null
+    lifecycleApp = null
 }
 
 private fun checkHeapGrowth(thresholdMB: Double, maxSnapshots: Int) {

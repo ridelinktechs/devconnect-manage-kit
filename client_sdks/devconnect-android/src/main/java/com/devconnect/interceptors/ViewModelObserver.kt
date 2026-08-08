@@ -1,6 +1,10 @@
 package com.devconnect.interceptors
 
 import com.devconnect.DevConnect
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 /**
  * Helper to report ViewModel state changes to DevConnect.
@@ -44,26 +48,36 @@ import com.devconnect.DevConnect
 object DevConnectViewModelObserver {
 
     /**
-     * Observe a StateFlow and report changes to DevConnect.
+     * Observe a [Flow] and report each emitted value to DevConnect.
      *
-     * @param flow The StateFlow to observe (use dynamic to avoid hard dependency)
-     * @param viewModelName Name of the ViewModel for display
-     * @param scope CoroutineScope to collect in
+     * The previous implementation was a no-op (it logged "Observing …"
+     * but never launched any collector), so callers got zero state
+     * changes from this entry point.
      */
     fun observe(
-        flow: Any,
+        flow: Flow<Any?>,
         viewModelName: String,
-        scope: Any
+        scope: CoroutineScope
     ) {
-        try {
-            // Use reflection to call collect without hard dependency on StateFlow
-            val collectMethod = flow.javaClass.getMethod("collect", Any::class.java)
-            // This is simplified - real implementation would use actual coroutine collection
-            DevConnect.log(
-                "Observing $viewModelName state changes",
-                "ViewModel"
-            )
-        } catch (_: Exception) {}
+        scope.launch {
+            try {
+                flow.collect { value ->
+                    try {
+                        DevConnect.reportStateChange(
+                            stateManager = "viewmodel",
+                            action = "$viewModelName state changed",
+                            nextState = mapOf("value" to (value?.toString() ?: "null"))
+                        )
+                    } catch (_: Exception) {
+                        // Never let a consumer's reportStateChange failure
+                        // tear down the collector.
+                    }
+                }
+            } catch (_: Exception) {
+                // Collector cancelled or flow threw — drop silently.
+                // Cancellation propagates via the scope.
+            }
+        }
     }
 
     /**

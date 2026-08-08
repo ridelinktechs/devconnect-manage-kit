@@ -1,9 +1,9 @@
 package com.devconnect.interceptors
 
 import com.devconnect.DevConnect
-import okhttp3.Interceptor
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.Buffer
 import org.json.JSONObject
 import java.util.UUID
 
@@ -32,8 +32,8 @@ import java.util.UUID
  *     .build()
  * ```
  */
-class OkHttpInterceptor : Interceptor {
-    override fun intercept(chain: Interceptor.Chain): Response {
+class OkHttpInterceptor : okhttp3.Interceptor {
+    override fun intercept(chain: okhttp3.Interceptor.Chain): Response {
         val requestId = UUID.randomUUID().toString()
         val request = chain.request()
         val startTime = System.currentTimeMillis()
@@ -42,10 +42,14 @@ class OkHttpInterceptor : Interceptor {
         val method = request.method.uppercase()
         val url = request.url.toString()
 
-        // Request headers
+        // Request headers — redact Authorization / Cookie / Set-Cookie
+        // before forwarding to the desktop UI. The previous implementation
+        // forwarded these verbatim, leaking bearer tokens, session cookies,
+        // and CSRF tokens into a network log visible to anyone with access
+        // to the desktop inspector.
         val reqHeaders = mutableMapOf<String, String>()
         request.headers.forEach { (name, value) ->
-            reqHeaders[name] = value
+            reqHeaders[name] = redactHeader(name, value)
         }
 
         // Request body
@@ -70,7 +74,8 @@ class OkHttpInterceptor : Interceptor {
                         } else {
                             val buffer = okio.Buffer()
                             part.body.writeTo(buffer)
-                            fields[name] = buffer.readUtf8()
+                            // Field name may carry a credential — redact value.
+                            fields[name] = redactValue(name, buffer.readUtf8())
                         }
                     }
                     val result = mutableMapOf<String, Any?>()
@@ -84,7 +89,11 @@ class OkHttpInterceptor : Interceptor {
                     val buffer = okio.Buffer()
                     body.writeTo(buffer)
                     val bodyStr = buffer.readUtf8()
-                    requestBody = try { JSONObject(bodyStr) } catch (_: Exception) { bodyStr }
+                    requestBody = try {
+                        JSONObject(bodyStr)
+                    } catch (_: Exception) {
+                        bodyStr
+                    }
                 }
             }
         } catch (_: Exception) {}
@@ -116,16 +125,42 @@ class OkHttpInterceptor : Interceptor {
         return try {
             val response = chain.proceed(request)
 
-            // Response headers
+            // Response headers — same redaction pass.
             val resHeaders = mutableMapOf<String, String>()
             response.headers.forEach { (name, value) ->
-                resHeaders[name] = value
+                resHeaders[name] = redactHeader(name, value)
             }
 
-            // Response body - read and re-create to not consume the stream
+            // Response body — capture up to MAX_CAPTURED_BODY_BYTES bytes
+            // without consuming the underlying stream. We buffer the
+            // source into a fresh Buffer and re-attach a synthesized
+            // body so the call chain downstream still sees the full
+            // response.
+            //
+            // OkHttp 4.12.0 does not expose `ResponseBody.peekBody` (that
+            // arrived in OkHttp 5.x), so we read via `source().request(N)`
+            // ourselves.
             var responseBody: Any? = null
-            val responseBodyStr = response.body?.string()
-            responseBodyStr?.let { str ->
+            val originalBody = response.body
+            val responseBodyStr: String? = if (originalBody != null) {
+                try {
+                    val sink = Buffer()
+                    originalBody.source().request(MAX_CAPTURED_BODY_BYTES.toLong())
+                    sink.write(originalBody.source(), originalBody.source().buffer.size)
+                    val bytes = sink.readByteArray()
+                    bytes.toString(Charsets.UTF_8)
+                } catch (e: Exception) {
+                    null
+                }
+            } else null
+            val displayBody = if (responseBodyStr != null &&
+                responseBodyStr.length > MAX_CAPTURED_BODY_BYTES
+            ) {
+                responseBodyStr.substring(0, MAX_CAPTURED_BODY_BYTES) + "…[truncated]"
+            } else {
+                responseBodyStr
+            }
+            displayBody?.let { str ->
                 responseBody = try {
                     JSONObject(str)
                 } catch (_: Exception) {
@@ -162,6 +197,41 @@ class OkHttpInterceptor : Interceptor {
                 error = e.message ?: e.toString()
             )
             throw e
+        }
+    }
+
+    private companion object {
+        // Cap captured bodies at 1 MB. The desktop inspector renders a
+        // small fraction of any body anyway; this avoids OOM on chatty
+        // or large-response APIs (e.g. Firebase Real Database snapshots,
+        // S3 list-objects).
+        const val MAX_CAPTURED_BODY_BYTES = 1_048_576
+
+        // Header names that carry credentials. Compared case-insensitively.
+        val SENSITIVE_HEADERS = setOf(
+            "authorization",
+            "proxy-authorization",
+            "cookie",
+            "set-cookie",
+            "x-api-key",
+            "x-auth-token",
+            "x-csrf-token",
+            "x-xsrf-token",
+        )
+
+        // Substrings used to detect sensitive query / form-field names.
+        val SENSITIVE_KEY_HINTS = listOf(
+            "token", "password", "secret", "apikey", "api_key",
+            "authorization", "cookie", "credential",
+        )
+
+        fun redactHeader(name: String, value: String): String {
+            return if (name.lowercase() in SENSITIVE_HEADERS) "[REDACTED]" else value
+        }
+
+        fun redactValue(key: String, value: String): String {
+            val lower = key.lowercase()
+            return if (SENSITIVE_KEY_HINTS.any { lower.contains(it) }) "[REDACTED]" else value
         }
     }
 }

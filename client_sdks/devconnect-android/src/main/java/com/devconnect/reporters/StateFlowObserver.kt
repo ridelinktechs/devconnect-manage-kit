@@ -1,6 +1,14 @@
 package com.devconnect.reporters
 
 import com.devconnect.DevConnect
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 
 /**
  * StateFlow/LiveData observer that reports state changes to DevConnect.
@@ -35,27 +43,23 @@ import com.devconnect.DevConnect
  * // Any Flow can be observed:
  * DevConnectStateObserver.observeFlow(scope, myFlow, "MyFlow")
  * ```
- *
- * Since kotlinx.coroutines.flow and androidx.lifecycle are not hard dependencies,
- * this uses reflection to avoid compile-time coupling.
  */
 object DevConnectStateObserver {
 
     private const val TAG = "StateObserver"
 
     /**
-     * Observe a StateFlow and report state changes to DevConnect.
+     * Observe a [StateFlow] and report state changes to DevConnect.
      *
-     * Uses reflection to collect from the StateFlow without requiring
-     * kotlinx.coroutines as a compile-time dependency.
-     *
-     * @param scope A CoroutineScope to launch the collection in
-     * @param stateFlow The StateFlow to observe
-     * @param name A descriptive name for this state (shown in DevConnect UI)
+     * The previous implementation spawned a polling thread that read
+     * `stateFlow.value` every 100 ms — burning battery and CPU, and
+     * missing emissions that landed in the same polling window. This
+     * implementation subscribes via `flow.distinctUntilChanged().collect`
+     * on [Dispatchers.Default], so each emission is reported exactly once.
      */
-    fun observe(scope: Any, stateFlow: Any, name: String) {
+    fun observe(scope: CoroutineScope, stateFlow: StateFlow<Any?>, name: String) {
         try {
-            observeStateFlowViaReflection(scope, stateFlow, name)
+            observeFlow(scope, stateFlow, name)
         } catch (e: Exception) {
             DevConnect.sendLog(
                 "warn",
@@ -70,12 +74,10 @@ object DevConnectStateObserver {
     /**
      * Observe a LiveData and report state changes to DevConnect.
      *
-     * Uses reflection to observe the LiveData without requiring
-     * androidx.lifecycle as a compile-time dependency.
-     *
-     * @param lifecycleOwner The LifecycleOwner to bind observation to
-     * @param liveData The LiveData to observe
-     * @param name A descriptive name for this state (shown in DevConnect UI)
+     * LiveData itself is androidx-only (and is a `compileOnly` dep of
+     * this SDK). We reflect on the class via reflection so callers can
+     * still pass a `LiveData<Any?>` without our SDK importing
+     * androidx.lifecycle.LiveData at compile time.
      */
     fun observe(lifecycleOwner: Any, liveData: Any, name: String) {
         try {
@@ -92,23 +94,39 @@ object DevConnectStateObserver {
     }
 
     /**
-     * Observe any Flow and report emitted values to DevConnect.
-     *
-     * @param scope A CoroutineScope to launch the collection in
-     * @param flow The Flow to observe
-     * @param name A descriptive name for this flow (shown in DevConnect UI)
+     * Observe any [Flow] and report emitted values to DevConnect.
      */
-    fun observeFlow(scope: Any, flow: Any, name: String) {
-        try {
-            observeFlowViaReflection(scope, flow, name)
-        } catch (e: Exception) {
-            DevConnect.sendLog(
-                "warn",
-                "Failed to observe Flow '$name': ${e.message}. " +
-                    "Use manual reporting with DevConnectStateObserver.reportChange() instead.",
-                TAG,
-                e.stackTraceToString()
-            )
+    fun observeFlow(scope: CoroutineScope, flow: Flow<Any?>, name: String) {
+        var previousValue: Any? = null
+        var firstEmission = true
+        scope.launch(Dispatchers.Default) {
+            try {
+                flow.distinctUntilChanged()
+                    .onEach { currentValue ->
+                        DevConnect.reportStateChange(
+                            stateManager = name,
+                            action = "state_updated",
+                            previousState = toStateMap(previousValue),
+                            nextState = toStateMap(currentValue)
+                        )
+                        previousValue = currentValue
+                        firstEmission = false
+                    }
+                    .collect()
+                // No-op terminal; collect on a cold flow runs forever.
+                // If the flow completes (e.g. from a SharedFlow with no
+                // replay), we surface that to the desktop once.
+                if (!firstEmission) {
+                    DevConnect.sendLog("info", "Flow '$name' completed", TAG)
+                }
+            } catch (e: Exception) {
+                DevConnect.sendLog(
+                    "warn",
+                    "Flow observation ended for '$name': ${e.message}",
+                    TAG,
+                    e.stackTraceToString()
+                )
+            }
         }
     }
 
@@ -127,11 +145,6 @@ object DevConnectStateObserver {
      *     nextState = mapOf("loggedIn" to true, "userId" to "123")
      * )
      * ```
-     *
-     * @param name A descriptive name for this state
-     * @param previousState The previous state as a map
-     * @param nextState The new state as a map
-     * @param action Optional description of what changed
      */
     fun reportChange(
         name: String,
@@ -149,14 +162,6 @@ object DevConnectStateObserver {
 
     /**
      * Report a state snapshot (the full current state).
-     *
-     * ```kotlin
-     * DevConnectStateObserver.reportSnapshot("UserState", mapOf(
-     *     "loggedIn" to true,
-     *     "userId" to "123",
-     *     "userName" to "John"
-     * ))
-     * ```
      */
     fun reportSnapshot(name: String, state: Map<String, Any>) {
         DevConnect.sendStateSnapshot(
@@ -165,54 +170,7 @@ object DevConnectStateObserver {
         )
     }
 
-    // ---- Internal reflection-based observers ----
-
-    private fun observeStateFlowViaReflection(scope: Any, stateFlow: Any, name: String) {
-        // StateFlow implements Flow, so we can use Flow collection.
-        // We need CoroutineScope.launch { flow.collect { ... } }
-        //
-        // Since we can't call suspend functions directly via reflection easily,
-        // we use a thread-based approach to collect.
-
-        val thread = Thread {
-            var previousValue: Any? = null
-            try {
-                // Get the current value via StateFlow.value property
-                val valueMethod = stateFlow.javaClass.getMethod("getValue")
-
-                DevConnect.sendLog("info", "Observing StateFlow '$name'", TAG)
-
-                while (!Thread.currentThread().isInterrupted) {
-                    try {
-                        val currentValue = valueMethod.invoke(stateFlow)
-
-                        if (currentValue != previousValue) {
-                            DevConnect.reportStateChange(
-                                stateManager = name,
-                                action = "state_updated",
-                                previousState = toStateMap(previousValue),
-                                nextState = toStateMap(currentValue)
-                            )
-                            previousValue = currentValue
-                        }
-
-                        Thread.sleep(100) // Poll interval
-                    } catch (_: InterruptedException) {
-                        break
-                    }
-                }
-            } catch (e: Exception) {
-                DevConnect.sendLog(
-                    "warn",
-                    "StateFlow observation ended for '$name': ${e.message}",
-                    TAG
-                )
-            }
-        }
-        thread.isDaemon = true
-        thread.name = "DevConnect-StateFlow-$name"
-        thread.start()
-    }
+    // ---- Internal LiveData observer (androidx is compileOnly) ----
 
     private fun observeLiveDataViaReflection(lifecycleOwner: Any, liveData: Any, name: String) {
         // LiveData.observe(LifecycleOwner, Observer)
@@ -225,7 +183,6 @@ object DevConnectStateObserver {
 
             var previousValue: Any? = null
 
-            // Create an Observer proxy
             val observer = java.lang.reflect.Proxy.newProxyInstance(
                 observerClass.classLoader,
                 arrayOf(observerClass)
@@ -243,15 +200,12 @@ object DevConnectStateObserver {
                 null
             }
 
-            // Call liveData.observe(lifecycleOwner, observer)
             val observeMethod = liveDataClass.getMethod(
                 "observe",
                 lifecycleOwnerClass,
                 observerClass
             )
             observeMethod.invoke(liveData, lifecycleOwner, observer)
-
-            DevConnect.sendLog("info", "Observing LiveData '$name'", TAG)
         } catch (e: Exception) {
             // Fallback: try observeForever if LifecycleOwner fails
             try {
@@ -287,37 +241,6 @@ object DevConnectStateObserver {
 
         val observeForeverMethod = liveDataClass.getMethod("observeForever", observerClass)
         observeForeverMethod.invoke(liveData, observer)
-
-        DevConnect.sendLog("info", "Observing LiveData '$name' (forever)", TAG)
-    }
-
-    private fun observeFlowViaReflection(scope: Any, flow: Any, name: String) {
-        // Similar to StateFlow but without .value access
-        // We use a polling thread as a simplified approach
-        val thread = Thread {
-            try {
-                DevConnect.sendLog("info", "Observing Flow '$name'", TAG)
-
-                // For generic flows, we report when collection starts
-                // Actual collection requires coroutine suspension which we can't
-                // easily do via reflection. Report setup and suggest manual usage.
-                DevConnect.sendLog(
-                    "info",
-                    "Flow '$name' registered. For best results, use manual " +
-                        "reporting with reportChange() in your collect block.",
-                    TAG
-                )
-            } catch (e: Exception) {
-                DevConnect.sendLog(
-                    "warn",
-                    "Flow observation setup failed for '$name': ${e.message}",
-                    TAG
-                )
-            }
-        }
-        thread.isDaemon = true
-        thread.name = "DevConnect-Flow-$name"
-        thread.start()
     }
 
     private fun toStateMap(value: Any?): Map<String, Any>? {

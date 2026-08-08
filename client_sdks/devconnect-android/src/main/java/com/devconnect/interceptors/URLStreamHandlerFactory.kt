@@ -22,6 +22,10 @@ import java.util.UUID
  */
 object DevConnectURLStreamHandlerFactory {
 
+    // Cap captured bodies at 1 MB. See HttpURLConnectionInterceptor for
+    // the rationale.
+    private const val MAX_CAPTURED_BODY_BYTES = 1_048_576
+
     private var installed = false
 
     fun install() {
@@ -29,10 +33,22 @@ object DevConnectURLStreamHandlerFactory {
         try {
             URL.setURLStreamHandlerFactory(Factory)
             installed = true
-        } catch (_: Exception) {
-            // Already set by app or another library — can't override
+        } catch (e: Exception) {
+            // The JVM factory can only be set once per process. If the app
+            // or another library already installed one, our interceptor
+            // never runs — without a log the developer has no way to
+            // know why network capture is silent.
+            DevConnect.sendLog(
+                "warn",
+                "DevConnect URLStreamHandlerFactory not installed: ${e.message}. " +
+                    "Another library probably called URL.setURLStreamHandlerFactory() first; " +
+                    "use the OkHttp interceptor instead.",
+                TAG
+            )
         }
     }
+
+    private const val TAG = "URLStreamHandlerFactory"
 
     private object Factory : URLStreamHandlerFactory {
         override fun createURLStreamHandler(protocol: String): URLStreamHandler? {
@@ -93,13 +109,11 @@ object DevConnectURLStreamHandlerFactory {
             ensureStartReported()
             return try {
                 val stream = inner.inputStream
-                val bytes = ByteArrayOutputStream()
-                stream.copyTo(bytes)
-                val data = bytes.toByteArray()
-                reportComplete(data, null)
+                val (data, truncated) = readCapped(stream)
+                reportComplete(data, error = null, truncated = truncated)
                 ByteArrayInputStream(data)
             } catch (e: Exception) {
-                reportComplete(null, e.message)
+                reportComplete(null, error = e.message, truncated = false)
                 throw e
             }
         }
@@ -107,18 +121,41 @@ object DevConnectURLStreamHandlerFactory {
         override fun getErrorStream(): InputStream? {
             return try {
                 val stream = inner.errorStream ?: return null
-                val bytes = ByteArrayOutputStream()
-                stream.copyTo(bytes)
-                val data = bytes.toByteArray()
-                reportComplete(data, null)
+                val (data, truncated) = readCapped(stream)
+                reportComplete(data, error = null, truncated = truncated)
                 ByteArrayInputStream(data)
             } catch (e: Exception) {
-                reportComplete(null, e.message)
+                reportComplete(null, error = e.message, truncated = false)
                 inner.errorStream
             }
         }
 
-        private fun reportComplete(responseBytes: ByteArray?, error: String?) {
+        private fun readCapped(stream: InputStream): Pair<ByteArray, Boolean> {
+            val bytes = ByteArrayOutputStream()
+            val buf = ByteArray(8 * 1024)
+            var copied = 0L
+            var truncated = false
+            while (true) {
+                val n = stream.read(buf)
+                if (n == -1) break
+                if (copied + n > MAX_CAPTURED_BODY_BYTES) {
+                    val remaining = (MAX_CAPTURED_BODY_BYTES - copied).toInt()
+                    if (remaining > 0) bytes.write(buf, 0, remaining)
+                    copied = MAX_CAPTURED_BODY_BYTES.toLong()
+                    truncated = true
+                    break
+                }
+                bytes.write(buf, 0, n)
+                copied += n
+            }
+            return bytes.toByteArray() to truncated
+        }
+
+        private fun reportComplete(
+            responseBytes: ByteArray?,
+            error: String?,
+            truncated: Boolean
+        ) {
             val resHeaders = mutableMapOf<String, String>()
             inner.headerFields?.forEach { (k, v) ->
                 if (k != null) resHeaders[k] = v.joinToString(", ")
@@ -126,8 +163,16 @@ object DevConnectURLStreamHandlerFactory {
 
             var responseBody: Any? = null
             responseBytes?.let {
-                val str = String(it)
-                responseBody = try { JSONObject(str) } catch (_: Exception) { str }
+                if (truncated) {
+                    responseBody = try {
+                        JSONObject(String(it)).put("_truncated", true)
+                    } catch (_: Exception) {
+                        String(it) + "…[truncated at 1 MB]"
+                    }
+                } else {
+                    val str = String(it)
+                    responseBody = try { JSONObject(str) } catch (_: Exception) { str }
+                }
             }
 
             DevConnect.reportNetworkComplete(

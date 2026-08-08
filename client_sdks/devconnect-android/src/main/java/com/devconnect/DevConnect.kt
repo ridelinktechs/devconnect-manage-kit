@@ -4,6 +4,7 @@ import com.devconnect.client.WebSocketClient
 import com.devconnect.interceptors.DevConnectKermitWriter
 import com.devconnect.interceptors.DevConnectKtorPlugin
 import com.devconnect.interceptors.DevConnectNapierAntilog
+import com.devconnect.interceptors.DevConnectURLStreamHandlerFactory
 import com.devconnect.interceptors.OkHttpInterceptor
 import com.devconnect.reporters.DataStoreReporter
 import com.devconnect.reporters.LogReporter
@@ -15,6 +16,7 @@ import com.devconnect.reporters.SQLDelightReporter
 import com.devconnect.reporters.DevConnectStateObserver
 import com.devconnect.reporters.SharedPrefsReporter
 import com.devconnect.wrappers.DevConnectRealm
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.UUID
 
@@ -74,11 +76,21 @@ import java.util.UUID
  */
 object DevConnect {
     private var client: WebSocketClient? = null
-    private var enabled = true
-    private var deviceId = ""
 
-    /** Pre-init queue: messages sent before init() completes */
-    private val preInitQueue = mutableListOf<Pair<String, JSONObject>>()
+    /**
+     * Default `false` — opt-in only. The SDK captures network requests,
+     * auth headers, and request bodies that may include OAuth tokens.
+     * Production builds MUST pass `enabled = BuildConfig.DEBUG` explicitly.
+     */
+    private var enabled = false
+    @Volatile private var deviceId = ""
+
+    /** Pre-init queue: messages sent before init() completes. Synchronized
+     *  because [send] is called from any thread (interceptor callbacks,
+     *  OkHttp dispatchers, etc.) while [init] drains it on the calling
+     *  thread. */
+    private val preInitQueue: MutableList<Pair<String, JSONObject>> =
+        java.util.Collections.synchronizedList(mutableListOf())
 
     /**
      * Initialize DevConnect.
@@ -89,7 +101,7 @@ object DevConnect {
      * @param host Desktop IP. null or "auto" for auto-detection.
      * @param port WebSocket port (default: 9090)
      * @param auto Auto-detect host if not specified (default: true)
-     * @param enabled Pass BuildConfig.DEBUG to disable in production (default: true)
+     * @param enabled Pass BuildConfig.DEBUG to disable in production (default: false)
      *
      * Production usage:
      * ```kotlin
@@ -100,7 +112,14 @@ object DevConnect {
      * Auto-detection tries: 10.0.2.2 (emulator) -> 10.0.3.2 (Genymotion) -> localhost -> 127.0.0.1
      */
     private var appContext: android.content.Context? = null
-    private const val CACHE_KEY = "DcN3t\$ecR7!"
+
+    /** Coroutine scope for the asynchronous portion of [init] — host
+     *  discovery + WebSocket client construction. Kept as a separate
+     *  scope so init() returns quickly and the caller's
+     *  `Application.onCreate()` doesn't block. */
+    private val initScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+    )
 
     /**
      * Tracks the topmost (or last-resumed) Activity in this process. Set
@@ -113,6 +132,12 @@ object DevConnect {
      */
     private var trackedActivityRef: java.lang.ref.WeakReference<android.app.Activity>? = null
     private var lifecycleCallbacks: android.app.Application.ActivityLifecycleCallbacks? = null
+
+    /** Monotonic timestamp of the last server:reload/server:hot_restart
+     *  we dispatched. Used to debounce — a malicious or buggy desktop
+     *  could otherwise recreate the Activity every frame. */
+    @Volatile private var lastReloadDispatchMs = 0L
+    private val reloadDebounceMs = 1_000L
 
     /**
      * Installs an [android.app.Application.ActivityLifecycleCallbacks] that
@@ -144,45 +169,98 @@ object DevConnect {
         appCtx.registerActivityLifecycleCallbacks(callbacks)
     }
 
+    /**
+     * Dispatch a reload/hot_restart request to the host activity, with a
+     * 1-second debounce so a misbehaving desktop cannot thrash the
+     * activity through onCreate/onDestroy at 10Hz. Shared between
+     * `server:reload` and `server:hot_restart` because they trigger the
+     * same code path on Android (Activity.recreate is the strongest
+     * "reset" Android exposes).
+     *
+     * Main-thread dispatch is required — the WebSocket listener fires on
+     * a background thread and Activity.recreate() MUST run on the UI
+     * thread or ActivityManager throws CalledFromWrongThreadException.
+     */
+    private fun handleReloadRequest(messageType: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastReloadDispatchMs < reloadDebounceMs) {
+            // Drop the request — the previous one is still in flight or
+            // just completed. Log at info level so the dev can see the
+            // desktop is spamming.
+            android.util.Log.i(
+                "DevConnect",
+                "Ignored $messageType (debounced — last dispatch $now - $lastReloadDispatchMs ms ago)"
+            )
+            return
+        }
+        lastReloadDispatchMs = now
+
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            if (reloadHandler != null) {
+                try { reloadHandler?.invoke() } catch (e: Exception) {
+                    android.util.Log.w(
+                        "DevConnect",
+                        "reloadHandler threw: ${e.message}",
+                        e
+                    )
+                }
+            } else {
+                try {
+                    val act = trackedActivityRef?.get()
+                    if (act != null && !act.isFinishing) act.recreate()
+                } catch (e: Exception) {
+                    android.util.Log.w(
+                        "DevConnect",
+                        "Activity.recreate failed: ${e.message}",
+                        e
+                    )
+                }
+            }
+        }
+    }
+
     private fun getPrefs(): android.content.SharedPreferences? {
         return appContext?.getSharedPreferences("dc_session", android.content.Context.MODE_PRIVATE)
     }
 
-    private fun xorCipher(input: String, key: String): String {
-        val sb = StringBuilder()
-        for (i in input.indices) {
-            sb.append((input[i].code xor key[i % key.length].code).toChar())
-        }
-        return sb.toString()
-    }
-
     @android.annotation.SuppressLint("HardwareIds")
     private fun generateStableDeviceId(appName: String): String {
+        // deviceId is only derived from appContext — calling [init] without
+        // a Context is now a programmer error (was previously a silent
+        // privacy leak via Build.FINGERPRINT).
         val ctx = appContext
-        val seed = if (ctx != null) {
-            val androidId = android.provider.Settings.Secure.getString(
-                ctx.contentResolver,
-                android.provider.Settings.Secure.ANDROID_ID
-            ) ?: ""
-            "$androidId:${ctx.packageName}"
-        } else {
-            "$appName:${android.os.Build.BRAND}:${android.os.Build.MODEL}:${android.os.Build.FINGERPRINT}"
-        }
+            ?: throw IllegalStateException(
+                "DevConnect.init must be called with a Context before deviceId is used"
+            )
+        val androidId = android.provider.Settings.Secure.getString(
+            ctx.contentResolver,
+            android.provider.Settings.Secure.ANDROID_ID
+        ) ?: ""
+        val seed = "$androidId:${ctx.packageName}"
         return UUID.nameUUIDFromBytes(seed.toByteArray()).toString()
     }
 
     /** Cached host + server's stable machineId for identity verification. */
     private data class CachedHost(val host: String, val machineId: String)
 
+    /**
+     * Cache the discovered host. Stored as plain JSON in
+     * `dc_session` SharedPreferences (MODE_PRIVATE). The previous
+     * implementation claimed "encryption" via XOR with a hardcoded key —
+     * XOR with a static key is not encryption, and the misleading framing
+     * raised the security review bar without delivering it. The cache
+     * holds dev-only connection metadata (IP + machineId), so plain JSON
+     * is honest and appropriate.
+     */
     private fun saveHostCache(host: String, port: Int, machineId: String?) {
         try {
-            val machineIdField = if (machineId != null) ""","m":"$machineId"""" else ""
-            val plain = """{"h":"$host","p":$port,"t":${System.currentTimeMillis()}$machineIdField}"""
-            val encrypted = android.util.Base64.encodeToString(
-                xorCipher(plain, CACHE_KEY).toByteArray(Charsets.ISO_8859_1),
-                android.util.Base64.NO_WRAP
-            )
-            getPrefs()?.edit()?.putString("dc_s", encrypted)?.apply()
+            val plain = JSONObject().apply {
+                put("h", host)
+                put("p", port)
+                put("t", System.currentTimeMillis())
+                if (machineId != null) put("m", machineId)
+            }.toString()
+            getPrefs()?.edit()?.putString("dc_s", plain)?.apply()
         } catch (_: Exception) {}
     }
 
@@ -195,10 +273,8 @@ object DevConnect {
 
     private fun readHostCache(port: Int): CachedHost? {
         try {
-            val encrypted = getPrefs()?.getString("dc_s", null) ?: return null
-            val decoded = android.util.Base64.decode(encrypted, android.util.Base64.NO_WRAP)
-            val decrypted = xorCipher(String(decoded, Charsets.ISO_8859_1), CACHE_KEY)
-            val json = JSONObject(decrypted)
+            val plain = getPrefs()?.getString("dc_s", null) ?: return null
+            val json = JSONObject(plain)
             val cachedTime = json.optLong("t", 0)
             if (System.currentTimeMillis() - cachedTime > 24 * 60 * 60 * 1000) return null
             if (json.optInt("p") != port) return null
@@ -262,7 +338,7 @@ object DevConnect {
         host: String? = null,
         port: Int = 9090,
         auto: Boolean = true,
-        enabled: Boolean = true,
+        enabled: Boolean = false,
         versionCode: String? = null,
         autoInterceptLogs: Boolean = false,
         /** Auto-intercept HttpURLConnection (Volley, native HTTP). Default: true */
@@ -272,12 +348,41 @@ object DevConnect {
         /** Auto-start memory leak detection (default: true) */
         autoMemoryLeak: Boolean = true,
         /** Auto-start app benchmark (default: true) */
-        autoBenchmark: Boolean = true
+        autoBenchmark: Boolean = true,
+        /** Auto-start the ANR watchdog (main-thread ping). Default: true */
+        autoAnrWatchdog: Boolean = true,
+        /** Auto-discover StateFlow/LiveData on ViewModels via reflection. Default: true */
+        autoViewModelDiscovery: Boolean = true,
     ) {
         this.enabled = enabled
         if (!enabled) return
 
-        // Save context for SharedPreferences
+        // Defence-in-depth: warn (not abort) when DevConnect is enabled in
+        // a non-debuggable build. The SDK captures network requests,
+        // headers (incl. Authorization), and request bodies that may
+        // contain OAuth tokens — production releases should pass
+        // `enabled = BuildConfig.DEBUG`.
+        try {
+            // `context` is typed `Any` so cross-platform call sites can
+            // pass a non-Android context. Smart-cast to a real Context
+            // before accessing platform-specific members.
+            val ctx = context as? android.content.Context
+            val app = ctx?.applicationContext as? android.app.Application
+            if (app != null &&
+                (app.getApplicationInfo().flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0
+            ) {
+                android.util.Log.w(
+                    "DevConnect",
+                    "DevConnect.init called with enabled=true in a non-debuggable build. " +
+                        "Captured traffic (incl. Authorization headers) will be sent in cleartext " +
+                        "to the LAN-connected desktop. Pass `enabled = BuildConfig.DEBUG` in release."
+                )
+            }
+        } catch (_: Exception) {}
+
+        // Save context for SharedPreferences. We require a real Context so
+        // deviceId derivation never falls through to the Build.FINGERPRINT
+        // privacy leak (M4).
         if (context is android.content.Context) {
             appContext = context.applicationContext
             // `context` is smart-cast to non-null inside this branch;
@@ -285,22 +390,66 @@ object DevConnect {
             // // LifecycleTracker (which expects a non-null Context) doesn't
             // receive the nullable `appContext` field.
             installActivityLifecycleTracker(context.applicationContext)
+        } else {
+            throw IllegalArgumentException(
+                "DevConnect.init requires an android.content.Context as the first argument"
+            )
         }
 
         // Generate stable deviceId from app + device info (prevents duplicates on reconnect/hot-reload)
         deviceId = generateStableDeviceId(appName)
 
-        val resolvedHost = if (host == null || host == "auto") {
-            if (auto) autoDetectHost(port) else "10.0.2.2"
-        } else {
-            host
+        // Resolve the host off the main thread. The previous implementation
+        // called `autoDetectHost()` synchronously inside init(), which is
+        // typically invoked from `Application.onCreate()` on the main
+        // thread. Discovery waits up to 3.5 s on a cache miss and the
+        // subnet scan can run for tens of seconds — a hard ANR during app
+        // startup.
+        val explicitHost = host
+        initScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val resolvedHost = when {
+                explicitHost != null && explicitHost != "auto" -> explicitHost
+                auto -> autoDetectHost(port)
+                else -> "10.0.2.2"
+            }
+            connectAfterDiscovery(
+                host = resolvedHost,
+                context = context,
+                appName = appName,
+                appVersion = appVersion,
+                versionCode = versionCode,
+                port = port,
+                autoInterceptLogs = autoInterceptLogs,
+                autoInterceptHttp = autoInterceptHttp,
+                autoPerformance = autoPerformance,
+                autoMemoryLeak = autoMemoryLeak,
+                autoBenchmark = autoBenchmark,
+                autoAnrWatchdog = autoAnrWatchdog,
+                autoViewModelDiscovery = autoViewModelDiscovery,
+            )
         }
+    }
 
+    private fun connectAfterDiscovery(
+        host: String,
+        context: Any,
+        appName: String,
+        appVersion: String,
+        versionCode: String?,
+        port: Int,
+        autoInterceptLogs: Boolean,
+        autoInterceptHttp: Boolean,
+        autoPerformance: Boolean,
+        autoMemoryLeak: Boolean,
+        autoBenchmark: Boolean,
+        autoAnrWatchdog: Boolean,
+        autoViewModelDiscovery: Boolean,
+    ) {
         // Disconnect old client to prevent orphaned connections
         client?.disconnect()
 
         client = WebSocketClient(
-            host = resolvedHost,
+            host = host,
             port = port,
             deviceId = deviceId,
             appName = appName,
@@ -312,7 +461,7 @@ object DevConnect {
             // some other device that happened to claim the same IP.
             ws.onServerHello = { machineId ->
                 if (!machineId.isNullOrEmpty()) {
-                    saveHostCache(resolvedHost, port, machineId)
+                    saveHostCache(host, port, machineId)
                 }
             }
             ws.onServerMessage = { type, json ->
@@ -322,14 +471,27 @@ object DevConnect {
                         val state = payload.optJSONObject("state")
                         if (state != null) {
                             val map = jsonObjectToMap(state)
-                            onStateRestore?.invoke(map)
+                            // Guard the user-supplied lambda — a throw
+                            // here used to escape into the WebSocket
+                            // coroutine scope and silently fail the
+                            // whole restore. Log to the desktop so the
+                            // dev can see which handler broke.
+                            try {
+                                onStateRestore?.invoke(map)
+                            } catch (e: Exception) {
+                                sendLog("error", "onStateRestore threw: ${e.message}", "DevConnect", e.stackTraceToString())
+                            }
                         }
                     }
                     "server:redux:dispatch" -> {
                         val action = payload.optJSONObject("action")
                         if (action != null) {
                             val map = jsonObjectToMap(action)
-                            onReduxDispatch?.invoke(map)
+                            try {
+                                onReduxDispatch?.invoke(map)
+                            } catch (e: Exception) {
+                                sendLog("error", "onReduxDispatch threw: ${e.message}", "DevConnect", e.stackTraceToString())
+                            }
                         }
                     }
                     "server:custom:command" -> {
@@ -340,70 +502,27 @@ object DevConnect {
                             val argsMap = if (args != null) jsonObjectToMap(args) else null
                             try {
                                 val result = handler(argsMap)
-                                val correlationId = json.optString("correlationId", null)
-                                val resultPayload = buildPayload {
-                                    put("command", cmd)
-                                    if (result != null) put("result", result)
-                                }
-                                send("client:custom:command_result", resultPayload)
-                            } catch (_: Exception) {
-                                // Handler threw — send error result so desktop knows
                                 send("client:custom:command_result", buildPayload {
                                     put("command", cmd)
+                                    put("status", "ok")
+                                    if (result != null) put("result", result)
+                                })
+                            } catch (e: Exception) {
+                                // Surface the failure to the desktop so it
+                                // can show the user that the handler
+                                // crashed — the previous "swallow + send
+                                // empty result" payload made every failure
+                                // look like success.
+                                send("client:custom:command_result", buildPayload {
+                                    put("command", cmd)
+                                    put("status", "error")
+                                    put("error", e.message ?: e.javaClass.simpleName)
                                 })
                             }
                         }
                     }
-                    "server:reload" -> {
-                        // Desktop asking the app to rebuild itself. Android has
-                        // no hot-reload in the RN/Flutter sense, so the
-                        // closest equivalent is recreating the host activity
-                        // — that tears down every view, kills any in-process
-                        // state, and re-launches the activity from onCreate.
-                        // If the host has supplied a custom handler, defer to
-                        // that and let them call recreate() themselves.
-                        //
-                        // Dispatched onto the main thread — the WebSocket
-                        // listener fires on a background thread and any UI
-                        // mutation (Activity.recreate() included) MUST happen
-                        // on the UI thread or ActivityManager throws
-                        // `CalledFromWrongThreadException`.
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            if (reloadHandler != null) {
-                                try { reloadHandler?.invoke() } catch (_: Exception) {}
-                            } else {
-                                try {
-                                    val act = trackedActivityRef?.get()
-                                    if (act != null && !act.isFinishing) act.recreate()
-                                } catch (_: Exception) {
-                                    // Activity gone or in bad state — ignore
-                                }
-                            }
-                        }
-                    }
-                    "server:hot_restart" -> {
-                        // Heavier counterpart — same observable effect as
-                        // `server:reload` because `Activity.recreate()` is
-                        // already the strongest "reset" Android exposes.
-                        // We still accept the message so mixed-platform
-                        // setups don't silently drop the hot_restart signal
-                        // on Android devices when the user clicks the
-                        // Hot restart button (visible when a Flutter device
-                        // is also connected). Main-thread dispatch also
-                        // required here (see server:reload comment above).
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            if (reloadHandler != null) {
-                                try { reloadHandler?.invoke() } catch (_: Exception) {}
-                            } else {
-                                try {
-                                    val act = trackedActivityRef?.get()
-                                    if (act != null && !act.isFinishing) act.recreate()
-                                } catch (_: Exception) {
-                                    // Activity gone or in bad state — ignore
-                                }
-                            }
-                        }
-                    }
+                    "server:reload" -> handleReloadRequest(json.optString("type"))
+                    "server:hot_restart" -> handleReloadRequest(json.optString("type"))
                 }
             }
         }
@@ -419,12 +538,17 @@ object DevConnect {
             DevConnectURLStreamHandlerFactory.install()
         }
 
-        // Flush pre-init queue (messages from interceptors before init)
-        if (preInitQueue.isNotEmpty()) {
-            for ((type, payload) in preInitQueue) {
-                send(type, payload)
+        // Flush pre-init queue (messages from interceptors before init).
+        // Hold the same lock [send] uses so a late interceptor can't enqueue
+        // between our drain and clear — that race was the source of an
+        // earlier CME.
+        synchronized(preInitQueue) {
+            if (preInitQueue.isNotEmpty()) {
+                for ((type, payload) in preInitQueue) {
+                    send(type, payload)
+                }
+                preInitQueue.clear()
             }
-            preInitQueue.clear()
         }
 
         // Auto-start monitoring plugins (run in both dev and production)
@@ -436,6 +560,14 @@ object DevConnect {
         }
         if (autoBenchmark) {
             com.devconnect.plugins.setupAppBenchmark(context)
+        }
+        // ErrorMonitor covers ANR detection. Native crash capture is
+        // intentionally out of scope (would require JNI + NDK).
+        if (autoAnrWatchdog && context is android.content.Context) {
+            com.devconnect.plugins.ErrorMonitor.start(context)
+        }
+        if (autoViewModelDiscovery) {
+            com.devconnect.plugins.ViewModelAutoDiscoverer.start(context)
         }
     }
 
@@ -742,8 +874,8 @@ object DevConnect {
     fun reportStateChange(
         stateManager: String,
         action: String,
-        previousState: Map<String, Any>? = null,
-        nextState: Map<String, Any>? = null
+        previousState: Map<String, Any?>? = null,
+        nextState: Map<String, Any?>? = null
     ) {
         send("client:state:change", buildPayload {
             put("stateManager", stateManager)
@@ -841,9 +973,70 @@ object DevConnect {
         send("client:storage:operation", buildPayload {
             put("storageType", storageType)
             put("key", key)
-            value?.let { put("value", it) }
+            value?.let { put("value", redactSensitiveValue(key, it)) }
             put("operation", operation)
         })
+    }
+
+    /**
+     * Short-form storage reporter used by the auto-wrappers
+     * ([com.devconnect.wrappers.DevConnectSharedPrefs],
+     * [com.devconnect.wrappers.DevConnectMMKV],
+     * [com.devconnect.reporters.ObjectBoxReporter],
+     * [com.devconnect.reporters.SQLDelightReporter]).
+     *
+     * Equivalent to [reportStorageOperation] but with a name the wrappers
+     * have historically used.
+     */
+    fun sendStorage(
+        storageType: String,
+        key: String,
+        value: Any? = null,
+        operation: String
+    ) {
+        reportStorageOperation(storageType, key, value, operation)
+    }
+
+    /**
+     * Best-effort send used by the uncaught-exception handler. Accepts a
+     * plain map (instead of a [JSONObject]) because crash payloads are
+     * built ad-hoc in [com.devconnect.plugins.ErrorMonitor] before
+     * [JSONObject] is touched.
+     *
+     * Never throws — the previous handler must run even if reporting fails.
+     */
+    internal fun safeSend(type: String, payload: Map<String, Any?>) {
+        try {
+            val json = JSONObject()
+            for ((k, v) in payload) {
+                if (v == null) {
+                    json.put(k, JSONObject.NULL)
+                } else {
+                    json.put(k, v)
+                }
+            }
+            send(type, json)
+        } catch (_: Exception) {
+            // The process is dying — swallow everything.
+        }
+    }
+
+    /** Keys whose values must be redacted before they leave the device.
+     *  Matches `Authorization`, `Cookie`, `password`, `token`, `secret`,
+     *  etc. by substring (case-insensitive) — same heuristic the desktop
+     *  side uses. */
+    private val sensitiveKeyPatterns = listOf(
+        "token", "password", "secret", "apikey", "api_key",
+        "authorization", "cookie", "set-cookie", "credential"
+    )
+
+    private fun redactSensitiveValue(key: String, value: Any?): Any? {
+        if (value == null) return null
+        val lower = key.lowercase()
+        if (sensitiveKeyPatterns.any { lower.contains(it) }) {
+            return "[REDACTED]"
+        }
+        return value
     }
 
     // ---- Performance Profiling ----
@@ -1012,14 +1205,18 @@ object DevConnect {
 
     // ---- Benchmark API ----
 
-    private val benchmarks = mutableMapOf<String, MutableList<Long>>()
+    private val benchmarks = java.util.concurrent.ConcurrentHashMap<String, MutableList<Long>>()
 
     fun benchmarkStart(title: String) {
         benchmarks[title] = mutableListOf(System.currentTimeMillis())
     }
 
     fun benchmarkStep(title: String) {
-        benchmarks[title]?.add(System.currentTimeMillis())
+        // Synchronize the inner list — ConcurrentHashMap only guards the
+        // map access, not the underlying list's mutation.
+        synchronized(benchmarks) {
+            benchmarks[title]?.add(System.currentTimeMillis())
+        }
     }
 
     fun benchmarkStop(title: String) {
@@ -1129,7 +1326,7 @@ object DevConnect {
 
     // ---- Custom commands ----
 
-    private val commandHandlers = mutableMapOf<String, (Map<String, Any>?) -> Any?>()
+    private val commandHandlers = java.util.concurrent.ConcurrentHashMap<String, (Map<String, Any>?) -> Any?>()
 
     fun registerCommand(name: String, handler: (Map<String, Any>?) -> Any?) {
         commandHandlers[name] = handler
@@ -1160,9 +1357,13 @@ object DevConnect {
 
         val c = client
         if (c == null) {
-            // Queue for later if init() hasn't been called yet
-            if (preInitQueue.size < 500) {
-                preInitQueue.add(Pair(type, payload))
+            // Queue for later if init() hasn't been called yet. The list
+            // is a synchronized wrapper — size + add is one atomic block
+            // so we never overshoot the 500 cap.
+            synchronized(preInitQueue) {
+                if (preInitQueue.size < 500) {
+                    preInitQueue.add(Pair(type, payload))
+                }
             }
             return
         }
@@ -1202,5 +1403,77 @@ object DevConnect {
             }
         }
         return map
+    }
+
+    /**
+     * One-call setup. Wraps [init] with all auto-wiring flags enabled,
+     * giving you ANR detection, ViewModel state auto-discovery,
+     * auto-intercepted logs and HTTP, plus the existing performance /
+     * memory-leak / benchmark monitors.
+     *
+     * Consumers who use Retrofit/OkHttp should still add
+     * `DevConnect.okHttpInterceptor()` to their `OkHttpClient.Builder`
+     * — installForApp detects OkHttp on the classpath and logs a
+     * one-time pointer to the README, but does not auto-wire it.
+     *
+     * Timber consumers should plant a Tree that forwards to
+     * `DevConnect.sendLog(...)`. installForApp detects Timber and logs
+     * a one-time pointer to the README.
+     *
+     * For fine-grained control, call [init] directly with the `auto*`
+     * flags you want enabled.
+     */
+    fun installForApp(
+        context: Any,
+        appName: String,
+        appVersion: String = "1.0.0",
+        host: String? = null,
+        port: Int = 9090,
+        enabled: Boolean = false,
+        versionCode: String? = null,
+    ) {
+        init(
+            context = context,
+            appName = appName,
+            appVersion = appVersion,
+            host = host,
+            port = port,
+            enabled = enabled,
+            versionCode = versionCode,
+            autoInterceptLogs = true,
+            autoInterceptHttp = true,
+            autoPerformance = true,
+            autoMemoryLeak = true,
+            autoBenchmark = true,
+            autoAnrWatchdog = true,
+            autoViewModelDiscovery = true,
+        )
+
+        if (enabled) {
+            val cl = context::class.java.classLoader
+            val hasOkHttp = try {
+                cl.loadClass("okhttp3.OkHttpClient") != null
+            } catch (_: ClassNotFoundException) { false }
+
+            val hasTimber = try {
+                cl.loadClass("timber.log.Timber") != null
+            } catch (_: ClassNotFoundException) { false }
+
+            if (hasOkHttp) {
+                android.util.Log.i(
+                    "DevConnect",
+                    "Detected OkHttp on classpath. To capture network traffic, " +
+                        "add `DevConnect.okHttpInterceptor()` to your OkHttpClient.Builder(). " +
+                        "See README 'Wiring OkHttp / Retrofit'."
+                )
+            }
+            if (hasTimber) {
+                android.util.Log.i(
+                    "DevConnect",
+                    "Detected Timber on classpath. To capture Timber logs, plant a Tree " +
+                        "that calls `DevConnect.sendLog(...)`. See README 'Wiring Timber'."
+                )
+            }
+        }
     }
 }
