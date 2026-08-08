@@ -25,6 +25,12 @@ abstract class StorageEntry with _$StorageEntry {
     required String id,
     required String deviceId,
     required StorageType storageType,
+    /// Optional instance/namespace label — e.g. for MMKV this carries
+    /// the `mmkvId` (`'mmkv:user-storage'` → `mmkv`, `storeId='user-storage'`).
+    /// Multiple stores of the same [storageType] with different [storeId]
+    /// must coexist; dedup at the viewer is keyed on
+    /// `(storageType, storeId, key)`.
+    @Default(null) String? storeId,
     required String key,
     dynamic value,
     required String operation,
