@@ -1,0 +1,68 @@
+// Canonical wiring of DevConnect.installForApp() into an Application.
+// Copy this into your `app/src/main/java/.../MyApp.kt` (or extend your
+// existing Application class). The .template suffix is so this file
+// ships with the SDK without being compiled — strip it when you copy.
+//
+// Two things matter:
+//   1. Pass `enabled = BuildConfig.DEBUG` so the inspector is dormant
+//      in release builds. The SDK has a defence-in-depth logcat warning
+//      if you forget, but the gate belongs here.
+//   2. Plant a Timber Tree that forwards to DevConnect.sendLog(...) if
+//      you use Timber — the SDK can't auto-plant a Tree because that's
+//      an explicit action and doing it for you risks clobbering the
+//      consumer's debug setup.
+//
+// Everything else is normal Hilt / Dagger plumbing.
+
+package your.app.package
+
+import android.app.Application
+import android.util.Log
+import com.devconnect.DevConnect
+import dagger.hilt.android.HiltAndroidApp
+import timber.log.Timber
+
+@HiltAndroidApp
+class MyApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+
+        // ---- Timber setup ----
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+            // Forward Timber.*() to DevConnect so log lines show up in
+            // the inspector. Drop this Tree if you don't use Timber.
+            Timber.plant(object : Timber.Tree() {
+                override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+                    val level = when (priority) {
+                        Log.INFO -> "info"
+                        Log.WARN -> "warn"
+                        Log.ERROR, Log.ASSERT -> "error"
+                        else -> "debug"
+                    }
+                    DevConnect.sendLog(
+                        level = level,
+                        message = message,
+                        tag = tag ?: "Timber",
+                        stackTrace = t?.let { Log.getStackTraceString(it) },
+                        metadata = null,
+                    )
+                }
+            })
+        }
+
+        // ---- DevConnect debug inspector ----
+        // host = null → SDK auto-discovers the desktop on the LAN via
+        // UDP beacon on port 9090. Override if your desktop listens on
+        // a fixed IP.
+        DevConnect.installForApp(
+            context = this,
+            appName = "MyApp",
+            appVersion = BuildConfig.VERSION_NAME,
+            host = null,
+            port = 9090,
+            enabled = BuildConfig.DEBUG,
+            versionCode = BuildConfig.VERSION_CODE.toString(),
+        )
+    }
+}

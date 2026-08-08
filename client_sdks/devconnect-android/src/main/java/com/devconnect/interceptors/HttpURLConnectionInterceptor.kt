@@ -163,7 +163,7 @@ object DevConnectHttpURLConnection {
                     // "body was truncated at 1 MB" banner instead of
                     // appearing to be a complete response.
                     responseBody = try {
-                        JSONObject(it).put("_truncated", true)
+                        JSONObject(String(it)).put("_truncated", true)
                     } catch (_: Exception) {
                         String(it) + "…[truncated at 1 MB]"
                     }

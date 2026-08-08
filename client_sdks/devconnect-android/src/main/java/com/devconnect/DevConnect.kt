@@ -348,7 +348,11 @@ object DevConnect {
         /** Auto-start memory leak detection (default: true) */
         autoMemoryLeak: Boolean = true,
         /** Auto-start app benchmark (default: true) */
-        autoBenchmark: Boolean = true
+        autoBenchmark: Boolean = true,
+        /** Auto-start the ANR watchdog (main-thread ping). Default: true */
+        autoAnrWatchdog: Boolean = true,
+        /** Auto-discover StateFlow/LiveData on ViewModels via reflection. Default: true */
+        autoViewModelDiscovery: Boolean = true,
     ) {
         this.enabled = enabled
         if (!enabled) return
@@ -419,7 +423,9 @@ object DevConnect {
                 autoInterceptHttp = autoInterceptHttp,
                 autoPerformance = autoPerformance,
                 autoMemoryLeak = autoMemoryLeak,
-                autoBenchmark = autoBenchmark
+                autoBenchmark = autoBenchmark,
+                autoAnrWatchdog = autoAnrWatchdog,
+                autoViewModelDiscovery = autoViewModelDiscovery,
             )
         }
     }
@@ -435,7 +441,9 @@ object DevConnect {
         autoInterceptHttp: Boolean,
         autoPerformance: Boolean,
         autoMemoryLeak: Boolean,
-        autoBenchmark: Boolean
+        autoBenchmark: Boolean,
+        autoAnrWatchdog: Boolean,
+        autoViewModelDiscovery: Boolean,
     ) {
         // Disconnect old client to prevent orphaned connections
         client?.disconnect()
@@ -552,6 +560,14 @@ object DevConnect {
         }
         if (autoBenchmark) {
             com.devconnect.plugins.setupAppBenchmark(context)
+        }
+        // ErrorMonitor covers ANR detection. Native crash capture is
+        // intentionally out of scope (would require JNI + NDK).
+        if (autoAnrWatchdog && context is android.content.Context) {
+            com.devconnect.plugins.ErrorMonitor.start(context)
+        }
+        if (autoViewModelDiscovery) {
+            com.devconnect.plugins.ViewModelAutoDiscoverer.start(context)
         }
     }
 
@@ -858,8 +874,8 @@ object DevConnect {
     fun reportStateChange(
         stateManager: String,
         action: String,
-        previousState: Map<String, Any>? = null,
-        nextState: Map<String, Any>? = null
+        previousState: Map<String, Any?>? = null,
+        nextState: Map<String, Any?>? = null
     ) {
         send("client:state:change", buildPayload {
             put("stateManager", stateManager)
@@ -1387,5 +1403,77 @@ object DevConnect {
             }
         }
         return map
+    }
+
+    /**
+     * One-call setup. Wraps [init] with all auto-wiring flags enabled,
+     * giving you ANR detection, ViewModel state auto-discovery,
+     * auto-intercepted logs and HTTP, plus the existing performance /
+     * memory-leak / benchmark monitors.
+     *
+     * Consumers who use Retrofit/OkHttp should still add
+     * `DevConnect.okHttpInterceptor()` to their `OkHttpClient.Builder`
+     * — installForApp detects OkHttp on the classpath and logs a
+     * one-time pointer to the README, but does not auto-wire it.
+     *
+     * Timber consumers should plant a Tree that forwards to
+     * `DevConnect.sendLog(...)`. installForApp detects Timber and logs
+     * a one-time pointer to the README.
+     *
+     * For fine-grained control, call [init] directly with the `auto*`
+     * flags you want enabled.
+     */
+    fun installForApp(
+        context: Any,
+        appName: String,
+        appVersion: String = "1.0.0",
+        host: String? = null,
+        port: Int = 9090,
+        enabled: Boolean = false,
+        versionCode: String? = null,
+    ) {
+        init(
+            context = context,
+            appName = appName,
+            appVersion = appVersion,
+            host = host,
+            port = port,
+            enabled = enabled,
+            versionCode = versionCode,
+            autoInterceptLogs = true,
+            autoInterceptHttp = true,
+            autoPerformance = true,
+            autoMemoryLeak = true,
+            autoBenchmark = true,
+            autoAnrWatchdog = true,
+            autoViewModelDiscovery = true,
+        )
+
+        if (enabled) {
+            val cl = context::class.java.classLoader
+            val hasOkHttp = try {
+                cl.loadClass("okhttp3.OkHttpClient") != null
+            } catch (_: ClassNotFoundException) { false }
+
+            val hasTimber = try {
+                cl.loadClass("timber.log.Timber") != null
+            } catch (_: ClassNotFoundException) { false }
+
+            if (hasOkHttp) {
+                android.util.Log.i(
+                    "DevConnect",
+                    "Detected OkHttp on classpath. To capture network traffic, " +
+                        "add `DevConnect.okHttpInterceptor()` to your OkHttpClient.Builder(). " +
+                        "See README 'Wiring OkHttp / Retrofit'."
+                )
+            }
+            if (hasTimber) {
+                android.util.Log.i(
+                    "DevConnect",
+                    "Detected Timber on classpath. To capture Timber logs, plant a Tree " +
+                        "that calls `DevConnect.sendLog(...)`. See README 'Wiring Timber'."
+                )
+            }
+        }
     }
 }

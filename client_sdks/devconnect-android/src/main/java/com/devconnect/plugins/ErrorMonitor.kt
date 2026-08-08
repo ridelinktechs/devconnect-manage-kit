@@ -103,38 +103,12 @@ object ErrorMonitor {
     }
 
     private fun setupANRDetection() {
-        // ANR detection via MainLooper watcher
-        val handler = android.os.Handler(Looper.getMainLooper())
-        var isAnr = false
-
-        handler.post(object : Runnable {
-            override fun run() {
-                if (running && !isAnr) {
-                    isAnr = true
-
-                    // Check if main thread is blocked (ANR condition)
-                    val stackTrace = Looper.getMainLooper().thread.stackTrace
-                    val mainStack = stackTrace?.take(10)
-
-                    sendError(
-                        platform = "android",
-                        severity = "warning",
-                        message = "Application Not Responding (ANR) detected",
-                        source = "anr",
-                        metadata = mapOf(
-                            "deviceInfo" to getDeviceInfo(),
-                            "mainThreadStack" to (mainStack?.joinToString("\n") { "${it.fileName}:${it.lineNumber}" } ?: "")
-                        )
-                    )
-
-                    isAnr = false
-                }
-
-                if (running) {
-                    handler.postDelayed(this, 5000) // Check every 5 seconds
-                }
-            }
-        })
+        // The previous implementation posted a self-rescheduling Runnable on
+        // the main looper and checked `isAnr` as a flag. That fails on a
+        // truly stuck main thread — the Runnable never runs, the check
+        // never fires. The standalone AnrWatchdog uses a daemon thread that
+        // pings the looper instead.
+        AnrWatchdog.start()
     }
 
     /**

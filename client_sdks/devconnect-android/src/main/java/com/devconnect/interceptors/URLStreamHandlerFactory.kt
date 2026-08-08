@@ -165,7 +165,7 @@ object DevConnectURLStreamHandlerFactory {
             responseBytes?.let {
                 if (truncated) {
                     responseBody = try {
-                        JSONObject(it).put("_truncated", true)
+                        JSONObject(String(it)).put("_truncated", true)
                     } catch (_: Exception) {
                         String(it) + "…[truncated at 1 MB]"
                     }

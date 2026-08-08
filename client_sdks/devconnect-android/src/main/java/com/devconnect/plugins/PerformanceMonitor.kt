@@ -327,54 +327,7 @@ private fun reportSystemMetrics() {
         }
     } catch (_: Exception) {}
 
-    // ANR detection (main thread responsiveness)
-    detectAnr()
-}
-
-// ---- ANR detection ----
-private val mainThreadAck = java.util.concurrent.atomic.AtomicBoolean(false)
-
-private fun detectAnr() {
-    // The previous implementation reset `anrCheckTime` both on the
-    // worker thread (before sleeping) and on the main thread (via
-    // handler.post). That meant the worker's `delay = now - anrCheckTime`
-    // was always ~5000 ms regardless of whether the main thread was
-    // responsive, so the `> 6000` threshold was never reached — ANRs
-    // were silently dropped.
-
-    mainThreadAck.set(false)
-    val handler = Handler(Looper.getMainLooper())
-    handler.post { mainThreadAck.set(true) }
-
-    Thread {
-        Thread.sleep(5000)
-        if (!running) return@Thread
-        if (mainThreadAck.get()) return@Thread
-
-        // Main thread didn't ack within 5 s. Sleep one more second to
-        // rule out transient jank (GC pause, layout inflation, ...) and
-        // re-check. Only report if it still hasn't responded.
-        Thread.sleep(1000)
-        if (!running) return@Thread
-        if (mainThreadAck.get()) return@Thread
-
-        // Capture the main thread's stack trace — we're on a background
-        // thread right now, so reading `Looper.getMainLooper().thread`
-        // is safe.
-        val mainStack = Looper.getMainLooper().thread.stackTrace
-            .take(20)
-            .joinToString("\n") {
-                "${it.className}.${it.methodName}(${it.fileName}:${it.lineNumber})"
-            }
-
-        DevConnect.reportPerformanceMetric(
-            metricType = "anr",
-            value = 6000.0,
-            label = "ANR detected: main thread blocked ≥6s",
-            metadata = mapOf(
-                "blockDurationMs" to 6000,
-                "mainThreadStack" to mainStack
-            )
-        )
-    }.start()
+    // ANR detection is delegated to the standalone AnrWatchdog subsystem.
+    // PerformanceMonitor no longer carries ANR logic — see
+    // com.devconnect.plugins.AnrWatchdog.
 }

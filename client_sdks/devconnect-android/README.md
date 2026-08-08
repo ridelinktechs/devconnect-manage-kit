@@ -23,11 +23,15 @@ dependencies {
 
 ## Quick Start
 
+The fastest way to wire DevConnect is `installForApp()` — one call turns on
+all auto-wiring flags: ANR detection, ViewModel state auto-discovery,
+auto-intercepted logs and HTTP, performance, memory-leak and benchmark monitors.
+
 ```kotlin
 class MyApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        DevConnect.init(
+        DevConnect.installForApp(
             context = this,
             appName = "MyApp",
             enabled = BuildConfig.DEBUG,
@@ -36,7 +40,32 @@ class MyApp : Application() {
 }
 ```
 
+Java callers reach the Kotlin `object` singleton via `DevConnect.INSTANCE`:
+
+```java
+DevConnect.INSTANCE.installForApp(
+    /* context     = */ this,
+    /* appName     = */ "MyApp",
+    /* appVersion  = */ BuildConfig.VERSION_NAME,
+    /* host        = */ null,
+    /* port        = */ 9090,
+    /* enabled     = */ BuildConfig.DEBUG,
+    /* versionCode = */ String.valueOf(BuildConfig.VERSION_CODE)
+);
+```
+
+`installForApp` looks for OkHttp and Timber on the classpath and prints a
+one-time hint (via `android.util.Log`) telling you how to wire them. The
+SDK does not auto-wire Retrofit/Timber — see [Wiring OkHttp / Retrofit](#wiring-okhttp--retrofit)
+and [Wiring Timber](#wiring-timber) below.
+
+If you need finer control over which auto-* flags are enabled, call
+[`init`](#config) directly instead.
+
 ## Config
+
+Use `init()` when you need fine-grained control over which auto-* flags
+are turned on:
 
 ```kotlin
 DevConnect.init(
@@ -47,6 +76,12 @@ DevConnect.init(
     port = 9090,                    // default: 9090
     enabled = BuildConfig.DEBUG,    // false in release
     autoInterceptLogs = true,       // true = auto-capture println()
+    autoInterceptHttp = true,       // true = auto-capture HttpURLConnection
+    autoPerformance = true,         // true = auto-start performance monitor
+    autoMemoryLeak = true,          // true = auto-start memory leak detection
+    autoBenchmark = true,           // true = auto-start benchmark collector
+    autoAnrWatchdog = true,         // true = auto-start the main-thread ANR watchdog
+    autoViewModelDiscovery = true,  // true = auto-discover StateFlow/LiveData on ViewModels
 )
 ```
 
@@ -64,17 +99,40 @@ DevConnect.init(
 
 ### Network
 
+#### Wiring OkHttp / Retrofit
+
+The SDK cannot auto-wire your `OkHttpClient` — you build it inside a DI
+module (Hilt, Koin, Dagger), and the SDK has no hook to reach it. Add
+`DevConnect.okHttpInterceptor()` once in the same `Builder` chain and
+every Retrofit / OkHttp / Glide / Coil / Firebase call goes through the
+inspector:
+
 ```kotlin
 // OkHttp (captures Retrofit, Firebase, OAuth2, Glide, Coil)
 val client = OkHttpClient.Builder()
     .addInterceptor(DevConnect.okHttpInterceptor())
     .build()
 
+// Retrofit (Hilt / Dagger module)
+@Provides @Singleton
+fun provideRetrofit(client: OkHttpClient): Retrofit = Retrofit.Builder()
+    .baseUrl(BuildConfig.API_BASE_URL)
+    .client(client)
+    .addConverterFactory(MoshiConverterFactory.create())
+    .build()
+```
+
+#### Wiring Ktor
+
+```kotlin
 // Ktor
 val client = HttpClient {
     install(DevConnect.ktorPlugin())
 }
 ```
+
+If you skip the wiring step, `installForApp` prints a single logcat line
+pointing back to this section on startup.
 
 ### Logs
 
@@ -85,20 +143,38 @@ import com.devconnect.interceptors.DCLog as Log
 Log.d("MyTag", "Hello")       // -> Logcat + DevConnect
 Log.e("MyTag", "Error", exception)
 
-// Timber
-class DevConnectTree : Timber.Tree() {
-    override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
-        DevConnectTimberHelper.log(priority, tag, message, t)
-    }
-}
-Timber.plant(DevConnectTree())
-
 // Kermit (KMP)
 Logger.addLogWriter(DevConnect.kermitWriter())
 
 // Napier (KMP)
 Napier.base(DevConnect.napierAntilog())
 ```
+
+#### Wiring Timber
+
+The SDK does not auto-plant a Timber tree — `Timber.plant()` is an
+explicit action in your `Application.onCreate()` and the SDK can't safely
+do it for you. Plant a `Tree` that forwards to `DevConnect.sendLog(...)`:
+
+```kotlin
+class DevConnectTree : Timber.Tree() {
+    override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+        DevConnectTimberHelper.log(priority, tag, message, t)
+    }
+}
+
+class MyApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        Timber.plant(DevConnectTree())
+        Timber.plant(Timber.DebugTree())  // optional: also keep logcat
+        DevConnect.installForApp(this, "MyApp", enabled = BuildConfig.DEBUG)
+    }
+}
+```
+
+If you skip the Timber wiring, `installForApp` prints a single logcat
+line pointing back to this section on startup.
 
 ### State
 
@@ -110,6 +186,39 @@ observer.observe(lifecycleScope, viewModel.state, "UserState")
 // LiveData
 observer.observe(viewLifecycleOwner, viewModel.userLiveData, "UserLiveData")
 ```
+
+#### Auto-discovery
+
+When `autoViewModelDiscovery = true` (the default for `installForApp`),
+the SDK installs an `ActivityLifecycleCallbacks` hook that walks every
+`ViewModelStore` for every Activity/Fragment in your app and reflects on
+its `StateFlow`/`LiveData` properties. You don't need to call
+`stateObserver().observe(...)` per ViewModel — the SDK does it for you.
+
+Turn it off if you only want to expose a small subset of state:
+
+```kotlin
+DevConnect.init(
+    context = this,
+    appName = "MyApp",
+    enabled = BuildConfig.DEBUG,
+    autoViewModelDiscovery = false,
+)
+DevConnect.stateObserver().observe(lifecycleScope, viewModel.userState, "UserState")
+```
+
+### Crash & ANR detection
+
+When `autoAnrWatchdog = true` (the default for `installForApp`), a
+daemon thread pings the main `Looper` every 500 ms and reports an
+`anr` `performance_metric` event the moment the main thread is blocked
+for ≥6 seconds. The event payload includes the first 20 frames of the
+main thread's stack trace.
+
+The watchdog runs entirely on the JVM — no NDK, no native signal
+handlers. C++/JNI crashes are not covered; report them via
+`ErrorMonitor.reportNativeCrash(signal, stackTrace)` from your own
+signal handler if you need them.
 
 ### Storage
 

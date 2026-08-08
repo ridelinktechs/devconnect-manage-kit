@@ -1,0 +1,68 @@
+// Canonical wiring of DevConnect into a Dagger/Hilt NetworkModule.
+// Copy this into your `app/src/main/java/.../di/NetworkModule.kt`
+// and adjust the package + base URL. The .template suffix is so this
+// file ships with the SDK without being compiled — strip it when you
+// copy.
+//
+// Two things matter:
+//   1. Add `DevConnect.okHttpInterceptor()` to the OkHttpClient.Builder.
+//      This captures every Retrofit / OkHttp / Glide / Coil / Firebase
+//      request.
+//   2. Gate the interceptor on BuildConfig.DEBUG — never ship a build
+//      that streams Authorization headers to a LAN-connected desktop.
+//
+// The rest of the module is normal Hilt/Dagger plumbing.
+
+package your.app.package.di
+
+import android.content.Context
+import com.devconnect.DevConnect
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(
+        @ApplicationContext context: Context,
+    ): OkHttpClient {
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+
+        // ---- DevConnect network capture ----
+        // Skipped automatically in release builds because DevConnect
+        // installForApp() is also gated on BuildConfig.DEBUG, but
+        // we double-gate here so a stray interceptor never leaks.
+        if (BuildConfig.DEBUG) {
+            builder.addInterceptor(DevConnect.okHttpInterceptor())
+            // Optional: HttpLoggingInterceptor so you can eyeball the
+            // request in logcat too.
+            builder.addInterceptor(
+                HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
+            )
+        }
+        return builder.build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(client: OkHttpClient): Retrofit =
+        Retrofit.Builder()
+            .baseUrl(BuildConfig.API_BASE_URL)
+            .client(client)
+            .addConverterFactory(MoshiConverterFactory.create())
+            .build()
+}
