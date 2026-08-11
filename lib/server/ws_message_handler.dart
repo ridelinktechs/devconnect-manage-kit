@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import '../core/constants/ws_constants.dart';
 import '../core/utils/network_service_detector.dart';
@@ -660,11 +661,70 @@ class WsMessageHandler {
     }
   }
 
+  /// Coerce a JSON-decoded map (keys/values are `dynamic`) into a flat
+  /// `Map<String, String>`. Header values from RN SDKs are sometimes
+  /// objects or arrays (e.g. `map: { apiKey: 'xxx' }`); calling `.toString()`
+  /// on those would yield `[object Object]` (JS-style) or a noisy
+  /// `{key: value}` rendering (Dart-style). JSON-encode nested types so
+  /// the UI can render them as inspectable JSON. Primitives pass through
+  /// unchanged — no quotes around `42` or `true`.
   Map<String, String> _castStringMap(dynamic map) {
-    if (map is Map) {
-      return map.map((k, v) => MapEntry(k.toString(), v.toString()));
+    if (map is! Map) return {};
+    return map.map((k, v) => MapEntry(k.toString(), _stringifyHeaderValue(v)));
+  }
+
+  /// Render a single header value as a string the UI can show. Handles
+  /// three layers of defense so an object/array header survives intact
+  /// end-to-end:
+  ///   1. Real `Map`/`List` Dart values → pretty-print JSON (the SDK
+  ///      sent a structured value, e.g. `map: { apiKey: 'x' }`).
+  ///   2. Strings that look like JSON (start with `{`/`[`, end with
+  ///      `}`/`]`) → try to parse and pretty-print. This catches the
+  ///      case where the SDK pre-stringified via `JSON.stringify` before
+  ///      sending over WS.
+  ///   3. Strings that are unrecoverable (e.g. the literal
+  ///      `[object Object]` from JS's `String(obj)`) → label them as
+  ///      `<unrecoverable object>` so the user knows the original shape
+  ///      is gone, but at least they don't see a useless placeholder.
+  String _stringifyHeaderValue(dynamic v) {
+    if (v == null) return '';
+    if (v is String) return _decodeMaybeJsonString(v);
+    if (v is num || v is bool) return v.toString();
+    if (v is List || v is Map) {
+      try {
+        return const JsonEncoder.withIndent('  ').convert(v);
+      } catch (_) {
+        try {
+          return jsonEncode(v);
+        } catch (_) {
+          return v.toString();
+        }
+      }
     }
-    return {};
+    return v.toString();
+  }
+
+  /// If [s] looks like a JSON document (object or array), try to parse
+  /// and pretty-print it. Otherwise return [s] verbatim. Strings that
+  /// are unrecoverable object literals (`[object Object]`) get labeled
+  /// so the user knows the original value was lost upstream.
+  String _decodeMaybeJsonString(String s) {
+    final t = s.trim();
+    final looksLikeObject = t.startsWith('{') && t.endsWith('}');
+    final looksLikeArray = t.startsWith('[') && t.endsWith(']');
+    if (looksLikeObject || looksLikeArray) {
+      try {
+        final decoded = jsonDecode(t);
+        if (decoded is Map || decoded is List) {
+          return const JsonEncoder.withIndent('  ').convert(decoded);
+        }
+      } catch (_) {}
+    }
+    // JS's String(obj) on a plain object produces the literal
+    // "[object Object]". There's no way to recover the original, so
+    // label it clearly so the user knows the SDK stripped the value.
+    if (s == '[object Object]') return '<unrecoverable object>';
+    return s;
   }
 
   void dispose() {

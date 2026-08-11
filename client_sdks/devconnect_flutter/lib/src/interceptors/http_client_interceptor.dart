@@ -173,8 +173,10 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
   _DevConnectHttpClientRequest(this._inner, this._method, this._url, Uuid uuid)
       : _requestId = uuid.v4(),
         _startTime = DateTime.now().millisecondsSinceEpoch {
-    // Report request start
-    final headers = <String, String>{};
+    // Report request start — dart:io headers are always String→List<String>,
+    // so we don't need to defend against nested objects here. The desktop
+    // inspector still gets the full multi-value list (joined with ", ").
+    final headers = <String, dynamic>{};
     _inner.headers.forEach((name, values) {
       headers[name] = values.join(', ');
     });
@@ -196,13 +198,14 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
     try {
       final response = await _inner.close();
 
-      // Capture response
-      final responseHeaders = <String, String>{};
+      // Capture response — dart:io headers are always String→List<String>,
+      // so we don't need to defend against nested objects here.
+      final responseHeaders = <String, dynamic>{};
       response.headers.forEach((name, values) {
         responseHeaders[name] = values.join(', ');
       });
 
-      final requestHeaders = <String, String>{};
+      final requestHeaders = <String, dynamic>{};
       _inner.headers.forEach((name, values) {
         requestHeaders[name] = values.join(', ');
       });
@@ -338,8 +341,8 @@ class _DevConnectHttpClientResponse extends Stream<List<int>>
   final String _method;
   final String _url;
   final int _startTime;
-  final Map<String, String> _requestHeaders;
-  final Map<String, String> _responseHeaders;
+  final Map<String, dynamic> _requestHeaders;
+  final Map<String, dynamic> _responseHeaders;
   final dynamic _requestBody;
   bool _reported = false;
   final List<int> _bodyBytes = [];

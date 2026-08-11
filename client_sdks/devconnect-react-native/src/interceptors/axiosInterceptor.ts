@@ -34,6 +34,29 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
     });
   }
 
+  /**
+   * Coerce an axios `headers` value (AxiosHeaders instance, plain
+   * object, or undefined) into a plain object with primitive or
+   * nested Map/List values preserved. The desktop inspector
+   * JSON-encodes Map/List values for display — flattening them via
+   * `String(v)` here would produce the literal `[object Object]` and
+   * lose all structure.
+   */
+  function normalizeHeaders(h: any): Record<string, unknown> {
+    if (!h) return {};
+    // AxiosHeaders has toJSON() that returns a plain object; use it
+    // when available so nested values survive intact.
+    if (typeof h.toJSON === 'function') {
+      try { return h.toJSON() as Record<string, unknown>; } catch (_) {}
+    }
+    if (typeof h === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(h)) out[k] = v;
+      return out;
+    }
+    return {};
+  }
+
   // Request interceptor
   axiosInstance.interceptors.request.use(
     (config: any) => {
@@ -87,7 +110,12 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
         method: (config.method ?? 'GET').toUpperCase(),
         url: fullUrl,
         startTime,
-        requestHeaders: config.headers ?? {},
+        // Normalize AxiosHeaders to a plain object — without this, the
+        // class instance arrives as a plain object on the WS but its
+        // `.toJSON()` quirks can drop nested values in some axios
+        // versions. Object.fromEntries keeps nested Map/List values
+        // intact for the desktop inspector to JSON-render.
+        requestHeaders: normalizeHeaders(config.headers),
         requestBody,
       });
 
@@ -112,11 +140,14 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
           ? response.config.url
           : `${response.config?.baseURL ?? ''}${response.config?.url ?? ''}`;
 
-        // Response headers
-        const resHeaders: Record<string, string> = {};
+        // Response headers — preserve nested Map/List values so the
+        // desktop inspector can render them as JSON. Calling String(v)
+        // on a `{ apiKey: 'xxx' }` value would produce the literal
+        // `[object Object]`, which is unrecoverable downstream.
+        const resHeaders: Record<string, unknown> = {};
         if (response.headers) {
           Object.entries(response.headers).forEach(([k, v]) => {
-            resHeaders[k] = String(v);
+            resHeaders[k] = v;
           });
         }
 
@@ -128,7 +159,7 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
           startTime,
           endTime: Date.now(),
           duration: Date.now() - startTime,
-          requestHeaders: config.headers ?? {},
+          requestHeaders: normalizeHeaders(config.headers),
           responseHeaders: resHeaders,
           requestBody: config.data,
           responseBody: response.data,
@@ -154,7 +185,7 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
           startTime,
           endTime: Date.now(),
           duration: Date.now() - startTime,
-          requestHeaders: config.headers ?? {},
+          requestHeaders: normalizeHeaders(config.headers),
           responseBody: error.response?.data,
           error: error.message ?? String(error),
         });

@@ -1161,7 +1161,7 @@ object DevConnect {
         requestId: String,
         method: String,
         url: String,
-        headers: Map<String, String>? = null,
+        headers: Map<String, Any?>? = null,
         body: Any? = null
     ) {
         send("client:network:request_start", buildPayload {
@@ -1169,7 +1169,7 @@ object DevConnect {
             put("method", method)
             put("url", url)
             put("startTime", System.currentTimeMillis())
-            headers?.let { put("requestHeaders", JSONObject(it as Map<*, *>)) }
+            headers?.let { put("requestHeaders", headersToJson(it)) }
             body?.let { put("requestBody", it) }
         })
     }
@@ -1180,8 +1180,8 @@ object DevConnect {
         url: String,
         statusCode: Int,
         startTime: Long,
-        requestHeaders: Map<String, String>? = null,
-        responseHeaders: Map<String, String>? = null,
+        requestHeaders: Map<String, Any?>? = null,
+        responseHeaders: Map<String, Any?>? = null,
         requestBody: Any? = null,
         responseBody: Any? = null,
         error: String? = null
@@ -1195,8 +1195,8 @@ object DevConnect {
             put("startTime", startTime)
             put("endTime", now)
             put("duration", now - startTime)
-            requestHeaders?.let { put("requestHeaders", JSONObject(it as Map<*, *>)) }
-            responseHeaders?.let { put("responseHeaders", JSONObject(it as Map<*, *>)) }
+            requestHeaders?.let { put("requestHeaders", headersToJson(it)) }
+            responseHeaders?.let { put("responseHeaders", headersToJson(it)) }
             requestBody?.let { put("requestBody", it) }
             responseBody?.let { put("responseBody", it) }
             error?.let { put("error", it) }
@@ -1381,6 +1381,39 @@ object DevConnect {
 
     private fun buildPayload(block: JSONObject.() -> Unit): JSONObject {
         return JSONObject().apply(block)
+    }
+
+    /**
+     * Recursively convert a `Map<String, Any?>` (and any nested
+     * `List<*>` / `Map<*, *>` values) to a [JSONObject] so the JSON
+     * encoder carries structured header values through to the desktop
+     * inspector — instead of coercing everything via `toString()` and
+     * producing literal `"[object Object]"` once it round-trips back
+     * through WS.
+     *
+     * Non-collection values are passed through to [JSONObject.put]
+     * which already accepts the JSON-encodable primitives.
+     */
+    private fun headersToJson(headers: Map<String, Any?>): JSONObject {
+        val obj = JSONObject()
+        for ((k, v) in headers) {
+            obj.put(k, encodeHeaderValue(v))
+        }
+        return obj
+    }
+
+    private fun encodeHeaderValue(v: Any?): Any = when (v) {
+        null -> JSONObject.NULL
+        is List<*> -> org.json.JSONArray().also { arr ->
+            for (item in v) arr.put(encodeHeaderValue(item))
+        }
+        is Map<*, *> -> {
+            val nested = JSONObject()
+            for ((nk, nv) in v) nested.put(nk.toString(), encodeHeaderValue(nv))
+            nested
+        }
+        is Number, is Boolean, is String -> v
+        else -> v.toString()
     }
 
     private fun jsonObjectToMap(json: JSONObject): Map<String, Any> {

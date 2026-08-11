@@ -737,7 +737,11 @@ class DevConnectClient {
     required String requestId,
     required String method,
     required String url,
-    Map<String, String>? headers,
+    // `dynamic` (not `String`) so nested Map/List header values can
+    // survive — the desktop inspector JSON-encodes them for display.
+    // Calling .toString() on a `{apiKey: 'x'}` value would render as
+    // `{apiKey: x}` and lose structure.
+    Map<String, dynamic>? headers,
     dynamic body,
   }) {
     safeSend('client:network:request_start', {
@@ -756,8 +760,8 @@ class DevConnectClient {
     required String url,
     required int statusCode,
     required int startTime,
-    Map<String, String>? requestHeaders,
-    Map<String, String>? responseHeaders,
+    Map<String, dynamic>? requestHeaders,
+    Map<String, dynamic>? responseHeaders,
     dynamic requestBody,
     dynamic responseBody,
     String? error,
@@ -870,7 +874,7 @@ class DevConnectClient {
     required String requestId,
     required String method,
     required String url,
-    Map<String, String>? headers,
+    Map<String, dynamic>? headers,
     dynamic body,
   }) {
     _send('client:network:request_start', {
@@ -889,8 +893,8 @@ class DevConnectClient {
     required String url,
     required int statusCode,
     required int startTime,
-    Map<String, String>? requestHeaders,
-    Map<String, String>? responseHeaders,
+    Map<String, dynamic>? requestHeaders,
+    Map<String, dynamic>? responseHeaders,
     dynamic requestBody,
     dynamic responseBody,
     String? error,

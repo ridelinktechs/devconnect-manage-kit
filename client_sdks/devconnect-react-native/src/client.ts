@@ -440,19 +440,26 @@ function wrapFetchInit(
   return init;
 }
 
+/**
+ * Read the final request headers from a fetch call, returning them as a
+ * plain object. Nested Map/List values are preserved verbatim — the
+ * desktop inspector JSON-encodes them for display. Calling `String(v)`
+ * on a `{ apiKey: 'xxx' }` value would produce the literal
+ * `[object Object]`, which is unrecoverable downstream.
+ */
 function readFinalHeaders(
   tracker: { headers?: any },
   init: RequestInit | undefined,
-): Record<string, string> {
-  const out: Record<string, string> = {};
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
   const src = tracker.headers ?? init?.headers;
   if (!src) return out;
   if (typeof Headers !== 'undefined' && src instanceof Headers) {
     src.forEach((v, k) => (out[k.toLowerCase()] = v));
   } else if (Array.isArray(src)) {
-    for (const [k, v] of src) out[String(k).toLowerCase()] = String(v);
+    for (const [k, v] of src) out[String(k).toLowerCase()] = v;
   } else if (typeof src === 'object') {
-    for (const [k, v] of Object.entries(src)) out[k.toLowerCase()] = String(v);
+    for (const [k, v] of Object.entries(src)) out[k.toLowerCase()] = v;
   }
   return out;
 }
@@ -876,7 +883,11 @@ export class DevConnect {
       // invoked. We must read from request, not init.
       const isRequestInput =
         typeof Request !== 'undefined' && input instanceof Request;
-      let reqHeaders: Record<string, string>;
+      // `unknown` (not `string`) because user-supplied fetch headers can
+      // be arrays/objects (e.g. `headers: { map: { apiKey: 'x' } }`).
+      // We pass them through verbatim so the desktop inspector can
+      // JSON-render them instead of seeing the literal `[object Object]`.
+      let reqHeaders: Record<string, unknown>;
       let finalBody: any;
 
       if (isRequestInput) {

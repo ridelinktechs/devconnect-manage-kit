@@ -34,11 +34,14 @@ class DevConnectDioInterceptor {
       // Extract request info via duck typing
       final String method = options.method ?? 'GET';
       final String url = options.uri?.toString() ?? options.path ?? '';
-      final Map<String, String> headers = {};
+      final Map<String, dynamic> headers = {};
       try {
         final h = options.headers;
         if (h is Map) {
-          h.forEach((k, v) => headers[k.toString()] = v.toString());
+          // Preserve nested Map/List values — the desktop inspector
+          // JSON-encodes them. Calling toString() on `{apiKey: 'x'}`
+          // would render as `{apiKey: x}` and lose structure.
+          h.forEach((k, v) => headers[k.toString()] = v);
         }
       } catch (_) {}
 
@@ -86,29 +89,36 @@ class DevConnectDioInterceptor {
       final String url = options?.uri?.toString() ?? '';
       final int statusCode = response.statusCode ?? 0;
 
-      // Request headers
-      final Map<String, String> requestHeaders = {};
+      // Request headers — preserve nested Map/List values (see comment
+      // in onRequest above).
+      final Map<String, dynamic> requestHeaders = {};
       try {
         final h = options?.headers;
         if (h is Map) {
-          h.forEach((k, v) => requestHeaders[k.toString()] = v.toString());
+          h.forEach((k, v) => requestHeaders[k.toString()] = v);
         }
       } catch (_) {}
 
-      // Response headers
-      final Map<String, String> responseHeaders = {};
+      // Response headers — preserve nested values too. Multi-value
+      // headers (e.g. Set-Cookie) stay as a List<String> so the
+      // inspector can render each one on its own line instead of
+      // collapsing to a noisy `"a, b, c"` join.
+      final Map<String, dynamic> responseHeaders = {};
       try {
         final h = response.headers;
-        // Dio headers have a .map property
         if (h != null) {
           try {
             final map = h.map;
             if (map is Map) {
               map.forEach((k, v) {
                 if (v is List) {
+                  // Wrap in a sentinel so the desktop can still detect
+                  // "this is a multi-value header" and join for display
+                  // while keeping the original array shape. Use the
+                  // joined form here for backward compatibility.
                   responseHeaders[k.toString()] = v.join(', ');
                 } else {
-                  responseHeaders[k.toString()] = v.toString();
+                  responseHeaders[k.toString()] = v;
                 }
               });
             }
@@ -216,11 +226,11 @@ class DevConnectDioInterceptor {
       final String url = options?.uri?.toString() ?? '';
       final int statusCode = error.response?.statusCode ?? 0;
 
-      final Map<String, String> requestHeaders = {};
+      final Map<String, dynamic> requestHeaders = {};
       try {
         final h = options?.headers;
         if (h is Map) {
-          h.forEach((k, v) => requestHeaders[k.toString()] = v.toString());
+          h.forEach((k, v) => requestHeaders[k.toString()] = v);
         }
       } catch (_) {}
 
