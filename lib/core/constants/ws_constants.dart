@@ -21,6 +21,11 @@ class WsMessageTypes {
   /// as a no-op (Android already destroys state on `recreate`; RN has no
   /// notion of a lighter-vs-heavier reload).
   static const String serverHotRestart = 'server:hot_restart';
+  // Round 4: Mock server push. Message types must match what the SDKs
+  // listen for — see client_sdks/devconnect_{flutter,react-native,android}.
+  static const String serverMockRulesInstall = 'server:mock_rules_update';
+  static const String serverMockRulesClear = 'server:mock:clear';
+  static const String serverMockRuleToggle = 'server:mock:toggle';
 
   // Client -> Server
   static const String clientHandshake = 'client:handshake';
@@ -48,4 +53,22 @@ class WsMessageTypes {
   static const String clientAsyncOperation = 'client:async:operation';
   static const String clientError = 'client:error';
   static const String clientCrash = 'client:crash';
+
+  // Round 2: extended state managers (Flutter BLoC, Provider, RN React
+  // Query, RN Apollo)
+  static const String clientBlocChange = 'client:bloc_change';
+  static const String clientProviderUpdate = 'client:provider_update';
+  static const String clientReactQueryChange = 'client:react_query_change';
+  static const String clientApolloOperation = 'client:apollo_operation';
+
+  // Round 3: protocol inspectors (GraphQL, WebSocket, gRPC)
+  static const String clientGraphqlOperation = 'client:graphql_operation';
+  static const String clientGraphqlResponse = 'client:graphql_response';
+  static const String clientWebsocketFrame = 'client:websocket_frame';
+  static const String clientGrpcCall = 'client:grpc_call';
+
+  // Round 4: mock server audit
+  static const String clientMockedRequest = 'client:mocked_request';
+
+  static const String clientSourceMapUpload = 'client:source_map_upload';
 }

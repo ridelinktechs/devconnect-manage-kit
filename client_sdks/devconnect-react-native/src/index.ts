@@ -31,3 +31,20 @@ export {
   bunyanDevConnectStream,    // bunyan
   wrapLogger,                // any custom logger
 } from './interceptors/logLibraryPlugins';
+
+// Round 2: State auto-discovery (React Query + Apollo)
+export { setupReactQueryDevConnect } from './integrations/reactQuery';
+export { setupApolloDevConnect } from './integrations/apollo';
+
+// Round 3: Protocol inspectors
+export { installWebSocketInterceptor } from './interceptors/webSocketInterceptor';
+export { devConnectApolloLink } from './interceptors/apollo/devConnectApolloLink';
+
+// Round 4: Source maps + mock server
+export { uploadSourceMap } from './reporters/sourceMapReporter';
+export {
+  setMockRules,
+  findMockMatch,
+  buildMockResponse,
+  installMockServerInterceptor,
+} from './interceptors/mockServerInterceptor';

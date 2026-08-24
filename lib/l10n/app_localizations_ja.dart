@@ -1130,4 +1130,94 @@ class SJa extends S {
 
   @override
   String get binaryBodyHint => 'アクションは X-Amz-Target ヘッダーで識別してください。';
+
+  @override
+  String get tipsAndShortcuts => 'ヒント＆ショートカット';
+
+  @override
+  String get tipsAndShortcutsDesc => '最も便利なワークフローのクイックガイド。カードをクリックして詳細を表示。';
+
+  @override
+  String get tipAllEventsTitle => 'すべてのイベントフィード';
+
+  @override
+  String get tipAllEventsBody =>
+      'アプリからのすべてのイベントを統合したストリーム。検索ボックスでタグやテキストで絞り込み。行をクリックして詳細パネルを開く。Cmd/Ctrl を押しながらクリックで複数選択。';
+
+  @override
+  String get tipNetworkTitle => 'HTTP & WebSocket の検査';
+
+  @override
+  String get tipNetworkBody =>
+      'リクエストをクリックしてヘッダー、本体、タイミングウォーターフォールを検査。右クリックして「cURL としてコピー」でターミナルで再現。URL フィルターでエンドポイントを絞り込む。';
+
+  @override
+  String get tipConsoleTitle => 'ライブログストリーム';
+
+  @override
+  String get tipConsoleBody =>
+      'すべての print/log/Timber 行がリアルタイムでここに表示。タグやテキストで絞り込み、行をクリックして完全なスタックトレースを表示。ツールバーで「最新順」を切り替え。';
+
+  @override
+  String get tipStateTitle => 'State 差分ビューア';
+
+  @override
+  String get tipStateBody =>
+      '各行は 1 つの state 変更。クリックして JSON 差分 (前後) を並べて表示。アクションフィルターで特定の reducer/store に絞り込み。';
+
+  @override
+  String get tipStorageTitle => 'キーバリューストレージ';
+
+  @override
+  String get tipStorageBody =>
+      'SharedPreferences、AsyncStorage、Hive — すべてを一カ所に。上の READ/WRITE フィルターを切り替え。キーをクリックして変更履歴をタイムスタンプ付きで表示。';
+
+  @override
+  String get tipDatabaseTitle => 'SQLite ビューア';
+
+  @override
+  String get tipDatabaseBody =>
+      'テーブルをクリックして詳細パネルで行を閲覧。列ヘッダーをタップしてソート。更新ボタンでデバイスアプリが新しい行を書いた後に再クエリ。';
+
+  @override
+  String get tipPerformanceTitle => 'ライブシステム状態';
+
+  @override
+  String get tipPerformanceBody =>
+      'CPU、RAM、バッテリー消費、FPS、温度状態がリアルタイムでストリーム。「録画開始」をクリックしてセッションをキャプチャし、遅いフレームを分析。';
+
+  @override
+  String get tipLeaksTitle => 'メモリリーク検出';
+
+  @override
+  String get tipLeaksBody =>
+      '未解放の controller/stream/timer、成長するコレクション、widget leak を自動検出。各行はソース場所と保持サイズを表示。修正後、再接続してクリーンアップを確認。';
+
+  @override
+  String get tipBenchmarkTitle => 'カスタムタイミング';
+
+  @override
+  String get tipBenchmarkBody =>
+      'SDK の benchmarkStart/Step/Stop で任意のコードを囲んでタイミングを記録。各ベンチマークは min/max/avg/p50/p95 を表示。ステップで各フェーズをドリルダウン。';
+
+  @override
+  String get tipErrorsTitle => 'エラー＆クラッシュ';
+
+  @override
+  String get tipErrorsBody =>
+      'すべての例外とネイティブクラッシュをキャプチャ。クリックで完全なスタックトレース。Android のネイティブクラッシュには sigaction ハンドラーからの C++ バックトレースが含まれます。';
+
+  @override
+  String get tipMockTitle => 'ネットワークレスポンスをモック';
+
+  @override
+  String get tipMockBody =>
+      'メソッド + URL パターン + status + body でルールを追加し、「Push All」をクリックしてデバイスにインストール。一致するリクエストはフェイクレスポンスを返します。';
+
+  @override
+  String get tipHistoryTitle => '最近のデバイス';
+
+  @override
+  String get tipHistoryBody =>
+      '再接続せずに以前のセッションをすばやく再開して過去のイベントを検査。リストはアプリの再起動をまたいで永続化されます。';
 }

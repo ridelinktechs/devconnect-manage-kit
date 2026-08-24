@@ -92,6 +92,20 @@ class DevConnectClient {
   void Function()? onHotRestartRequest;
   /// Custom command handlers: command name -> handler
   final Map<String, dynamic Function(Map<String, dynamic>?)> _commandHandlers = {};
+
+  /// Custom server-message handlers registered by SDK plugins
+  /// (e.g. layout inspector, mock server interceptor). Keyed by the
+  /// `type` field of the incoming WebSocket message.
+  final Map<String, List<void Function(Map<String, dynamic>)>> _serverHandlers = {};
+
+  /// Register a handler for a custom `server:*` message. Multiple
+  /// handlers per type are allowed and fire in registration order.
+  /// Handlers that throw are swallowed so a buggy plugin cannot break
+  /// the message loop.
+  void registerServerHandler(
+      String type, void Function(Map<String, dynamic> msg) handler) {
+    _serverHandlers.putIfAbsent(type, () => []).add(handler);
+  }
   /// Active benchmarks
   final Map<String, List<int>> _benchmarks = {}; // title -> [startTime, ...stepTimes]
 
@@ -573,6 +587,17 @@ class DevConnectClient {
               // relaunch API), but apps can register `onHotRestartRequest`
               // to actually wipe state and remount their root MaterialApp.
               _hotRestartApp();
+            } else if (_serverHandlers.containsKey(type)) {
+              // Plugin-registered handlers (layout inspector, mock server,
+              // etc.). Fire in registration order; swallow exceptions so
+              // a buggy plugin can't kill the message loop.
+              final handlers = _serverHandlers[type];
+              if (handlers != null) {
+                final payload = msg['payload'] as Map<String, dynamic>?;
+                for (final h in handlers) {
+                  try { h(payload ?? const {}); } catch (_) {}
+                }
+              }
             }
           } catch (_) {}
         },

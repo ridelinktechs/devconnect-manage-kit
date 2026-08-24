@@ -1145,4 +1145,95 @@ class SVi extends S {
 
   @override
   String get binaryBodyHint => 'Xác định action thông qua header X-Amz-Target.';
+
+  @override
+  String get tipsAndShortcuts => 'Mẹo & Phím tắt';
+
+  @override
+  String get tipsAndShortcutsDesc =>
+      'Hướng dẫn nhanh cho các quy trình hữu ích nhất. Nhấn vào thẻ bất kỳ để xem chi tiết.';
+
+  @override
+  String get tipAllEventsTitle => 'Bảng tin tất cả sự kiện';
+
+  @override
+  String get tipAllEventsBody =>
+      'Luồng thống nhất mọi sự kiện từ app. Dùng ô tìm kiếm để lọc theo tag hoặc văn bản. Nhấn vào hàng bất kỳ để mở panel chi tiết. Giữ Cmd/Ctrl và nhấn để chọn nhiều, nhấn chuột phải để thực hiện hàng loạt.';
+
+  @override
+  String get tipNetworkTitle => 'Kiểm tra HTTP & WebSocket';
+
+  @override
+  String get tipNetworkBody =>
+      'Nhấn vào request bất kỳ để xem header, body và waterfall thời gian. Nhấn chuột phải và chọn \"Sao chép dưới dạng cURL\" để chạy lại trong terminal. Dùng ô lọc URL để tập trung vào một endpoint hoặc domain.';
+
+  @override
+  String get tipConsoleTitle => 'Luồng log trực tiếp';
+
+  @override
+  String get tipConsoleBody =>
+      'Mọi dòng print/log/Timber đều hiện ở đây theo thời gian thực. Lọc theo tag hoặc văn bản, nhấn vào hàng để xem stack trace đầy đủ. Bật/tắt \"Mới nhất trước\" trên thanh công cụ để điều khiển thứ tự.';
+
+  @override
+  String get tipStateTitle => 'Trình xem diff state';
+
+  @override
+  String get tipStateBody =>
+      'Mỗi hàng là một thay đổi state. Nhấn để xem diff JSON Trước/Sau cạnh nhau. Dùng bộ lọc action để tập trung vào một reducer/store cụ thể.';
+
+  @override
+  String get tipStorageTitle => 'Lưu trữ key-value';
+
+  @override
+  String get tipStorageBody =>
+      'SharedPreferences, AsyncStorage, Hive — tất cả ở một nơi. Bật/tắt bộ lọc ĐỌC/GHI ở trên cùng. Nhấn vào key để xem lịch sử thay đổi đầy đủ kèm timestamp.';
+
+  @override
+  String get tipDatabaseTitle => 'Trình xem SQLite';
+
+  @override
+  String get tipDatabaseBody =>
+      'Nhấn vào bảng bất kỳ để duyệt hàng ở panel chi tiết. Sắp xếp bằng cách nhấn vào tiêu đề cột. Dùng nút làm mới để truy vấn lại sau khi app trên thiết bị ghi hàng mới.';
+
+  @override
+  String get tipPerformanceTitle => 'Trạng thái hệ thống trực tiếp';
+
+  @override
+  String get tipPerformanceBody =>
+      'CPU, RAM, mức tiêu hao pin, FPS và trạng thái nhiệt cập nhật theo thời gian thực. Nhấn \"Bắt đầu ghi\" để thu một phiên, sau đó phân tích frame chậm và jank ở panel chi tiết.';
+
+  @override
+  String get tipLeaksTitle => 'Phát hiện rò rỉ bộ nhớ';
+
+  @override
+  String get tipLeaksBody =>
+      'Tự động phát hiện controller/stream/timer chưa giải phóng, bộ sưu tập tăng trưởng và widget leak. Mỗi hàng hiển thị vị trí nguồn và retained size — sửa xong, kết nối lại để xác nhận đã dọn.';
+
+  @override
+  String get tipBenchmarkTitle => 'Đo thời gian tùy chỉnh';
+
+  @override
+  String get tipBenchmarkBody =>
+      'Bọc đoạn code bất kỳ trong benchmarkStart/Step/Stop từ SDK để ghi lại thời gian. Mỗi benchmark hiển thị min/max/avg/p50/p95. Các step cho phép đi sâu vào từng pha.';
+
+  @override
+  String get tipErrorsTitle => 'Lỗi & crash';
+
+  @override
+  String get tipErrorsBody =>
+      'Ghi lại mọi exception và native crash. Nhấn để xem stack trace đầy đủ. Native crash trên Android bao gồm backtrace C++ từ sigaction handler, giúp thấy lỗi vượt qua ranh giới JNI.';
+
+  @override
+  String get tipMockTitle => 'Mock phản hồi mạng';
+
+  @override
+  String get tipMockBody =>
+      'Thêm rule với method + URL pattern + status + body, rồi nhấn \"Push All\" để cài lên thiết bị. Khi có request khớp, thiết bị trả về response giả — không cần gọi server thật. Audit log ghi lại mọi lượt khớp.';
+
+  @override
+  String get tipHistoryTitle => 'Thiết bị gần đây';
+
+  @override
+  String get tipHistoryBody =>
+      'Mở lại nhanh phiên thiết bị trước để xem sự kiện cũ mà không cần kết nối lại. Danh sách được lưu qua các lần khởi động app và lưu timestamp kết nối cuối theo từng thiết bị.';
 }

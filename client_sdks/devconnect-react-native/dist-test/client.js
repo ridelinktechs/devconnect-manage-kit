@@ -1,0 +1,1661 @@
+"use strict";
+/**
+ * DevConnect React Native Client
+ *
+ * Auto-detect desktop host via:
+ * 1. Metro bundler scriptURL (like Reactotron)
+ * 2. Known emulator/simulator addresses
+ * 3. Subnet scanning for real devices on WiFi
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DevConnect = void 0;
+const react_native_1 = require("react-native");
+function generateId() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+}
+/**
+ * Convert a seed string to a UUID v5-like format (deterministic).
+ * Uses FNV-1a to produce 128 bits, then formats as UUID with version=5, variant=a.
+ */
+function seedToUUID(seed) {
+    // Generate 4 x 32-bit hashes for 128 bits total
+    const hashes = [];
+    for (let round = 0; round < 4; round++) {
+        let h = 0x811c9dc5 ^ (round * 0x01000193);
+        for (let i = 0; i < seed.length; i++) {
+            h ^= seed.charCodeAt(i);
+            h = Math.imul(h, 0x01000193);
+        }
+        hashes.push(h >>> 0);
+    }
+    const hex = hashes.map(h => h.toString(16).padStart(8, '0')).join('');
+    // Format as UUID: 8-4-4-4-12, set version=5 and variant=a
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+/**
+ * Generate a stable deviceId in UUID format using native platform identifiers.
+ * Same app on same device always produces the same UUID.
+ */
+function generateStableDeviceId(appName) {
+    const os = react_native_1.Platform.OS;
+    const version = String(react_native_1.Platform.Version);
+    let seed = `${appName}:react_native:${os}:${version}`;
+    try {
+        const constants = (react_native_1.Platform.constants || react_native_1.NativeModules.PlatformConstants);
+        if (os === 'android' && constants) {
+            const pkg = constants.Package?.packageName || '';
+            const fingerprint = constants.Fingerprint || constants.Serial || '';
+            const model = constants.Model || constants.Brand || '';
+            seed = `${pkg}:${model}:${fingerprint}:${appName}`;
+        }
+        else if (os === 'ios' && constants) {
+            const idiom = constants.interfaceIdiom || '';
+            const systemName = constants.systemName || '';
+            const osVersion = constants.osVersion || version;
+            seed = `${idiom}:${systemName}:${osVersion}:${appName}`;
+        }
+    }
+    catch (_) { }
+    return seedToUUID(seed);
+}
+// ---- Encrypted host cache (persists via AsyncStorage if available) ----
+const CACHE_KEY = 'DcN3t$ecR7!';
+let _cachedHost = null;
+function xorCipher(input, key) {
+    let out = '';
+    for (let i = 0; i < input.length; i++) {
+        out += String.fromCharCode(input.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return out;
+}
+function encryptCache(data) {
+    const plain = JSON.stringify(data);
+    // XOR then base64
+    const xored = xorCipher(plain, CACHE_KEY);
+    // Use btoa-safe encoding (char codes 0-255)
+    try {
+        return btoa(xored);
+    }
+    catch (_) {
+        return Buffer.from(xored, 'binary').toString('base64');
+    }
+}
+function decryptCache(encrypted) {
+    try {
+        let decoded;
+        try {
+            decoded = atob(encrypted);
+        }
+        catch (_) {
+            decoded = Buffer.from(encrypted, 'base64').toString('binary');
+        }
+        const plain = xorCipher(decoded, CACHE_KEY);
+        return JSON.parse(plain);
+    }
+    catch (_) {
+        return null;
+    }
+}
+async function saveHostCache(host, machineId) {
+    _cachedHost = machineId ? { host, machineId } : null;
+    // If we have no machineId to associate the host with, write a minimal entry
+    // (preserves in-memory reconnect for the lifetime of this process).
+    try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage')?.default;
+        if (AsyncStorage) {
+            const payload = { h: host, t: Date.now() };
+            if (machineId)
+                payload.m = machineId;
+            const encrypted = encryptCache(payload);
+            await AsyncStorage.setItem('__dc_s', encrypted);
+        }
+    }
+    catch (_) { }
+}
+async function clearHostCache() {
+    _cachedHost = null;
+    try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage')?.default;
+        if (AsyncStorage) {
+            await AsyncStorage.removeItem('__dc_s');
+        }
+    }
+    catch (_) { }
+}
+/**
+ * Probe a WebSocket connection just long enough to read the server's
+ * `server:hello` and check that its machineId matches what we cached.
+ * Returns true only on a positive identity match.
+ *
+ * This prevents connecting to the wrong machine when switching between
+ * iOS Simulator and a real device on the same network (where the cached
+ * IP could now point at a different host that just happens to listen on
+ * the same port).
+ */
+async function verifyCachedHost(host, port, expectedId) {
+    return new Promise((resolve) => {
+        let done = false;
+        // Declare timer/ws as mutable null so they're safely accessible from
+        // `finish` even before `setTimeout` / `new WebSocket` complete.
+        let timer = null;
+        let ws = null;
+        const finish = (ok) => {
+            if (done)
+                return;
+            done = true;
+            if (timer !== null) {
+                clearTimeout(timer);
+                timer = null;
+            }
+            if (ws) {
+                try {
+                    ws.close();
+                }
+                catch (_) { }
+                ws = null;
+            }
+            resolve(ok);
+        };
+        try {
+            ws = new WebSocket(`ws://${host}:${port}`);
+        }
+        catch (_) {
+            return resolve(false);
+        }
+        timer = setTimeout(() => finish(false), 1500);
+        ws.onopen = () => {
+            // Server should send server:hello immediately on connect
+        };
+        ws.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg && msg.type === 'server:hello') {
+                    const announcedId = msg.payload && msg.payload.machineId;
+                    finish(announcedId === expectedId);
+                }
+            }
+            catch (_) { }
+        };
+        ws.onerror = () => finish(false);
+        ws.onclose = () => finish(false);
+    });
+}
+async function readHostCache(port) {
+    if (_cachedHost)
+        return _cachedHost;
+    try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage')?.default;
+        if (AsyncStorage) {
+            const encrypted = await AsyncStorage.getItem('__dc_s');
+            if (encrypted) {
+                const data = decryptCache(encrypted);
+                // Legacy caches (no machineId) cannot be verified and would re-trigger
+                // the simulator/device-swap bug we are fixing — treat them as absent.
+                if (data && typeof data.h === 'string' && typeof data.m === 'string' &&
+                    Date.now() - data.t < 24 * 60 * 60 * 1000) {
+                    _cachedHost = { host: data.h, machineId: data.m };
+                    return _cachedHost;
+                }
+            }
+        }
+    }
+    catch (_) { }
+    return null;
+}
+// ---- Auto-detect host (supports real device iOS/Android) ----
+async function tryConnect(host, port, timeoutMs) {
+    try {
+        const ws = new WebSocket(`ws://${host}:${port}`);
+        return await new Promise((resolve) => {
+            const timer = setTimeout(() => { try {
+                ws.close();
+            }
+            catch (_) { } resolve(false); }, timeoutMs);
+            ws.onopen = () => { clearTimeout(timer); try {
+                ws.close();
+            }
+            catch (_) { } resolve(true); };
+            ws.onerror = () => { clearTimeout(timer); resolve(false); };
+        });
+    }
+    catch (_) {
+        return false;
+    }
+}
+/**
+ * Extract the dev server host from Metro's scriptURL.
+ * This is how Reactotron auto-discovers the desktop IP on real devices —
+ * the RN runtime already knows the dev machine's IP because Metro serves
+ * the JS bundle from it.
+ */
+function getDevServerHost() {
+    try {
+        // React Native exposes the bundle URL via SourceCode native module
+        const scriptURL = react_native_1.NativeModules?.SourceCode?.scriptURL ??
+            react_native_1.NativeModules?.SourceCode?.getConstants?.()?.scriptURL;
+        if (scriptURL && typeof scriptURL === 'string') {
+            // scriptURL looks like "http://192.168.1.5:8081/index.bundle?..."
+            const match = scriptURL.match(/^https?:\/\/([^:\/]+)/);
+            if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+                return match[1];
+            }
+        }
+    }
+    catch (_) { }
+    return null;
+}
+async function autoDetectHost(port) {
+    // 0. Try cached host from previous session (instant reconnect).
+    //    Verify the server's stable machineId matches what we cached —
+    //    catches the case where the cached IP now points at a different
+    //    device (e.g. iOS Simulator ↔ real iPhone swap on the same network).
+    const cached = await readHostCache(port);
+    if (cached) {
+        if (await verifyCachedHost(cached.host, port, cached.machineId)) {
+            return cached.host;
+        }
+        // Stale or wrong machine — invalidate so the next discovery wins.
+        await clearHostCache();
+    }
+    // 1. Race: Metro scriptURL + known hosts in parallel
+    //    USB (adb reverse) → localhost/10.0.2.2 responds fast
+    //    WiFi debug → Metro host responds fast
+    const raceCandidates = [];
+    // Metro bundler host (real device gets desktop IP from bundle URL)
+    const devHost = getDevServerHost();
+    if (devHost) {
+        raceCandidates.push(tryConnect(devHost, port, 800).then((ok) => ok ? devHost : null));
+    }
+    // Known emulator/simulator/USB addresses
+    for (const host of ['localhost', '10.0.2.2', '10.0.3.2', '127.0.0.1']) {
+        raceCandidates.push(tryConnect(host, port, 800).then((ok) => ok ? host : null));
+    }
+    // First non-null wins
+    const raceResult = await firstNonNull(raceCandidates);
+    if (raceResult) {
+        await saveHostCache(raceResult);
+        return raceResult;
+    }
+    // 2. Scan local subnets for real device (WiFi)
+    const subnets = [];
+    if (devHost) {
+        const parts = devHost.split('.');
+        if (parts.length === 4) {
+            subnets.push(`${parts[0]}.${parts[1]}.${parts[2]}`);
+        }
+    }
+    for (const s of ['192.168.1', '192.168.0', '192.168.2', '10.0.0', '10.0.1', '172.16.0']) {
+        if (!subnets.includes(s))
+            subnets.push(s);
+    }
+    for (const subnet of subnets) {
+        const batch = Array.from({ length: 30 }, (_, i) => `${subnet}.${i + 1}`);
+        const results = await Promise.allSettled(batch.map((h) => tryConnect(h, port, 400).then((ok) => ok ? h : null)));
+        for (const r of results) {
+            if (r.status === 'fulfilled' && r.value) {
+                await saveHostCache(r.value);
+                return r.value;
+            }
+        }
+    }
+    return 'localhost';
+}
+/** Returns the first non-null resolved value from a list of promises. */
+async function firstNonNull(promises) {
+    return new Promise((resolve) => {
+        let remaining = promises.length;
+        for (const p of promises) {
+            p.then((v) => {
+                if (v != null)
+                    resolve(v);
+                else if (--remaining === 0)
+                    resolve(null);
+            }).catch(() => {
+                if (--remaining === 0)
+                    resolve(null);
+            });
+        }
+    });
+}
+// ---- URL classification (app vs library) ----
+const libraryDomains = [
+    'firebaseio.com', 'googleapis.com', 'firebase.google.com',
+    'firebaseinstallations.googleapis.com', 'fcmregistrations.googleapis.com',
+    'crashlyticsreports-pa.googleapis.com', 'firebaseremoteconfig.googleapis.com',
+    'google-analytics.com', 'analytics.google.com', 'googletagmanager.com',
+    'app-measurement.com', 'doubleclick.net',
+    'facebook.com', 'graph.facebook.com', 'fbcdn.net',
+    'sentry.io', 'bugsnag.com', 'instabug.com',
+    'segment.io', 'segment.com', 'mixpanel.com', 'amplitude.com',
+    'appsflyer.com', 'adjust.com', 'branch.io',
+    'codepush.appcenter.ms', 'appcenter.ms',
+    'clients3.google.com', 'clients4.google.com',
+    'connectivitycheck', 'generate_204',
+];
+function classifyUrl(url) {
+    try {
+        const lower = url.toLowerCase();
+        for (const domain of libraryDomains) {
+            if (lower.includes(domain))
+                return 'library';
+        }
+        if (lower.includes('/generate_204') || lower.includes('connectivitycheck'))
+            return 'system';
+    }
+    catch (_) { }
+    return 'app';
+}
+function wrapFetchInit(init, tracker) {
+    if (!init)
+        return init;
+    const headers = init.headers;
+    if (headers && typeof headers === 'object' && !(headers instanceof Headers)) {
+        const proxy = new Proxy(headers, {
+            set(target, key, value) {
+                target[key] = value;
+                tracker.headers = { ...target };
+                return true;
+            },
+            deleteProperty(target, key) {
+                delete target[key];
+                tracker.headers = { ...target };
+                return true;
+            },
+        });
+        init.headers = proxy;
+        tracker.headers = { ...headers };
+    }
+    else if (headers instanceof Headers) {
+        const origAppend = headers.append.bind(headers);
+        const origSet = headers.set.bind(headers);
+        const origDelete = headers.delete.bind(headers);
+        headers.append = function (name, value) {
+            const r = origAppend(name, value);
+            const snap = {};
+            headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
+            tracker.headers = snap;
+            return r;
+        };
+        headers.set = function (name, value) {
+            const r = origSet(name, value);
+            const snap = {};
+            headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
+            tracker.headers = snap;
+            return r;
+        };
+        headers.delete = function (name) {
+            const r = origDelete(name);
+            const snap = {};
+            headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
+            tracker.headers = snap;
+            return r;
+        };
+        const snap = {};
+        headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
+        tracker.headers = snap;
+    }
+    else {
+        tracker.headers = headers;
+    }
+    if ('body' in init)
+        tracker.body = init.body;
+    init['__dcBodyGet'] = () => tracker.body;
+    return init;
+}
+function readFinalHeaders(tracker, init) {
+    const out = {};
+    const src = tracker.headers ?? init?.headers;
+    if (!src)
+        return out;
+    if (typeof Headers !== 'undefined' && src instanceof Headers) {
+        src.forEach((v, k) => (out[k.toLowerCase()] = v));
+    }
+    else if (Array.isArray(src)) {
+        for (const [k, v] of src)
+            out[String(k).toLowerCase()] = String(v);
+    }
+    else if (typeof src === 'object') {
+        for (const [k, v] of Object.entries(src))
+            out[k.toLowerCase()] = String(v);
+    }
+    return out;
+}
+// ---- Main Class ----
+class DevConnect {
+    constructor(config) {
+        this.ws = null;
+        this.connected = false;
+        this.reconnectTimer = null;
+        this.messageQueue = [];
+        this._reduxStore = null;
+        this._stateRestoreHandler = null;
+        this._customCommandHandlers = new Map();
+        this._benchmarks = new Map();
+        this.originalFetch = null;
+        this.originalXHR = null;
+        this.originalConsole = null;
+        /**
+         * Map of `METHOD\0URL` keys currently in flight through the fetch
+         * interceptor to the number of active concurrent requests. The XHR
+         * interceptor (which React Native 0.85's fetch transport triggers
+         * internally for the same call) checks this map and suppresses its
+         * own duplicate report if the count is > 0.
+         */
+        this.fetchInFlight = new Map();
+        this.fetchStackCount = 0;
+        this.config = {
+            appName: config.appName,
+            appVersion: config.appVersion ?? '1.0.0',
+            versionCode: config.versionCode ?? undefined,
+            host: config.resolvedHost,
+            port: config.port ?? 9090,
+            auto: config.auto ?? true,
+            enabled: config.enabled ?? true,
+            autoInterceptFetch: config.autoInterceptFetch ?? __DEV__,
+            autoInterceptXHR: config.autoInterceptXHR ?? __DEV__,
+            autoInterceptConsole: config.autoInterceptConsole ?? __DEV__,
+            autoPerformance: config.autoPerformance ?? true,
+            autoMemoryLeak: config.autoMemoryLeak ?? true,
+            autoBenchmark: config.autoBenchmark ?? true,
+            autoError: config.autoError ?? true,
+        };
+        this.deviceId = generateStableDeviceId(config.appName);
+    }
+    /**
+     * Initialize DevConnect.
+     *
+     * ```typescript
+     * // Auto-detect (emulator + real device)
+     * await DevConnect.init({ appName: 'MyApp' });
+     *
+     * // Manual IP (real device)
+     * await DevConnect.init({ appName: 'MyApp', host: '192.168.1.5' });
+     *
+     * // Custom port
+     * await DevConnect.init({ appName: 'MyApp', port: 9999 });
+     *
+     * // Disable in production
+     * await DevConnect.init({ appName: 'MyApp', enabled: !__DEV__ });
+     * ```
+     */
+    static async init(config) {
+        if (DevConnect.instance)
+            return DevConnect.instance;
+        // Production kill-switch: completely no-op when disabled.
+        // Default: enabled only in __DEV__ (dev builds).
+        const enabled = config.enabled ?? __DEV__;
+        if (!enabled) {
+            // Create a dummy instance so safeSend/getInstance don't throw,
+            // but do NOTHING: no WebSocket, no host detection, no timers.
+            const dc = new DevConnect({ ...config, resolvedHost: 'disabled' });
+            dc.config.enabled = false;
+            DevConnect.instance = dc;
+            DevConnect.preInitQueue = [];
+            return dc;
+        }
+        // Create instance immediately with placeholder host so we can patch synchronously
+        const dc = new DevConnect({ ...config, resolvedHost: 'localhost' });
+        DevConnect.instance = dc;
+        // Patch interceptors synchronously so no early network requests or logs are missed
+        if (dc.config.autoInterceptFetch)
+            dc.patchFetch();
+        if (dc.config.autoInterceptXHR)
+            dc.patchXHR();
+        if (dc.config.autoInterceptConsole)
+            dc.patchConsole();
+        // Resolve real host and connect asynchronously in the background
+        const port = config.port ?? 9090;
+        const shouldAuto = (config.auto ?? true) && (!config.host || config.host === 'auto');
+        if (shouldAuto) {
+            autoDetectHost(port).then((resolvedHost) => {
+                dc.config.host = resolvedHost;
+                dc.connect();
+            }).catch(() => {
+                dc.connect();
+            });
+        }
+        else {
+            dc.config.host = config.host ?? 'localhost';
+            dc.connect();
+        }
+        // Auto-start monitoring plugins
+        // Using dynamic require() to avoid circular dependency at module load time
+        try {
+            if (dc.config.autoPerformance) {
+                const { startPerformanceMonitor } = require('./plugins/performanceMonitor');
+                startPerformanceMonitor();
+            }
+            if (dc.config.autoMemoryLeak) {
+                const { startMemoryLeakDetector } = require('./plugins/memoryLeakDetector');
+                startMemoryLeakDetector();
+            }
+            if (dc.config.autoBenchmark) {
+                const { setupAppBenchmark } = require('./plugins/appBenchmark');
+                setupAppBenchmark();
+            }
+            if (dc.config.autoError) {
+                const { startErrorMonitor } = require('./plugins/errorMonitor');
+                startErrorMonitor();
+            }
+        }
+        catch (e) {
+            // Plugins are optional — don't break init if they fail
+        }
+        // Migrate pending benchmarks to instance
+        if (DevConnect._pendingBenchmarks.size > 0) {
+            for (const [key, value] of DevConnect._pendingBenchmarks) {
+                dc._benchmarks.set(key, value);
+            }
+            DevConnect._pendingBenchmarks.clear();
+        }
+        // Flush pre-init queue (messages from middleware that ran before init)
+        if (DevConnect.preInitQueue.length > 0) {
+            for (const msg of DevConnect.preInitQueue) {
+                dc.send(msg.type, msg.payload);
+            }
+            DevConnect.preInitQueue = [];
+        }
+        return dc;
+    }
+    static getInstance() {
+        if (!DevConnect.instance) {
+            throw new Error('DevConnect not initialized. Call DevConnect.init() first.');
+        }
+        return DevConnect.instance;
+    }
+    /** Returns instance or null if not yet initialized. Use this in middleware/plugins that may run before init(). */
+    static getInstanceSafe() {
+        return DevConnect.instance ?? null;
+    }
+    /** Send a message safely - queues to pre-init queue if init() hasn't been called yet */
+    static safeSend(type, payload) {
+        const instance = DevConnect.getInstanceSafe();
+        if (instance) {
+            instance.send(type, payload);
+        }
+        else if (!__DEV__) {
+            // Production: don't queue anything
+            return;
+        }
+        else if (DevConnect.preInitQueue.length < 500) {
+            DevConnect.preInitQueue.push({ type, payload });
+        }
+    }
+    // ---- WebSocket ----
+    connect() {
+        // Close existing socket before creating a new one to prevent duplicates
+        if (this.ws) {
+            try {
+                this.ws.onclose = null;
+                this.ws.onerror = null;
+                this.ws.close();
+            }
+            catch (_) { }
+            this.ws = null;
+        }
+        try {
+            this.ws = new WebSocket(`ws://${this.config.host}:${this.config.port}`);
+            let handshakeSent = false;
+            this.ws.onopen = () => {
+                this.connected = true;
+                this.messageQueue.forEach((msg) => this.ws?.send(msg));
+                this.messageQueue = [];
+            };
+            this.ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'server:hello' && !handshakeSent) {
+                        handshakeSent = true;
+                        // Capture the server's stable machineId so the next launch can
+                        // verify the cached host really points at *this* desktop and not
+                        // some other device that happened to claim the same IP.
+                        const serverMachineId = msg.payload && msg.payload.machineId;
+                        if (typeof serverMachineId === 'string' && serverMachineId.length > 0) {
+                            saveHostCache(this.config.host, serverMachineId).catch(() => { });
+                        }
+                        this.sendHandshake();
+                    }
+                    else if (msg.type === 'server:redux:dispatch') {
+                        // Desktop dispatching a Redux action into the app
+                        if (this._reduxStore && msg.payload?.action) {
+                            this._reduxStore.dispatch(msg.payload.action);
+                        }
+                    }
+                    else if (msg.type === 'server:state:restore') {
+                        // Desktop restoring a state snapshot
+                        if (this._stateRestoreHandler && msg.payload?.state) {
+                            this._stateRestoreHandler(msg.payload.state);
+                        }
+                    }
+                    else if (msg.type === 'server:custom:command') {
+                        // Desktop sending a custom command
+                        const cmd = msg.payload?.command;
+                        const handler = this._customCommandHandlers.get(cmd);
+                        if (handler) {
+                            try {
+                                const result = handler(msg.payload?.args);
+                                this.send('client:custom:command_result', {
+                                    command: cmd,
+                                    result,
+                                }, msg.correlationId);
+                            }
+                            catch (cmdErr) {
+                                this.send('client:custom:command_result', {
+                                    command: cmd,
+                                    error: cmdErr?.message ?? String(cmdErr),
+                                }, msg.correlationId);
+                            }
+                        }
+                    }
+                    else if (msg.type === 'server:reload') {
+                        // Desktop asking the app to reload itself. Triggers Metro reload
+                        // via the official DevSettings module (the same path the RN
+                        // dev menu's "Reload" option uses). Works in dev builds only.
+                        this._reloadApp();
+                    }
+                    else if (msg.type === 'server:hot_restart') {
+                        // Heavier counterpart — same observable effect as `server:reload`
+                        // because RN has no lighter-vs-heavier distinction (DevSettings
+                        // already tears down the bridge and reloads the bundle from
+                        // Metro, which IS the "restart" semantic). We accept the message
+                        // anyway so mixed-platform setups (e.g. Flutter + RN) don't
+                        // silently drop the hot_restart signal on RN devices.
+                        this._reloadApp();
+                    }
+                }
+                catch (_) { }
+            };
+            this.ws.onclose = () => { this.connected = false; this.scheduleReconnect(); };
+            this.ws.onerror = () => { this.connected = false; this.scheduleReconnect(); };
+        }
+        catch (_) {
+            this.scheduleReconnect();
+        }
+    }
+    /**
+     * Default handler for `server:reload`.
+     *
+     * RN offers a public `DevSettings.reload()` (auto-linked from
+     * `react-native`) that's the same path the dev menu's "Reload" option
+     * uses — it tears down the bridge and re-bootstraps the JS bundle from
+     * Metro. Works in dev builds only; release builds no-op.
+     *
+     * Apps can register a custom reload handler via
+     * `DevConnect.registerReloadHandler(() => { ... })` to wipe in-memory
+     * caches before the reload (e.g. Redux/MobX stores).
+     */
+    _reloadApp() {
+        // Try the custom handler first. If it succeeds we're done — the
+        // handler takes full responsibility for the reload. If it throws,
+        // we DO fall through to the default DevSettings.reload() below,
+        // so the user still gets a reload even when their custom code
+        // crashed mid-execution.
+        if (this._reloadHandler) {
+            try {
+                this._reloadHandler();
+                return;
+            }
+            catch (_) {
+                // handler threw — continue to default below
+            }
+        }
+        try {
+            const DevSettings = react_native_1.NativeModules.DevSettings;
+            if (DevSettings && typeof DevSettings.reload === 'function') {
+                // DevSettings.reload() takes no arguments. Older versions of the
+                // native side may still throw "called with 1 arguments but expects
+                // 0" if you pass anything — keep the call empty to stay compatible.
+                DevSettings.reload();
+            }
+        }
+        catch (_) {
+            // DevSettings not available (release build / not yet initialized)
+        }
+    }
+    sendHandshake() {
+        const os = react_native_1.Platform.OS; // 'ios' | 'android'
+        const version = react_native_1.Platform.Version; // e.g. '17.4' (iOS) or 34 (Android API level)
+        const osLabel = os === 'ios' ? 'iOS' : os === 'android' ? 'Android' : os;
+        // Get actual device model name
+        let deviceModel = `${osLabel} Device`;
+        try {
+            if (os === 'ios') {
+                // iOS: prefer interfaceIdiom (iPhone/iPad/tv) over generic systemName
+                const constants = (react_native_1.NativeModules.PlatformConstants || react_native_1.NativeModules.DeviceInfo);
+                const iosModel = constants?.interfaceIdiom;
+                const systemName = constants?.systemName;
+                if (iosModel === 'phone') {
+                    deviceModel = 'iPhone';
+                }
+                else if (iosModel === 'pad') {
+                    deviceModel = 'iPad';
+                }
+                else if (iosModel === 'tv') {
+                    deviceModel = 'tvOS Device';
+                }
+                else if (systemName) {
+                    deviceModel = `${systemName} Device`;
+                }
+            }
+            else if (os === 'android') {
+                // Android: get model from PlatformConstants
+                const constants = (react_native_1.NativeModules.PlatformConstants || react_native_1.Platform.constants);
+                const model = constants?.Model || constants?.Brand;
+                if (model) {
+                    deviceModel = model;
+                }
+            }
+        }
+        catch (_) {
+            // Fallback to generic name
+        }
+        this.send('client:handshake', {
+            deviceInfo: {
+                deviceId: this.deviceId,
+                deviceName: deviceModel,
+                platform: 'react_native',
+                osVersion: `${osLabel} ${version}`,
+                appName: this.config.appName,
+                appVersion: this.config.appVersion,
+                ...(this.config.versionCode ? { versionCode: this.config.versionCode } : {}),
+                sdkVersion: '1.0.0',
+            },
+        });
+    }
+    scheduleReconnect() {
+        if (!this.config.enabled)
+            return;
+        if (this.reconnectTimer)
+            clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(async () => {
+            if (!this.connected) {
+                if (this.config.auto) {
+                    this.config.host = await autoDetectHost(this.config.port);
+                }
+                this.connect();
+            }
+        }, 3000);
+    }
+    send(type, payload, correlationId) {
+        if (!this.config.enabled)
+            return;
+        const message = {
+            id: generateId(),
+            type,
+            deviceId: this.deviceId,
+            timestamp: Date.now(),
+            payload,
+            ...(correlationId ? { correlationId } : {}),
+        };
+        const json = JSON.stringify(message);
+        if (this.connected && this.ws) {
+            this.ws.send(json);
+        }
+        else if (this.messageQueue.length < 1000) {
+            this.messageQueue.push(json);
+        }
+    }
+    // ---- Fetch interceptor ----
+    patchFetch() {
+        const originalFetch = global.fetch;
+        this.originalFetch = originalFetch;
+        const dc = this;
+        global.fetch = async function (input, init) {
+            const requestId = generateId();
+            const startTime = Date.now();
+            let method;
+            if (init?.method) {
+                method = init.method.toUpperCase();
+            }
+            else if (typeof Request !== 'undefined' && input instanceof Request) {
+                method = input.method.toUpperCase();
+            }
+            else {
+                method = 'GET';
+            }
+            let url;
+            if (typeof input === 'string') {
+                url = input;
+            }
+            else if (input instanceof URL) {
+                url = input.toString();
+            }
+            else if (typeof Request !== 'undefined' && input instanceof Request) {
+                url = input.url;
+            }
+            else {
+                url = input?.url ?? String(input);
+            }
+            // AWS SDK v3 (@aws-sdk/fetch-http-handler) calls `fetch(request)` where
+            // `request` is a fully-built Request object — init is undefined in that
+            // case. All headers (including X-Amz-Date, Authorization added by the
+            // signer middleware) are inside request.headers by the time fetch is
+            // invoked. We must read from request, not init.
+            const isRequestInput = typeof Request !== 'undefined' && input instanceof Request;
+            let reqHeaders;
+            let finalBody;
+            if (isRequestInput) {
+                const r = input;
+                reqHeaders = {};
+                r.headers.forEach((v, k) => (reqHeaders[k.toLowerCase()] = v));
+                try {
+                    finalBody = await r.clone().text();
+                }
+                catch (_) {
+                    finalBody = undefined;
+                }
+            }
+            else {
+                const tracker = {};
+                const trackedInit = wrapFetchInit(init, tracker);
+                init = trackedInit;
+                reqHeaders = readFinalHeaders(tracker, trackedInit);
+                finalBody = tracker.body !== undefined ? tracker.body : trackedInit?.body;
+            }
+            let requestBody;
+            if (finalBody) {
+                if (finalBody instanceof FormData) {
+                    const fields = {};
+                    const files = [];
+                    for (const [key, value] of finalBody.entries()) {
+                        if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
+                            files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
+                        }
+                        else {
+                            fields[key] = value;
+                        }
+                    }
+                    requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
+                }
+                else {
+                    try {
+                        requestBody = JSON.parse(finalBody);
+                    }
+                    catch (_) {
+                        requestBody = String(finalBody);
+                    }
+                }
+            }
+            const source = classifyUrl(url);
+            // Track this fetch so the XHR interceptor (which fires on RN's
+            // internal XHR transport for the same call) can dedup against us.
+            const fetchKey = `${method}\0${url}`;
+            dc.fetchInFlight.set(fetchKey, (dc.fetchInFlight.get(fetchKey) ?? 0) + 1);
+            dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source, via: 'fetch' });
+            let responsePromise;
+            dc.fetchStackCount++;
+            try {
+                responsePromise = originalFetch(input, init);
+            }
+            catch (err) {
+                dc.send('client:network:request_complete', {
+                    requestId,
+                    method,
+                    url,
+                    statusCode: 0,
+                    startTime,
+                    endTime: Date.now(),
+                    duration: Date.now() - startTime,
+                    requestHeaders: reqHeaders,
+                    requestBody,
+                    error: err?.message ?? String(err),
+                    source,
+                    via: 'fetch',
+                });
+                const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
+                if (currentCount <= 1) {
+                    dc.fetchInFlight.delete(fetchKey);
+                }
+                else {
+                    dc.fetchInFlight.set(fetchKey, currentCount - 1);
+                }
+                throw err;
+            }
+            finally {
+                dc.fetchStackCount--;
+            }
+            try {
+                const response = await responsePromise;
+                const clone = response.clone();
+                let responseBody;
+                try {
+                    const text = await clone.text();
+                    try {
+                        responseBody = JSON.parse(text);
+                    }
+                    catch (_) {
+                        responseBody = text;
+                    }
+                }
+                catch (_) { }
+                const resHeaders = {};
+                response.headers.forEach((v, k) => (resHeaders[k] = v));
+                dc.send('client:network:request_complete', {
+                    requestId, method, url, statusCode: response.status, startTime,
+                    endTime: Date.now(), duration: Date.now() - startTime,
+                    requestHeaders: reqHeaders, responseHeaders: resHeaders, requestBody, responseBody, source,
+                    via: 'fetch',
+                });
+                const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
+                if (currentCount <= 1) {
+                    dc.fetchInFlight.delete(fetchKey);
+                }
+                else {
+                    dc.fetchInFlight.set(fetchKey, currentCount - 1);
+                }
+                return response;
+            }
+            catch (error) {
+                dc.send('client:network:request_complete', {
+                    requestId, method, url, statusCode: 0, startTime,
+                    endTime: Date.now(), duration: Date.now() - startTime,
+                    requestHeaders: reqHeaders, requestBody, error: error?.message ?? String(error), source,
+                    via: 'fetch',
+                });
+                const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
+                if (currentCount <= 1) {
+                    dc.fetchInFlight.delete(fetchKey);
+                }
+                else {
+                    dc.fetchInFlight.set(fetchKey, currentCount - 1);
+                }
+                throw error;
+            }
+        };
+    }
+    // ---- XHR interceptor ----
+    patchXHR() {
+        const dc = this;
+        const OriginalXHR = global.XMLHttpRequest;
+        this.originalXHR = OriginalXHR;
+        function PatchedXHR() {
+            const xhr = new OriginalXHR();
+            const isFetchXhr = dc.fetchStackCount > 0;
+            const requestId = generateId();
+            let method = 'GET', url = '', startTime = 0;
+            const reqHeaders = {};
+            let requestBody;
+            const origOpen = xhr.open.bind(xhr);
+            xhr.open = (m, u, ...args) => {
+                method = m.toUpperCase();
+                // Coerce URL/Request to a string in case a polyfill accepts them
+                url = typeof u === 'string' ? u : u?.url ?? String(u);
+                return origOpen(m, u, ...args);
+            };
+            const origSetHeader = xhr.setRequestHeader.bind(xhr);
+            xhr.setRequestHeader = (n, v) => { reqHeaders[n] = v; return origSetHeader(n, v); };
+            const origSend = xhr.send.bind(xhr);
+            xhr.send = (body) => {
+                startTime = Date.now();
+                if (body) {
+                    if (body instanceof FormData) {
+                        const fields = {};
+                        const files = [];
+                        for (const [key, value] of body.entries()) {
+                            if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
+                                files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
+                            }
+                            else {
+                                fields[key] = value;
+                            }
+                        }
+                        requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
+                    }
+                    else {
+                        try {
+                            requestBody = JSON.parse(body);
+                        }
+                        catch (_) {
+                            requestBody = body;
+                        }
+                    }
+                }
+                // Skip the start report if the fetch interceptor already
+                // covers this call (see handleLoadEnd for the matching skip).
+                const xhrKey = `${method}\0${url}`;
+                const isFetchRequest = isFetchXhr || (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
+                if (!isFetchRequest) {
+                    dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source: classifyUrl(url), via: 'xhr' });
+                }
+                return origSend(body);
+            };
+            const handleLoadEnd = async () => {
+                xhr.removeEventListener('loadend', handleLoadEnd);
+                // Skip if the fetch interceptor already reported this call —
+                // RN 0.85's fetch goes through XHR internally, so without this
+                // every fetch would double-fire (once via fetch path, once via
+                // XHR path) with different requestIds, which the server
+                // cannot merge downstream.
+                const xhrKey = `${method}\0${url}`;
+                const isFetchRequest = isFetchXhr || (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
+                if (isFetchRequest) {
+                    return;
+                }
+                const resHeaders = {};
+                try {
+                    xhr.getAllResponseHeaders().split('\r\n').forEach((l) => { const i = l.indexOf(':'); if (i > 0)
+                        resHeaders[l.substring(0, i).trim()] = l.substring(i + 1).trim(); });
+                }
+                catch (_) { }
+                let responseBody;
+                const rt = xhr.responseType;
+                if (!rt || rt === 'text' || rt === '') {
+                    try {
+                        responseBody = JSON.parse(xhr.responseText);
+                    }
+                    catch (_) {
+                        responseBody = xhr.responseText;
+                    }
+                }
+                else if (rt === 'json') {
+                    responseBody = xhr.response;
+                }
+                else {
+                    // Non-text responseType (blob, arraybuffer, ...). If the
+                    // server's Content-Type looks like JSON or text, try to read
+                    // it as text — saves the user from seeing `<blob 2852 bytes>`
+                    // when the server actually sent JSON. No size cap: a mis-set
+                    // responseType on a JSON API response can be arbitrarily
+                    // large, and we trust the Content-Type to tell us when the
+                    // body is genuinely binary (image/*, video/*, audio/*,
+                    // application/octet-stream, ...).
+                    const ct = (resHeaders['content-type'] ?? '').toLowerCase();
+                    const isJsonCt = ct.includes('json') || ct.includes('+json');
+                    const isTextCt = ct.startsWith('text/') || ct === 'application/javascript' || ct === 'application/x-www-form-urlencoded';
+                    const blob = xhr.response;
+                    const blobSize = blob?.size ?? blob?.byteLength ?? 0;
+                    if ((isJsonCt || isTextCt) && blob && typeof blob.text === 'function') {
+                        try {
+                            const text = await blob.text();
+                            if (isJsonCt) {
+                                try {
+                                    responseBody = JSON.parse(text);
+                                }
+                                catch (_) {
+                                    responseBody = text;
+                                }
+                            }
+                            else {
+                                responseBody = text;
+                            }
+                        }
+                        catch (_) {
+                            responseBody = `<${rt} ${blobSize || '?'} bytes>`;
+                        }
+                    }
+                    else {
+                        responseBody = `<${rt} ${blobSize || xhr.response?.byteLength || '?'} bytes>`;
+                    }
+                }
+                dc.send('client:network:request_complete', {
+                    requestId, method, url, statusCode: xhr.status, startTime,
+                    endTime: Date.now(), duration: Date.now() - startTime,
+                    requestHeaders: reqHeaders, responseHeaders: resHeaders, requestBody, responseBody,
+                    source: classifyUrl(url),
+                    via: 'xhr',
+                    ...(xhr.status === 0 ? { error: 'Network request failed' } : {}),
+                });
+            };
+            xhr.addEventListener('loadend', handleLoadEnd);
+            return xhr;
+        }
+        global.XMLHttpRequest = PatchedXHR;
+    }
+    // ---- Console interceptor ----
+    patchConsole() {
+        const dc = this;
+        const orig = {
+            log: console.log.bind(console), warn: console.warn.bind(console),
+            error: console.error.bind(console), debug: console.debug.bind(console),
+            info: console.info.bind(console), trace: console.trace?.bind(console),
+        };
+        this.originalConsole = orig;
+        const systemPrefixes = [
+            'Running "', 'BUNDLE ', 'nativeRequire ', 'Require cycle:', 'Remote debugger',
+            'Debugger and device', 'Download the React DevTools', 'New NativeEventEmitter',
+            'Sending `', 'ViewManager:', 'Unbalanced calls', 'componentWillReceiveProps',
+            'componentWillMount', 'Each child in a list', 'VirtualizedList:', 'LogBox',
+            'DevConnect', '[DevConnect]',
+        ];
+        const isEmptyObj = (args) => {
+            if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null) {
+                try {
+                    if (Object.keys(args[0]).length === 0)
+                        return true;
+                }
+                catch (_) { }
+            }
+            return false;
+        };
+        const isInternalError = (args) => {
+            const s = String(args[0] ?? '');
+            return s.includes("'responseText'") || s.includes('responseType') || s.includes('DevConnect');
+        };
+        const isSys = (args) => args.length === 0 || isEmptyObj(args) || isInternalError(args) || systemPrefixes.some((p) => String(args[0]).startsWith(p));
+        const toStr = (args) => args.map((a) => typeof a === 'string' ? a : (() => { try {
+            return JSON.stringify(a, null, 2);
+        }
+        catch (_) {
+            return String(a);
+        } })()).join(' ');
+        const toMeta = (args) => {
+            if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null) {
+                try {
+                    return JSON.parse(JSON.stringify(args[0]));
+                }
+                catch (_) { }
+            }
+            return undefined;
+        };
+        const patch = (method, level, origFn) => (...args) => {
+            origFn(...args);
+            if (!isSys(args))
+                dc.send('client:log', { level, message: toStr(args), tag: `console.${method}`, ...(toMeta(args) ? { metadata: toMeta(args) } : {}) });
+        };
+        console.log = patch('log', 'debug', orig.log);
+        console.debug = patch('debug', 'debug', orig.debug);
+        console.info = patch('info', 'info', orig.info);
+        console.warn = patch('warn', 'warn', orig.warn);
+        console.error = patch('error', 'error', orig.error);
+        if (console.trace)
+            console.trace = patch('trace', 'debug', orig.trace);
+    }
+    // ---- Public API ----
+    static _toStr(msg) {
+        if (msg === null || msg === undefined)
+            return String(msg);
+        if (typeof msg === 'string')
+            return msg;
+        try {
+            return JSON.stringify(msg, null, 2);
+        }
+        catch (_) {
+            return String(msg);
+        }
+    }
+    static log(message, tag, metadata) {
+        DevConnect.safeSend('client:log', { level: 'info', message: DevConnect._toStr(message), ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });
+    }
+    static debug(message, tag, metadata) {
+        DevConnect.safeSend('client:log', { level: 'debug', message: DevConnect._toStr(message), ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });
+    }
+    static warn(message, tag, metadata) {
+        DevConnect.safeSend('client:log', { level: 'warn', message: DevConnect._toStr(message), ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });
+    }
+    static error(message, tag, stackTrace, metadata) {
+        DevConnect.safeSend('client:log', { level: 'error', message: DevConnect._toStr(message), ...(tag ? { tag } : {}), ...(stackTrace ? { stackTrace } : {}), ...(metadata ? { metadata } : {}) });
+    }
+    static reportStateChange(opts) {
+        DevConnect.safeSend('client:state:change', opts);
+    }
+    static reportStorageOperation(opts) {
+        DevConnect.safeSend('client:storage:operation', opts);
+    }
+    // ---- Performance Profiling ----
+    /**
+     * Report a performance metric (FPS, memory, CPU, jank frame, etc.).
+     *
+     * ```typescript
+     * // Report FPS
+     * DevConnect.reportPerformanceMetric({
+     *   metricType: 'fps',
+     *   value: 58.5,
+     *   label: 'Main Thread FPS',
+     * });
+     *
+     * // Report memory usage in MB
+     * DevConnect.reportPerformanceMetric({
+     *   metricType: 'memory_usage',
+     *   value: 142.3,
+     *   label: 'Heap Used',
+     * });
+     *
+     * // Report CPU usage percentage
+     * DevConnect.reportPerformanceMetric({
+     *   metricType: 'cpu_usage',
+     *   value: 35.2,
+     * });
+     *
+     * // Report a jank frame (build time in ms)
+     * DevConnect.reportPerformanceMetric({
+     *   metricType: 'jank_frame',
+     *   value: 32.1,
+     *   label: 'Slow render in UserList',
+     * });
+     * ```
+     */
+    static reportPerformanceMetric(opts) {
+        DevConnect.safeSend('client:performance:metric', {
+            metricType: opts.metricType,
+            value: opts.value,
+            ...(opts.label ? { label: opts.label } : {}),
+            ...(opts.metadata ? { metadata: opts.metadata } : {}),
+        });
+    }
+    // ---- Memory Leak Detection ----
+    /**
+     * Report a detected memory leak.
+     *
+     * ```typescript
+     * // Report an undisposed subscription
+     * DevConnect.reportMemoryLeak({
+     *   leakType: 'undisposed_stream',
+     *   severity: 'warning',
+     *   objectName: 'UserDataSubscription',
+     *   detail: 'EventEmitter listener not removed in ProfileScreen',
+     *   retainedSizeBytes: 2048,
+     *   stackTrace: new Error().stack,
+     * });
+     *
+     * // Report a growing collection
+     * DevConnect.reportMemoryLeak({
+     *   leakType: 'growing_collection',
+     *   severity: 'critical',
+     *   objectName: 'eventCache',
+     *   detail: 'Array grows unbounded — 15000 items, expected < 100',
+     *   retainedSizeBytes: 1200000,
+     *   metadata: { currentSize: 15000, maxExpected: 100 },
+     * });
+     * ```
+     */
+    static reportMemoryLeak(opts) {
+        DevConnect.safeSend('client:memory:leak', {
+            leakType: opts.leakType,
+            severity: opts.severity,
+            objectName: opts.objectName,
+            ...(opts.detail ? { detail: opts.detail } : {}),
+            ...(opts.retainedSizeBytes != null ? { retainedSizeBytes: opts.retainedSizeBytes } : {}),
+            ...(opts.stackTrace ? { stackTrace: opts.stackTrace } : {}),
+            ...(opts.metadata ? { metadata: opts.metadata } : {}),
+        });
+    }
+    // ---- Connection ----
+    /** Check if currently connected to DevConnect desktop. */
+    static isConnected() {
+        return DevConnect.instance?.connected ?? false;
+    }
+    /** Disconnect from DevConnect desktop. */
+    static disconnect() {
+        const instance = DevConnect.getInstanceSafe();
+        if (instance) {
+            if (instance.reconnectTimer) {
+                clearTimeout(instance.reconnectTimer);
+                instance.reconnectTimer = null;
+            }
+            instance.connected = false;
+            try {
+                instance.ws?.close();
+            }
+            catch (_) { }
+            instance.ws = null;
+            instance.restorePatches();
+        }
+    }
+    restorePatches() {
+        if (this.originalFetch) {
+            global.fetch = this.originalFetch;
+            this.originalFetch = null;
+        }
+        if (this.originalXHR) {
+            global.XMLHttpRequest = this.originalXHR;
+            this.originalXHR = null;
+        }
+        if (this.originalConsole) {
+            console.log = this.originalConsole.log;
+            console.warn = this.originalConsole.warn;
+            console.error = this.originalConsole.error;
+            console.debug = this.originalConsole.debug;
+            console.info = this.originalConsole.info;
+            if (this.originalConsole.trace)
+                console.trace = this.originalConsole.trace;
+            this.originalConsole = null;
+        }
+    }
+    // ---- Tagged Logger ----
+    /**
+     * Create a tagged logger instance.
+     *
+     * ```typescript
+     * const logger = DevConnect.logger('AuthService');
+     * logger.log('User logged in');
+     * logger.debug('Token refreshed');
+     * logger.warn('Session expiring');
+     * logger.error('Login failed', 'stack trace...');
+     * ```
+     */
+    static logger(tag) {
+        return {
+            log: (message, metadata) => DevConnect.log(message, tag, metadata),
+            debug: (message, metadata) => DevConnect.debug(message, tag, metadata),
+            warn: (message, metadata) => DevConnect.warn(message, tag, metadata),
+            error: (message, stackTrace, metadata) => DevConnect.error(message, tag, stackTrace, metadata),
+        };
+    }
+    // ---- Network (manual reporting) ----
+    /**
+     * Manually report a network request start.
+     * Useful when auto-interception is disabled or for custom transports.
+     *
+     * ```typescript
+     * const requestId = 'req-123';
+     * DevConnect.reportNetworkStart({
+     *   requestId,
+     *   method: 'POST',
+     *   url: 'https://api.example.com/data',
+     *   headers: { 'Authorization': 'Bearer xxx' },
+     * });
+     * ```
+     */
+    static reportNetworkStart(opts) {
+        DevConnect.safeSend('client:network:request_start', {
+            requestId: opts.requestId,
+            method: opts.method,
+            url: opts.url,
+            startTime: Date.now(),
+            ...(opts.headers ? { requestHeaders: opts.headers } : {}),
+            ...(opts.body !== undefined ? { requestBody: opts.body } : {}),
+        });
+    }
+    /**
+     * Manually report a network request completion.
+     *
+     * ```typescript
+     * DevConnect.reportNetworkComplete({
+     *   requestId: 'req-123',
+     *   method: 'POST',
+     *   url: 'https://api.example.com/data',
+     *   statusCode: 200,
+     *   startTime: 1711180800000,
+     *   responseBody: { success: true },
+     * });
+     * ```
+     */
+    static reportNetworkComplete(opts) {
+        const now = Date.now();
+        DevConnect.safeSend('client:network:request_complete', {
+            requestId: opts.requestId,
+            method: opts.method,
+            url: opts.url,
+            statusCode: opts.statusCode,
+            startTime: opts.startTime,
+            endTime: now,
+            duration: now - opts.startTime,
+            ...(opts.requestHeaders ? { requestHeaders: opts.requestHeaders } : {}),
+            ...(opts.responseHeaders ? { responseHeaders: opts.responseHeaders } : {}),
+            ...(opts.requestBody !== undefined ? { requestBody: opts.requestBody } : {}),
+            ...(opts.responseBody !== undefined ? { responseBody: opts.responseBody } : {}),
+            ...(opts.error ? { error: opts.error } : {}),
+        });
+    }
+    // ---- Redux dispatch from desktop ----
+    /**
+     * Connect Redux store so desktop can dispatch actions into the app.
+     *
+     * ```typescript
+     * const store = createStore(reducer);
+     * DevConnect.connectReduxStore(store);
+     * // Now desktop can dispatch actions into your app!
+     * ```
+     */
+    static connectReduxStore(store) {
+        const instance = DevConnect.getInstanceSafe();
+        if (instance) {
+            instance._reduxStore = store;
+            try {
+                instance.send('client:state:snapshot', {
+                    stateManager: 'redux',
+                    state: JSON.parse(JSON.stringify(store.getState())),
+                });
+            }
+            catch (_) { }
+        }
+        else {
+            // Store reference will be set when init() completes
+            DevConnect.safeSend('client:state:snapshot', {
+                stateManager: 'redux',
+                state: (() => { try {
+                    return JSON.parse(JSON.stringify(store.getState()));
+                }
+                catch (_) {
+                    return {};
+                } })(),
+            });
+            // Defer store binding - check periodically until init completes
+            const interval = setInterval(() => {
+                const dc = DevConnect.getInstanceSafe();
+                if (dc) {
+                    dc._reduxStore = store;
+                    clearInterval(interval);
+                }
+            }, 100);
+            setTimeout(() => clearInterval(interval), 10000);
+        }
+    }
+    // ---- State snapshot + restore ----
+    /**
+     * Set handler for state restore from desktop.
+     *
+     * ```typescript
+     * DevConnect.onStateRestore((state) => {
+     *   store.dispatch({ type: 'RESTORE_STATE', payload: state });
+     * });
+     * ```
+     */
+    static onStateRestore(handler) {
+        const instance = DevConnect.getInstanceSafe();
+        if (instance) {
+            instance._stateRestoreHandler = handler;
+        }
+        else {
+            const interval = setInterval(() => {
+                const dc = DevConnect.getInstanceSafe();
+                if (dc) {
+                    dc._stateRestoreHandler = handler;
+                    clearInterval(interval);
+                }
+            }, 100);
+            setTimeout(() => clearInterval(interval), 10000);
+        }
+    }
+    /**
+     * Send a state snapshot to desktop (for saving/restoring later).
+     */
+    static sendStateSnapshot(stateManager, state) {
+        try {
+            DevConnect.safeSend('client:state:snapshot', {
+                stateManager,
+                state: JSON.parse(JSON.stringify(state)),
+            });
+        }
+        catch (_) { }
+    }
+    static benchmark(title) {
+        const dc = DevConnect.getInstanceSafe();
+        const map = dc?._benchmarks ?? DevConnect._pendingBenchmarks;
+        map.set(title, { title, startTime: Date.now(), steps: [] });
+    }
+    static benchmarkStep(title, stepTitle) {
+        const dc = DevConnect.getInstanceSafe();
+        const map = dc?._benchmarks ?? DevConnect._pendingBenchmarks;
+        const b = map.get(title);
+        if (b)
+            b.steps.push({ title: stepTitle, timestamp: Date.now() });
+    }
+    static benchmarkStop(title) {
+        const dc = DevConnect.getInstanceSafe();
+        const map = dc?._benchmarks ?? DevConnect._pendingBenchmarks;
+        const b = map.get(title);
+        if (b) {
+            const endTime = Date.now();
+            const steps = b.steps.map((s, i) => ({
+                ...s,
+                delta: i === 0 ? s.timestamp - b.startTime : s.timestamp - b.steps[i - 1].timestamp,
+            }));
+            // Send via safeSend so it queues if not connected yet
+            DevConnect.safeSend('client:benchmark', {
+                title: b.title,
+                startTime: b.startTime,
+                endTime,
+                duration: endTime - b.startTime,
+                steps,
+            });
+            map.delete(title);
+        }
+    }
+    // ---- Custom Display ----
+    /**
+     * Send a custom display value to DevConnect desktop.
+     *
+     * ```typescript
+     * DevConnect.display('User Profile', {
+     *   value: { name: 'John', age: 30, role: 'admin' },
+     *   preview: 'John, 30',
+     * });
+     *
+     * DevConnect.display('Current Theme', {
+     *   value: themeObject,
+     *   preview: 'Dark Mode',
+     *   metadata: { source: 'ThemeProvider' },
+     * });
+     * ```
+     */
+    static display(name, opts) {
+        DevConnect.safeSend('client:display', {
+            name,
+            ...(opts?.value !== undefined ? { value: opts.value } : {}),
+            ...(opts?.preview ? { preview: opts.preview } : {}),
+            ...(opts?.image ? { image: opts.image } : {}),
+            ...(opts?.metadata ? { metadata: opts.metadata } : {}),
+        });
+    }
+    // ---- Async Operations (Saga/Task tracking) ----
+    /**
+     * Report an async operation (Redux Saga step, background task, etc.).
+     *
+     * ```typescript
+     * // Report saga take
+     * DevConnect.reportAsyncOperation({
+     *   operationType: 'saga_take',
+     *   description: 'Waiting for FETCH_USER',
+     *   status: 'start',
+     *   sagaName: 'userSaga',
+     * });
+     *
+     * // Report saga call completion
+     * DevConnect.reportAsyncOperation({
+     *   operationType: 'saga_call',
+     *   description: 'fetchUserAPI()',
+     *   status: 'resolve',
+     *   sagaName: 'userSaga',
+     *   duration: 350,
+     *   result: { userId: 123 },
+     * });
+     *
+     * // Report async task failure
+     * DevConnect.reportAsyncOperation({
+     *   operationType: 'async_task',
+     *   description: 'Upload image',
+     *   status: 'reject',
+     *   duration: 5000,
+     *   error: 'Network timeout',
+     * });
+     * ```
+     */
+    static reportAsyncOperation(opts) {
+        DevConnect.safeSend('client:async:operation', {
+            operationType: opts.operationType,
+            description: opts.description,
+            status: opts.status,
+            ...(opts.duration != null ? { duration: opts.duration } : {}),
+            ...(opts.sagaName ? { sagaName: opts.sagaName } : {}),
+            ...(opts.error ? { error: opts.error } : {}),
+            ...(opts.result !== undefined ? { result: opts.result } : {}),
+            ...(opts.metadata ? { metadata: opts.metadata } : {}),
+        });
+    }
+    // ---- Custom commands (desktop -> app) ----
+    /**
+     * Register a custom command that desktop can trigger.
+     *
+     * ```typescript
+     * DevConnect.registerCommand('clearCache', () => {
+     *   AsyncStorage.clear();
+     *   return { success: true };
+     * });
+     *
+     * DevConnect.registerCommand('setUser', (args) => {
+     *   store.dispatch({ type: 'SET_USER', payload: args });
+     * });
+     * ```
+     */
+    static registerCommand(name, handler) {
+        const instance = DevConnect.getInstanceSafe();
+        if (instance) {
+            instance._customCommandHandlers.set(name, handler);
+        }
+        else {
+            const interval = setInterval(() => {
+                const dc = DevConnect.getInstanceSafe();
+                if (dc) {
+                    dc._customCommandHandlers.set(name, handler);
+                    clearInterval(interval);
+                }
+            }, 100);
+            setTimeout(() => clearInterval(interval), 10000);
+        }
+    }
+    /**
+     * Register a custom handler for `server:reload` requests from the desktop.
+     *
+     * By default, the SDK calls `DevSettings.reload()` (the same path the
+     * dev menu's "Reload" uses) — that tears down the bridge and reloads
+     * the JS bundle from Metro. Register a custom handler when you need to
+     * wipe in-memory state before the reload, e.g. clear Redux store and
+     * in-memory caches:
+     *
+     * ```typescript
+     * DevConnect.registerReloadHandler(() => {
+     *   store.dispatch({ type: 'RESET' });
+     *   // falling back to default reload is up to you
+     *   DevSettings.reload('DevConnect reload');
+     * });
+     * ```
+     */
+    static registerReloadHandler(handler) {
+        const instance = DevConnect.getInstanceSafe();
+        if (instance) {
+            instance._reloadHandler = handler;
+        }
+        else {
+            const interval = setInterval(() => {
+                const dc = DevConnect.getInstanceSafe();
+                if (dc) {
+                    dc._reloadHandler = handler;
+                    clearInterval(interval);
+                }
+            }, 100);
+            setTimeout(() => clearInterval(interval), 10000);
+        }
+    }
+}
+exports.DevConnect = DevConnect;
+DevConnect.instance = null;
+/** Pre-init queue: messages sent before init() is called */
+DevConnect.preInitQueue = [];
+// ---- Benchmark API ----
+/**
+ * Start a benchmark timer.
+ *
+ * ```typescript
+ * DevConnect.benchmark('loadUserData');
+ * await fetchUser();
+ * DevConnect.benchmarkStep('loadUserData', 'fetched user');
+ * await fetchPosts();
+ * DevConnect.benchmarkStop('loadUserData');
+ * ```
+ */
+DevConnect._pendingBenchmarks = new Map();

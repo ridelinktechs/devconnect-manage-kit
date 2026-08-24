@@ -13,6 +13,31 @@ android {
         aarMetadata {
             minCompileSdk = 21
         }
+        // Native crash handler is built per-ABI and shipped inside
+        // the AAR. We don't restrict ABIs because the consumer app's
+        // APK packaging already merges the right .so files; letting
+        // Gradle build all ABIs keeps the AAR universal without
+        // requiring consumers to configure splits.
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                // Limit NDK build to one ABI in CI to halve build
+                // time — `arm64-v8a` covers 99% of devices.
+                arguments += listOf(
+                    "-DANDROID_STL=c++_static",
+                )
+            }
+        }
+    }
+
+    // CMake build for libdc-native.so. The source is in
+    // src/main/cpp/. Consumers don't need NDK installed; the .so
+    // files ship pre-built inside the AAR.
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     compileOptions {
@@ -31,7 +56,15 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.0")
 
     // Optional - OkHttp interceptor (compileOnly = user provides their own version)
-    compileOnly("com.squareup.okhttp3:okhttp:4.12.0")
+    compileOnly("com.squareup.okhttp3:okhttp:5.4.0")
+
+    // Optional - Apollo Kotlin interceptor (Round 3)
+    compileOnly("com.apollographql.apollo3:apollo-runtime:3.8.5")
+    // Optional - gRPC client interceptor (Round 3)
+    compileOnly("io.grpc:grpc-stub:1.83.1")
+    compileOnly("io.grpc:grpc-okhttp:1.83.1")
+    // Optional - Compose state observer (Round 2)
+    compileOnly("androidx.compose.runtime:runtime:1.6.8")
 
     // Optional - Lifecycle ViewModel observer
     compileOnly("androidx.lifecycle:lifecycle-viewmodel-ktx:2.11.0")
@@ -51,7 +84,16 @@ dependencies {
     // OkHttp is compileOnly in the main source set, but reflectively
     // touching DevConnect (which references okhttp3.Interceptor) at test
     // time requires it on the runtime classpath.
-    testImplementation("com.squareup.okhttp3:okhttp:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp:5.4.0")
+    // Same rationale for the optional Round 2-5 deps: any test that
+    // reflectively walks `DevConnect::class.java.getDeclaredMethods(...)`
+    // will load every transitive class referenced by the public surface,
+    // including Apollo / gRPC / Compose. Keep them on the test classpath
+    // so JVM unit-test runs don't NoClassDefFoundError on init.
+    testImplementation("com.apollographql.apollo3:apollo-runtime:3.8.5")
+    testImplementation("io.grpc:grpc-stub:1.83.1")
+    testImplementation("io.grpc:grpc-okhttp:1.83.1")
+    testImplementation("androidx.compose.runtime:runtime:1.6.8")
 }
 
 // Publishing config for Maven Central via Sonatype Central Portal

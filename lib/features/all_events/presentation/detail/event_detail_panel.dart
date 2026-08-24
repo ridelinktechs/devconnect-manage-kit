@@ -1170,8 +1170,10 @@ class _EventDetailPanelState extends ConsumerState<EventDetailPanel> {
         return FallbackDetail(event: widget.event);
       case EventType.storage:
         if (widget.event.rawData is StorageEntry) {
+          final storageEntry = widget.event.rawData as StorageEntry;
           return StorageDetail(
-            entry: widget.event.rawData as StorageEntry,
+            key: ValueKey(storageEntry.id),
+            entry: storageEntry,
           );
         }
         return FallbackDetail(event: widget.event);

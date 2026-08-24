@@ -72,6 +72,11 @@ final sidebarItems = [
     routePath: '/errors',
   ),
   const SidebarItem(
+    label: 'Mock',
+    icon: LucideIcons.server,
+    routePath: '/mock-server',
+  ),
+  const SidebarItem(
     label: 'History',
     icon: LucideIcons.history,
     routePath: '/history',

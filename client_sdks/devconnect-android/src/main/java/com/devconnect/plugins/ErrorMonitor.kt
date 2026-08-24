@@ -48,8 +48,13 @@ object ErrorMonitor {
         appContext = context.applicationContext
 
         // ---- Uncaught Exception Handler (Native Crashes) ----
+        // Two distinct subsystems:
+        //   1. Java/Kotlin uncaught exceptions → Thread.setDefaultUncaughtExceptionHandler
+        //   2. Native (NDK/JNI) crashes → NativeCrashHandler (sigaction in libdc-native.so)
+        // Both run side-by-side because they catch disjoint error classes.
         if (opts.captureNativeCrashes) {
             setupUncaughtExceptionHandler()
+            setupNativeCrashHandler()
         }
 
         // ---- ANR Detection ----
@@ -100,6 +105,17 @@ object ErrorMonitor {
             // Call previous handler (usually logs to logcat and exits)
             previousHandler?.uncaughtException(thread, throwable)
         }
+    }
+
+    /**
+     * Wire [NativeCrashHandler]. The native side installs its own
+     * signal handlers in `JNI_OnLoad` (always on — safety net), but
+     * `NativeCrashHandler.start()` only *reports* them when enabled.
+     * The two halves can be disabled independently via [stop] / a
+     * future `autoNativeCrashHandler` flag on `DevConnect.init`.
+     */
+    private fun setupNativeCrashHandler() {
+        NativeCrashHandler.start()
     }
 
     private fun setupANRDetection() {
@@ -221,6 +237,9 @@ object ErrorMonitor {
             Thread.setDefaultUncaughtExceptionHandler(it)
         }
         previousHandler = null
+        // Stop the native crash poller so its Dispatchers.IO scope
+        // doesn't pin the Application context across test runs.
+        NativeCrashHandler.stop()
         // Unregister lifecycle callbacks so the Application context can
         // be GC'd if no other plugin holds it.
         lifecycleCallbacks?.let { lifecycleApp?.unregisterActivityLifecycleCallbacks(it) }

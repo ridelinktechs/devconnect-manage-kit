@@ -10,6 +10,8 @@ import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../models/network/network_entry.dart';
+import '../../../round/presentation/mock_audit_panel.dart';
+import '../../../round/presentation/protocol_panel.dart';
 import '../../provider/network_providers.dart';
 import '../request/request_card.dart';
 import '../request/request_detail_panel.dart';
@@ -18,6 +20,8 @@ import '../toolbar/toolbar.dart';
 /// Top-level Network Inspector page. Composes:
 ///
 /// - [Toolbar] — title, count, method + source filters, search, actions
+/// - A tab strip with 3 tabs: HTTP (the legacy stream), Protocols
+///   (GraphQL + WebSocket + gRPC), and Mock Audit (read-only)
 /// - [RequestCard] list — the streaming network requests
 /// - [RequestDetailPanel] — slides in when a row is selected
 ///
@@ -33,7 +37,8 @@ class NetworkInspectorPage extends ConsumerStatefulWidget {
 }
 
 class _NetworkInspectorPageState
-    extends ConsumerState<NetworkInspectorPage> {
+    extends ConsumerState<NetworkInspectorPage>
+    with SingleTickerProviderStateMixin {
   final _scrollController = SmoothScrollController();
   final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
@@ -41,10 +46,12 @@ class _NetworkInspectorPageState
   int _visibleCount = 0;
   int _generation = 0;
   final List<NetworkEntry> _entries = [];
+  late final TabController _outerTab;
 
   @override
   void initState() {
     super.initState();
+    _outerTab = TabController(length: 3, vsync: this);
     _scrollController.addListener(_onScroll);
     ref.listenManual(
       filteredNetworkEntriesProvider,
@@ -62,6 +69,15 @@ class _NetworkInspectorPageState
       },
       fireImmediately: true,
     );
+  }
+
+  @override
+  void dispose() {
+    _outerTab.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _entryCount.dispose();
+    super.dispose();
   }
 
   void _onScroll() {
@@ -141,19 +157,8 @@ class _NetworkInspectorPageState
   }
 
   @override
-  void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
-    _entryCount.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scrollDir = ref.watch(scrollDirectionProvider);
-    final isReversed = scrollDir == ScrollDirection.top;
-
     return Column(
       children: [
         Toolbar(
@@ -175,109 +180,157 @@ class _NetworkInspectorPageState
           },
         ),
         const Divider(height: 1),
+        _TopTabBar(controller: _outerTab),
         Expanded(
-          child: _entries.isEmpty
-              ? EmptyState(
-                  icon: LucideIcons.globe,
-                  title: S.of(context).noNetworkRequests,
-                  subtitle: S.of(context).apiCallsAppearHere,
-                )
-              : Stack(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ListView.custom(
-                            controller: _scrollController,
-                            reverse: isReversed,
-                            physics: isReversed
-                                ? const PositionRetainedScrollPhysics()
-                                : null,
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            childrenDelegate: StableBuilderDelegate(
-                              generation: _generation,
-                              childCount: _visibleCount,
-                              findChildIndexCallback: (key) {
-                                if (key is ValueKey<String>) {
-                                  final idx = _entries
-                                      .indexWhere((e) => e.id == key.value);
-                                  return idx == -1 ? null : idx;
-                                }
-                                return null;
-                              },
-                              builder: (context, index) {
-                                final entry = _entries[index];
-                                return RepaintBoundary(
-                                  key: ValueKey(entry.id),
-                                  child: Consumer(
-                                    builder: (context, ref, _) {
-                                      final selected =
-                                          ref.watch(selectedNetworkEntryProvider);
-                                      final isSelected =
-                                          selected?.id == entry.id;
-                                      return RequestCard(
-                                        entry: entry,
-                                        isSelected: isSelected,
-                                        onTap: () {
-                                          ref
-                                              .read(selectedNetworkIdProvider
-                                                  .notifier)
-                                              .state = isSelected ? null : entry.id;
-                                          if (!isSelected && _autoScroll) {
-                                            _autoScroll = false;
-                                            _programmaticScroll = false;
-                                            if (_scrollController.hasClients) {
-                                              _scrollController.jumpTo(
-                                                  _scrollController.offset);
-                                            }
-                                            setState(() {});
-                                          }
-                                        },
-                                      );
-                                    },
-                                  ),
+          child: TabBarView(
+            controller: _outerTab,
+            children: [
+              _buildHttpBody(theme),
+              const ProtocolPanel(),
+              const MockAuditPanel(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHttpBody(ThemeData theme) {
+    final scrollDir = ref.watch(scrollDirectionProvider);
+    final isReversed = scrollDir == ScrollDirection.top;
+    return _entries.isEmpty
+        ? EmptyState(
+            icon: LucideIcons.globe,
+            title: S.of(context).noNetworkRequests,
+            subtitle: S.of(context).apiCallsAppearHere,
+          )
+        : Stack(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: ListView.custom(
+                      controller: _scrollController,
+                      reverse: isReversed,
+                      physics: isReversed
+                          ? const PositionRetainedScrollPhysics()
+                          : null,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      childrenDelegate: StableBuilderDelegate(
+                        generation: _generation,
+                        childCount: _visibleCount,
+                        findChildIndexCallback: (key) {
+                          if (key is ValueKey<String>) {
+                            final idx = _entries
+                                .indexWhere((e) => e.id == key.value);
+                            return idx == -1 ? null : idx;
+                          }
+                          return null;
+                        },
+                        builder: (context, index) {
+                          final entry = _entries[index];
+                          return RepaintBoundary(
+                            key: ValueKey(entry.id),
+                            child: Consumer(
+                              builder: (context, ref, _) {
+                                final selected =
+                                    ref.watch(selectedNetworkEntryProvider);
+                                final isSelected =
+                                    selected?.id == entry.id;
+                                return RequestCard(
+                                  entry: entry,
+                                  isSelected: isSelected,
+                                  onTap: () {
+                                    ref
+                                        .read(selectedNetworkIdProvider
+                                            .notifier)
+                                        .state = isSelected ? null : entry.id;
+                                    if (!isSelected && _autoScroll) {
+                                      _autoScroll = false;
+                                      _programmaticScroll = false;
+                                      if (_scrollController.hasClients) {
+                                        _scrollController.jumpTo(
+                                            _scrollController.offset);
+                                      }
+                                      setState(() {});
+                                    }
+                                  },
                                 );
                               },
                             ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  // Detail panel reacts to selection via Consumer,
+                  // without rebuilding the list column.
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final selected =
+                          ref.watch(selectedNetworkEntryProvider);
+                      if (selected == null) return const SizedBox.shrink();
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          VerticalDivider(
+                              width: 1, color: theme.dividerColor),
+                          SizedBox(
+                            width: MediaQuery.of(context).size.width * 0.45,
+                            child: RequestDetailPanel(
+                              key: ValueKey(selected.id),
+                              entry: selected,
+                              onClose: () {
+                                ref
+                                    .read(selectedNetworkIdProvider.notifier)
+                                    .state = null;
+                              },
+                            ),
                           ),
-                        ),
-                        // Detail panel reacts to selection via Consumer,
-                        // without rebuilding the list column.
-                        Consumer(
-                          builder: (context, ref, _) {
-                            final selected =
-                                ref.watch(selectedNetworkEntryProvider);
-                            if (selected == null) return const SizedBox.shrink();
-                            return Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                VerticalDivider(width: 1, color: theme.dividerColor),
-                                SizedBox(
-                                  width: MediaQuery.of(context).size.width * 0.45,
-                                  child: RequestDetailPanel(
-                                    key: ValueKey(selected.id),
-                                    entry: selected,
-                                    onClose: () {
-                                      ref
-                                          .read(selectedNetworkIdProvider.notifier)
-                                          .state = null;
-                                    },
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    PositionedJumpToLatestFab(
-                      scrollController: _scrollController,
-                      reversed: isReversed,
-                    ),
-                  ],
-                ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+              PositionedJumpToLatestFab(
+                scrollController: _scrollController,
+                reversed: isReversed,
+              ),
+            ],
+          );
+  }
+}
+
+class _TopTabBar extends StatelessWidget {
+  final TabController controller;
+  const _TopTabBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+              color: theme.dividerColor.withValues(alpha: 0.5)),
         ),
-      ],
+      ),
+      child: TabBar(
+        controller: controller,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        labelColor: theme.colorScheme.primary,
+        unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+        indicatorColor: theme.colorScheme.primary,
+        indicatorWeight: 2,
+        tabs: const [
+          Tab(text: 'HTTP'),
+          Tab(text: 'Protocols'),
+          Tab(text: 'Mock Audit'),
+        ],
+      ),
     );
   }
 }

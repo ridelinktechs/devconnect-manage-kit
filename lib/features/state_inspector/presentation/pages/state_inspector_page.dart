@@ -20,6 +20,7 @@ import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../core/providers/retention_provider.dart';
 import '../../provider/state_providers.dart';
+import '../../../round/presentation/state_round_panel.dart';
 
 class StateInspectorPage extends ConsumerStatefulWidget {
   const StateInspectorPage({super.key});
@@ -157,6 +158,26 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
     final scrollDir = ref.watch(scrollDirectionProvider);
     final isReversed = scrollDir == ScrollDirection.top;
 
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          _StateManagerTabBar(),
+          const Divider(height: 1),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildReduxTab(selected, theme, isReversed),
+                const StateRoundPanel(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReduxTab(dynamic selected, ThemeData theme, bool isReversed) {
     return Column(
       children: [
         _Toolbar(
@@ -258,6 +279,38 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _StateManagerTabBar extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+              color: theme.dividerColor.withValues(alpha: 0.5)),
+        ),
+      ),
+      child: TabBar(
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        labelColor: ColorTokens.primary,
+        unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+        indicatorColor: ColorTokens.primary,
+        indicatorWeight: 2,
+        labelStyle: theme.textTheme.labelLarge
+            ?.copyWith(fontWeight: FontWeight.w600),
+        unselectedLabelStyle:
+            theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w500),
+        tabs: const [
+          Tab(text: 'Redux'),
+          Tab(text: 'State Managers'),
+        ],
+      ),
     );
   }
 }

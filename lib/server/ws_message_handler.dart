@@ -12,6 +12,9 @@ import '../models/state/state_change.dart';
 import '../models/display/display_entry.dart';
 import '../models/performance/performance_entry.dart';
 import '../models/storage/storage_entry.dart';
+import '../models/round/state_round_entry.dart';
+import '../models/round/protocol_entry.dart';
+import '../models/round/mock_entry.dart';
 import 'protocol/dc_message.dart';
 import 'ws_server.dart';
 import 'package:uuid/uuid.dart';
@@ -108,6 +111,13 @@ class WsMessageHandler {
   final _asyncOpController = StreamController<AsyncOperationEntry>.broadcast();
   final _errorController = StreamController<ErrorEvent>.broadcast();
 
+  // Round 2-5 streams.
+  final _stateRoundController = StreamController<StateRoundEntry>.broadcast();
+  final _graphqlController = StreamController<GraphqlEntry>.broadcast();
+  final _websocketController = StreamController<WebsocketFrameEntry>.broadcast();
+  final _grpcController = StreamController<GrpcCallEntry>.broadcast();
+  final _mockAuditController = StreamController<MockedRequestEntry>.broadcast();
+
   Stream<LogEntry> get onLog => _logController.stream;
   Stream<NetworkEntry> get onNetwork => _networkController.stream;
   Stream<StateChange> get onState => _stateController.stream;
@@ -122,6 +132,11 @@ class WsMessageHandler {
   Stream<DisplayEntry> get onDisplay => _displayController.stream;
   Stream<AsyncOperationEntry> get onAsyncOperation => _asyncOpController.stream;
   Stream<ErrorEvent> get onError => _errorController.stream;
+  Stream<StateRoundEntry> get onStateRound => _stateRoundController.stream;
+  Stream<GraphqlEntry> get onGraphql => _graphqlController.stream;
+  Stream<WebsocketFrameEntry> get onWebsocket => _websocketController.stream;
+  Stream<GrpcCallEntry> get onGrpc => _grpcController.stream;
+  Stream<MockedRequestEntry> get onMockAudit => _mockAuditController.stream;
 
   late final StreamSubscription<DCMessage> _messageSub;
   late final StreamSubscription<DeviceInfo> _connectionSub;
@@ -312,6 +327,25 @@ class WsMessageHandler {
           ...message.payload,
         });
         break;
+      case WsMessageTypes.clientBlocChange:
+      case WsMessageTypes.clientProviderUpdate:
+      case WsMessageTypes.clientReactQueryChange:
+      case WsMessageTypes.clientApolloOperation:
+        _handleStateRound(message);
+        break;
+      case WsMessageTypes.clientGraphqlOperation:
+      case WsMessageTypes.clientGraphqlResponse:
+        _handleGraphql(message);
+        break;
+      case WsMessageTypes.clientWebsocketFrame:
+        _handleWebsocket(message);
+        break;
+      case WsMessageTypes.clientGrpcCall:
+        _handleGrpc(message);
+        break;
+      case WsMessageTypes.clientMockedRequest:
+        _handleMockAudit(message);
+        break;
     }
   }
 
@@ -392,6 +426,41 @@ class WsMessageHandler {
         triggerReload(conn.deviceInfo.deviceId);
       }
     }
+  }
+
+  /// Round 4: replace the SDK's mock-rule list with [rules].
+  void installMockRules(String deviceId, List<MockRule> rules) {
+    server.sendToDevice(deviceId, DCMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: WsMessageTypes.serverMockRulesInstall,
+      deviceId: 'server',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      payload: {
+        'rules': rules.map((r) => r.toWireJson()).toList(),
+      },
+    ));
+  }
+
+  /// Round 4: clear every mock rule on the SDK side.
+  void clearMockRules(String deviceId) {
+    server.sendToDevice(deviceId, DCMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: WsMessageTypes.serverMockRulesClear,
+      deviceId: 'server',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      payload: const {},
+    ));
+  }
+
+  /// Round 4: toggle a single mock rule without re-sending the whole list.
+  void toggleMockRule(String deviceId, String ruleId, bool enabled) {
+    server.sendToDevice(deviceId, DCMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: WsMessageTypes.serverMockRuleToggle,
+      deviceId: 'server',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      payload: {'ruleId': ruleId, 'enabled': enabled},
+    ));
   }
 
   void _handleLog(DCMessage message) {
@@ -610,6 +679,115 @@ class WsMessageHandler {
     _errorController.add(entry);
   }
 
+  // ---- Round 2-5 handlers ----
+
+  void _handleStateRound(DCMessage message) {
+    final p = message.payload;
+    final manager = switch (message.type) {
+      WsMessageTypes.clientBlocChange => 'bloc',
+      WsMessageTypes.clientProviderUpdate => 'provider',
+      WsMessageTypes.clientReactQueryChange => 'react_query',
+      WsMessageTypes.clientApolloOperation => 'apollo',
+      _ => p['manager'] as String? ?? 'unknown',
+    };
+    final entry = StateRoundEntry(
+      id: _uniqueOneShotId(message.id),
+      deviceId: message.deviceId,
+      manager: manager,
+      action: p['action'] as String? ?? '',
+      previousState:
+          (p['previousState'] as Map?)?.cast<String, dynamic>() ?? const {},
+      nextState:
+          (p['nextState'] as Map?)?.cast<String, dynamic>() ?? const {},
+      timestamp: message.timestamp,
+      metadata: p['metadata'] as Map<String, dynamic>?,
+    );
+    _stateRoundController.add(entry);
+  }
+
+  void _handleGraphql(DCMessage message) {
+    final p = message.payload;
+    final id = _uniqueOneShotId(message.id);
+    if (message.type == WsMessageTypes.clientGraphqlOperation) {
+      final entry = GraphqlEntry(
+        id: id,
+        deviceId: message.deviceId,
+        operation: p['operation'] as String? ?? 'anonymous',
+        type: p['type'] as String? ?? 'query',
+        variables: (p['variables'] as Map?)?.cast<String, dynamic>() ?? const {},
+        isComplete: false,
+        cacheHit: p['cacheHit'] as bool? ?? false,
+        timestamp: message.timestamp,
+        metadata: p['metadata'] as Map<String, dynamic>?,
+      );
+      _graphqlController.add(entry);
+      return;
+    }
+    final entry = GraphqlEntry(
+      id: id,
+      deviceId: message.deviceId,
+      operation: p['operation'] as String? ?? 'anonymous',
+      type: p['type'] as String? ?? 'query',
+      variables: (p['variables'] as Map?)?.cast<String, dynamic>() ?? const {},
+      isComplete: true,
+      latencyMs: p['latencyMs'] as int?,
+      cacheHit: p['cacheHit'] as bool? ?? false,
+      data: (p['data'] as Map?)?.cast<String, dynamic>(),
+      errors: (p['errors'] as List?)
+          ?.whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList(),
+      error: p['error'] as String?,
+      timestamp: message.timestamp,
+      metadata: p['metadata'] as Map<String, dynamic>?,
+    );
+    _graphqlController.add(entry);
+  }
+
+  void _handleWebsocket(DCMessage message) {
+    final p = message.payload;
+    final entry = WebsocketFrameEntry(
+      id: _uniqueOneShotId(message.id),
+      deviceId: message.deviceId,
+      url: p['url'] as String? ?? '',
+      direction: p['direction'] as String? ?? 'sent',
+      payload: p['payload'] as String? ?? '',
+      sizeBytes: (p['sizeBytes'] as num?)?.toInt() ?? 0,
+      timestamp: message.timestamp,
+      metadata: p['metadata'] as Map<String, dynamic>?,
+    );
+    _websocketController.add(entry);
+  }
+
+  void _handleGrpc(DCMessage message) {
+    final p = message.payload;
+    final entry = GrpcCallEntry(
+      id: _uniqueOneShotId(message.id),
+      deviceId: message.deviceId,
+      service: p['service'] as String? ?? '',
+      method: p['method'] as String? ?? '',
+      request: p['request'] as String? ?? '',
+      response: p['response'] as String?,
+      timestamp: message.timestamp,
+      latencyMs: p['latencyMs'] as int?,
+      status: p['status'] as String?,
+      error: p['error'] as String?,
+      metadata: p['metadata'] as Map<String, dynamic>?,
+    );
+    _grpcController.add(entry);
+  }
+
+  void _handleMockAudit(DCMessage message) {
+    final p = message.payload;
+    final entry = MockedRequestEntry.fromAuditPayload(
+      p,
+      id: _uniqueOneShotId(message.id),
+      deviceId: message.deviceId,
+      timestamp: message.timestamp,
+    );
+    _mockAuditController.add(entry);
+  }
+
   ErrorPlatform _parseErrorPlatform(String platform) {
     switch (platform.toLowerCase()) {
       case 'android': return ErrorPlatform.android;
@@ -745,5 +923,10 @@ class WsMessageHandler {
     _displayController.close();
     _asyncOpController.close();
     _errorController.close();
+    _stateRoundController.close();
+    _graphqlController.close();
+    _websocketController.close();
+    _grpcController.close();
+    _mockAuditController.close();
   }
 }

@@ -2078,6 +2078,162 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Identify the action via the X-Amz-Target header.'**
   String get binaryBodyHint;
+
+  /// No description provided for @tipsAndShortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'Tips & Shortcuts'**
+  String get tipsAndShortcuts;
+
+  /// No description provided for @tipsAndShortcutsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick guides for the most useful workflows. Click any card for details.'**
+  String get tipsAndShortcutsDesc;
+
+  /// No description provided for @tipAllEventsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'All Events feed'**
+  String get tipAllEventsTitle;
+
+  /// No description provided for @tipAllEventsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Unified stream of every event from your app. Use the search box to filter by tag or text. Click any row for the full detail panel. Hold Cmd/Ctrl and click to multi-select, then right-click for batch actions.'**
+  String get tipAllEventsBody;
+
+  /// No description provided for @tipNetworkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Inspect HTTP & WebSocket'**
+  String get tipNetworkTitle;
+
+  /// No description provided for @tipNetworkBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Click any request to inspect headers, body, and timing waterfall. Right-click a request and choose \"Copy as cURL\" to replay in a terminal. Use the URL filter box to focus on one endpoint or domain.'**
+  String get tipNetworkBody;
+
+  /// No description provided for @tipConsoleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Live log stream'**
+  String get tipConsoleTitle;
+
+  /// No description provided for @tipConsoleBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Every print/log/Timber line shows up here in real-time. Filter by tag or text, then click a row for the full stack trace. Toggle \"Newest first\" in the toolbar to control sort order.'**
+  String get tipConsoleBody;
+
+  /// No description provided for @tipStateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'State diff viewer'**
+  String get tipStateTitle;
+
+  /// No description provided for @tipStateBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Each row is one state change. Click to see Before/After JSON diff side by side. Use the action filter to focus on a specific reducer/store. Toggle \"Newest at top\" vs bottom to match your debugging flow.'**
+  String get tipStateBody;
+
+  /// No description provided for @tipStorageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Key-value storage'**
+  String get tipStorageTitle;
+
+  /// No description provided for @tipStorageBody.
+  ///
+  /// In en, this message translates to:
+  /// **'SharedPreferences, AsyncStorage, Hive — all in one place. Toggle READ/WRITE filters at the top. Click a key to see its full change history with timestamps.'**
+  String get tipStorageBody;
+
+  /// No description provided for @tipDatabaseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'SQLite viewer'**
+  String get tipDatabaseTitle;
+
+  /// No description provided for @tipDatabaseBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Click any table to browse rows in the detail panel. Sort by tapping a column header. Use the refresh button to re-query after the device app writes new rows.'**
+  String get tipDatabaseBody;
+
+  /// No description provided for @tipPerformanceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Live system status'**
+  String get tipPerformanceTitle;
+
+  /// No description provided for @tipPerformanceBody.
+  ///
+  /// In en, this message translates to:
+  /// **'CPU, RAM, battery drain, FPS, and thermal state stream in real-time. Click \"Start Recording\" to capture a session, then analyze slow frames and jank in the detail panel.'**
+  String get tipPerformanceBody;
+
+  /// No description provided for @tipLeaksTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory leak detection'**
+  String get tipLeaksTitle;
+
+  /// No description provided for @tipLeaksBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Detects undisposed controllers/streams/timers, growing collections, and widget leaks automatically. Each row shows the source location and retained size — fix it, then reconnect to verify the cleanup.'**
+  String get tipLeaksBody;
+
+  /// No description provided for @tipBenchmarkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom timings'**
+  String get tipBenchmarkTitle;
+
+  /// No description provided for @tipBenchmarkBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Wrap any code in benchmarkStart/Step/Stop from the SDK to record timings. Each benchmark shows min/max/avg/p50/p95. Steps let you drill into specific phases.'**
+  String get tipBenchmarkBody;
+
+  /// No description provided for @tipErrorsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Errors & crashes'**
+  String get tipErrorsTitle;
+
+  /// No description provided for @tipErrorsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Captures every exception and native crash. Click for the full stack trace. Native Android crashes include a C++ backtrace from the sigaction handler, so you can see the failure past the JNI boundary.'**
+  String get tipErrorsBody;
+
+  /// No description provided for @tipMockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Mock network responses'**
+  String get tipMockTitle;
+
+  /// No description provided for @tipMockBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a rule with method + URL pattern + status + body, then click \"Push All\" to install it on the device. Triggering a matching request returns your fake response — no server roundtrip. The audit log shows every hit.'**
+  String get tipMockBody;
+
+  /// No description provided for @tipHistoryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent devices'**
+  String get tipHistoryTitle;
+
+  /// No description provided for @tipHistoryBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Quickly reopen a previous device\'s session to inspect past events without reconnecting. The list persists across app restarts and stores the last connected timestamp per device.'**
+  String get tipHistoryBody;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

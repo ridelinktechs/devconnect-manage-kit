@@ -1142,4 +1142,95 @@ class SEn extends S {
   @override
   String get binaryBodyHint =>
       'Identify the action via the X-Amz-Target header.';
+
+  @override
+  String get tipsAndShortcuts => 'Tips & Shortcuts';
+
+  @override
+  String get tipsAndShortcutsDesc =>
+      'Quick guides for the most useful workflows. Click any card for details.';
+
+  @override
+  String get tipAllEventsTitle => 'All Events feed';
+
+  @override
+  String get tipAllEventsBody =>
+      'Unified stream of every event from your app. Use the search box to filter by tag or text. Click any row for the full detail panel. Hold Cmd/Ctrl and click to multi-select, then right-click for batch actions.';
+
+  @override
+  String get tipNetworkTitle => 'Inspect HTTP & WebSocket';
+
+  @override
+  String get tipNetworkBody =>
+      'Click any request to inspect headers, body, and timing waterfall. Right-click a request and choose \"Copy as cURL\" to replay in a terminal. Use the URL filter box to focus on one endpoint or domain.';
+
+  @override
+  String get tipConsoleTitle => 'Live log stream';
+
+  @override
+  String get tipConsoleBody =>
+      'Every print/log/Timber line shows up here in real-time. Filter by tag or text, then click a row for the full stack trace. Toggle \"Newest first\" in the toolbar to control sort order.';
+
+  @override
+  String get tipStateTitle => 'State diff viewer';
+
+  @override
+  String get tipStateBody =>
+      'Each row is one state change. Click to see Before/After JSON diff side by side. Use the action filter to focus on a specific reducer/store. Toggle \"Newest at top\" vs bottom to match your debugging flow.';
+
+  @override
+  String get tipStorageTitle => 'Key-value storage';
+
+  @override
+  String get tipStorageBody =>
+      'SharedPreferences, AsyncStorage, Hive — all in one place. Toggle READ/WRITE filters at the top. Click a key to see its full change history with timestamps.';
+
+  @override
+  String get tipDatabaseTitle => 'SQLite viewer';
+
+  @override
+  String get tipDatabaseBody =>
+      'Click any table to browse rows in the detail panel. Sort by tapping a column header. Use the refresh button to re-query after the device app writes new rows.';
+
+  @override
+  String get tipPerformanceTitle => 'Live system status';
+
+  @override
+  String get tipPerformanceBody =>
+      'CPU, RAM, battery drain, FPS, and thermal state stream in real-time. Click \"Start Recording\" to capture a session, then analyze slow frames and jank in the detail panel.';
+
+  @override
+  String get tipLeaksTitle => 'Memory leak detection';
+
+  @override
+  String get tipLeaksBody =>
+      'Detects undisposed controllers/streams/timers, growing collections, and widget leaks automatically. Each row shows the source location and retained size — fix it, then reconnect to verify the cleanup.';
+
+  @override
+  String get tipBenchmarkTitle => 'Custom timings';
+
+  @override
+  String get tipBenchmarkBody =>
+      'Wrap any code in benchmarkStart/Step/Stop from the SDK to record timings. Each benchmark shows min/max/avg/p50/p95. Steps let you drill into specific phases.';
+
+  @override
+  String get tipErrorsTitle => 'Errors & crashes';
+
+  @override
+  String get tipErrorsBody =>
+      'Captures every exception and native crash. Click for the full stack trace. Native Android crashes include a C++ backtrace from the sigaction handler, so you can see the failure past the JNI boundary.';
+
+  @override
+  String get tipMockTitle => 'Mock network responses';
+
+  @override
+  String get tipMockBody =>
+      'Add a rule with method + URL pattern + status + body, then click \"Push All\" to install it on the device. Triggering a matching request returns your fake response — no server roundtrip. The audit log shows every hit.';
+
+  @override
+  String get tipHistoryTitle => 'Recent devices';
+
+  @override
+  String get tipHistoryBody =>
+      'Quickly reopen a previous device\'s session to inspect past events without reconnecting. The list persists across app restarts and stores the last connected timestamp per device.';
 }

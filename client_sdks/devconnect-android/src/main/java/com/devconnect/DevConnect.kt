@@ -16,6 +16,8 @@ import com.devconnect.reporters.SQLDelightReporter
 import com.devconnect.reporters.DevConnectStateObserver
 import com.devconnect.reporters.SharedPrefsReporter
 import com.devconnect.wrappers.DevConnectRealm
+// Round 2-5: new SDK files. We import the top-level helpers below so the
+// host file doesn't need to change when consumers add more interceptors.
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.UUID
@@ -523,6 +525,11 @@ object DevConnect {
                     }
                     "server:reload" -> handleReloadRequest(json.optString("type"))
                     "server:hot_restart" -> handleReloadRequest(json.optString("type"))
+                    "server:mock_rules_update" -> {
+                        try {
+                            com.devconnect.interceptors.MockRuleStore.loadFromJson(payload.toString())
+                        } catch (_: Exception) {}
+                    }
                 }
             }
         }
@@ -569,6 +576,10 @@ object DevConnect {
         if (autoViewModelDiscovery) {
             com.devconnect.plugins.ViewModelAutoDiscoverer.start(context)
         }
+        // Round 2: Compose state observer (no-op when Compose isn't on the classpath)
+        try {
+            com.devconnect.plugins.ComposeStateObserver.start(context)
+        } catch (_: Exception) {}
     }
 
     /** UDP discovery port — server broadcasts beacons here */
@@ -1436,6 +1447,73 @@ object DevConnect {
             }
         }
         return map
+    }
+
+    // ---- Round 2: Compose state observer ----
+
+    /**
+     * Start the Jetpack Compose state observer. Safe no-op when the
+     * app doesn't use Compose or when running on a JVM test runtime.
+     *
+     * ```kotlin
+     * DevConnect.startComposeStateObserver(context)
+     * ```
+     */
+    fun startComposeStateObserver(context: Any) {
+        try {
+            com.devconnect.plugins.ComposeStateObserver.start(context)
+        } catch (_: Exception) {}
+    }
+
+    // ---- Round 3: Apollo + gRPC + WebSocket ----
+
+    /**
+     * Returns an Apollo Kotlin `ApolloInterceptor` that reports each
+     * operation to the desktop. Install it via
+     * `ApolloClient.Builder().addInterceptor(...)`.
+     */
+    fun apolloInterceptor(): com.devconnect.interceptors.graphql.DevConnectApolloInterceptor =
+        com.devconnect.interceptors.graphql.DevConnectApolloInterceptor()
+
+    /**
+     * Returns an OkHttp `Interceptor` for gRPC-Web that reports each
+     * call start/end. Pair with the existing OkHttp client:
+     * `OkHttpClient.Builder().addInterceptor(DevConnect.grpcClientInterceptor())`.
+     */
+    fun grpcClientInterceptor(): com.devconnect.interceptors.grpc.DevConnectGrpcClientInterceptor =
+        com.devconnect.interceptors.grpc.DevConnectGrpcClientInterceptor()
+
+    /**
+     * Compose a `WebSocketListener` with DevConnect frame capture. Wrap
+     * an existing listener via [devConnectWrap] or install directly.
+     */
+    fun webSocketListener(): com.devconnect.interceptors.DevConnectWebSocketListener =
+        com.devconnect.interceptors.DevConnectWebSocketListener()
+
+    /**
+     * Wrap an existing OkHttp `WebSocketListener` so its events are
+     * mirrored to the desktop.
+     */
+    fun devConnectWrap(delegate: okhttp3.WebSocketListener): okhttp3.WebSocketListener =
+        com.devconnect.interceptors.devConnectWrap(delegate)
+
+    // ---- Round 4: Mock server ----
+
+    /**
+     * Returns an OkHttp `Interceptor` that short-circuits requests when
+     * a matching mock rule has been pushed from the desktop. Pair with
+     * the existing OkHttp client:
+     * `OkHttpClient.Builder().addInterceptor(DevConnect.mockServerInterceptor())`.
+     */
+    fun mockServerInterceptor(): com.devconnect.interceptors.MockServerInterceptor =
+        com.devconnect.interceptors.MockServerInterceptor()
+
+    /**
+     * Replace the in-memory mock rule list. Accepts a JSON list as
+     * received from the `server:mock_rules_update` message.
+     */
+    fun installMockRulesFromJson(json: String) {
+        com.devconnect.interceptors.installMockRulesFromJson(json)
     }
 
     /**

@@ -481,6 +481,14 @@ export class DevConnect {
   private _stateRestoreHandler: ((state: any) => void) | null = null;
   private _customCommandHandlers: Map<string, (args?: any) => any> = new Map();
   /**
+   * Generic server-message subscribers (used by internal plugins).
+   * Each handler receives the full parsed `msg` object and may act or
+   * ignore based on `msg.type`. Handlers run synchronously inside the
+   * WS receive loop, so they should be cheap and never throw — wrap
+   * your own try/catch.
+   */
+  private _serverMessageHandlers: Set<(msg: any) => void> = new Set();
+  /**
    * Optional app-supplied reload hook. If set, called instead of the default
    * `DevSettings.reload()` so apps can wipe in-memory state first.
    */
@@ -716,6 +724,15 @@ export class DevConnect {
             // anyway so mixed-platform setups (e.g. Flutter + RN) don't
             // silently drop the hot_restart signal on RN devices.
             this._reloadApp();
+          }
+
+          // Dispatch to any internal plugin subscribers. Handlers are
+          // invoked in registration order; errors are swallowed so one
+          // bad plugin can't break the receive loop.
+          // eslint-disable-next-line no-console
+          console.log('[DevConnect] rx', msg.type, 'handlers=', this._serverMessageHandlers.size);
+          for (const handler of this._serverMessageHandlers) {
+            try { handler(msg); } catch (e) { /* eslint-disable-next-line no-console */ console.warn('[DevConnect] handler err', e); }
           }
         } catch (_) {}
       };
@@ -1722,6 +1739,29 @@ export class DevConnect {
       }, 100);
       setTimeout(() => clearInterval(interval), 10000);
     }
+  }
+
+  /**
+   * Subscribe to *all* server messages. Used by internal plugins that
+   * need to react to protocol messages the core SDK doesn't handle
+   * natively.
+   *
+   * The handler is invoked synchronously inside the WebSocket receive
+   * loop for every parsed message — inspect `msg.type` to filter.
+   * Throws inside the handler are swallowed so a misbehaving plugin
+   * can't break the receive loop.
+   *
+   * Returns an unsubscribe function — call it to remove the handler.
+   */
+  static addServerMessageHandler(handler: (msg: any) => void): () => void {
+    const instance = DevConnect.getInstanceSafe();
+    if (!instance) {
+      // SDK not initialized yet — nothing to subscribe to. Return a
+      // no-op unsubscribe so callers don't crash.
+      return () => {};
+    }
+    instance._serverMessageHandlers.add(handler);
+    return () => instance._serverMessageHandlers.delete(handler);
   }
 }
 
