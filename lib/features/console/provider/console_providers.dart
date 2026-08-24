@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
@@ -7,7 +5,6 @@ import '../../../core/utils/list_retention.dart';
 import '../../../core/utils/retention_capped.dart';
 import '../../../models/log/log_entry.dart';
 import '../../../server/providers/server_providers.dart';
-import '../../../server/ws_message_handler.dart';
 
 final consoleEntriesProvider =
     NotifierProvider<ConsoleNotifier, List<LogEntry>>(

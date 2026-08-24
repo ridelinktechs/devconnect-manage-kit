@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
@@ -8,7 +6,6 @@ import '../../../core/utils/retention_capped.dart';
 import '../../../models/network/network_entry.dart';
 import '../../../models/performance/performance_entry.dart';
 import '../../../server/providers/server_providers.dart';
-import '../../../server/ws_message_handler.dart';
 import '../../network_inspector/provider/network_providers.dart';
 
 // ---- Performance Metrics ----
