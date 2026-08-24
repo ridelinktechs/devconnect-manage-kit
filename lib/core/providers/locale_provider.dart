@@ -24,8 +24,9 @@ const localeDisplayNames = {
 };
 
 /// Persisted locale provider. Defaults to English.
-class LocaleNotifier extends StateNotifier<Locale> {
-  LocaleNotifier() : super(_load());
+class LocaleNotifier extends Notifier<Locale> {
+  @override
+  Locale build() => _load();
 
   static Locale _load() {
     final raw = AppPreferences().get<String>('locale');
@@ -54,6 +55,6 @@ class LocaleNotifier extends StateNotifier<Locale> {
   }
 }
 
-final localeProvider = StateNotifierProvider<LocaleNotifier, Locale>(
-  (ref) => LocaleNotifier(),
+final localeProvider = NotifierProvider<LocaleNotifier, Locale>(
+  LocaleNotifier.new,
 );

@@ -241,7 +241,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                                               entry.id;
                                       ref
                                           .read(selectedStateChangeIdProvider.notifier)
-                                          .state = currentlySelected ? null : entry.id;
+                                          .set(currentlySelected ? null : entry.id);
                                       if (!currentlySelected && _autoScroll) {
                                         _autoScroll = false;
                                         _programmaticScroll = false;
@@ -265,7 +265,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                               entry: selected,
                               onClose: () => ref
                                   .read(selectedStateChangeIdProvider.notifier)
-                                  .state = null,
+                                  .set(null),
                             ),
                           ),
                         ],
@@ -384,7 +384,7 @@ class _Toolbar extends ConsumerWidget {
             child: SearchField(
               hintText: S.of(context).filterActions,
               onChanged: (v) =>
-                  ref.read(stateSearchProvider.notifier).state = v,
+                  ref.read(stateSearchProvider.notifier).set(v),
             ),
           ),
           const SizedBox(width: 12),
@@ -411,8 +411,8 @@ class _Toolbar extends ConsumerWidget {
                   icon: isTop ? LucideIcons.arrowUpNarrowWide : LucideIcons.arrowDownNarrowWide,
                   tooltip: isTop ? S.of(context).newestAtTop : S.of(context).newestAtBottom,
                   isActive: isTop,
-                  onTap: () => ref.read(scrollDirectionProvider.notifier).state =
-                      isTop ? ScrollDirection.bottom : ScrollDirection.top,
+                  onTap: () => ref.read(scrollDirectionProvider.notifier).set(
+                      isTop ? ScrollDirection.bottom : ScrollDirection.top),
                 ),
                 const SizedBox(width: 2),
                 Container(

@@ -62,14 +62,15 @@ extension RetentionPresetX on RetentionPreset {
 /// Persisted to disk via [AppPreferences] under the key
 /// `retention_limit`. Survives app restarts.
 final retentionLimitProvider =
-    StateNotifierProvider<RetentionLimitNotifier, RetentionPreset>(
-  (ref) => RetentionLimitNotifier(),
+    NotifierProvider<RetentionLimitNotifier, RetentionPreset>(
+  RetentionLimitNotifier.new,
 );
 
-class RetentionLimitNotifier extends StateNotifier<RetentionPreset> {
-  RetentionLimitNotifier() : super(_load());
-
+class RetentionLimitNotifier extends Notifier<RetentionPreset> {
   static const _key = 'retention_limit';
+
+  @override
+  RetentionPreset build() => _load();
 
   static RetentionPreset _load() {
     final raw = AppPreferences().get<String>(_key);
@@ -93,15 +94,16 @@ class RetentionLimitNotifier extends StateNotifier<RetentionPreset> {
 /// display ceiling on the aggregate view.
 ///
 /// Persisted to disk via [AppPreferences] under `all_events_display_limit`.
-final allEventsDisplayLimitProvider = StateNotifierProvider<
+final allEventsDisplayLimitProvider = NotifierProvider<
     AllEventsDisplayLimitNotifier, RetentionPreset>(
-  (ref) => AllEventsDisplayLimitNotifier(),
+  AllEventsDisplayLimitNotifier.new,
 );
 
-class AllEventsDisplayLimitNotifier extends StateNotifier<RetentionPreset> {
-  AllEventsDisplayLimitNotifier() : super(_load());
-
+class AllEventsDisplayLimitNotifier extends Notifier<RetentionPreset> {
   static const _key = 'all_events_display_limit';
+
+  @override
+  RetentionPreset build() => _load();
 
   static RetentionPreset _load() {
     final raw = AppPreferences().get<String>(_key);

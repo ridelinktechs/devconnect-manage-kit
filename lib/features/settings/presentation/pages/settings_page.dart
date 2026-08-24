@@ -145,20 +145,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                   await server.stop();
                                   ref
                                       .read(serverStartErrorProvider.notifier)
-                                      .state = null;
+                                      .set(null);
                                 } else {
                                   try {
                                     await server.start(port: p);
                                     ref
                                         .read(
                                             serverStartErrorProvider.notifier)
-                                        .state = null;
+                                        .set(null);
                                   } catch (e) {
                                     ref
                                             .read(serverStartErrorProvider
                                                 .notifier)
-                                            .state =
-                                        describeStartError(e, p);
+                                            .set(describeStartError(e, p));
                                   }
                                 }
                                 setState(() {});

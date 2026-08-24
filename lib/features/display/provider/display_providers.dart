@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
@@ -7,17 +5,12 @@ import '../../../core/utils/list_retention.dart';
 import '../../../core/utils/retention_capped.dart';
 import '../../../models/display/display_entry.dart';
 import '../../../server/providers/server_providers.dart';
-import '../../../server/ws_message_handler.dart';
 
 // ---- Display Entries ----
 
 final displayEntriesProvider =
-    StateNotifierProvider<DisplayEntriesNotifier, List<DisplayEntry>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = DisplayEntriesNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<DisplayEntriesNotifier, List<DisplayEntry>>(
+        DisplayEntriesNotifier.new);
 
 /// Total display entries ever received by [DisplayEntriesNotifier],
 /// including ones dropped by the retention cap.
@@ -40,38 +33,33 @@ final displayDisplayProvider =
   return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
-class DisplayEntriesNotifier extends StateNotifier<List<DisplayEntry>> {
-  late final StreamSubscription<DisplayEntry> _sub;
-  final Ref _ref;
-
+class DisplayEntriesNotifier extends Notifier<List<DisplayEntry>> {
   /// Total display entries ever received, including ones dropped by the cap.
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  DisplayEntriesNotifier(WsMessageHandler handler, this._ref) : super([]) {
-    _sub = handler.onDisplay.listen(add);
+  @override
+  List<DisplayEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onDisplay.listen(_add);
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
 
-  void add(DisplayEntry entry) {
-    final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+  void _add(DisplayEntry entry) {
+    final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
     state = truncateList([...state, entry], limit);
     _totalSeen++;
   }
 
-  void cancelSubscription() => _sub.cancel();
   void clear() => state = [];
 }
 
 // ---- Async Operation Entries ----
 
 final asyncOperationEntriesProvider =
-    StateNotifierProvider<AsyncOpEntriesNotifier, List<AsyncOperationEntry>>(
-        (ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = AsyncOpEntriesNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<AsyncOpEntriesNotifier, List<AsyncOperationEntry>>(
+        AsyncOpEntriesNotifier.new);
 
 /// Total async-op entries ever received by [AsyncOpEntriesNotifier],
 /// including ones dropped by the retention cap.
@@ -98,20 +86,21 @@ final asyncOpDisplayProvider =
 /// more about pending `start` rows (they're waiting on them) than
 /// historical `resolve`/`reject` rows. The drop happens before the
 /// straight FIFO trim so cap pressure never kills an in-flight op.
-class AsyncOpEntriesNotifier extends StateNotifier<List<AsyncOperationEntry>> {
-  late final StreamSubscription<AsyncOperationEntry> _sub;
-  final Ref _ref;
-
+class AsyncOpEntriesNotifier extends Notifier<List<AsyncOperationEntry>> {
   /// Total async-op entries ever received, including ones dropped by the cap.
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  AsyncOpEntriesNotifier(WsMessageHandler handler, this._ref) : super([]) {
-    _sub = handler.onAsyncOperation.listen(add);
+  @override
+  List<AsyncOperationEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onAsyncOperation.listen(_add);
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
 
-  void add(AsyncOperationEntry entry) {
-    final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+  void _add(AsyncOperationEntry entry) {
+    final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
     state = truncateList(
       [...state, entry],
       limit,
@@ -122,6 +111,5 @@ class AsyncOpEntriesNotifier extends StateNotifier<List<AsyncOperationEntry>> {
     _totalSeen++;
   }
 
-  void cancelSubscription() => _sub.cancel();
   void clear() => state = [];
 }

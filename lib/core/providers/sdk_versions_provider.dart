@@ -57,13 +57,10 @@ class SdkLatestVersions {
 enum SdkVersionFetch { loading, loaded, error }
 
 final sdkLatestVersionsProvider =
-    StateNotifierProvider<SdkVersionsNotifier, SdkLatestVersions>((ref) {
-  final notifier = SdkVersionsNotifier();
-  ref.onDispose(notifier._onDispose);
-  return notifier;
-});
+    NotifierProvider<SdkVersionsNotifier, SdkLatestVersions>(
+        SdkVersionsNotifier.new);
 
-class SdkVersionsNotifier extends StateNotifier<SdkLatestVersions> {
+class SdkVersionsNotifier extends Notifier<SdkLatestVersions> {
   /// Refresh cadence. Desktop apps stay open for hours; refreshing
   /// every 30 min keeps the "Latest" pill current without spamming
   /// the registries.
@@ -88,12 +85,15 @@ class SdkVersionsNotifier extends StateNotifier<SdkLatestVersions> {
   // state assignment would race the first.
   bool _inFlight = false;
 
-  SdkVersionsNotifier() : super(SdkLatestVersions.empty) {
-    // Kick off the first fetch asynchronously so the StateNotifier
-    // constructor returns immediately (Riverpod expects sync init).
+  @override
+  SdkLatestVersions build() {
+    // Kick off the first fetch asynchronously so build() returns
+    // immediately. Riverpod expects sync init for the initial state.
     // ignore: discarded_futures
     _refreshNow();
     _refresh = Timer.periodic(_ttl, (_) => _refreshNow());
+    ref.onDispose(_onDispose);
+    return SdkLatestVersions.empty;
   }
 
   /// Manually re-fetch. UI surfaces this as a "Retry" affordance when
@@ -118,11 +118,6 @@ class SdkVersionsNotifier extends StateNotifier<SdkLatestVersions> {
       // Run both fetches in parallel. Each is wrapped in its own
       // try/catch so a failure on one platform doesn't poison the other.
       final results = await Future.wait([_fetchNpm(), _fetchPub()]);
-      // Guard against "use after dispose": the widget tree holding us
-      // could tear down (user closes the panel mid-fetch). Without this
-      // check, the `state =` below would throw "Bad state: Cannot use a
-      // StateNotifier after its dispose()".
-      if (!mounted) return;
       final npm = results[0]; // _fetchNpm() -> reactNative
       final pub = results[1]; // _fetchPub() -> flutter
       state = SdkLatestVersions(

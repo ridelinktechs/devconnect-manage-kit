@@ -220,24 +220,78 @@ final allEventsProvider = Provider<List<UnifiedEvent>>((ref) {
   return events;
 });
 
-final allEventsSearchProvider = StateProvider<String>((ref) => '');
-final allEventsFilterProvider = StateProvider<Set<EventType>>(
-  (ref) => EventType.values.toSet(),
+final allEventsSearchProvider =
+    NotifierProvider<_AllEventsSearchNotifier, String>(
+  _AllEventsSearchNotifier.new,
 );
+
+class _AllEventsSearchNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String v) => state = v;
+}
+
+final allEventsFilterProvider =
+    NotifierProvider<_AllEventsFilterNotifier, Set<EventType>>(
+  _AllEventsFilterNotifier.new,
+);
+
+class _AllEventsFilterNotifier extends Notifier<Set<EventType>> {
+  @override
+  Set<EventType> build() => EventType.values.toSet();
+
+  void set(Set<EventType> v) => state = v;
+
+  void toggle(EventType type) {
+    state = state.contains(type)
+        ? state.difference({type})
+        : {...state, type};
+  }
+}
 
 /// When true, only events whose `level == 'error'` are shown — independent
 /// of the per-type filter chips. Default false so users see everything by
 /// default and can opt in.
-final allEventsErrorsOnlyProvider = StateProvider<bool>((ref) => false);
+final allEventsErrorsOnlyProvider =
+    NotifierProvider<_AllEventsErrorsOnlyNotifier, bool>(
+  _AllEventsErrorsOnlyNotifier.new,
+);
+
+class _AllEventsErrorsOnlyNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool v) => state = v;
+  void toggle() => state = !state;
+}
 
 enum SortOrder { newestFirst, oldestFirst }
 
-final allEventsSortOrderProvider = StateProvider<SortOrder>(
-  (ref) => SortOrder.oldestFirst,
+final allEventsSortOrderProvider =
+    NotifierProvider<_AllEventsSortOrderNotifier, SortOrder>(
+  _AllEventsSortOrderNotifier.new,
 );
 
+class _AllEventsSortOrderNotifier extends Notifier<SortOrder> {
+  @override
+  SortOrder build() => SortOrder.oldestFirst;
+
+  void set(SortOrder v) => state = v;
+}
+
 /// Whether to show system/connectivity check URLs
-final showSystemUrlsProvider = StateProvider<bool>((ref) => false);
+final showSystemUrlsProvider =
+    NotifierProvider<_ShowSystemUrlsNotifier, bool>(
+  _ShowSystemUrlsNotifier.new,
+);
+
+class _ShowSystemUrlsNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool v) => state = v;
+}
 
 /// Result of filtering All Events. [items] is the (possibly trimmed)
 /// list shown in the page; [total] is the count BEFORE the display

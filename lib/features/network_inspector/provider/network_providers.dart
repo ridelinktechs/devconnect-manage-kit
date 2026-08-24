@@ -10,12 +10,8 @@ import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
 
 final networkEntriesProvider =
-    StateNotifierProvider<NetworkNotifier, List<NetworkEntry>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = NetworkNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<NetworkNotifier, List<NetworkEntry>>(
+        NetworkNotifier.new);
 
 /// Total entries ever received by [NetworkNotifier], including ones
 /// dropped by the retention cap. Toolbars consume this so they can
@@ -41,10 +37,47 @@ final networkDisplayProvider =
   return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
-final networkSearchProvider = StateProvider<String>((ref) => '');
-final networkMethodFilterProvider = StateProvider<String?>((ref) => null);
+final networkSearchProvider =
+    NotifierProvider<_NetworkSearchNotifier, String>(
+  _NetworkSearchNotifier.new,
+);
+
+class _NetworkSearchNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String v) => state = v;
+}
+
+final networkMethodFilterProvider =
+    NotifierProvider<_NetworkMethodFilterNotifier, String?>(
+  _NetworkMethodFilterNotifier.new,
+);
+
+class _NetworkMethodFilterNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? v) => state = v;
+}
+
 final networkSourceFilterProvider =
-    StateProvider<Set<String>>((ref) => {'app', 'library', 'system'});
+    NotifierProvider<_NetworkSourceFilterNotifier, Set<String>>(
+  _NetworkSourceFilterNotifier.new,
+);
+
+class _NetworkSourceFilterNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => {'app', 'library', 'system'};
+
+  void set(Set<String> v) => state = v;
+
+  void toggle(String key) {
+    state = state.contains(key)
+        ? state.difference({key})
+        : {...state, key};
+  }
+}
 
 /// System URLs to hide by default (connectivity checks, captive portal, etc.)
 const _systemUrlPatterns = [
@@ -87,7 +120,17 @@ final filteredNetworkEntriesProvider = Provider<List<NetworkEntry>>((ref) {
 });
 
 /// Stores the selected entry ID (not the object — object goes stale on update).
-final selectedNetworkIdProvider = StateProvider<String?>((ref) => null);
+final selectedNetworkIdProvider =
+    NotifierProvider<_SelectedNetworkIdNotifier, String?>(
+  _SelectedNetworkIdNotifier.new,
+);
+
+class _SelectedNetworkIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? v) => state = v;
+}
 
 /// Always returns the latest entry object from the list for the selected ID.
 final selectedNetworkEntryProvider = Provider<NetworkEntry?>((ref) {
@@ -146,18 +189,17 @@ NetworkEntry _mergeNetworkEntries(NetworkEntry existing, NetworkEntry incoming) 
 /// surfaces a "Clear stale (N)" button so users can prune them.
 const Duration kStaleRequestThreshold = Duration(minutes: 10);
 
-class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
-  late final StreamSubscription<NetworkEntry> _sub;
-  final Ref _ref;
-
+class NetworkNotifier extends Notifier<List<NetworkEntry>> {
   /// Total entries ever received, including ones dropped by the cap.
   /// Used by the toolbar to surface a "Showing N of M" hint when the
   /// cap has trimmed older entries.
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  NetworkNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
-    _sub = wsMessageHandler.onNetwork.listen((entry) {
+  @override
+  List<NetworkEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onNetwork.listen((entry) {
       if (entry.method.toUpperCase() == 'OPTIONS') return;
       if (entry.method.toUpperCase() == 'HEAD' && !entry.isComplete) return;
       // Server guarantees unique ids, so a row always represents one
@@ -170,14 +212,14 @@ class NetworkNotifier extends StateNotifier<List<NetworkEntry>> {
         updated[index] = _mergeNetworkEntries(state[index], entry);
         state = updated;
       } else {
-        final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+        final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
         state = truncateList([...state, entry], limit);
         _totalSeen++;
       }
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
-
-  void cancelSubscription() => _sub.cancel();
 
   void clear() => state = [];
 

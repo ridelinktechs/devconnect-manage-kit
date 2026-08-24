@@ -58,7 +58,7 @@ class MetadataBlock extends ConsumerWidget {
                 current: mode,
                 codeLabel: codeLabel,
                 onChanged: (BodyViewMode m) =>
-                    ref.read(metadataViewModeProvider.notifier).state = m,
+                    ref.read(metadataViewModeProvider.notifier).set(m),
               ),
             ),
           ),

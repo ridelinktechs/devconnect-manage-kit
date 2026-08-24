@@ -103,6 +103,7 @@ class WsMessageHandler {
   final _deviceController = StreamController<DeviceInfo>.broadcast();
   final _disconnectController = StreamController<String>.broadcast();
   final _benchmarkController = StreamController<Map<String, dynamic>>.broadcast();
+  final _benchmarkStepController = StreamController<Map<String, dynamic>>.broadcast();
   final _stateSnapshotController = StreamController<Map<String, dynamic>>.broadcast();
   final _customResultController = StreamController<Map<String, dynamic>>.broadcast();
   final _performanceController = StreamController<PerformanceEntry>.broadcast();
@@ -125,6 +126,7 @@ class WsMessageHandler {
   Stream<DeviceInfo> get onDeviceConnected => _deviceController.stream;
   Stream<String> get onDeviceDisconnected => _disconnectController.stream;
   Stream<Map<String, dynamic>> get onBenchmark => _benchmarkController.stream;
+  Stream<Map<String, dynamic>> get onBenchmarkStep => _benchmarkStepController.stream;
   Stream<Map<String, dynamic>> get onStateSnapshot => _stateSnapshotController.stream;
   Stream<Map<String, dynamic>> get onCustomResult => _customResultController.stream;
   Stream<PerformanceEntry> get onPerformance => _performanceController.stream;
@@ -161,6 +163,27 @@ class WsMessageHandler {
   /// UI list stays a distinct entry.
   final _seenMessageIds = <String>{};
   int _genericSeq = 0;
+
+  /// Round-trip bookkeeping for WebSocket connections. Keyed by
+  /// `connectionId` so we can pair `ws_open` with the matching
+  /// `ws_close` (close code/reason are surfaced on the close entry).
+  /// Trimmed to a hard cap to avoid unbounded growth from long-lived
+  /// sockets.
+  final _openWebsocketConnections = <String, String>{}; // connectionId -> url
+  int _wsConnectionSeq = 0;
+
+  /// Round-trip bookkeeping for gRPC calls (Android splits one call
+  /// into `_start` + `_end`). Keyed by `callId`, same dedup pattern as
+  /// `_openTrips` for network requests.
+  final _openGrpcCalls = <String, String>{}; // canonicalId -> callId
+  int _grpcSeq = 0;
+
+  /// Source-map cache. Each SDK upload is identified by `mapId`
+  /// (typically `<bundle>:<buildId>`); re-uploads of the same map are
+  /// dropped on the desktop so we only decode once. The decoded map
+  /// is then used by the Error stack panel to symbolicate minified
+  /// frames.
+  final _sourceMaps = <String, Map<String, dynamic>>{}; // mapId -> decoded JSON
 
   /// Build a unique id for one logical network request.
   ///
@@ -337,14 +360,24 @@ class WsMessageHandler {
       case WsMessageTypes.clientGraphqlResponse:
         _handleGraphql(message);
         break;
+      case WsMessageTypes.clientWebsocketOpen:
       case WsMessageTypes.clientWebsocketFrame:
+      case WsMessageTypes.clientWebsocketClose:
         _handleWebsocket(message);
         break;
+      case WsMessageTypes.clientGrpcCallStart:
+      case WsMessageTypes.clientGrpcCallEnd:
       case WsMessageTypes.clientGrpcCall:
         _handleGrpc(message);
         break;
+      case WsMessageTypes.clientBenchmarkStep:
+        _handleBenchmarkStep(message);
+        break;
       case WsMessageTypes.clientMockedRequest:
         _handleMockAudit(message);
+        break;
+      case WsMessageTypes.clientSourceMapUpload:
+        _handleSourceMap(message);
         break;
     }
   }
@@ -746,23 +779,111 @@ class WsMessageHandler {
 
   void _handleWebsocket(DCMessage message) {
     final p = message.payload;
+    final rawConnectionId = p['connectionId'] as String?;
+    final url = p['url'] as String? ?? '';
+    String connectionId;
+    String direction;
+    switch (message.type) {
+      case WsMessageTypes.clientWebsocketOpen:
+        direction = 'open';
+        // SDKs are required to send a `connectionId`; if they don't,
+        // mint one so the panel can still group later frames/close.
+        connectionId = (rawConnectionId != null && rawConnectionId.isNotEmpty)
+            ? rawConnectionId
+            : _mintWebsocketConnectionId(url);
+        _openWebsocketConnections[connectionId] = url;
+        _trimWebsocketConnections();
+        break;
+      case WsMessageTypes.clientWebsocketClose:
+        direction = 'close';
+        connectionId = (rawConnectionId != null && rawConnectionId.isNotEmpty)
+            ? rawConnectionId
+            : _mintWebsocketConnectionId(url);
+        _openWebsocketConnections.remove(connectionId);
+        break;
+      default:
+        direction = p['direction'] as String? ?? 'sent';
+        // Frames: fall back to the only open socket for this URL if
+        // the SDK didn't attach a connectionId (older SDKs).
+        connectionId = (rawConnectionId != null && rawConnectionId.isNotEmpty)
+            ? rawConnectionId
+            : _existingConnectionIdForUrl(url) ?? _mintWebsocketConnectionId(url);
+        break;
+    }
     final entry = WebsocketFrameEntry(
       id: _uniqueOneShotId(message.id),
       deviceId: message.deviceId,
-      url: p['url'] as String? ?? '',
-      direction: p['direction'] as String? ?? 'sent',
+      url: url,
+      connectionId: connectionId,
+      direction: direction,
       payload: p['payload'] as String? ?? '',
       sizeBytes: (p['sizeBytes'] as num?)?.toInt() ?? 0,
       timestamp: message.timestamp,
+      closeCode: p['closeCode'] as int?,
+      closeReason: p['closeReason'] as String?,
       metadata: p['metadata'] as Map<String, dynamic>?,
     );
     _websocketController.add(entry);
   }
 
+  /// Mint a deterministic connection id from the URL when an SDK
+  /// doesn't supply one. Uses the URL as-is so multiple events for the
+  /// same socket collapse to a single id.
+  String _mintWebsocketConnectionId(String url) {
+    final seq = (++_wsConnectionSeq).toRadixString(36);
+    final micros = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    return 'ws-$url-$micros-$seq';
+  }
+
+  String? _existingConnectionIdForUrl(String url) {
+    for (final entry in _openWebsocketConnections.entries) {
+      if (entry.value == url) return entry.key;
+    }
+    return null;
+  }
+
+  void _trimWebsocketConnections() {
+    if (_openWebsocketConnections.length <= 512) return;
+    final drop = _openWebsocketConnections.length - 256;
+    final keys = _openWebsocketConnections.keys.toList(growable: false);
+    for (var i = 0; i < drop; i++) {
+      _openWebsocketConnections.remove(keys[i]);
+    }
+  }
+
   void _handleGrpc(DCMessage message) {
     final p = message.payload;
+    // Legacy single-event format (`client:grpc_call` with all fields
+    // on one message) passes through unchanged.
+    if (message.type == WsMessageTypes.clientGrpcCall) {
+      final entry = GrpcCallEntry(
+        id: _uniqueOneShotId(message.id),
+        deviceId: message.deviceId,
+        service: p['service'] as String? ?? '',
+        method: p['method'] as String? ?? '',
+        request: p['request'] as String? ?? '',
+        response: p['response'] as String?,
+        timestamp: message.timestamp,
+        latencyMs: p['latencyMs'] as int?,
+        status: p['status'] as String?,
+        error: p['error'] as String?,
+        metadata: p['metadata'] as Map<String, dynamic>?,
+      );
+      _grpcController.add(entry);
+      return;
+    }
+    // Split start/end format (Android). Round-trip merge identical in
+    // shape to network round-trips: a shared `callId` ties them
+    // together; the canonical id stays stable so the panel renders
+    // both halves as a single row.
+    final callId = p['callId'] as String? ?? message.id;
+    final isEnd = message.type == WsMessageTypes.clientGrpcCallEnd;
+    final canonical = _grpcCanonicalId(callId, isEnd);
+    if (isEnd) {
+      _openGrpcCalls.remove(canonical);
+    }
     final entry = GrpcCallEntry(
-      id: _uniqueOneShotId(message.id),
+      id: canonical,
       deviceId: message.deviceId,
       service: p['service'] as String? ?? '',
       method: p['method'] as String? ?? '',
@@ -776,6 +897,105 @@ class WsMessageHandler {
     );
     _grpcController.add(entry);
   }
+
+  /// Round-trip id for split gRPC start/end events. Same shape as
+  /// network round-trip — first start mints `callId` as canonical,
+  /// end reuses it; concurrent same-callId disambiguates.
+  String _grpcCanonicalId(String callId, bool isEnd) {
+    if (isEnd) {
+      final existing = _existingOpenGrpcCanonical(callId);
+      if (existing != null) return existing;
+      return callId;
+    }
+    final existing = _existingOpenGrpcCanonical(callId);
+    if (existing != null) return _disambiguateGrpc(callId);
+    _openGrpcCalls[callId] = callId;
+    _trimOpenGrpcCalls();
+    return callId;
+  }
+
+  String? _existingOpenGrpcCanonical(String callId) {
+    for (final entry in _openGrpcCalls.entries) {
+      if (entry.value == callId) return entry.key;
+    }
+    return null;
+  }
+
+  String _disambiguateGrpc(String base) {
+    final seq = (++_grpcSeq).toRadixString(36);
+    final micros = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    return '$base-$micros-$seq';
+  }
+
+  void _trimOpenGrpcCalls() {
+    if (_openGrpcCalls.length <= 512) return;
+    final drop = _openGrpcCalls.length - 256;
+    final keys = _openGrpcCalls.keys.toList(growable: false);
+    for (var i = 0; i < drop; i++) {
+      _openGrpcCalls.remove(keys[i]);
+    }
+  }
+
+  /// Per-step benchmark events. The Flutter SDK emits these between
+  /// the `client:benchmark` summary start and end to mark individual
+  /// checkpoints (frame samples, screen transitions). Forward each as
+  /// a standalone event on the benchmark stream so the panel can
+  /// render a chip timeline even before the parent summary arrives.
+  void _handleBenchmarkStep(DCMessage message) {
+    final p = message.payload;
+    final payload = {
+      'deviceId': message.deviceId,
+      'benchmarkId': p['benchmarkId'] as String? ?? '',
+      'title': p['title'] as String? ?? '',
+      'timestamp': p['timestamp'] as int? ?? message.timestamp,
+      'delta': p['delta'] as int?,
+    };
+    _benchmarkStepController.add(payload);
+  }
+
+  /// Decode and cache a source map. RN bundlers ship `.map` files at
+  /// production build time; the SDK uploads them once per bundle/build
+  /// and the desktop uses the cached JSON to symbolicate minified
+  /// stack frames in the Errors tab.
+  void _handleSourceMap(DCMessage message) {
+    final p = message.payload;
+    final mapId = p['mapId'] as String?;
+    final raw = p['map'];
+    if (mapId == null || mapId.isEmpty || raw == null) return;
+    if (_sourceMaps.containsKey(mapId)) return;
+    final decoded = raw is Map
+        ? raw.cast<String, dynamic>()
+        : _tryDecodeMapString(raw);
+    if (decoded == null) return;
+    _sourceMaps[mapId] = decoded;
+    _trimSourceMaps();
+  }
+
+  /// A few SDKs stringify the map before sending; recover it lazily
+  /// so the wire format stays flexible.
+  Map<String, dynamic>? _tryDecodeMapString(dynamic raw) {
+    if (raw is! String) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) return decoded.cast<String, dynamic>();
+    } catch (_) {}
+    return null;
+  }
+
+  void _trimSourceMaps() {
+    if (_sourceMaps.length <= 32) return;
+    final drop = _sourceMaps.length - 16;
+    final keys = _sourceMaps.keys.toList(growable: false);
+    for (var i = 0; i < drop; i++) {
+      _sourceMaps.remove(keys[i]);
+    }
+  }
+
+  /// Read-only snapshot of the cached source maps. Used by the Error
+  /// inspector to symbolicate stack frames; safe to call from any
+  /// isolate.
+  Map<String, Map<String, dynamic>> snapshotSourceMaps() =>
+      Map.unmodifiable(_sourceMaps);
 
   void _handleMockAudit(DCMessage message) {
     final p = message.payload;
@@ -916,6 +1136,7 @@ class WsMessageHandler {
     _deviceController.close();
     _disconnectController.close();
     _benchmarkController.close();
+    _benchmarkStepController.close();
     _stateSnapshotController.close();
     _customResultController.close();
     _performanceController.close();

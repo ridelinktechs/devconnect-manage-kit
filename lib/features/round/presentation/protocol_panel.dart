@@ -124,7 +124,7 @@ class _GraphqlTab extends ConsumerWidget {
                 selected: isSel,
                 onTap: () => ref
                     .read(selectedGraphqlIdProvider.notifier)
-                    .state = entry.id,
+                    .set(entry.id),
               );
             },
           ),
@@ -468,7 +468,7 @@ class _WebsocketTab extends ConsumerWidget {
                 selected: isSel,
                 onTap: () => ref
                     .read(selectedWebsocketIdProvider.notifier)
-                    .state = entry.id,
+                    .set(entry.id),
               );
             },
           ),
@@ -703,7 +703,7 @@ class _GrpcTab extends ConsumerWidget {
                 selected: isSel,
                 onTap: () => ref
                     .read(selectedGrpcIdProvider.notifier)
-                    .state = entry.id,
+                    .set(entry.id),
               );
             },
           ),

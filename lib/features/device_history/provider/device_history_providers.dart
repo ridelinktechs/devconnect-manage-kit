@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,19 +67,20 @@ class DeviceHistoryEntry {
   }
 }
 
-class DeviceHistoryNotifier extends StateNotifier<List<DeviceHistoryEntry>> {
+class DeviceHistoryNotifier extends Notifier<List<DeviceHistoryEntry>> {
   static const _prefsKey = 'deviceHistory';
 
-  DeviceHistoryNotifier() : super([]) {
-    _load();
+  @override
+  List<DeviceHistoryEntry> build() {
+    return _load();
   }
 
-  void _load() {
+  List<DeviceHistoryEntry> _load() {
     try {
       final raw = AppPreferences().get<String>(_prefsKey);
-      if (raw == null || raw.isEmpty) return;
+      if (raw == null || raw.isEmpty) return [];
       final decoded = jsonDecode(raw);
-      if (decoded is! List) return;
+      if (decoded is! List) return [];
       // Parse each entry independently — one malformed entry must not
       // wipe the entire history. Bad entries are skipped silently.
       final loaded = <DeviceHistoryEntry>[];
@@ -92,15 +92,17 @@ class DeviceHistoryNotifier extends StateNotifier<List<DeviceHistoryEntry>> {
           // Skip malformed entry, keep the rest.
         }
       }
-      state = loaded;
       // Mark anything that was online at last quit as offline — the new
       // process can't know if it actually reconnected.
-      for (final e in state) {
+      for (final e in loaded) {
         if (e.isOnline) e.isOnline = false;
       }
       // Keep most-recent first.
-      state.sort((a, b) => b.lastConnectedAt.compareTo(a.lastConnectedAt));
-    } catch (_) {}
+      loaded.sort((a, b) => b.lastConnectedAt.compareTo(a.lastConnectedAt));
+      return loaded;
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<void> _save() async {
@@ -201,6 +203,5 @@ class DeviceHistoryNotifier extends StateNotifier<List<DeviceHistoryEntry>> {
 }
 
 final deviceHistoryProvider =
-    StateNotifierProvider<DeviceHistoryNotifier, List<DeviceHistoryEntry>>(
-  (ref) => DeviceHistoryNotifier(),
-);
+    NotifierProvider<DeviceHistoryNotifier, List<DeviceHistoryEntry>>(
+        DeviceHistoryNotifier.new);

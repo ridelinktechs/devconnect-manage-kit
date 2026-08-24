@@ -244,7 +244,7 @@ class _NetworkInspectorPageState
                                     ref
                                         .read(selectedNetworkIdProvider
                                             .notifier)
-                                        .state = isSelected ? null : entry.id;
+                                        .set(isSelected ? null : entry.id);
                                     if (!isSelected && _autoScroll) {
                                       _autoScroll = false;
                                       _programmaticScroll = false;
@@ -283,7 +283,7 @@ class _NetworkInspectorPageState
                               onClose: () {
                                 ref
                                     .read(selectedNetworkIdProvider.notifier)
-                                    .state = null;
+                                    .set(null);
                               },
                             ),
                           ),

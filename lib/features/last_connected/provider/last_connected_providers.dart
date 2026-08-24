@@ -16,33 +16,28 @@ import '../../storage_viewer/provider/storage_providers.dart';
 const _disconnectTimeout = Duration(seconds: 15);
 
 final lastConnectedProvider =
-    StateNotifierProvider<LastConnectedNotifier, List<DisconnectedSession>>(
-        (ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = LastConnectedNotifier(ref, handler);
-  ref.onDispose(() => notifier.cancelSubscriptions());
-  return notifier;
-});
+    NotifierProvider<LastConnectedNotifier, List<DisconnectedSession>>(
+        LastConnectedNotifier.new);
 
-class LastConnectedNotifier extends StateNotifier<List<DisconnectedSession>> {
-  final Ref _ref;
+class LastConnectedNotifier extends Notifier<List<DisconnectedSession>> {
   final Map<String, Timer> _pendingTimers = {};
   final Map<String, DeviceInfo> _pendingDevices = {};
-  late final StreamSubscription<DeviceInfo> _connectSub;
-  late final StreamSubscription<String> _disconnectSub;
 
-  LastConnectedNotifier(this._ref, WsMessageHandler handler) : super([]) {
-    _connectSub = handler.onDeviceConnected.listen(_onDeviceConnected);
-    _disconnectSub = handler.onDeviceDisconnected.listen(_onDeviceDisconnected);
-  }
-
-  void cancelSubscriptions() {
-    _connectSub.cancel();
-    _disconnectSub.cancel();
-    for (final timer in _pendingTimers.values) {
-      timer.cancel();
-    }
-    _pendingTimers.clear();
+  @override
+  List<DisconnectedSession> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final connectSub = handler.onDeviceConnected.listen(_onDeviceConnected);
+    final disconnectSub =
+        handler.onDeviceDisconnected.listen(_onDeviceDisconnected);
+    ref.onDispose(() {
+      connectSub.cancel();
+      disconnectSub.cancel();
+      for (final timer in _pendingTimers.values) {
+        timer.cancel();
+      }
+      _pendingTimers.clear();
+    });
+    return [];
   }
 
   void _onDeviceConnected(DeviceInfo device) {
@@ -70,7 +65,7 @@ class LastConnectedNotifier extends StateNotifier<List<DisconnectedSession>> {
 
   void _onDeviceDisconnected(String deviceId) {
     // Snapshot device info before it's removed from connected list
-    final devices = _ref.read(connectedDevicesProvider);
+    final devices = ref.read(connectedDevicesProvider);
     final device = devices.where((d) => d.deviceId == deviceId).firstOrNull;
     if (device == null) return;
 
@@ -90,10 +85,10 @@ class LastConnectedNotifier extends StateNotifier<List<DisconnectedSession>> {
     if (device == null) return;
 
     // Snapshot all events for this device
-    final logs = _ref.read(consoleEntriesProvider);
-    final network = _ref.read(networkEntriesProvider);
-    final stateChanges = _ref.read(stateChangesProvider);
-    final storage = _ref.read(storageEntriesProvider);
+    final logs = ref.read(consoleEntriesProvider);
+    final network = ref.read(networkEntriesProvider);
+    final stateChanges = ref.read(stateChangesProvider);
+    final storage = ref.read(storageEntriesProvider);
 
     final session = DisconnectedSession(
       deviceInfo: device,

@@ -10,12 +10,8 @@ import '../../../server/providers/server_providers.dart';
 import '../../../server/ws_message_handler.dart';
 
 final benchmarkEntriesProvider =
-    StateNotifierProvider<BenchmarkNotifier, List<BenchmarkEntry>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = BenchmarkNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<BenchmarkNotifier, List<BenchmarkEntry>>(
+        BenchmarkNotifier.new);
 
 /// Total benchmark entries ever received by [BenchmarkNotifier],
 /// including ones dropped by the retention cap.
@@ -54,7 +50,47 @@ final filteredBenchmarkEntriesProvider =
   }).toList();
 });
 
-final benchmarkSearchProvider = StateProvider<String>((ref) => '');
+final benchmarkSearchProvider =
+    NotifierProvider<_BenchmarkSearchNotifier, String>(
+  _BenchmarkSearchNotifier.new,
+);
+
+class _BenchmarkSearchNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String v) => state = v;
+}
+
+// ---- Per-step benchmark events (Flutter SDK `client:benchmark:step`) ----
+//
+// Each step is a small chip-shaped event emitted between the parent
+// `client:benchmark` start and end. The list is independent of the
+// full summary entries — the benchmark page renders the latest few
+// as a horizontal timeline chip strip above the list, even if the
+// parent summary hasn't arrived yet.
+
+final benchmarkStepsProvider =
+    NotifierProvider<BenchmarkStepsNotifier, List<Map<String, dynamic>>>(
+        BenchmarkStepsNotifier.new);
+
+class BenchmarkStepsNotifier extends Notifier<List<Map<String, dynamic>>> {
+  /// Total benchmark step events ever received, including ones dropped by the cap.
+  @override
+  List<Map<String, dynamic>> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onBenchmarkStep.listen((step) {
+      final l = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+      // Cap to the last `l` steps so the chip strip never grows
+      // unbounded under a heavy benchmark run.
+      state = truncateList([...state, step], l);
+    });
+    ref.onDispose(() => sub.cancel());
+    return [];
+  }
+
+  void clear() => state = [];
+}
 
 /// Stats
 final benchmarkStatsProvider = Provider<BenchmarkStats>((ref) {
@@ -96,16 +132,15 @@ class BenchmarkStats {
   });
 }
 
-class BenchmarkNotifier extends StateNotifier<List<BenchmarkEntry>> {
-  late final StreamSubscription<Map<String, dynamic>> _sub;
-  final Ref _ref;
-
+class BenchmarkNotifier extends Notifier<List<BenchmarkEntry>> {
   /// Total benchmark entries ever received, including ones dropped by the cap.
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  BenchmarkNotifier(WsMessageHandler handler, this._ref) : super([]) {
-    _sub = handler.onBenchmark.listen((data) {
+  @override
+  List<BenchmarkEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onBenchmark.listen((data) {
       final steps = (data['steps'] as List<dynamic>?)
               ?.map((s) => BenchmarkStep(
                     title: s['title'] as String? ?? '',
@@ -126,12 +161,13 @@ class BenchmarkNotifier extends StateNotifier<List<BenchmarkEntry>> {
         steps: steps,
       );
 
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
 
-  void cancelSubscription() => _sub.cancel();
   void clear() => state = [];
 }

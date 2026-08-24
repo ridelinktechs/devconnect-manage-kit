@@ -61,11 +61,29 @@ class WsMessageTypes {
   static const String clientReactQueryChange = 'client:react_query_change';
   static const String clientApolloOperation = 'client:apollo_operation';
 
-  // Round 3: protocol inspectors (GraphQL, WebSocket, gRPC)
+  // Round 3: protocol inspectors (GraphQL, WebSocket, gRPC).
+  // All three SDKs send ws_open / ws_frame / ws_close as the lifecycle
+  // events for a single WebSocket connection — the desktop groups
+  // frames by `connectionId` so the panel renders open → frames →
+  // close as one row.
   static const String clientGraphqlOperation = 'client:graphql_operation';
   static const String clientGraphqlResponse = 'client:graphql_response';
-  static const String clientWebsocketFrame = 'client:websocket_frame';
+  static const String clientWebsocketOpen = 'client:ws_open';
+  static const String clientWebsocketFrame = 'client:ws_frame';
+  static const String clientWebsocketClose = 'client:ws_close';
+
+  // gRPC: Android SDK emits start/end pairs (matching the HTTP
+  // round-trip pattern). The desktop merges them into one GrpcCallEntry
+  // keyed by `callId`; legacy `client:grpc_call` is kept as a fallback
+  // for older SDKs that ship a single combined event.
+  static const String clientGrpcCallStart = 'client:grpc_call_start';
+  static const String clientGrpcCallEnd = 'client:grpc_call_end';
   static const String clientGrpcCall = 'client:grpc_call';
+
+  // Per-step benchmark events emitted by the Flutter SDK in addition
+  // to the full `client:benchmark` summary. Lets the desktop show
+  // fine-grained frame / event timings as they happen.
+  static const String clientBenchmarkStep = 'client:benchmark:step';
 
   // Round 4: mock server audit
   static const String clientMockedRequest = 'client:mocked_request';

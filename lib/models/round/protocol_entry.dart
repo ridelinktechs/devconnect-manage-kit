@@ -88,25 +88,34 @@ class GraphqlEntry {
 }
 
 /// Round 3: a single WebSocket frame (sent or received) over a tracked
-/// socket connection.
+/// socket connection. Lifecycle events (open/close/error) share the same
+/// shape with `direction` set to `open`/`close`/`error` and an empty
+/// `payload`. All events of a single socket share a `connectionId` so
+/// the panel can group frames under their open/close pair.
 class WebsocketFrameEntry {
   final String id;
   final String deviceId;
   final String url;
+  final String connectionId;
   final String direction; // sent | received | open | close | error
   final String payload;
   final int sizeBytes;
   final int timestamp;
+  final int? closeCode;
+  final String? closeReason;
   final Map<String, dynamic>? metadata;
 
   const WebsocketFrameEntry({
     required this.id,
     required this.deviceId,
     required this.url,
+    required this.connectionId,
     required this.direction,
     required this.payload,
     required this.sizeBytes,
     required this.timestamp,
+    this.closeCode,
+    this.closeReason,
     this.metadata,
   });
 
@@ -114,10 +123,13 @@ class WebsocketFrameEntry {
         'id': id,
         'deviceId': deviceId,
         'url': url,
+        'connectionId': connectionId,
         'direction': direction,
         'payload': payload,
         'sizeBytes': sizeBytes,
         'timestamp': timestamp,
+        if (closeCode != null) 'closeCode': closeCode,
+        if (closeReason != null) 'closeReason': closeReason,
         if (metadata != null) 'metadata': metadata,
       };
 
@@ -126,10 +138,13 @@ class WebsocketFrameEntry {
         id: json['id'] as String,
         deviceId: json['deviceId'] as String,
         url: json['url'] as String? ?? '',
+        connectionId: json['connectionId'] as String? ?? '',
         direction: json['direction'] as String? ?? 'sent',
         payload: json['payload'] as String? ?? '',
         sizeBytes: json['sizeBytes'] as int? ?? 0,
         timestamp: json['timestamp'] as int? ?? 0,
+        closeCode: json['closeCode'] as int?,
+        closeReason: json['closeReason'] as String?,
         metadata: (json['metadata'] as Map?)?.cast<String, dynamic>(),
       );
 }

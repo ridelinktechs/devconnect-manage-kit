@@ -135,7 +135,7 @@ class FilterBar extends ConsumerWidget {
               isActive: errorsOnly,
               onTap: () => ref
                   .read(allEventsErrorsOnlyProvider.notifier)
-                  .update((v) => !v),
+                  .toggle(),
             ),
           ],
           const Spacer(),
@@ -145,12 +145,6 @@ class FilterBar extends ConsumerWidget {
   }
 
   void _toggle(WidgetRef ref, EventType type) {
-    final current = ref.read(allEventsFilterProvider);
-    if (current.contains(type)) {
-      ref.read(allEventsFilterProvider.notifier).state =
-          current.difference({type});
-    } else {
-      ref.read(allEventsFilterProvider.notifier).state = {...current, type};
-    }
+    ref.read(allEventsFilterProvider.notifier).toggle(type);
   }
 }

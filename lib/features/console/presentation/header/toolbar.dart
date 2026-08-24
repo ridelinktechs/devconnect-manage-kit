@@ -77,16 +77,7 @@ class Toolbar extends ConsumerWidget {
                 isActive: isActive,
                 color: levelColor(level),
                 onTap: () {
-                  final current = ref.read(consoleFilterProvider);
-                  if (isActive) {
-                    ref.read(consoleFilterProvider.notifier).state =
-                        current.difference({level});
-                  } else {
-                    ref.read(consoleFilterProvider.notifier).state = {
-                      ...current,
-                      level,
-                    };
-                  }
+                  ref.read(consoleFilterProvider.notifier).toggle(level);
                 },
               ),
             );
@@ -100,7 +91,7 @@ class Toolbar extends ConsumerWidget {
             child: SearchField(
               hintText: S.of(context).searchLogs,
               onChanged: (value) {
-                ref.read(consoleSearchProvider.notifier).state = value;
+                ref.read(consoleSearchProvider.notifier).set(value);
               },
             ),
           ),
@@ -136,8 +127,8 @@ class Toolbar extends ConsumerWidget {
                       tooltip: isTop ? S.of(context).newestFirst : S.of(context).oldestFirst,
                       isActive: isTop,
                       onTap: () =>
-                          ref.read(scrollDirectionProvider.notifier).state =
-                              isTop ? ScrollDirection.bottom : ScrollDirection.top,
+                          ref.read(scrollDirectionProvider.notifier).set(
+                              isTop ? ScrollDirection.bottom : ScrollDirection.top),
                     );
                   },
                 ),

@@ -77,9 +77,9 @@ class Toolbar extends ConsumerWidget {
 
           // ── Operation segment group ──
           SegmentGroup(isDark: isDark, children: [
-            SegmentChip(label: S.of(context).read, isActive: opFilter == 'read', color: ColorTokens.info, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).state = opFilter == 'read' ? null : 'read'),
-            SegmentChip(label: S.of(context).write, isActive: opFilter == 'write', color: ColorTokens.success, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).state = opFilter == 'write' ? null : 'write'),
-            SegmentChip(label: S.of(context).delete, isActive: opFilter == 'delete', color: ColorTokens.error, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).state = opFilter == 'delete' ? null : 'delete'),
+            SegmentChip(label: S.of(context).read, isActive: opFilter == 'read', color: ColorTokens.info, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).set(opFilter == 'read' ? null : 'read')),
+            SegmentChip(label: S.of(context).write, isActive: opFilter == 'write', color: ColorTokens.success, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).set(opFilter == 'write' ? null : 'write')),
+            SegmentChip(label: S.of(context).delete, isActive: opFilter == 'delete', color: ColorTokens.error, isMono: true, onTap: () => ref.read(storageOperationFilterProvider.notifier).set(opFilter == 'delete' ? null : 'delete')),
           ]),
           const SizedBox(width: 10),
 
@@ -109,7 +109,7 @@ class Toolbar extends ConsumerWidget {
             child: SearchField(
               hintText: S.of(context).filterKeys,
               onChanged: (v) =>
-                  ref.read(storageSearchProvider.notifier).state = v,
+                  ref.read(storageSearchProvider.notifier).set(v),
             ),
           ),
           const SizedBox(width: 12),
@@ -144,8 +144,8 @@ class Toolbar extends ConsumerWidget {
                       tooltip: isTop ? S.of(context).newestFirst : S.of(context).oldestFirst,
                       isActive: isTop,
                       onTap: () =>
-                          ref.read(scrollDirectionProvider.notifier).state =
-                              isTop ? ScrollDirection.bottom : ScrollDirection.top,
+                          ref.read(scrollDirectionProvider.notifier).set(
+                              isTop ? ScrollDirection.bottom : ScrollDirection.top),
                     );
                   },
                 ),
@@ -174,12 +174,6 @@ class Toolbar extends ConsumerWidget {
   }
 
   void _toggleType(WidgetRef ref, StorageType type) {
-    final current = ref.read(storageTypeFilterProvider);
-    if (current.contains(type)) {
-      ref.read(storageTypeFilterProvider.notifier).state =
-          current.difference({type});
-    } else {
-      ref.read(storageTypeFilterProvider.notifier).state = {...current, type};
-    }
+    ref.read(storageTypeFilterProvider.notifier).toggle(type);
   }
 }

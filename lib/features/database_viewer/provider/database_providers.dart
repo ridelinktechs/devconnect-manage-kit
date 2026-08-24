@@ -3,19 +3,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/storage/storage_entry.dart';
 
 final databaseSchemaProvider =
-    StateNotifierProvider<DatabaseSchemaNotifier, List<DatabaseSchema>>((ref) {
-  return DatabaseSchemaNotifier();
-});
+    NotifierProvider<DatabaseSchemaNotifier, List<DatabaseSchema>>(
+        DatabaseSchemaNotifier.new);
 
-final selectedTableProvider = StateProvider<String?>((ref) => null);
+final selectedTableProvider =
+    NotifierProvider<_SelectedTableNotifier, String?>(
+  _SelectedTableNotifier.new,
+);
+
+class _SelectedTableNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? v) => state = v;
+}
 
 final queryResultProvider =
-    StateNotifierProvider<QueryResultNotifier, QueryResult?>((ref) {
-  return QueryResultNotifier();
-});
+    NotifierProvider<QueryResultNotifier, QueryResult?>(
+        QueryResultNotifier.new);
 
-class DatabaseSchemaNotifier extends StateNotifier<List<DatabaseSchema>> {
-  DatabaseSchemaNotifier() : super([]);
+class DatabaseSchemaNotifier extends Notifier<List<DatabaseSchema>> {
+  @override
+  List<DatabaseSchema> build() => [];
 
   void setSchemas(List<DatabaseSchema> schemas) => state = schemas;
   void clear() => state = [];
@@ -35,8 +44,9 @@ class QueryResult {
   });
 }
 
-class QueryResultNotifier extends StateNotifier<QueryResult?> {
-  QueryResultNotifier() : super(null);
+class QueryResultNotifier extends Notifier<QueryResult?> {
+  @override
+  QueryResult? build() => null;
 
   void setResult(QueryResult result) => state = result;
   void clear() => state = null;

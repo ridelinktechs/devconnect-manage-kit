@@ -162,16 +162,7 @@ class Toolbar extends ConsumerWidget {
                     isActive: isActive,
                     color: platformColor(platform),
                     onTap: () {
-                      final current = ref.read(errorFilterProvider);
-                      if (isActive) {
-                        ref.read(errorFilterProvider.notifier).state =
-                            current.difference({platform});
-                      } else {
-                        ref.read(errorFilterProvider.notifier).state = {
-                          ...current,
-                          platform,
-                        };
-                      }
+                      ref.read(errorFilterProvider.notifier).toggle(platform);
                     },
                   ),
                 );
@@ -187,9 +178,9 @@ class Toolbar extends ConsumerWidget {
                   controller: searchController,
                   onClear: () {
                     searchController.clear();
-                    ref.read(errorSearchProvider.notifier).state = '';
+                    ref.read(errorSearchProvider.notifier).set('');
                   },
-                  onChanged: (v) => ref.read(errorSearchProvider.notifier).state = v,
+                  onChanged: (v) => ref.read(errorSearchProvider.notifier).set(v),
                 ),
               ),
               const SizedBox(width: 12),
@@ -229,9 +220,9 @@ class Toolbar extends ConsumerWidget {
                           isActive: isTop,
                           onTap: () => ref
                               .read(scrollDirectionProvider.notifier)
-                              .state = isTop
+                              .set(isTop
                                   ? ScrollDirection.bottom
-                                  : ScrollDirection.top,
+                                  : ScrollDirection.top),
                         );
                       },
                     ),

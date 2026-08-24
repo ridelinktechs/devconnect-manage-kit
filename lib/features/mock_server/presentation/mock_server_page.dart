@@ -91,7 +91,7 @@ class _MockServerPageState extends ConsumerState<MockServerPage> {
             updatedAt: now,
           ),
         );
-    ref.read(selectedMockRuleIdProvider.notifier).state = id;
+    ref.read(selectedMockRuleIdProvider.notifier).set(id);
   }
 
   @override
@@ -169,8 +169,7 @@ class _MockServerPageState extends ConsumerState<MockServerPage> {
                                   onTap: () => ref
                                           .read(selectedMockRuleIdProvider
                                               .notifier)
-                                          .state =
-                                      isSel ? null : rule.id,
+                                          .set(isSel ? null : rule.id),
                                   onToggle: (v) => ref
                                       .read(mockRulesProvider.notifier)
                                       .toggle(rule.id, v),
@@ -182,7 +181,7 @@ class _MockServerPageState extends ConsumerState<MockServerPage> {
                                       ref
                                           .read(selectedMockRuleIdProvider
                                               .notifier)
-                                          .state = null;
+                                          .set(null);
                                     }
                                   },
                                 );

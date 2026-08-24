@@ -72,6 +72,16 @@ final sidebarItems = [
     routePath: '/errors',
   ),
   const SidebarItem(
+    label: 'Display',
+    icon: LucideIcons.eye,
+    routePath: '/display',
+  ),
+  const SidebarItem(
+    label: 'Async',
+    icon: LucideIcons.workflow,
+    routePath: '/async',
+  ),
+  const SidebarItem(
     label: 'Mock',
     icon: LucideIcons.server,
     routePath: '/mock-server',
@@ -123,7 +133,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
       return _CollapsedSidebar(
         isDark: isDark,
         onExpand: () =>
-            ref.read(sidebarCollapsedProvider.notifier).state = false,
+            ref.read(sidebarCollapsedProvider.notifier).set(false),
       );
     }
 
@@ -218,7 +228,7 @@ class _SidebarState extends ConsumerState<Sidebar> {
               tooltip: 'Collapse sidebar',
               isDark: isDark,
               onTap: () =>
-                  ref.read(sidebarCollapsedProvider.notifier).state = true,
+                  ref.read(sidebarCollapsedProvider.notifier).set(true),
             ),
           ),
           const SizedBox(height: 4),

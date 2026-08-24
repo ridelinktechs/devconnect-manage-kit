@@ -17,13 +17,8 @@ import '../../../server/ws_message_handler.dart';
 // =============================================================
 
 final stateRoundEntriesProvider =
-    StateNotifierProvider<StateRoundEntriesNotifier, List<StateRoundEntry>>(
-        (ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = StateRoundEntriesNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<StateRoundEntriesNotifier, List<StateRoundEntry>>(
+        StateRoundEntriesNotifier.new);
 
 final stateRoundTotalSeenProvider = Provider<int>((ref) {
   ref.watch(stateRoundEntriesProvider);
@@ -40,7 +35,17 @@ final stateRoundDisplayProvider =
 
 /// Filter chip on the State Inspector: `all` or one of `bloc`,
 /// `provider`, `react_query`, `apollo`.
-final stateRoundManagerFilterProvider = StateProvider<String>((ref) => 'all');
+final stateRoundManagerFilterProvider =
+    NotifierProvider<_StateRoundManagerFilterNotifier, String>(
+  _StateRoundManagerFilterNotifier.new,
+);
+
+class _StateRoundManagerFilterNotifier extends Notifier<String> {
+  @override
+  String build() => 'all';
+
+  void set(String v) => state = v;
+}
 
 final filteredStateRoundProvider = Provider<List<StateRoundEntry>>((ref) {
   final entries = ref.watch(stateRoundDisplayProvider).items;
@@ -62,21 +67,22 @@ final filteredStateRoundProvider = Provider<List<StateRoundEntry>>((ref) {
   }).toList();
 });
 
-class StateRoundEntriesNotifier extends StateNotifier<List<StateRoundEntry>> {
-  late final StreamSubscription<StateRoundEntry> _sub;
-  final Ref _ref;
+class StateRoundEntriesNotifier extends Notifier<List<StateRoundEntry>> {
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  StateRoundEntriesNotifier(WsMessageHandler h, this._ref) : super([]) {
-    _sub = h.onStateRound.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+  @override
+  List<StateRoundEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onStateRound.listen((entry) {
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
 
-  void cancelSubscription() => _sub.cancel();
   void clear() => state = [];
 }
 
@@ -85,12 +91,8 @@ class StateRoundEntriesNotifier extends StateNotifier<List<StateRoundEntry>> {
 // =============================================================
 
 final graphqlEntriesProvider =
-    StateNotifierProvider<GraphqlEntriesNotifier, List<GraphqlEntry>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = GraphqlEntriesNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<GraphqlEntriesNotifier, List<GraphqlEntry>>(
+        GraphqlEntriesNotifier.new);
 
 final graphqlDisplayProvider = Provider<RetentionCapped<GraphqlEntry>>((ref) {
   final all = ref.watch(graphqlEntriesProvider);
@@ -98,7 +100,17 @@ final graphqlDisplayProvider = Provider<RetentionCapped<GraphqlEntry>>((ref) {
   return applyRetentionCap(all, limit);
 });
 
-final selectedGraphqlIdProvider = StateProvider<String?>((ref) => null);
+final selectedGraphqlIdProvider =
+    NotifierProvider<_SelectedGraphqlIdNotifier, String?>(
+  _SelectedGraphqlIdNotifier.new,
+);
+
+class _SelectedGraphqlIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? v) => state = v;
+}
 
 final selectedGraphqlProvider = Provider<GraphqlEntry?>((ref) {
   final id = ref.watch(selectedGraphqlIdProvider);
@@ -107,26 +119,24 @@ final selectedGraphqlProvider = Provider<GraphqlEntry?>((ref) {
   return entries.where((e) => e.id == id).firstOrNull;
 });
 
-class GraphqlEntriesNotifier extends StateNotifier<List<GraphqlEntry>> {
-  late final StreamSubscription<GraphqlEntry> _sub;
-  final Ref _ref;
-  GraphqlEntriesNotifier(WsMessageHandler h, this._ref) : super([]) {
-    _sub = h.onGraphql.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+class GraphqlEntriesNotifier extends Notifier<List<GraphqlEntry>> {
+  @override
+  List<GraphqlEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onGraphql.listen((entry) {
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
-  void cancelSubscription() => _sub.cancel();
+
   void clear() => state = [];
 }
 
-final websocketEntriesProvider = StateNotifierProvider<
-    WebsocketEntriesNotifier, List<WebsocketFrameEntry>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = WebsocketEntriesNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+final websocketEntriesProvider = NotifierProvider<
+    WebsocketEntriesNotifier, List<WebsocketFrameEntry>>(
+        WebsocketEntriesNotifier.new);
 
 final websocketDisplayProvider =
     Provider<RetentionCapped<WebsocketFrameEntry>>((ref) {
@@ -135,7 +145,17 @@ final websocketDisplayProvider =
   return applyRetentionCap(all, limit);
 });
 
-final selectedWebsocketIdProvider = StateProvider<String?>((ref) => null);
+final selectedWebsocketIdProvider =
+    NotifierProvider<_SelectedWebsocketIdNotifier, String?>(
+  _SelectedWebsocketIdNotifier.new,
+);
+
+class _SelectedWebsocketIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? v) => state = v;
+}
 
 final selectedWebsocketProvider = Provider<WebsocketFrameEntry?>((ref) {
   final id = ref.watch(selectedWebsocketIdProvider);
@@ -144,26 +164,24 @@ final selectedWebsocketProvider = Provider<WebsocketFrameEntry?>((ref) {
   return entries.where((e) => e.id == id).firstOrNull;
 });
 
-class WebsocketEntriesNotifier extends StateNotifier<List<WebsocketFrameEntry>> {
-  late final StreamSubscription<WebsocketFrameEntry> _sub;
-  final Ref _ref;
-  WebsocketEntriesNotifier(WsMessageHandler h, this._ref) : super([]) {
-    _sub = h.onWebsocket.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+class WebsocketEntriesNotifier extends Notifier<List<WebsocketFrameEntry>> {
+  @override
+  List<WebsocketFrameEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onWebsocket.listen((entry) {
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
-  void cancelSubscription() => _sub.cancel();
+
   void clear() => state = [];
 }
 
 final grpcEntriesProvider =
-    StateNotifierProvider<GrpcEntriesNotifier, List<GrpcCallEntry>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = GrpcEntriesNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<GrpcEntriesNotifier, List<GrpcCallEntry>>(
+        GrpcEntriesNotifier.new);
 
 final grpcDisplayProvider = Provider<RetentionCapped<GrpcCallEntry>>((ref) {
   final all = ref.watch(grpcEntriesProvider);
@@ -171,7 +189,17 @@ final grpcDisplayProvider = Provider<RetentionCapped<GrpcCallEntry>>((ref) {
   return applyRetentionCap(all, limit);
 });
 
-final selectedGrpcIdProvider = StateProvider<String?>((ref) => null);
+final selectedGrpcIdProvider =
+    NotifierProvider<_SelectedGrpcIdNotifier, String?>(
+  _SelectedGrpcIdNotifier.new,
+);
+
+class _SelectedGrpcIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? v) => state = v;
+}
 
 final selectedGrpcProvider = Provider<GrpcCallEntry?>((ref) {
   final id = ref.watch(selectedGrpcIdProvider);
@@ -180,16 +208,18 @@ final selectedGrpcProvider = Provider<GrpcCallEntry?>((ref) {
   return entries.where((e) => e.id == id).firstOrNull;
 });
 
-class GrpcEntriesNotifier extends StateNotifier<List<GrpcCallEntry>> {
-  late final StreamSubscription<GrpcCallEntry> _sub;
-  final Ref _ref;
-  GrpcEntriesNotifier(WsMessageHandler h, this._ref) : super([]) {
-    _sub = h.onGrpc.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+class GrpcEntriesNotifier extends Notifier<List<GrpcCallEntry>> {
+  @override
+  List<GrpcCallEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onGrpc.listen((entry) {
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
-  void cancelSubscription() => _sub.cancel();
+
   void clear() => state = [];
 }
 
@@ -198,13 +228,8 @@ class GrpcEntriesNotifier extends StateNotifier<List<GrpcCallEntry>> {
 // =============================================================
 
 final mockAuditEntriesProvider =
-    StateNotifierProvider<MockAuditEntriesNotifier, List<MockedRequestEntry>>(
-        (ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = MockAuditEntriesNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<MockAuditEntriesNotifier, List<MockedRequestEntry>>(
+        MockAuditEntriesNotifier.new);
 
 final mockAuditDisplayProvider =
     Provider<RetentionCapped<MockedRequestEntry>>((ref) {
@@ -213,17 +238,19 @@ final mockAuditDisplayProvider =
   return applyRetentionCap(all, limit);
 });
 
-class MockAuditEntriesNotifier extends StateNotifier<List<MockedRequestEntry>> {
-  late final StreamSubscription<MockedRequestEntry> _sub;
-  final Ref _ref;
-  MockAuditEntriesNotifier(WsMessageHandler h, this._ref) : super([]) {
-    _sub = h.onMockAudit.listen((entry) {
+class MockAuditEntriesNotifier extends Notifier<List<MockedRequestEntry>> {
+  @override
+  List<MockedRequestEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onMockAudit.listen((entry) {
       final enriched = _enrich(entry);
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, enriched], limit);
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
-  void cancelSubscription() => _sub.cancel();
+
   void clear() => state = [];
 
   /// The SDK's audit wire format only ships `ruleId`, `status`,
@@ -231,7 +258,7 @@ class MockAuditEntriesNotifier extends StateNotifier<List<MockedRequestEntry>> {
   /// name. Look the rule up locally so the audit row is useful.
   MockedRequestEntry _enrich(MockedRequestEntry entry) {
     if (entry.matchedRuleId.isEmpty) return entry;
-    final rule = _ref
+    final rule = ref
         .read(mockRulesProvider)
         .where((r) => r.id == entry.matchedRuleId)
         .firstOrNull;
@@ -255,8 +282,9 @@ class MockAuditEntriesNotifier extends StateNotifier<List<MockedRequestEntry>> {
 // down to the SDK). Lives in-process; survives reconnects.
 // =============================================================
 
-class MockRulesNotifier extends StateNotifier<List<MockRule>> {
-  MockRulesNotifier() : super([]);
+class MockRulesNotifier extends Notifier<List<MockRule>> {
+  @override
+  List<MockRule> build() => [];
 
   void add(MockRule rule) {
     state = [...state, rule];
@@ -288,11 +316,20 @@ class MockRulesNotifier extends StateNotifier<List<MockRule>> {
 }
 
 final mockRulesProvider =
-    StateNotifierProvider<MockRulesNotifier, List<MockRule>>((ref) {
-  return MockRulesNotifier();
-});
+    NotifierProvider<MockRulesNotifier, List<MockRule>>(
+        MockRulesNotifier.new);
 
-final selectedMockRuleIdProvider = StateProvider<String?>((ref) => null);
+final selectedMockRuleIdProvider =
+    NotifierProvider<_SelectedMockRuleIdNotifier, String?>(
+  _SelectedMockRuleIdNotifier.new,
+);
+
+class _SelectedMockRuleIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? v) => state = v;
+}
 
 final selectedMockRuleProvider = Provider<MockRule?>((ref) {
   final id = ref.watch(selectedMockRuleIdProvider);
@@ -306,7 +343,17 @@ final selectedMockRuleProvider = Provider<MockRule?>((ref) {
 // Lives here so the State / Network tabs share the same widget.
 // =============================================================
 
-final roundSearchProvider = StateProvider<String>((ref) => '');
+final roundSearchProvider =
+    NotifierProvider<_RoundSearchNotifier, String>(
+  _RoundSearchNotifier.new,
+);
+
+class _RoundSearchNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String v) => state = v;
+}
 
 /// The desktop's view of the currently-selected device, as an
 /// action-target for the round 4 / round 5 Server→Client commands.

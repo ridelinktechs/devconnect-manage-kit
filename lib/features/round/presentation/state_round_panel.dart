@@ -38,7 +38,7 @@ class _StateRoundPanelState extends ConsumerState<StateRoundPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ManagerFilterRow(current: filter, onChanged: (v) {
-          ref.read(stateRoundManagerFilterProvider.notifier).state = v;
+          ref.read(stateRoundManagerFilterProvider.notifier).set(v);
         }),
         Divider(height: 1, color: theme.dividerColor.withValues(alpha: 0.5)),
         Expanded(
