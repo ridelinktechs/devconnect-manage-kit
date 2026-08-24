@@ -50,6 +50,13 @@ dev_dependencies:
   json_serializable: ^6.9.4
   riverpod_generator: ^2.6.5
 
+dependency_overrides:
+  # Dart SDK 3.13 emits DotShorthandPropertyAccess AST nodes that
+  # analyzer 7.6.0 (transitive via riverpod_generator) does not
+  # implement. 7.7.0 is the last 7.x with the fix; force it so
+  # build_runner can resolve.
+  analyzer: 7.7.0
+
 flutter:
   generate: true
   uses-material-design: true
