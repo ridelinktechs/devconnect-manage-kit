@@ -491,13 +491,12 @@ class JsonPrettyViewer extends StatefulWidget {
 }
 
 class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
-  static const double _lineHeight = 18.0;
-
   _HighlightResult? _result;
+  List<TextSpan>? _cachedSpans;
+  String? _lineNumbersText;
   bool _loading = true;
+  bool _saving = false;
   bool? _lastIsDark;
-  /// Per-line TextSpan cache — built lazily per visible line.
-  final Map<int, List<TextSpan>> _lineSpanCache = {};
   final _scrollController = SmoothScrollController();
   /// The cache key for the entry currently displayed. Pinned so a cache
   /// pressure from other pages can't evict the value the user is looking at.
@@ -531,7 +530,8 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
       _pinnedKey = _cacheKey;
       _highlightCache.pin(_pinnedKey!);
       _result = null;
-      _lineSpanCache.clear();
+      _cachedSpans = null;
+      _lineNumbersText = null;
       _startCompute();
     } else {
       // Same data — recompute if theme changed (handled in build) but
@@ -542,10 +542,43 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
 
   int get _cacheKey => identityHashCode(widget.data);
 
+  void _updateSpans() {
+    if (_result == null) {
+      _cachedSpans = null;
+      _lineNumbersText = null;
+      return;
+    }
+    _lineNumbersText = List.generate(_result!.lineCount, (i) => '${i + 1}').join('\n');
+    _cachedSpans = _buildAllSpans(_result!);
+  }
+
+  List<TextSpan> _buildAllSpans(_HighlightResult result) {
+    final spans = <TextSpan>[];
+    for (int lineIdx = 0; lineIdx < result.lineTokens.length; lineIdx++) {
+      final tokens = result.lineTokens[lineIdx];
+      for (int i = 0; i < tokens.length; i += 3) {
+        spans.add(TextSpan(
+          text: tokens[i] as String,
+          style: TextStyle(
+            color: Color(tokens[i + 1] as int),
+            fontWeight: (tokens[i + 2] as int) == 1
+                ? FontWeight.w600
+                : FontWeight.normal,
+          ),
+        ));
+      }
+      if (lineIdx < result.lineTokens.length - 1) {
+        spans.add(const TextSpan(text: '\n'));
+      }
+    }
+    return spans;
+  }
+
   void _startCompute() {
     final cached = _highlightCache.get(_cacheKey);
     if (cached != null) {
       _result = cached;
+      _updateSpans();
       _loading = false;
       // Mark the build dirty so the cached result is rendered without
       // sitting in the loading state for a frame.
@@ -563,31 +596,13 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
       _highlightCache.put(_cacheKey, result);
       setState(() {
         _result = result;
+        _updateSpans();
         _loading = false;
       });
     }).catchError((e) {
       if (!mounted) return;
       setState(() => _loading = false);
     });
-  }
-
-  List<TextSpan> _getLineSpans(int index) {
-    if (_lineSpanCache.containsKey(index)) return _lineSpanCache[index]!;
-    final tokens = _result!.lineTokens[index];
-    final spans = <TextSpan>[];
-    for (int i = 0; i < tokens.length; i += 3) {
-      spans.add(TextSpan(
-        text: tokens[i] as String,
-        style: TextStyle(
-          color: Color(tokens[i + 1] as int),
-          fontWeight: (tokens[i + 2] as int) == 1
-              ? FontWeight.w600
-              : FontWeight.normal,
-        ),
-      ));
-    }
-    _lineSpanCache[index] = spans;
-    return spans;
   }
 
   Future<void> _saveJsonFile(String content) async {
@@ -599,7 +614,25 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
       ],
     );
     if (location == null) return;
-    await File(location.path).writeAsString(content);
+    if (mounted) setState(() => _saving = true);
+    try {
+      await File(location.path).writeAsString(content);
+      if (!mounted) return;
+      showSuccessToast(
+        context,
+        message: 'Saved JSON',
+        subtitle: fileName,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showErrorToast(
+        context,
+        message: 'Save failed',
+        error: e.toString(),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -607,7 +640,8 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (_lastIsDark != null && _lastIsDark != isDark) {
-      _lineSpanCache.clear();
+      _cachedSpans = null;
+      _lineNumbersText = null;
       _result = null;
       _highlightCache.remove(_cacheKey);
       _startCompute();
@@ -615,7 +649,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     _lastIsDark = isDark;
 
     final lineCount = _result?.lineCount ?? 0;
-    final gutterWidth = '$lineCount'.length * 8.0 + 20;
+    final gutterWidth = '$lineCount'.length * 8.0 + 16.0;
 
     return Container(
       width: double.infinity,
@@ -693,13 +727,14 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                     icon: LucideIcons.download,
                     tooltip: 'Save as file',
                     isDark: isDark,
-                    onTap: () => _saveJsonFile(_result!.formatted),
+                    loading: _saving,
+                    onTap: _saving ? () {} : () => _saveJsonFile(_result!.formatted),
                   ),
                 ],
               ],
             ),
           ),
-          // Content — virtualized per-line rendering
+          // Content — unified smooth scrollable view
           if (_loading)
             Padding(
               padding: const EdgeInsets.all(24),
@@ -717,72 +752,58 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
           else
             Flexible(
               child: SelectionArea(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final bounded = constraints.maxHeight.isFinite;
-                    return ListView.builder(
-                      controller: _scrollController,
-                      itemCount: lineCount,
-                      shrinkWrap: !bounded,
-                      physics: bounded
-                          ? null
-                          : const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 1),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Line number gutter is excluded from selection
-                              // so dragging across multiple lines doesn't pull
-                              // the numbers into the copied text.
-                              SelectionContainer.disabled(
-                                child: SizedBox(
-                                  width: gutterWidth,
-                                  height: _lineHeight,
-                                  child: Text(
-                                    '${index + 1}',
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(
-                                      fontFamily: AppConstants.monoFontFamily,
-                                      fontSize: 11,
-                                      height: 1.5,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SelectionContainer.disabled(
-                                child: Container(
-                                  width: 1,
-                                  height: _lineHeight,
-                                  margin: const EdgeInsets.symmetric(
-                                      horizontal: 8),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(right: 16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Line number gutter is excluded from selection
+                        // so dragging across multiple lines doesn't pull
+                        // the numbers into the copied text.
+                        SelectionContainer.disabled(
+                          child: Container(
+                            width: gutterWidth,
+                            padding: const EdgeInsets.only(right: 8),
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                right: BorderSide(
                                   color: isDark
                                       ? Colors.white.withValues(alpha: 0.06)
                                       : Colors.black.withValues(alpha: 0.06),
                                 ),
                               ),
-                              Expanded(
-                                child: Text.rich(
-                                  TextSpan(
-                                    style: const TextStyle(
-                                      fontFamily: AppConstants.monoFontFamily,
-                                      fontSize: 12,
-                                      height: 1.5,
-                                    ),
-                                    children: _getLineSpans(index),
-                                  ),
-                                  softWrap: true,
-                                ),
+                            ),
+                            alignment: Alignment.topRight,
+                            child: Text(
+                              _lineNumbersText ?? '',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                fontFamily: AppConstants.monoFontFamily,
+                                fontSize: 12,
+                                height: 1.5,
+                                color: isDark ? Colors.grey[600] : Colors.grey[500],
                               ),
-                            ],
+                            ),
                           ),
-                        );
-                      },
-                    );
-                  },
+                        ),
+                        Text.rich(
+                          TextSpan(
+                            style: const TextStyle(
+                              fontFamily: AppConstants.monoFontFamily,
+                              fontSize: 12,
+                              height: 1.5,
+                            ),
+                            children: _cachedSpans ?? const [],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -797,12 +818,14 @@ class _MiniButton extends StatefulWidget {
   final String tooltip;
   final bool isDark;
   final VoidCallback onTap;
+  final bool loading;
 
   const _MiniButton({
     required this.icon,
     required this.tooltip,
     required this.isDark,
     required this.onTap,
+    this.loading = false,
   });
 
   @override
@@ -817,7 +840,7 @@ class _MiniButtonState extends State<_MiniButton> {
     return GestureDetector(
       onTap: widget.onTap,
       child: MouseRegion(
-        cursor: SystemMouseCursors.click,
+        cursor: widget.loading ? SystemMouseCursors.basic : SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: Tooltip(
@@ -826,18 +849,29 @@ class _MiniButtonState extends State<_MiniButton> {
             duration: const Duration(milliseconds: 120),
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: _hovered
+              color: _hovered && !widget.loading
                   ? (widget.isDark
                       ? Colors.white.withValues(alpha: 0.1)
                       : Colors.black.withValues(alpha: 0.06))
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Icon(
-              widget.icon,
-              size: 13,
-              color: _hovered ? (widget.isDark ? Colors.white70 : Colors.black54) : Colors.grey[500],
-            ),
+            child: widget.loading
+                ? SizedBox(
+                    width: 13,
+                    height: 13,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.6,
+                      color: widget.isDark ? Colors.grey[600] : Colors.grey[400],
+                    ),
+                  )
+                : Icon(
+                    widget.icon,
+                    size: 13,
+                    color: _hovered
+                        ? (widget.isDark ? Colors.white70 : Colors.black54)
+                        : Colors.grey[500],
+                  ),
           ),
         ),
       ),

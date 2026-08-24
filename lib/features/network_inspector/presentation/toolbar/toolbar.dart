@@ -90,7 +90,7 @@ class Toolbar extends ConsumerWidget {
                 isMono: true,
                 onTap: () => ref
                     .read(networkMethodFilterProvider.notifier)
-                    .state = isActive ? null : m,
+                    .set(isActive ? null : m),
               );
             }).toList(),
           ),
@@ -129,7 +129,7 @@ class Toolbar extends ConsumerWidget {
             child: SearchField(
               hintText: S.of(context).filterUrls,
               onChanged: (v) =>
-                  ref.read(networkSearchProvider.notifier).state = v,
+                  ref.read(networkSearchProvider.notifier).set(v),
             ),
           ),
           const SizedBox(width: 12),
@@ -165,9 +165,9 @@ class Toolbar extends ConsumerWidget {
                       isActive: isTop,
                       onTap: () => ref
                           .read(scrollDirectionProvider.notifier)
-                          .state = isTop
+                          .set(isTop
                               ? ScrollDirection.bottom
-                              : ScrollDirection.top,
+                              : ScrollDirection.top),
                     );
                   },
                 ),
@@ -226,11 +226,5 @@ class Toolbar extends ConsumerWidget {
 }
 
 void _toggleSource(WidgetRef ref, String key) {
-  final current = ref.read(networkSourceFilterProvider);
-  if (current.contains(key)) {
-    ref.read(networkSourceFilterProvider.notifier).state =
-        current.difference({key});
-  } else {
-    ref.read(networkSourceFilterProvider.notifier).state = {...current, key};
-  }
+  ref.read(networkSourceFilterProvider.notifier).toggle(key);
 }

@@ -24,6 +24,7 @@ import '../sections/network_section.dart';
 import '../sections/quick_start_section.dart';
 import '../sections/server_section.dart';
 import '../sections/tab_visibility_section.dart';
+import '../sections/tips_section.dart';
 import '../sections/usb_tools_section.dart';
 import '../shared/network_info.dart';
 
@@ -144,20 +145,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                   await server.stop();
                                   ref
                                       .read(serverStartErrorProvider.notifier)
-                                      .state = null;
+                                      .set(null);
                                 } else {
                                   try {
                                     await server.start(port: p);
                                     ref
                                         .read(
                                             serverStartErrorProvider.notifier)
-                                        .state = null;
+                                        .set(null);
                                   } catch (e) {
                                     ref
                                             .read(serverStartErrorProvider
                                                 .notifier)
-                                            .state =
-                                        describeStartError(e, p);
+                                            .set(describeStartError(e, p));
                                   }
                                 }
                                 setState(() {});
@@ -266,6 +266,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         ? _networkInfos.first.ip
                         : 'your-pc-ip',
                   ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Tips & Shortcuts ──
+                SettingsCard(
+                  surface: surface,
+                  border: border,
+                  child: const TipsSection(),
                 ),
                 const SizedBox(height: 16),
 

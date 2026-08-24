@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
@@ -8,18 +6,13 @@ import '../../../core/utils/retention_capped.dart';
 import '../../../models/network/network_entry.dart';
 import '../../../models/performance/performance_entry.dart';
 import '../../../server/providers/server_providers.dart';
-import '../../../server/ws_message_handler.dart';
 import '../../network_inspector/provider/network_providers.dart';
 
 // ---- Performance Metrics ----
 
 final performanceEntriesProvider =
-    StateNotifierProvider<PerformanceNotifier, List<PerformanceEntry>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = PerformanceNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<PerformanceNotifier, List<PerformanceEntry>>(
+        PerformanceNotifier.new);
 
 /// Total performance entries ever received by [PerformanceNotifier],
 /// including ones dropped by the retention cap.
@@ -57,7 +50,17 @@ final filteredPerformanceEntriesProvider =
 });
 
 final performanceMetricFilterProvider =
-    StateProvider<PerformanceMetricType?>((ref) => null);
+    NotifierProvider<_PerformanceMetricFilterNotifier, PerformanceMetricType?>(
+  _PerformanceMetricFilterNotifier.new,
+);
+
+class _PerformanceMetricFilterNotifier
+    extends Notifier<PerformanceMetricType?> {
+  @override
+  PerformanceMetricType? build() => null;
+
+  void set(PerformanceMetricType? v) => state = v;
+}
 
 /// Latest FPS value
 final latestFpsProvider = Provider<double?>((ref) {
@@ -357,35 +360,31 @@ final networkErrorRateProvider = Provider<double>((ref) {
   return (errors / recent.length * 100 * 10).roundToDouble() / 10;
 });
 
-class PerformanceNotifier extends StateNotifier<List<PerformanceEntry>> {
-  late final StreamSubscription<PerformanceEntry> _sub;
-  final Ref _ref;
-
+class PerformanceNotifier extends Notifier<List<PerformanceEntry>> {
   /// Total performance entries ever received, including ones dropped by the cap.
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  PerformanceNotifier(WsMessageHandler handler, this._ref) : super([]) {
-    _sub = handler.onPerformance.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionHighVolumeCap;
+  @override
+  List<PerformanceEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onPerformance.listen((entry) {
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionHighVolumeCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
 
-  void cancelSubscription() => _sub.cancel();
   void clear() => state = [];
 }
 
 // ---- Memory Leak Detection ----
 
 final memoryLeakEntriesProvider =
-    StateNotifierProvider<MemoryLeakNotifier, List<MemoryLeakEntry>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = MemoryLeakNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<MemoryLeakNotifier, List<MemoryLeakEntry>>(
+        MemoryLeakNotifier.new);
 
 /// Total memory-leak entries ever received by [MemoryLeakNotifier],
 /// including ones dropped by the retention cap.
@@ -409,7 +408,16 @@ final memoryLeakDisplayProvider =
 });
 
 final memoryLeakFilterProvider =
-    StateProvider<MemoryLeakSeverity?>((ref) => null);
+    NotifierProvider<_MemoryLeakFilterNotifier, MemoryLeakSeverity?>(
+  _MemoryLeakFilterNotifier.new,
+);
+
+class _MemoryLeakFilterNotifier extends Notifier<MemoryLeakSeverity?> {
+  @override
+  MemoryLeakSeverity? build() => null;
+
+  void set(MemoryLeakSeverity? v) => state = v;
+}
 
 final filteredMemoryLeakEntriesProvider =
     Provider<List<MemoryLeakEntry>>((ref) {
@@ -439,22 +447,22 @@ final memoryLeakCountsProvider =
   };
 });
 
-class MemoryLeakNotifier extends StateNotifier<List<MemoryLeakEntry>> {
-  late final StreamSubscription<MemoryLeakEntry> _sub;
-  final Ref _ref;
-
+class MemoryLeakNotifier extends Notifier<List<MemoryLeakEntry>> {
   /// Total memory-leak entries ever received, including ones dropped by the cap.
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  MemoryLeakNotifier(WsMessageHandler handler, this._ref) : super([]) {
-    _sub = handler.onMemoryLeak.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+  @override
+  List<MemoryLeakEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onMemoryLeak.listen((entry) {
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
 
-  void cancelSubscription() => _sub.cancel();
   void clear() => state = [];
 }

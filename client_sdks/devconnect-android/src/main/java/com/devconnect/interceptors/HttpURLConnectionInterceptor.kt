@@ -61,9 +61,9 @@ object DevConnectHttpURLConnection {
             if (reportedStart) return
             reportedStart = true
 
-            val headers = mutableMapOf<String, String>()
+            val headers = mutableMapOf<String, Any?>()
             inner.requestProperties.forEach { (k, v) ->
-                headers[k] = v.joinToString(", ")
+                headers[k] = if (v.size == 1) v[0] else v.toList()
             }
 
             DevConnect.reportNetworkStart(
@@ -151,9 +151,9 @@ object DevConnectHttpURLConnection {
             error: String? = null,
             truncated: Boolean = false
         ) {
-            val resHeaders = mutableMapOf<String, String>()
+            val resHeaders = mutableMapOf<String, Any?>()
             inner.headerFields?.forEach { (k, v) ->
-                if (k != null) resHeaders[k] = v.joinToString(", ")
+                if (k != null) resHeaders[k] = if (v.size == 1) v[0] else v.toList()
             }
 
             var responseBody: Any? = null

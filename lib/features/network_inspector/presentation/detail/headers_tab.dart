@@ -186,8 +186,9 @@ class HeaderSection extends StatelessWidget {
 }
 
 /// One header row with VSCode-syntax colors. Long values collapse to 4
-/// lines with a "Show more" toggle; on hover, a small copy icon appears
-/// at the end of the row.
+/// lines with a fade gradient hint + a "Show more" pill button
+/// underneath. The button has its own hover state and chevron icon.
+/// On hover over the row, a copy icon fades in at the end of the row.
 class HeaderRowCopy extends StatefulWidget {
   final String headerKey;
   final String headerValue;
@@ -205,14 +206,14 @@ class HeaderRowCopy extends StatefulWidget {
 }
 
 class _HeaderRowCopyState extends State<HeaderRowCopy> {
-  bool _hovered = false;
+  bool _rowHovered = false;
   bool _copied = false;
   bool _expanded = false;
 
   static const _maxCollapsedLines = 4;
 
-  bool get _isLong => '\n'.allMatches(widget.headerValue).length >= _maxCollapsedLines ||
-      widget.headerValue.length > 200;
+  bool get _isLong => '\n'.allMatches(widget.headerValue).length >= 3 ||
+      widget.headerValue.length > 120;
 
   @override
   Widget build(BuildContext context) {
@@ -224,10 +225,12 @@ class _HeaderRowCopyState extends State<HeaderRowCopy> {
           : const Color(0xFFA31515),
     );
 
+    final bg = widget.isDark ? ColorTokens.darkBackground : Colors.white;
+
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
+      onEnter: (_) => setState(() => _rowHovered = true),
       onExit: (_) => setState(() {
-        _hovered = false;
+        _rowHovered = false;
         _copied = false;
       }),
       child: Row(
@@ -254,55 +257,151 @@ class _HeaderRowCopyState extends State<HeaderRowCopy> {
                 if (_expanded)
                   TextComponent(widget.headerValue, style: valueStyle)
                 else
-                  TextComponent(
-                    widget.headerValue,
-                    style: valueStyle,
-                    maxLines: _maxCollapsedLines,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                if (_isLong)
-                  GestureDetector(
-                    onTap: () => setState(() => _expanded = !_expanded),
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: TextComponent(
-                          _expanded ? S.of(context).collapse : S.of(context).showMore,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: ColorTokens.primary,
-                            fontWeight: FontWeight.w600,
+                  Stack(
+                    children: [
+                      TextComponent(
+                        widget.headerValue,
+                        style: valueStyle,
+                        maxLines: _maxCollapsedLines,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_isLong)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: IgnorePointer(
+                            child: Container(
+                              height: 18,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    bg.withValues(alpha: 0),
+                                    bg,
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                    ],
                   ),
+                if (_isLong) ...[
+                  const SizedBox(height: 6),
+                  _ExpandToggleButton(
+                    expanded: _expanded,
+                    isDark: widget.isDark,
+                    onTap: () => setState(() => _expanded = !_expanded),
+                  ),
+                ],
               ],
             ),
           ),
-          if (_hovered)
-            GestureDetector(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: '${widget.headerKey}: ${widget.headerValue}'));
-                setState(() => _copied = true);
-                showCopiedToast(context);
-              },
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 6),
-                  child: Icon(
-                    _copied ? LucideIcons.check : LucideIcons.copy,
-                    size: 12,
-                    color: _copied
-                        ? ColorTokens.success
-                        : (widget.isDark ? Colors.white38 : Colors.black26),
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 140),
+            opacity: _rowHovered ? 1.0 : 0.0,
+            child: IgnorePointer(
+              ignoring: !_rowHovered,
+              child: GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: '${widget.headerKey}: ${widget.headerValue}'));
+                  setState(() => _copied = true);
+                  showCopiedToast(context);
+                },
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 6, top: 1),
+                    child: Icon(
+                      _copied ? LucideIcons.check : LucideIcons.copy,
+                      size: 12,
+                      color: _copied
+                          ? ColorTokens.success
+                          : (widget.isDark ? Colors.white38 : Colors.black26),
+                    ),
                   ),
                 ),
               ),
             ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Pill-shaped toggle that says "Show more" / "Show less" with a
+/// chevron icon. Isolated widget so its hover state doesn't bleed
+/// into the row's copy-icon hover (and vice versa).
+class _ExpandToggleButton extends StatefulWidget {
+  final bool expanded;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _ExpandToggleButton({
+    required this.expanded,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_ExpandToggleButton> createState() => _ExpandToggleButtonState();
+}
+
+class _ExpandToggleButtonState extends State<_ExpandToggleButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = _hovered
+        ? ColorTokens.primary.withValues(alpha: 0.14)
+        : ColorTokens.primary.withValues(alpha: 0.07);
+    final border = _hovered
+        ? ColorTokens.primary.withValues(alpha: 0.45)
+        : ColorTokens.primary.withValues(alpha: 0.22);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: border, width: 0.8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.expanded
+                    ? S.of(context).collapse
+                    : S.of(context).showMore,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: ColorTokens.primary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                widget.expanded
+                    ? LucideIcons.chevronUp
+                    : LucideIcons.chevronDown,
+                size: 10,
+                color: ColorTokens.primary,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020", "DOM"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "rootDir": "src",
+    "outDir": "dist-test",
+    "declaration": false
+  },
+  "include": [
+    "src/client.ts",
+    "src/interceptors/mockServerInterceptor.ts",
+    "src/integrations/apollo.ts",
+    "src/integrations/reactQuery.ts",
+    "src/reporters/sourceMapReporter.ts",
+    "src/interceptors/webSocketInterceptor.ts",
+    "src/interceptors/apollo/devConnectApolloLink.ts"
+  ]
+}

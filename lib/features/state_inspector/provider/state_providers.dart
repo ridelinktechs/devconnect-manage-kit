@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
@@ -7,15 +5,10 @@ import '../../../core/utils/list_retention.dart';
 import '../../../core/utils/retention_capped.dart';
 import '../../../models/state/state_change.dart';
 import '../../../server/providers/server_providers.dart';
-import '../../../server/ws_message_handler.dart';
 
 final stateChangesProvider =
-    StateNotifierProvider<StateChangesNotifier, List<StateChange>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = StateChangesNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<StateChangesNotifier, List<StateChange>>(
+        StateChangesNotifier.new);
 
 /// Total state changes ever received by [StateChangesNotifier],
 /// including ones dropped by the retention cap.
@@ -38,7 +31,17 @@ final stateChangesDisplayProvider =
   return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
-final selectedStateChangeIdProvider = StateProvider<String?>((ref) => null);
+final selectedStateChangeIdProvider =
+    NotifierProvider<_SelectedStateChangeIdNotifier, String?>(
+  _SelectedStateChangeIdNotifier.new,
+);
+
+class _SelectedStateChangeIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? v) => state = v;
+}
 
 final selectedStateChangeProvider = Provider<StateChange?>((ref) {
   final id = ref.watch(selectedStateChangeIdProvider);
@@ -47,7 +50,17 @@ final selectedStateChangeProvider = Provider<StateChange?>((ref) {
   return entries.where((e) => e.id == id).firstOrNull;
 });
 
-final stateSearchProvider = StateProvider<String>((ref) => '');
+final stateSearchProvider =
+    NotifierProvider<_StateSearchNotifier, String>(
+  _StateSearchNotifier.new,
+);
+
+class _StateSearchNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String v) => state = v;
+}
 
 final filteredStateChangesProvider = Provider<List<StateChange>>((ref) {
   final entries = ref.watch(stateChangesDisplayProvider).items;
@@ -65,23 +78,22 @@ final filteredStateChangesProvider = Provider<List<StateChange>>((ref) {
   }).toList();
 });
 
-class StateChangesNotifier extends StateNotifier<List<StateChange>> {
-  late final StreamSubscription<StateChange> _sub;
-  final Ref _ref;
-
+class StateChangesNotifier extends Notifier<List<StateChange>> {
   /// Total state changes ever received, including ones dropped by the cap.
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  StateChangesNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
-    _sub = wsMessageHandler.onState.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+  @override
+  List<StateChange> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onState.listen((entry) {
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
-
-  void cancelSubscription() => _sub.cancel();
 
   void clear() => state = [];
 }

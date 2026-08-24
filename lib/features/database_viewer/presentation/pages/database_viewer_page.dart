@@ -96,7 +96,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                                       onTap: () {
                                         ref
                                             .read(selectedTableProvider.notifier)
-                                            .state = table.name;
+                                            .set(table.name);
                                       },
                                       child: MouseRegion(
                                         cursor: SystemMouseCursors.click,

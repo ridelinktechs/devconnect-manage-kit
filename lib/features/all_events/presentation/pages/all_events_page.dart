@@ -231,7 +231,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
           // tell anything happened).
           await Future.delayed(const Duration(milliseconds: 600));
         } catch (e) {
-          ref.read(serverStartErrorProvider.notifier).state = e.toString();
+          ref.read(serverStartErrorProvider.notifier).set(e.toString());
           if (!mounted) return;
           showErrorToast(
             context,
@@ -241,11 +241,11 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
           return;
         }
       }
-      ref.read(serverStartErrorProvider.notifier).state = null;
+      ref.read(serverStartErrorProvider.notifier).set(null);
 
       try {
         await ws.start(port: port);
-        ref.read(serverStartErrorProvider.notifier).state = null;
+        ref.read(serverStartErrorProvider.notifier).set(null);
 
         // Toast: success. Wait one frame so connectedDevicesProvider picks
         // up any reconnects before we report the count.
@@ -274,7 +274,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
           );
         }
       } catch (e) {
-        ref.read(serverStartErrorProvider.notifier).state = e.toString();
+        ref.read(serverStartErrorProvider.notifier).set(e.toString());
         if (!mounted) return;
         // Surface the friendly error message when possible.
         final msg = e.toString();

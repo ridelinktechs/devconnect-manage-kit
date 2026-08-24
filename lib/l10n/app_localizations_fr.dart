@@ -1146,4 +1146,95 @@ class SFr extends S {
   @override
   String get binaryBodyHint =>
       'Identifiez l\'action via l\'en-tête X-Amz-Target.';
+
+  @override
+  String get tipsAndShortcuts => 'Astuces & Raccourcis';
+
+  @override
+  String get tipsAndShortcutsDesc =>
+      'Guides rapides pour les flux de travail les plus utiles. Cliquez sur une carte pour les détails.';
+
+  @override
+  String get tipAllEventsTitle => 'Flux de tous les événements';
+
+  @override
+  String get tipAllEventsBody =>
+      'Flux unifié de chaque événement de votre application. Utilisez la recherche pour filtrer par tag ou texte. Cliquez sur une ligne pour le panneau de détail. Maintenez Cmd/Ctrl + clic pour la sélection multiple.';
+
+  @override
+  String get tipNetworkTitle => 'Inspecter HTTP & WebSocket';
+
+  @override
+  String get tipNetworkBody =>
+      'Cliquez sur une requête pour inspecter les en-têtes, le corps et le waterfall. Clic droit > \"Copier en cURL\" pour rejouer dans un terminal. Utilisez le filtre d\'URL pour cibler un endpoint.';
+
+  @override
+  String get tipConsoleTitle => 'Flux de logs en direct';
+
+  @override
+  String get tipConsoleBody =>
+      'Chaque ligne print/log/Timber apparaît ici en temps réel. Filtrez par tag ou texte, puis cliquez pour la stack trace. Basculez \"Plus récent en haut\" dans la barre d\'outils.';
+
+  @override
+  String get tipStateTitle => 'Diff de state';
+
+  @override
+  String get tipStateBody =>
+      'Chaque ligne est un changement de state. Cliquez pour voir le diff JSON Avant/Après. Filtrez par reducer/store. Basculez l\'ordre selon votre flux de débogage.';
+
+  @override
+  String get tipStorageTitle => 'Stockage clé-valeur';
+
+  @override
+  String get tipStorageBody =>
+      'SharedPreferences, AsyncStorage, Hive — tout au même endroit. Basculez les filtres LECTURE/ÉCRITURE. Cliquez sur une clé pour voir son historique complet.';
+
+  @override
+  String get tipDatabaseTitle => 'Visionneuse SQLite';
+
+  @override
+  String get tipDatabaseBody =>
+      'Cliquez sur une table pour parcourir les lignes. Triez en tapant un en-tête de colonne. Utilisez le bouton d\'actualisation pour ré-interroger après les écritures de l\'app.';
+
+  @override
+  String get tipPerformanceTitle => 'État système en direct';
+
+  @override
+  String get tipPerformanceBody =>
+      'CPU, RAM, batterie, FPS et thermique en temps réel. Cliquez \"Démarrer l\'enregistrement\" pour capturer une session, puis analysez les frames lentes.';
+
+  @override
+  String get tipLeaksTitle => 'Détection de fuites mémoire';
+
+  @override
+  String get tipLeaksBody =>
+      'Détecte automatiquement controllers/streams/timers non libérés, collections croissantes et fuites de widgets. Chaque ligne montre la source et la taille retenue.';
+
+  @override
+  String get tipBenchmarkTitle => 'Mesures personnalisées';
+
+  @override
+  String get tipBenchmarkBody =>
+      'Encadrez du code avec benchmarkStart/Step/Stop du SDK pour enregistrer les temps. Chaque benchmark affiche min/max/avg/p50/p95. Les étapes permettent de détailler chaque phase.';
+
+  @override
+  String get tipErrorsTitle => 'Erreurs & crashes';
+
+  @override
+  String get tipErrorsBody =>
+      'Capture chaque exception et crash natif. Cliquez pour la stack trace complète. Les crashes natifs Android incluent un backtrace C++ via le sigaction handler.';
+
+  @override
+  String get tipMockTitle => 'Mocker les réponses réseau';
+
+  @override
+  String get tipMockBody =>
+      'Ajoutez une règle avec méthode + pattern d\'URL + status + body, puis cliquez \"Push All\" pour l\'installer. Une requête correspondante renvoie votre fausse réponse. Le log d\'audit montre chaque correspondance.';
+
+  @override
+  String get tipHistoryTitle => 'Appareils récents';
+
+  @override
+  String get tipHistoryBody =>
+      'Rouvrez rapidement une session précédente pour inspecter les anciens événements sans vous reconnecter. La liste persiste entre les redémarrages.';
 }

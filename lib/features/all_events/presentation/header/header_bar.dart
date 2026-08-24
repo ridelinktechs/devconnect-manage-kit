@@ -170,7 +170,7 @@ class Header extends ConsumerWidget {
             child: SearchField(
               hintText: S.of(context).searchEvents,
               onChanged: (v) =>
-                  ref.read(allEventsSearchProvider.notifier).state = v,
+                  ref.read(allEventsSearchProvider.notifier).set(v),
             ),
           ),
           const SizedBox(width: 12),
@@ -206,8 +206,8 @@ class Header extends ConsumerWidget {
                       icon: isNewest ? LucideIcons.arrowUpNarrowWide : LucideIcons.arrowDownNarrowWide,
                       tooltip: isNewest ? S.of(context).newestFirst : S.of(context).oldestFirst,
                       isActive: isNewest,
-                      onTap: () => ref.read(allEventsSortOrderProvider.notifier).state =
-                          isNewest ? SortOrder.oldestFirst : SortOrder.newestFirst,
+                      onTap: () => ref.read(allEventsSortOrderProvider.notifier).set(
+                          isNewest ? SortOrder.oldestFirst : SortOrder.newestFirst),
                     );
                   },
                 ),

@@ -63,23 +63,21 @@ const _releasesUrl =
     'https://api.github.com/repos/ridelinktechs/devconnect-manage-kit/releases/latest';
 
 final appUpdateProvider =
-    StateNotifierProvider<AppUpdateNotifier, AppReleaseState>((ref) {
-  final notifier = AppUpdateNotifier(ref);
-  ref.onDispose(notifier._onDispose);
-  return notifier;
-});
+    NotifierProvider<AppUpdateNotifier, AppReleaseState>(AppUpdateNotifier.new);
 
-class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
+class AppUpdateNotifier extends Notifier<AppReleaseState> {
   static const _ttl = Duration(minutes: 30);
   static const _timeout = Duration(seconds: 5);
 
-  final Ref _ref;
   Timer? _refresh;
 
-  AppUpdateNotifier(this._ref) : super(AppReleaseState.empty) {
+  @override
+  AppReleaseState build() {
     _refresh = Timer.periodic(_ttl, (_) => _refreshNow());
+    ref.onDispose(_onDispose);
     // ignore: discarded_futures
     _bootstrap();
+    return AppReleaseState.empty;
   }
 
   /// Manually re-fetch. UI surfaces this as a "Retry" affordance.
@@ -94,13 +92,11 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
     // GitHub fetch never started.
     String? cur;
     try {
-      cur = await _ref.read(appVersionProvider.future);
+      cur = await ref.read(appVersionProvider.future);
     } catch (e) {
-      if (!mounted) return;
       state = AppReleaseState(error: 'package_info: $e');
       return;
     }
-    if (!mounted) return;
     state = AppReleaseState(currentVersion: cur);
     await _refreshNow();
   }
@@ -111,9 +107,8 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
     // have it cached in state.
     String? cur;
     try {
-      cur = state.currentVersion ?? await _ref.read(appVersionProvider.future);
+      cur = state.currentVersion ?? await ref.read(appVersionProvider.future);
     } catch (e) {
-      if (!mounted) return;
       state = AppReleaseState(
         release: state.release,
         currentVersion: state.currentVersion,
@@ -122,7 +117,6 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
       );
       return;
     }
-    if (!mounted) return;
 
     try {
       final resp = await http
@@ -133,7 +127,6 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
             },
           )
           .timeout(_timeout);
-      if (!mounted) return;
       if (resp.statusCode != 200) {
         // Preserve the last-known release so a transient 5xx / 403
         // doesn't suddenly flip the UI from "Update available" back
@@ -179,7 +172,6 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
         fetchedAt: DateTime.now(),
       );
     } on TimeoutException {
-      if (!mounted) return;
       state = AppReleaseState(
         currentVersion: cur,
         release: state.release,
@@ -187,7 +179,6 @@ class AppUpdateNotifier extends StateNotifier<AppReleaseState> {
         error: 'timeout',
       );
     } catch (e) {
-      if (!mounted) return;
       state = AppReleaseState(
         currentVersion: cur,
         release: state.release,

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
@@ -7,17 +5,12 @@ import '../../../core/utils/list_retention.dart';
 import '../../../core/utils/retention_capped.dart';
 import '../../../models/log/error_event.dart';
 import '../../../server/providers/server_providers.dart';
-import '../../../server/ws_message_handler.dart';
 
 // ---- Error Events ----
 
 final errorEntriesProvider =
-    StateNotifierProvider<ErrorNotifier, List<ErrorEvent>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = ErrorNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<ErrorNotifier, List<ErrorEvent>>(
+        ErrorNotifier.new);
 
 /// Total errors ever received by [ErrorNotifier], including ones
 /// dropped by the retention cap.
@@ -40,13 +33,53 @@ final errorDisplayProvider =
   return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
-final errorSearchProvider = StateProvider<String>((ref) => '');
-final errorFilterProvider = StateProvider<Set<ErrorPlatform>>(
-  (ref) => ErrorPlatform.values.toSet(),
+final errorSearchProvider =
+    NotifierProvider<_ErrorSearchNotifier, String>(
+  _ErrorSearchNotifier.new,
 );
-final errorSeverityFilterProvider = StateProvider<Set<ErrorSeverity>>(
-  (ref) => ErrorSeverity.values.toSet(),
+
+class _ErrorSearchNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String v) => state = v;
+}
+
+final errorFilterProvider =
+    NotifierProvider<_ErrorFilterNotifier, Set<ErrorPlatform>>(
+  _ErrorFilterNotifier.new,
 );
+
+class _ErrorFilterNotifier extends Notifier<Set<ErrorPlatform>> {
+  @override
+  Set<ErrorPlatform> build() => ErrorPlatform.values.toSet();
+
+  void set(Set<ErrorPlatform> v) => state = v;
+
+  void toggle(ErrorPlatform platform) {
+    state = state.contains(platform)
+        ? state.difference({platform})
+        : {...state, platform};
+  }
+}
+
+final errorSeverityFilterProvider =
+    NotifierProvider<_ErrorSeverityFilterNotifier, Set<ErrorSeverity>>(
+  _ErrorSeverityFilterNotifier.new,
+);
+
+class _ErrorSeverityFilterNotifier extends Notifier<Set<ErrorSeverity>> {
+  @override
+  Set<ErrorSeverity> build() => ErrorSeverity.values.toSet();
+
+  void set(Set<ErrorSeverity> v) => state = v;
+
+  void toggle(ErrorSeverity severity) {
+    state = state.contains(severity)
+        ? state.difference({severity})
+        : {...state, severity};
+  }
+}
 
 final filteredErrorEntriesProvider = Provider<List<ErrorEvent>>((ref) {
   final entries = ref.watch(errorEntriesProvider);
@@ -110,22 +143,22 @@ final errorCountBySeverityProvider = Provider<Map<ErrorSeverity, int>>((ref) {
   };
 });
 
-class ErrorNotifier extends StateNotifier<List<ErrorEvent>> {
-  late final StreamSubscription<ErrorEvent> _sub;
-  final Ref _ref;
-
+class ErrorNotifier extends Notifier<List<ErrorEvent>> {
   /// Total errors ever received, including ones dropped by the cap.
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  ErrorNotifier(WsMessageHandler handler, this._ref) : super([]) {
-    _sub = handler.onError.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
+  @override
+  List<ErrorEvent> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onError.listen((entry) {
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
 
-  void cancelSubscription() => _sub.cancel();
   void clear() => state = [];
 }

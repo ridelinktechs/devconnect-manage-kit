@@ -1116,6 +1116,95 @@ class SZh extends S {
 
   @override
   String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
+
+  @override
+  String get tipsAndShortcuts => '提示与快捷方式';
+
+  @override
+  String get tipsAndShortcutsDesc => '最常用工作流程的快速指南。点击任意卡片查看详情。';
+
+  @override
+  String get tipAllEventsTitle => '所有事件流';
+
+  @override
+  String get tipAllEventsBody =>
+      '应用中所有事件的统一流。使用搜索框按标签或文本筛选。点击任意行打开完整详情面板。按住 Cmd/Ctrl 并点击可多选。';
+
+  @override
+  String get tipNetworkTitle => '检查 HTTP 和 WebSocket';
+
+  @override
+  String get tipNetworkBody =>
+      '点击任意请求以检查请求头、正文和时间瀑布图。右键请求并选择「复制为 cURL」以在终端中重放。使用 URL 过滤框聚焦于特定端点。';
+
+  @override
+  String get tipConsoleTitle => '实时日志流';
+
+  @override
+  String get tipConsoleBody =>
+      '所有 print/log/Timber 行都会实时显示在此处。按标签或文本筛选,然后点击行查看完整堆栈跟踪。在工具栏中切换「最新优先」。';
+
+  @override
+  String get tipStateTitle => 'State 差异查看器';
+
+  @override
+  String get tipStateBody =>
+      '每行表示一次 state 更改。点击查看 Before/After JSON 差异并排显示。使用 action 过滤器聚焦于特定 reducer/store。';
+
+  @override
+  String get tipStorageTitle => '键值存储';
+
+  @override
+  String get tipStorageBody =>
+      'SharedPreferences、AsyncStorage、Hive — 所有内容集中在一处。在顶部切换 READ/WRITE 过滤器。点击键查看其完整更改历史及时间戳。';
+
+  @override
+  String get tipDatabaseTitle => 'SQLite 查看器';
+
+  @override
+  String get tipDatabaseBody =>
+      '点击任意表格在详情面板中浏览行。通过点击列标题进行排序。使用刷新按钮在设备应用写入新行后重新查询。';
+
+  @override
+  String get tipPerformanceTitle => '实时系统状态';
+
+  @override
+  String get tipPerformanceBody =>
+      'CPU、RAM、电池消耗、FPS 和温度状态实时流式传输。点击「开始录制」捕获会话,然后分析慢帧。';
+
+  @override
+  String get tipLeaksTitle => '内存泄漏检测';
+
+  @override
+  String get tipLeaksBody =>
+      '自动检测未释放的 controller/stream/timer、不断增长的集合以及 widget 泄漏。每行显示源位置和保留大小。';
+
+  @override
+  String get tipBenchmarkTitle => '自定义计时';
+
+  @override
+  String get tipBenchmarkBody =>
+      '使用 SDK 中的 benchmarkStart/Step/Stop 包裹任意代码以记录时间。每个基准显示 min/max/avg/p50/p95。';
+
+  @override
+  String get tipErrorsTitle => '错误和崩溃';
+
+  @override
+  String get tipErrorsBody =>
+      '捕获每个异常和原生崩溃。点击查看完整堆栈跟踪。Android 原生崩溃包含来自 sigaction 处理程序的 C++ 堆栈。';
+
+  @override
+  String get tipMockTitle => '模拟网络响应';
+
+  @override
+  String get tipMockBody =>
+      '添加包含方法 + URL 模式 + 状态 + 正文的规则,然后点击「Push All」安装到设备。匹配的请求返回您的伪造响应。';
+
+  @override
+  String get tipHistoryTitle => '最近的设备';
+
+  @override
+  String get tipHistoryBody => '快速重新打开以前的设备会话以检查过去的事件而无需重新连接。列表在应用重启后仍然保留。';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -2230,6 +2319,95 @@ class SZhCn extends SZh {
 
   @override
   String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
+
+  @override
+  String get tipsAndShortcuts => '提示与快捷方式';
+
+  @override
+  String get tipsAndShortcutsDesc => '最常用工作流程的快速指南。点击任意卡片查看详情。';
+
+  @override
+  String get tipAllEventsTitle => '所有事件流';
+
+  @override
+  String get tipAllEventsBody =>
+      '应用中所有事件的统一流。使用搜索框按标签或文本筛选。点击任意行打开完整详情面板。按住 Cmd/Ctrl 并点击可多选。';
+
+  @override
+  String get tipNetworkTitle => '检查 HTTP 和 WebSocket';
+
+  @override
+  String get tipNetworkBody =>
+      '点击任意请求以检查请求头、正文和时间瀑布图。右键请求并选择「复制为 cURL」以在终端中重放。使用 URL 过滤框聚焦于特定端点。';
+
+  @override
+  String get tipConsoleTitle => '实时日志流';
+
+  @override
+  String get tipConsoleBody =>
+      '所有 print/log/Timber 行都会实时显示在此处。按标签或文本筛选,然后点击行查看完整堆栈跟踪。在工具栏中切换「最新优先」。';
+
+  @override
+  String get tipStateTitle => 'State 差异查看器';
+
+  @override
+  String get tipStateBody =>
+      '每行表示一次 state 更改。点击查看 Before/After JSON 差异并排显示。使用 action 过滤器聚焦于特定 reducer/store。';
+
+  @override
+  String get tipStorageTitle => '键值存储';
+
+  @override
+  String get tipStorageBody =>
+      'SharedPreferences、AsyncStorage、Hive — 所有内容集中在一处。在顶部切换 READ/WRITE 过滤器。点击键查看其完整更改历史及时间戳。';
+
+  @override
+  String get tipDatabaseTitle => 'SQLite 查看器';
+
+  @override
+  String get tipDatabaseBody =>
+      '点击任意表格在详情面板中浏览行。通过点击列标题进行排序。使用刷新按钮在设备应用写入新行后重新查询。';
+
+  @override
+  String get tipPerformanceTitle => '实时系统状态';
+
+  @override
+  String get tipPerformanceBody =>
+      'CPU、RAM、电池消耗、FPS 和温度状态实时流式传输。点击「开始录制」捕获会话,然后分析慢帧。';
+
+  @override
+  String get tipLeaksTitle => '内存泄漏检测';
+
+  @override
+  String get tipLeaksBody =>
+      '自动检测未释放的 controller/stream/timer、不断增长的集合以及 widget 泄漏。每行显示源位置和保留大小。';
+
+  @override
+  String get tipBenchmarkTitle => '自定义计时';
+
+  @override
+  String get tipBenchmarkBody =>
+      '使用 SDK 中的 benchmarkStart/Step/Stop 包裹任意代码以记录时间。每个基准显示 min/max/avg/p50/p95。';
+
+  @override
+  String get tipErrorsTitle => '错误和崩溃';
+
+  @override
+  String get tipErrorsBody =>
+      '捕获每个异常和原生崩溃。点击查看完整堆栈跟踪。Android 原生崩溃包含来自 sigaction 处理程序的 C++ 堆栈。';
+
+  @override
+  String get tipMockTitle => '模拟网络响应';
+
+  @override
+  String get tipMockBody =>
+      '添加包含方法 + URL 模式 + 状态 + 正文的规则,然后点击「Push All」安装到设备。匹配的请求返回您的伪造响应。';
+
+  @override
+  String get tipHistoryTitle => '最近的设备';
+
+  @override
+  String get tipHistoryBody => '快速重新打开以前的设备会话以检查过去的事件而无需重新连接。列表在应用重启后仍然保留。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -3344,4 +3522,93 @@ class SZhTw extends SZh {
 
   @override
   String get binaryBodyHint => '透過 X-Amz-Target 標頭識別操作。';
+
+  @override
+  String get tipsAndShortcuts => '提示與快捷鍵';
+
+  @override
+  String get tipsAndShortcutsDesc => '最常用工作流程的快速指南。點擊任意卡片查看詳情。';
+
+  @override
+  String get tipAllEventsTitle => '所有事件流';
+
+  @override
+  String get tipAllEventsBody =>
+      '應用中所有事件的統一流。使用搜尋框按標籤或文字篩選。點擊任意行開啟完整詳情面板。按住 Cmd/Ctrl 並點擊可多選。';
+
+  @override
+  String get tipNetworkTitle => '檢查 HTTP 與 WebSocket';
+
+  @override
+  String get tipNetworkBody =>
+      '點擊任意請求以檢查標頭、內文與時間瀑布圖。右鍵請求並選擇「複製為 cURL」以在終端機中重播。使用 URL 過濾框聚焦於特定端點。';
+
+  @override
+  String get tipConsoleTitle => '即時日誌流';
+
+  @override
+  String get tipConsoleBody =>
+      '所有 print/log/Timber 行都會即時顯示於此。按標籤或文字篩選,然後點擊行查看完整堆疊。在工具列切換「最新優先」。';
+
+  @override
+  String get tipStateTitle => 'State 差異檢視器';
+
+  @override
+  String get tipStateBody =>
+      '每行代表一次 state 變更。點擊查看 Before/After JSON 差異並排顯示。使用 action 過濾器聚焦於特定 reducer/store。';
+
+  @override
+  String get tipStorageTitle => '鍵值儲存';
+
+  @override
+  String get tipStorageBody =>
+      'SharedPreferences、AsyncStorage、Hive — 所有內容集中一處。於頂部切換 READ/WRITE 過濾器。點擊鍵查看其完整變更歷史與時間戳。';
+
+  @override
+  String get tipDatabaseTitle => 'SQLite 檢視器';
+
+  @override
+  String get tipDatabaseBody =>
+      '點擊任意資料表於詳情面板中瀏覽資料列。透過點擊欄位標題排序。使用重新整理按鈕在裝置應用寫入新資料列後重新查詢。';
+
+  @override
+  String get tipPerformanceTitle => '即時系統狀態';
+
+  @override
+  String get tipPerformanceBody =>
+      'CPU、RAM、電池消耗、FPS 與溫度狀態即時串流。點擊「開始錄製」擷取工作階段,然後分析慢幀。';
+
+  @override
+  String get tipLeaksTitle => '記憶體洩漏偵測';
+
+  @override
+  String get tipLeaksBody =>
+      '自動偵測未釋放的 controller/stream/timer、不斷增長的集合以及 widget 洩漏。每列顯示來源位置與保留大小。';
+
+  @override
+  String get tipBenchmarkTitle => '自訂計時';
+
+  @override
+  String get tipBenchmarkBody =>
+      '使用 SDK 中的 benchmarkStart/Step/Stop 包住任意程式碼以記錄時間。每個基準顯示 min/max/avg/p50/p95。';
+
+  @override
+  String get tipErrorsTitle => '錯誤與當機';
+
+  @override
+  String get tipErrorsBody =>
+      '擷取每個例外與原生當機。點擊查看完整堆疊。Android 原生當機包含來自 sigaction 處理程式的 C++ 堆疊。';
+
+  @override
+  String get tipMockTitle => '模擬網路回應';
+
+  @override
+  String get tipMockBody =>
+      '新增包含方法 + URL 模式 + 狀態 + 內文的規則,然後點擊「Push All」安裝到裝置。符合的請求會回傳您的偽造回應。';
+
+  @override
+  String get tipHistoryTitle => '最近的裝置';
+
+  @override
+  String get tipHistoryBody => '快速重新開啟先前的裝置工作階段以檢查過去的事件而無需重新連線。列表在應用重啟後仍會保留。';
 }

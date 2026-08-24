@@ -31,6 +31,8 @@ class LogDetail extends StatefulWidget {
 
 class _LogDetailState extends State<LogDetail> {
   final _scrollController = SmoothScrollController();
+  String? _cachedMessage;
+  (String, dynamic)? _cachedJsonResult;
 
   @override
   void dispose() {
@@ -38,16 +40,15 @@ class _LogDetailState extends State<LogDetail> {
     super.dispose();
   }
 
-  /// Try to extract JSON from the log message.
-  /// Returns (prefix, parsedJson) or null if no JSON found.
-  static (String, dynamic)? _extractJson(String message) {
-    // Try full message first
+  (String, dynamic)? _extractJson(String message) {
+    if (identical(_cachedMessage, message)) return _cachedJsonResult;
+    _cachedMessage = message;
     try {
       final parsed = jsonDecode(message.trim());
-      if (parsed is Map || parsed is List) return ('', parsed);
+      if (parsed is Map || parsed is List) {
+        return _cachedJsonResult = ('', parsed);
+      }
     } catch (_) {}
-
-    // Find all { or [ positions and try each
     for (var i = 0; i < message.length; i++) {
       final ch = message[i];
       if (ch != '{' && ch != '[') continue;
@@ -56,11 +57,11 @@ class _LogDetailState extends State<LogDetail> {
         final parsed = jsonDecode(jsonStr);
         if (parsed is Map || parsed is List) {
           final prefix = message.substring(0, i).trim();
-          return (prefix, parsed);
+          return _cachedJsonResult = (prefix, parsed);
         }
       } catch (_) {}
     }
-    return null;
+    return _cachedJsonResult = null;
   }
 
   @override

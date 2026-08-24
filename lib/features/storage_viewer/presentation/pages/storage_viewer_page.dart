@@ -227,7 +227,7 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                                         onTap: () {
                                           ref
                                               .read(selectedStorageIdProvider.notifier)
-                                              .state = isSelected ? null : entry.id;
+                                              .set(isSelected ? null : entry.id);
                                           if (!isSelected && _autoScroll) {
                                             _autoScroll = false;
                                             _programmaticScroll = false;
@@ -259,7 +259,7 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                                   entry: selected,
                                   onClose: () => ref
                                       .read(selectedStorageIdProvider.notifier)
-                                      .state = null,
+                                      .set(null),
                                 ),
                               ),
                             ],

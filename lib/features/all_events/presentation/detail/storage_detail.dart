@@ -49,6 +49,8 @@ class StorageDetail extends ConsumerStatefulWidget {
 class _StorageDetailState
     extends ConsumerState<StorageDetail> {
   final _scrollController = SmoothScrollController();
+  String? _cachedRawValue;
+  dynamic _cachedParsedJson;
 
   @override
   void dispose() {
@@ -99,12 +101,19 @@ class _StorageDetailState
 
   dynamic _parsedJson() {
     final v = widget.entry.value;
-    if (v is! String) return null;
+    if (identical(_cachedRawValue, v)) return _cachedParsedJson;
+    _cachedRawValue = v is String ? v : null;
+    if (v is! String) {
+      _cachedParsedJson = null;
+      return null;
+    }
     try {
       final p = jsonDecode(v);
-      if (p is Map || p is List) return p;
-    } catch (_) {}
-    return null;
+      _cachedParsedJson = (p is Map || p is List) ? p : null;
+    } catch (_) {
+      _cachedParsedJson = null;
+    }
+    return _cachedParsedJson;
   }
 
   dynamic _displayValue() {

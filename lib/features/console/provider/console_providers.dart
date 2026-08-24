@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
@@ -7,15 +5,10 @@ import '../../../core/utils/list_retention.dart';
 import '../../../core/utils/retention_capped.dart';
 import '../../../models/log/log_entry.dart';
 import '../../../server/providers/server_providers.dart';
-import '../../../server/ws_message_handler.dart';
 
 final consoleEntriesProvider =
-    StateNotifierProvider<ConsoleNotifier, List<LogEntry>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = ConsoleNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscription());
-  return notifier;
-});
+    NotifierProvider<ConsoleNotifier, List<LogEntry>>(
+        ConsoleNotifier.new);
 
 /// Total log entries ever received by [ConsoleNotifier], including
 /// ones dropped by the retention cap. Drives the "Showing N of M" hint.
@@ -40,10 +33,35 @@ final consoleDisplayProvider =
   return applyRetentionCap(all, limit, totalSeen: totalSeen);
 });
 
-final consoleSearchProvider = StateProvider<String>((ref) => '');
-final consoleFilterProvider = StateProvider<Set<LogLevel>>(
-  (ref) => LogLevel.values.toSet(),
+final consoleSearchProvider =
+    NotifierProvider<_ConsoleSearchNotifier, String>(
+  _ConsoleSearchNotifier.new,
 );
+
+class _ConsoleSearchNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String v) => state = v;
+}
+
+final consoleFilterProvider =
+    NotifierProvider<_ConsoleFilterNotifier, Set<LogLevel>>(
+  _ConsoleFilterNotifier.new,
+);
+
+class _ConsoleFilterNotifier extends Notifier<Set<LogLevel>> {
+  @override
+  Set<LogLevel> build() => LogLevel.values.toSet();
+
+  void set(Set<LogLevel> v) => state = v;
+
+  void toggle(LogLevel level) {
+    state = state.contains(level)
+        ? state.difference({level})
+        : {...state, level};
+  }
+}
 
 final filteredConsoleEntriesProvider = Provider<List<LogEntry>>((ref) {
   final entries = ref.watch(consoleDisplayProvider).items;
@@ -64,23 +82,22 @@ final filteredConsoleEntriesProvider = Provider<List<LogEntry>>((ref) {
   }).toList();
 });
 
-class ConsoleNotifier extends StateNotifier<List<LogEntry>> {
-  late final StreamSubscription<LogEntry> _sub;
-  final Ref _ref;
-
+class ConsoleNotifier extends Notifier<List<LogEntry>> {
   /// Total log entries ever received, including ones dropped by the cap.
   int _totalSeen = 0;
   int get totalSeen => _totalSeen;
 
-  ConsoleNotifier(WsMessageHandler wsMessageHandler, this._ref) : super([]) {
-    _sub = wsMessageHandler.onLog.listen((entry) {
-      final limit = _ref.read(retentionLimitProvider).limit ?? kRetentionHighVolumeCap;
+  @override
+  List<LogEntry> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onLog.listen((entry) {
+      final limit = ref.read(retentionLimitProvider).limit ?? kRetentionHighVolumeCap;
       state = truncateList([...state, entry], limit);
       _totalSeen++;
     });
+    ref.onDispose(() => sub.cancel());
+    return [];
   }
-
-  void cancelSubscription() => _sub.cancel();
 
   void clear() => state = [];
 }

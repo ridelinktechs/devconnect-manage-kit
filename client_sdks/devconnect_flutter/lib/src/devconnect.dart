@@ -24,6 +24,12 @@ import 'plugins/performance_monitor.dart' as perf_monitor;
 import 'plugins/memory_leak_detector.dart' as memory_detector;
 import 'plugins/app_benchmark.dart' as app_bench;
 import 'plugins/error_monitor.dart' as error_monitor;
+// Round 2-5 additions — auto-wired lazily by static helpers below.
+import 'interceptors/bloc/devconnect_bloc_observer.dart' as bloc_helper;
+import 'interceptors/provider/provider_tree_walker.dart' as provider_helper;
+import 'interceptors/graphql/devconnect_link.dart' as graphql_helper;
+import 'interceptors/websocket/devconnect_websocket.dart' as ws_helper;
+import 'interceptors/mock_server_interceptor.dart' as mock_helper;
 
 /// DevConnect Flutter SDK - Main entry point.
 ///
@@ -775,8 +781,8 @@ class DevConnect {
     required String url,
     required int statusCode,
     required int startTime,
-    Map<String, String>? requestHeaders,
-    Map<String, String>? responseHeaders,
+    Map<String, dynamic>? requestHeaders,
+    Map<String, dynamic>? responseHeaders,
     dynamic requestBody,
     dynamic responseBody,
     String? error,
@@ -859,4 +865,116 @@ class DevConnect {
   static DevConnectLoggyPrinter loggyPrinter({dynamic innerPrinter}) {
     return DevConnectLoggyPrinter(innerPrinter: innerPrinter);
   }
+
+  // ---- Round 2: State auto-discovery (BLoC / Provider) ----
+
+  /// Returns a BLoC observer that reports state changes to the desktop.
+  /// No hard dependency on `flutter_bloc` — call this only when you
+  /// already have `flutter_bloc` on the classpath.
+  ///
+  /// ```dart
+  /// Bloc.observer = DevConnect.blocObserver();
+  /// ```
+  static dynamic blocObserver() => bloc_helper.DevConnectBlocObserver();
+
+  /// Helper for non-BLoC consumers. Reports a single BLoC state change.
+  static void reportBlocChange({
+    required String blocName,
+    required String? fromState,
+    required String? toState,
+  }) {
+    bloc_helper.DevConnectBlocHelper.reportChange(
+      blocName: blocName,
+      fromState: fromState,
+      toState: toState,
+    );
+  }
+
+  /// Returns the [DevConnectProviderWalker] singleton. Walks the live
+  /// `InheritedWidget` tree and reports provider value changes. No hard
+  /// dependency on `provider` itself.
+  static dynamic providerWalker() => provider_helper.DevConnectProviderWalker.instance;
+
+  /// Manually push a single Provider value snapshot.
+  static void reportProviderUpdate({
+    required String providerName,
+    required Object? previousValue,
+    required Object? newValue,
+  }) {
+    provider_helper.DevConnectProviderHelper.reportUpdate(
+      providerName: providerName,
+      previousValue: previousValue,
+      newValue: newValue,
+    );
+  }
+
+  // ---- Round 3: Protocol inspectors ----
+
+  /// Returns a [gql_link]-compatible link (or stub). Requires
+  /// `gql_link` / `graphql_flutter` on the classpath; otherwise the
+  /// returned object is a `DevConnectLinkBase` you can compose
+  /// yourself via [DevConnectGraphQLHelper].
+  static dynamic graphqlLink() => graphql_helper.DevConnectLink();
+
+  /// Helper for non-Link GraphQL transports.
+  static void reportGraphQLOperation({
+    required String operationName,
+    required String operationType,
+    Map<String, dynamic>? variables,
+  }) {
+    graphql_helper.DevConnectGraphQLHelper.reportOperation(
+      operationName: operationName,
+      operationType: operationType,
+      variables: variables,
+    );
+  }
+
+  /// Connect to a WebSocket endpoint with DevConnect frame capture.
+  static Future<dynamic> websocketConnect(String url,
+          {Iterable<String>? protocols, Map<String, dynamic>? headers}) =>
+      ws_helper.DevConnectWebSocket.connect(url,
+          protocols: protocols, headers: headers);
+
+  /// Wrap an already-connected [dart:io] `WebSocket`.
+  static dynamic websocketWrap(Object socket, String url) =>
+      ws_helper.DevConnectWebSocket.wrap(socket as dynamic, url);
+
+  /// Push a single WebSocket frame event from a manually-managed socket.
+  static void reportWebSocketFrame({
+    required String url,
+    required String direction,
+    required String opcode,
+    dynamic payload,
+    int? sizeBytes,
+  }) {
+    ws_helper.DevConnectWebSocketHelper.reportFrame(
+      url: url,
+      direction: direction,
+      opcode: opcode,
+      payload: payload,
+      sizeBytes: sizeBytes,
+    );
+  }
+
+  // ---- Round 4: Mock server + source maps ----
+
+  /// Wire the mock server interceptor to the DevConnect message loop
+  /// so `server:mock_rules_update` automatically updates the rule list.
+  /// Idempotent.
+  static void installMockServerInterceptor() {
+    mock_helper.installMockServerInterceptor();
+  }
+
+  /// Replace the active mock rule list. Pass a JSON list or a list of
+  /// [mock_helper.MockRule] objects.
+  static void setMockRules(List<dynamic> rules) {
+    mock_helper.setMockRules(mock_helper.parseRules(rules));
+  }
+
+  /// Look up a matching rule for the given request.
+  static dynamic findMockMatch(String method, String url,
+      [Map<String, String>? headers]) =>
+      mock_helper.findMockMatch(method, url, headers);
+
+  // ---- end ----
 }

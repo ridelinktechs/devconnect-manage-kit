@@ -81,4 +81,33 @@ class ColorTokens {
         return info;
     }
   }
+
+  /// Hairline border color for the current theme — divider with reduced
+  /// alpha so it stays subtle on both light and dark surfaces.
+  static Color hairline(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08);
+  }
+
+  /// Stable color per Flutter widget kind — hash-based palette picker
+  /// so the same widget name always maps to the same chip color.
+  static Color widgetKindColor(String name) {
+    final palette = const [
+      Color(0xFF6C5CE7),
+      Color(0xFF00B894),
+      Color(0xFF74B9FF),
+      Color(0xFFFDAA5E),
+      Color(0xFF00CEC9),
+      Color(0xFFFF6B6B),
+      Color(0xFFE17055),
+      Color(0xFFFDCB6E),
+      Color(0xFF0984E3),
+      Color(0xFF55EFC4),
+    ];
+    var h = 0;
+    for (final code in name.codeUnits) {
+      h = (h * 31 + code) & 0x7fffffff;
+    }
+    return palette[h % palette.length];
+  }
 }

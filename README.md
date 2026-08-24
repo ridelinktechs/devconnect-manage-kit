@@ -12,7 +12,7 @@
 [![Android](https://img.shields.io/badge/Android-SDK-3DDC84?logo=android)](client_sdks/devconnect-manage-android)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[Features](#features) · [Download](#download) · [Quick Start](#quick-start) · [Desktop Guide](#using-the-desktop-app) · [SDKs](#flutter-sdk) · [Support](#support-devconnect-manage-kit)
+[Features](#features) · [Download](#download) · [Quick Start](#quick-start) · [Desktop Guide](#using-the-desktop-app) · [Mock Server](#mock-server) · [SDKs](#flutter-sdk) · [Support](#support-devconnect-manage-kit)
 
 </div>
 
@@ -59,6 +59,7 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 - **Custom Commands** — Send commands from desktop to app and get results
 - **Multi-Device** — Connect multiple apps simultaneously, per-device filtering
 - **All Events** — Unified timeline of all events across features
+- **Mock Server** — Push mock HTTP responses down to devices, audit every intercepted request with full URL/method/status/rule-name
 - **Screenshot** — Full-content screenshot capture of any detail panel
 - **ADB Reverse** — One-click USB connection for Android devices
 - **Auto-detect** — SDK auto-discovers desktop IP, zero configuration needed
@@ -1205,7 +1206,57 @@ Open DevConnect, run your app with the SDK — data appears automatically. The s
 | **Performance**  | Real-time FPS, CPU, memory charts    | Hover for exact values, jank frames highlighted                                                                                   |
 | **Memory Leaks** | Detected leaks with severity         | Sorted by severity (critical/warning/info), stack traces                                                                          |
 | **Benchmark**    | Timing measurements with steps       | Start/step/stop lifecycle with duration                                                                                           |
+| **Mock Server**  | Push mock HTTP responses to device   | Add rule → push to SDK → audit shows every intercepted request                                                                    |
 | **All Events**   | Unified timeline across all features | Filter by type, search across everything                                                                                          |
+
+### Mock Server
+
+Replace real network responses with mock data for testing edge cases without touching the backend. The desktop pushes rules down; the SDK intercepts matching requests before they hit the network and audits every hit back to the desktop.
+
+**Creating a rule**
+
+1. Open **Mock Server** tab
+2. Click **+ Add rule**
+3. Fill in:
+   - **Rule name** — human-readable label (e.g. `Get user 404`)
+   - **Method** — GET / POST / PUT / PATCH / DELETE
+   - **URL pattern** — regex (e.g. `^/api/users/999$`)
+   - **Status** — HTTP status code (200, 404, 500, ...)
+   - **Response headers** — one per line, `key: value`
+   - **Response body** — raw string or JSON
+4. Optional wire-only fields:
+   - **Delay (ms)** — sleep before returning the mocked response
+   - **Scope deviceIds** — comma-separated; empty means every device
+   - **Expires at** — ISO-8601 timestamp; rule is ignored past this time
+5. Click **Push all** to push the full list, or **Push this** for just the selected rule
+
+**On the device**
+
+No code changes needed. The SDK's `MockServerInterceptor` (already installed alongside `dio` / `axios` / `okHttp` interceptors) listens for `server:mock_rules_update` and caches the rule list in memory. When a matching request fires, the interceptor returns the mocked response immediately — the real network stack is never touched.
+
+**Auditing**
+
+Every intercepted request emits `client:mocked_request` back to the desktop. The Audit panel (inside the Mock Server tab) shows:
+
+- Method + URL pattern that matched
+- HTTP status returned
+- Rule name (looked up locally by `ruleId`)
+- Timestamp
+
+Click any row for the full entry detail.
+
+**Example**
+
+| Field      | Value                       |
+| ---------- | --------------------------- |
+| Name       | Get user 404                |
+| Method     | GET                         |
+| URL        | `^/api/users/999$`          |
+| Status     | 404                         |
+| Body       | `{"error":"not found"}`     |
+| Delay      | 500                         |
+
+In the app, calling `GET /api/users/999` returns 404 instantly with the mock body — the desktop audit row appears the moment the SDK intercepts it.
 
 ### Toolbar Controls
 
@@ -1290,6 +1341,20 @@ Looking for mobile debugging tools? Here's how DevConnect compares:
 - **[Flutter DevTools](https://docs.flutter.dev/tools/devtools)** — Official Flutter debugging, but no React Native or Android Native. DevConnect adds cross-platform support.
 
 > Searching for: _reactotron alternative_, _flipper replacement_, _flutter debugging tool_, _react native debugger_, _android debug inspector_, _mobile app debugger_, _cross-platform debugging_, _network inspector_, _state debugger_, _redux devtools mobile_? DevConnect is built for you.
+
+---
+
+## Support DevConnect Manage Kit
+
+DevConnect Manage Kit is free and open source. If it saves you debugging time, consider supporting development:
+
+<div align="center">
+
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-EA4AAA?logo=github&logoColor=white)](https://github.com/sponsors/buivietphi)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/buivietphi)
+[![PayPal](https://img.shields.io/badge/PayPal-Donate-0070BA?logo=paypal&logoColor=white)](https://paypal.me/buivietphi)
+
+</div>
 
 ---
 

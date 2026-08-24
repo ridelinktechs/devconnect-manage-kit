@@ -28,12 +28,8 @@ final wsMessageHandlerProvider = Provider<WsMessageHandler>((ref) {
 });
 
 final connectedDevicesProvider =
-    StateNotifierProvider<ConnectedDevicesNotifier, List<DeviceInfo>>((ref) {
-  final handler = ref.watch(wsMessageHandlerProvider);
-  final notifier = ConnectedDevicesNotifier(handler, ref);
-  ref.onDispose(() => notifier.cancelSubscriptions());
-  return notifier;
-});
+    NotifierProvider<ConnectedDevicesNotifier, List<DeviceInfo>>(
+        ConnectedDevicesNotifier.new);
 
 /// Mirrors connect/disconnect events into the persistent device history.
 /// Kept separate from [connectedDevicesProvider] so the in-memory list and
@@ -58,9 +54,8 @@ final deviceHistoryMirrorProvider = Provider<void>((ref) {
 const allDevicesValue = '__all__';
 
 final selectedDeviceProvider =
-    StateNotifierProvider<SelectedDeviceNotifier, String?>((ref) {
-  return SelectedDeviceNotifier();
-});
+    NotifierProvider<SelectedDeviceNotifier, String?>(
+        SelectedDeviceNotifier.new);
 
 /// Auto-select first device when it connects.
 /// Clear selection when selected device disconnects.
@@ -87,14 +82,13 @@ final autoSelectDeviceProvider = Provider<void>((ref) {
   }
 });
 
-class ConnectedDevicesNotifier extends StateNotifier<List<DeviceInfo>> {
-  late final StreamSubscription<DeviceInfo> _connectSub;
-  late final StreamSubscription<String> _disconnectSub;
-  final Ref _ref;
+class ConnectedDevicesNotifier extends Notifier<List<DeviceInfo>> {
   final _recentlyDisconnected = <String>{};
 
-  ConnectedDevicesNotifier(WsMessageHandler handler, this._ref) : super([]) {
-    _connectSub = handler.onDeviceConnected.listen((device) {
+  @override
+  List<DeviceInfo> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final connectSub = handler.onDeviceConnected.listen((device) {
       final isReconnect = _recentlyDisconnected.remove(device.deviceId);
       final filtered = state.where((d) => d.deviceId != device.deviceId).toList();
       state = [...filtered, device];
@@ -104,45 +98,46 @@ class ConnectedDevicesNotifier extends StateNotifier<List<DeviceInfo>> {
         _clearAllData();
       }
     });
-    _disconnectSub = handler.onDeviceDisconnected.listen((deviceId) {
+    final disconnectSub = handler.onDeviceDisconnected.listen((deviceId) {
       _recentlyDisconnected.add(deviceId);
       state = state.where((d) => d.deviceId != deviceId).toList();
     });
+    ref.onDispose(() {
+      connectSub.cancel();
+      disconnectSub.cancel();
+    });
+    return [];
   }
 
   void _clearAllData() {
-    _ref.read(consoleEntriesProvider.notifier).clear();
-    _ref.read(networkEntriesProvider.notifier).clear();
-    _ref.read(stateChangesProvider.notifier).clear();
-    _ref.read(storageEntriesProvider.notifier).clear();
-    _ref.read(displayEntriesProvider.notifier).clear();
-    _ref.read(asyncOperationEntriesProvider.notifier).clear();
-    _ref.read(performanceEntriesProvider.notifier).clear();
-    _ref.read(memoryLeakEntriesProvider.notifier).clear();
-    _ref.read(benchmarkEntriesProvider.notifier).clear();
+    ref.read(consoleEntriesProvider.notifier).clear();
+    ref.read(networkEntriesProvider.notifier).clear();
+    ref.read(stateChangesProvider.notifier).clear();
+    ref.read(storageEntriesProvider.notifier).clear();
+    ref.read(displayEntriesProvider.notifier).clear();
+    ref.read(asyncOperationEntriesProvider.notifier).clear();
+    ref.read(performanceEntriesProvider.notifier).clear();
+    ref.read(memoryLeakEntriesProvider.notifier).clear();
+    ref.read(benchmarkEntriesProvider.notifier).clear();
     // Clear selections
-    _ref.read(selectedNetworkIdProvider.notifier).state = null;
-    _ref.read(selectedStorageIdProvider.notifier).state = null;
-    _ref.read(selectedStateChangeIdProvider.notifier).state = null;
+    ref.read(selectedNetworkIdProvider.notifier).set(null);
+    ref.read(selectedStorageIdProvider.notifier).set(null);
+    ref.read(selectedStateChangeIdProvider.notifier).set(null);
   }
 
   /// Public reset — exposed so the Settings "Clear All Cache" button can wipe
   /// every in-memory log/state/selection without disconnecting devices itself
   /// (the caller is responsible for stopping the server first if needed).
   void clearAllData() => _clearAllData();
-
-  void cancelSubscriptions() {
-    _connectSub.cancel();
-    _disconnectSub.cancel();
-  }
 }
 
-class SelectedDeviceNotifier extends StateNotifier<String?> {
-  SelectedDeviceNotifier() : super(null);
-
+class SelectedDeviceNotifier extends Notifier<String?> {
   /// True when user explicitly clicked to unselect (set null).
   /// Reset when user selects a device or a new device auto-selects.
   bool manuallyUnselected = false;
+
+  @override
+  String? build() => null;
 
   void select(String? deviceId) {
     if (deviceId == null) {

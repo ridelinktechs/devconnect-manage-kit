@@ -195,7 +195,7 @@ class _Toolbar extends ConsumerWidget {
               child: SearchField(
                 hintText: S.of(context).searchBenchmarks,
                 onChanged: (v) =>
-                    ref.read(benchmarkSearchProvider.notifier).state = v,
+                    ref.read(benchmarkSearchProvider.notifier).set(v),
               ),
             ),
           ),

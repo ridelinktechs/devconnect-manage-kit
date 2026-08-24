@@ -44,10 +44,10 @@ class _DevConnectAppState extends ConsumerState<DevConnectApp> {
     if (!server.isRunning) {
       try {
         await server.start();
-        ref.read(serverStartErrorProvider.notifier).state = null;
+        ref.read(serverStartErrorProvider.notifier).set(null);
       } catch (e) {
-        ref.read(serverStartErrorProvider.notifier).state =
-            _describeStartError(e);
+        ref.read(serverStartErrorProvider.notifier).set(
+            _describeStartError(e));
       }
       // Force rebuild to update UI with server status
       if (mounted) setState(() {});

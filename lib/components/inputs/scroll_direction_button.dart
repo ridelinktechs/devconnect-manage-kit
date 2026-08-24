@@ -15,8 +15,8 @@ class ScrollDirectionButton extends ConsumerWidget {
 
     return GestureDetector(
       onTap: () {
-        ref.read(scrollDirectionProvider.notifier).state =
-            isTop ? ScrollDirection.bottom : ScrollDirection.top;
+        ref.read(scrollDirectionProvider.notifier).set(
+            isTop ? ScrollDirection.bottom : ScrollDirection.top);
       },
       child: MouseRegion(
         cursor: SystemMouseCursors.click,

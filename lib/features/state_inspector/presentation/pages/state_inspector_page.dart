@@ -20,6 +20,7 @@ import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../core/providers/retention_provider.dart';
 import '../../provider/state_providers.dart';
+import '../../../round/presentation/state_round_panel.dart';
 
 class StateInspectorPage extends ConsumerStatefulWidget {
   const StateInspectorPage({super.key});
@@ -157,6 +158,26 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
     final scrollDir = ref.watch(scrollDirectionProvider);
     final isReversed = scrollDir == ScrollDirection.top;
 
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          _StateManagerTabBar(),
+          const Divider(height: 1),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildReduxTab(selected, theme, isReversed),
+                const StateRoundPanel(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReduxTab(dynamic selected, ThemeData theme, bool isReversed) {
     return Column(
       children: [
         _Toolbar(
@@ -220,7 +241,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                                               entry.id;
                                       ref
                                           .read(selectedStateChangeIdProvider.notifier)
-                                          .state = currentlySelected ? null : entry.id;
+                                          .set(currentlySelected ? null : entry.id);
                                       if (!currentlySelected && _autoScroll) {
                                         _autoScroll = false;
                                         _programmaticScroll = false;
@@ -244,7 +265,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                               entry: selected,
                               onClose: () => ref
                                   .read(selectedStateChangeIdProvider.notifier)
-                                  .state = null,
+                                  .set(null),
                             ),
                           ),
                         ],
@@ -258,6 +279,38 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _StateManagerTabBar extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+              color: theme.dividerColor.withValues(alpha: 0.5)),
+        ),
+      ),
+      child: TabBar(
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        labelColor: ColorTokens.primary,
+        unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+        indicatorColor: ColorTokens.primary,
+        indicatorWeight: 2,
+        labelStyle: theme.textTheme.labelLarge
+            ?.copyWith(fontWeight: FontWeight.w600),
+        unselectedLabelStyle:
+            theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w500),
+        tabs: const [
+          Tab(text: 'Redux'),
+          Tab(text: 'State Managers'),
+        ],
+      ),
     );
   }
 }
@@ -331,7 +384,7 @@ class _Toolbar extends ConsumerWidget {
             child: SearchField(
               hintText: S.of(context).filterActions,
               onChanged: (v) =>
-                  ref.read(stateSearchProvider.notifier).state = v,
+                  ref.read(stateSearchProvider.notifier).set(v),
             ),
           ),
           const SizedBox(width: 12),
@@ -358,8 +411,8 @@ class _Toolbar extends ConsumerWidget {
                   icon: isTop ? LucideIcons.arrowUpNarrowWide : LucideIcons.arrowDownNarrowWide,
                   tooltip: isTop ? S.of(context).newestAtTop : S.of(context).newestAtBottom,
                   isActive: isTop,
-                  onTap: () => ref.read(scrollDirectionProvider.notifier).state =
-                      isTop ? ScrollDirection.bottom : ScrollDirection.top,
+                  onTap: () => ref.read(scrollDirectionProvider.notifier).set(
+                      isTop ? ScrollDirection.bottom : ScrollDirection.top),
                 ),
                 const SizedBox(width: 2),
                 Container(

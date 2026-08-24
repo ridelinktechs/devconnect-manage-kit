@@ -55,7 +55,7 @@ class _LibUpdateTipsState extends ConsumerState<LibUpdateTips> {
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         height: _hovered ? null : 28,
-        width: _hovered ? 360 : 80,
+        width: _hovered ? 360 : 108,
         padding: EdgeInsets.symmetric(
           horizontal: _hovered ? 14 : 11,
           vertical: _hovered ? 12 : 6,
@@ -136,13 +136,17 @@ class _CollapsedPill extends StatelessWidget {
           color: accent,
         ),
         const SizedBox(width: 6),
-        Text(
-          loc.sdkTipsPill,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
-            color: isDark ? Colors.white : Colors.black87,
+        Flexible(
+          child: Text(
+            loc.sdkTipsPill,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
           ),
         ),
       ],

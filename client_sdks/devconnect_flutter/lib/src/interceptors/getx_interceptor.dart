@@ -45,11 +45,13 @@ class DevConnectGetConnectInterceptor {
 
         final String method = _tryGet<String?>(() => request.method?.toString()) ?? 'GET';
         final String url = _tryGet<String?>(() => request.url?.toString()) ?? '';
-        final Map<String, String> headers = {};
+        // `dynamic` (not `String`) so nested Map/List header values can
+        // survive — the desktop inspector JSON-encodes them for display.
+        final Map<String, dynamic> headers = {};
         try {
           final h = request.headers;
           if (h is Map) {
-            h.forEach((k, v) => headers[k.toString()] = v.toString());
+            h.forEach((k, v) => headers[k.toString()] = v);
           }
         } catch (_) {}
 
@@ -90,10 +92,12 @@ class DevConnectGetConnectInterceptor {
         final int statusCode = _tryGet<int?>(() => response.statusCode as int?) ?? 0;
 
         // Request headers
-        final Map<String, String> requestHeaders = info?.headers ?? {};
+        final Map<String, dynamic> requestHeaders = info?.headers ?? {};
 
-        // Response headers
-        final Map<String, String> responseHeaders = {};
+        // Response headers — preserve nested Map/List values for
+        // inspectable JSON display. Lists (multi-value headers like
+        // Set-Cookie) are joined with ", " for backward compatibility.
+        final Map<String, dynamic> responseHeaders = {};
         try {
           final h = response.headers;
           if (h is Map) {
@@ -101,7 +105,7 @@ class DevConnectGetConnectInterceptor {
               if (v is List) {
                 responseHeaders[k.toString()] = v.join(', ');
               } else {
-                responseHeaders[k.toString()] = v.toString();
+                responseHeaders[k.toString()] = v;
               }
             });
           }
@@ -159,7 +163,7 @@ class _RequestInfo {
   final int startTime;
   final String method;
   final String url;
-  final Map<String, String> headers;
+  final Map<String, dynamic> headers;
 
   _RequestInfo({
     required this.requestId,

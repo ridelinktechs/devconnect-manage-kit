@@ -16,6 +16,8 @@ import com.devconnect.reporters.SQLDelightReporter
 import com.devconnect.reporters.DevConnectStateObserver
 import com.devconnect.reporters.SharedPrefsReporter
 import com.devconnect.wrappers.DevConnectRealm
+// Round 2-5: new SDK files. We import the top-level helpers below so the
+// host file doesn't need to change when consumers add more interceptors.
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.UUID
@@ -523,6 +525,11 @@ object DevConnect {
                     }
                     "server:reload" -> handleReloadRequest(json.optString("type"))
                     "server:hot_restart" -> handleReloadRequest(json.optString("type"))
+                    "server:mock_rules_update" -> {
+                        try {
+                            com.devconnect.interceptors.MockRuleStore.loadFromJson(payload.toString())
+                        } catch (_: Exception) {}
+                    }
                 }
             }
         }
@@ -569,6 +576,10 @@ object DevConnect {
         if (autoViewModelDiscovery) {
             com.devconnect.plugins.ViewModelAutoDiscoverer.start(context)
         }
+        // Round 2: Compose state observer (no-op when Compose isn't on the classpath)
+        try {
+            com.devconnect.plugins.ComposeStateObserver.start(context)
+        } catch (_: Exception) {}
     }
 
     /** UDP discovery port — server broadcasts beacons here */
@@ -1161,7 +1172,7 @@ object DevConnect {
         requestId: String,
         method: String,
         url: String,
-        headers: Map<String, String>? = null,
+        headers: Map<String, Any?>? = null,
         body: Any? = null
     ) {
         send("client:network:request_start", buildPayload {
@@ -1169,7 +1180,7 @@ object DevConnect {
             put("method", method)
             put("url", url)
             put("startTime", System.currentTimeMillis())
-            headers?.let { put("requestHeaders", JSONObject(it as Map<*, *>)) }
+            headers?.let { put("requestHeaders", headersToJson(it)) }
             body?.let { put("requestBody", it) }
         })
     }
@@ -1180,8 +1191,8 @@ object DevConnect {
         url: String,
         statusCode: Int,
         startTime: Long,
-        requestHeaders: Map<String, String>? = null,
-        responseHeaders: Map<String, String>? = null,
+        requestHeaders: Map<String, Any?>? = null,
+        responseHeaders: Map<String, Any?>? = null,
         requestBody: Any? = null,
         responseBody: Any? = null,
         error: String? = null
@@ -1195,8 +1206,8 @@ object DevConnect {
             put("startTime", startTime)
             put("endTime", now)
             put("duration", now - startTime)
-            requestHeaders?.let { put("requestHeaders", JSONObject(it as Map<*, *>)) }
-            responseHeaders?.let { put("responseHeaders", JSONObject(it as Map<*, *>)) }
+            requestHeaders?.let { put("requestHeaders", headersToJson(it)) }
+            responseHeaders?.let { put("responseHeaders", headersToJson(it)) }
             requestBody?.let { put("requestBody", it) }
             responseBody?.let { put("responseBody", it) }
             error?.let { put("error", it) }
@@ -1383,6 +1394,39 @@ object DevConnect {
         return JSONObject().apply(block)
     }
 
+    /**
+     * Recursively convert a `Map<String, Any?>` (and any nested
+     * `List<*>` / `Map<*, *>` values) to a [JSONObject] so the JSON
+     * encoder carries structured header values through to the desktop
+     * inspector — instead of coercing everything via `toString()` and
+     * producing literal `"[object Object]"` once it round-trips back
+     * through WS.
+     *
+     * Non-collection values are passed through to [JSONObject.put]
+     * which already accepts the JSON-encodable primitives.
+     */
+    private fun headersToJson(headers: Map<String, Any?>): JSONObject {
+        val obj = JSONObject()
+        for ((k, v) in headers) {
+            obj.put(k, encodeHeaderValue(v))
+        }
+        return obj
+    }
+
+    private fun encodeHeaderValue(v: Any?): Any = when (v) {
+        null -> JSONObject.NULL
+        is List<*> -> org.json.JSONArray().also { arr ->
+            for (item in v) arr.put(encodeHeaderValue(item))
+        }
+        is Map<*, *> -> {
+            val nested = JSONObject()
+            for ((nk, nv) in v) nested.put(nk.toString(), encodeHeaderValue(nv))
+            nested
+        }
+        is Number, is Boolean, is String -> v
+        else -> v.toString()
+    }
+
     private fun jsonObjectToMap(json: JSONObject): Map<String, Any> {
         val map = mutableMapOf<String, Any>()
         val keys = json.keys()
@@ -1403,6 +1447,73 @@ object DevConnect {
             }
         }
         return map
+    }
+
+    // ---- Round 2: Compose state observer ----
+
+    /**
+     * Start the Jetpack Compose state observer. Safe no-op when the
+     * app doesn't use Compose or when running on a JVM test runtime.
+     *
+     * ```kotlin
+     * DevConnect.startComposeStateObserver(context)
+     * ```
+     */
+    fun startComposeStateObserver(context: Any) {
+        try {
+            com.devconnect.plugins.ComposeStateObserver.start(context)
+        } catch (_: Exception) {}
+    }
+
+    // ---- Round 3: Apollo + gRPC + WebSocket ----
+
+    /**
+     * Returns an Apollo Kotlin `ApolloInterceptor` that reports each
+     * operation to the desktop. Install it via
+     * `ApolloClient.Builder().addInterceptor(...)`.
+     */
+    fun apolloInterceptor(): com.devconnect.interceptors.graphql.DevConnectApolloInterceptor =
+        com.devconnect.interceptors.graphql.DevConnectApolloInterceptor()
+
+    /**
+     * Returns an OkHttp `Interceptor` for gRPC-Web that reports each
+     * call start/end. Pair with the existing OkHttp client:
+     * `OkHttpClient.Builder().addInterceptor(DevConnect.grpcClientInterceptor())`.
+     */
+    fun grpcClientInterceptor(): com.devconnect.interceptors.grpc.DevConnectGrpcClientInterceptor =
+        com.devconnect.interceptors.grpc.DevConnectGrpcClientInterceptor()
+
+    /**
+     * Compose a `WebSocketListener` with DevConnect frame capture. Wrap
+     * an existing listener via [devConnectWrap] or install directly.
+     */
+    fun webSocketListener(): com.devconnect.interceptors.DevConnectWebSocketListener =
+        com.devconnect.interceptors.DevConnectWebSocketListener()
+
+    /**
+     * Wrap an existing OkHttp `WebSocketListener` so its events are
+     * mirrored to the desktop.
+     */
+    fun devConnectWrap(delegate: okhttp3.WebSocketListener): okhttp3.WebSocketListener =
+        com.devconnect.interceptors.devConnectWrap(delegate)
+
+    // ---- Round 4: Mock server ----
+
+    /**
+     * Returns an OkHttp `Interceptor` that short-circuits requests when
+     * a matching mock rule has been pushed from the desktop. Pair with
+     * the existing OkHttp client:
+     * `OkHttpClient.Builder().addInterceptor(DevConnect.mockServerInterceptor())`.
+     */
+    fun mockServerInterceptor(): com.devconnect.interceptors.MockServerInterceptor =
+        com.devconnect.interceptors.MockServerInterceptor()
+
+    /**
+     * Replace the in-memory mock rule list. Accepts a JSON list as
+     * received from the `server:mock_rules_update` message.
+     */
+    fun installMockRulesFromJson(json: String) {
+        com.devconnect.interceptors.installMockRulesFromJson(json)
     }
 
     /**

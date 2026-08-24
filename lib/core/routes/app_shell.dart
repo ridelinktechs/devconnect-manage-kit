@@ -63,7 +63,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           if (constraints.maxWidth < _collapseBreakpoint && !isCollapsed) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
-                ref.read(sidebarCollapsedProvider.notifier).state = true;
+                ref.read(sidebarCollapsedProvider.notifier).set(true);
               }
             });
           }

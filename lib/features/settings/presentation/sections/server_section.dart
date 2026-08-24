@@ -100,7 +100,7 @@ class ServerSection extends ConsumerWidget {
                 GestureDetector(
                   onTap: () => ref
                       .read(serverStartErrorProvider.notifier)
-                      .state = null,
+                      .set(null),
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: Icon(

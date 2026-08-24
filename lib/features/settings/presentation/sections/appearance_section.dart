@@ -90,7 +90,7 @@ class AppearanceSection extends ConsumerWidget {
                 ],
                 selected: {scrollDir},
                 onSelectionChanged: (value) {
-                  ref.read(scrollDirectionProvider.notifier).state = value.first;
+                  ref.read(scrollDirectionProvider.notifier).set(value.first);
                 },
                 style: ButtonStyle(
                   textStyle: WidgetStateProperty.all(

@@ -7,10 +7,11 @@ import '../preferences/app_preferences.dart';
 /// Keys matching sidebar route paths (without leading /)
 enum TabKey { console, network, state, storage, database, performance, memoryLeaks, history, error }
 
-class TabVisibilityNotifier extends StateNotifier<Set<TabKey>> {
-  TabVisibilityNotifier() : super(_load());
-
+class TabVisibilityNotifier extends Notifier<Set<TabKey>> {
   static const _key = 'tab_visibility';
+
+  @override
+  Set<TabKey> build() => _load();
 
   static Set<TabKey> _load() {
     final raw = AppPreferences().get<String>(_key);
@@ -65,8 +66,8 @@ class TabVisibilityNotifier extends StateNotifier<Set<TabKey>> {
 }
 
 final tabVisibilityProvider =
-    StateNotifierProvider<TabVisibilityNotifier, Set<TabKey>>(
-  (ref) => TabVisibilityNotifier(),
+    NotifierProvider<TabVisibilityNotifier, Set<TabKey>>(
+  TabVisibilityNotifier.new,
 );
 
 /// Route path -> TabKey mapping for paths that don't match enum name directly
