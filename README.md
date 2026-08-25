@@ -9,7 +9,7 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)](https://github.com/ridelinktechs/devconnect-manage-kit/releases)
 [![Flutter](https://img.shields.io/badge/Flutter-SDK-02569B?logo=flutter)](client_sdks/devconnect_manage_kit)
 [![React Native](https://img.shields.io/badge/React%20Native-SDK-61DAFB?logo=react)](client_sdks/devconnect-manage-kit)
-[![Android](https://img.shields.io/badge/Android-SDK-3DDC84?logo=android)](client_sdks/devconnect-manage-android)
+[![Android](https://img.shields.io/badge/Android-SDK-3DDC84?logo=android)](client_sdks/devconnect-android)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 [Features](#features) · [Download](#download) · [Quick Start](#quick-start) · [Desktop Guide](#using-the-desktop-app) · [Mock Server](#mock-server) · [SDKs](#flutter-sdk) · [Support](#support-devconnect-manage-kit)
@@ -64,6 +64,8 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 - **ADB Reverse** — One-click USB connection for Android devices
 - **Auto-detect** — SDK auto-discovers desktop IP, zero configuration needed
 - **Dual Theme** — Dark and light mode
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-♥-ea4aaa?logo=github-sponsors)](https://github.com/sponsors/ridelinktechs)
 
 ### Screenshots
 
@@ -125,7 +127,11 @@ await DevConnect.init({ appName: "MyApp" });
 
 ```kotlin
 // Application.onCreate()
-DevConnect.init(context = this, appName = "MyApp")
+DevConnect.installForApp(
+    context = this,
+    appName = "MyApp",
+    enabled = BuildConfig.DEBUG,
+)
 ```
 
 That's it. Open DevConnect Manage Tool desktop, run your app, and everything appears.
@@ -861,36 +867,27 @@ DevConnect.disconnect();
 
 ### Install
 
-```gradle
-// From Maven Central (after published)
-dependencies {
-    implementation("com.ridelink:devconnect-manage-android:1.0.0")
-}
-```
-
-Or from JitPack (GitHub):
+Published to **Maven Central** as `io.github.buivietphi:devconnect-android`:
 
 ```gradle
 // settings.gradle.kts
 dependencyResolutionManagement {
     repositories {
-        maven { url = uri("https://jitpack.io") }
+        google()
+        mavenCentral()
     }
 }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.ridelinktechs.devconnect:devconnect-manage-android:v1.0.0")
+    implementation("io.github.buivietphi:devconnect-android:1.1.0")
 }
 ```
 
-Or AAR file from [Releases](https://github.com/ridelinktechs/devconnect-manage-kit/releases):
-
-```gradle
-dependencies {
-    implementation(files("libs/devconnect-manage-android-1.0.0.aar"))
-}
-```
+> The native crash handler ships pre-built inside the AAR — consumers don't need the NDK installed.
+> Some optional deps (OkHttp, kotlin-reflect, lifecycle…) are `compileOnly`; see the
+> [Android SDK README](client_sdks/devconnect-android/README.md#runtime-dependencies)
+> for the full list of what to declare when.
 
 ### Init
 

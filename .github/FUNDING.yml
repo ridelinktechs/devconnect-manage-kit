@@ -1,0 +1,7 @@
+# GitHub Sponsors configuration.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
+# Primary sponsor — the ridelinktechs organization.
+# Enable this at https://github.com/sponsors/ridelinktechs (org owner only,
+# requires Stripe Connect for payouts + tax profile).
+github: ridelinktechs

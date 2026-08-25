@@ -70,9 +70,16 @@ client_sdks/devconnect-react-native/yarn.lock
 # Android SDK build
 client_sdks/devconnect-android/build/
 client_sdks/devconnect-android/.gradle/
+client_sdks/devconnect-android/.cxx/
+
+# Flutter SDK build (test cache — must not ship in pub.dev archive)
+client_sdks/devconnect_flutter/build/
 
 # SDK lock files (libraries should not lock dependencies)
 client_sdks/**/pubspec.lock
+
+# Local release artifacts (binaries built per release; uploaded to GitHub Releases)
+release_assets/
 
 # Lock files
 pubspec.lock
