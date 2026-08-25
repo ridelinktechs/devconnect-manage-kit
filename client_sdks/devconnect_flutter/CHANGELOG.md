@@ -1,3 +1,22 @@
+## 1.0.6
+
+- **WebSocket inspector (Round 3)**: new `DevConnectWebSocket` wrapper
+  (dart:io) and `DevConnectWebSocketHelper` emit `client:ws_open`,
+  `client:ws_frame`, and `client:ws_close` events to the DevConnect
+  desktop, so WebSocket traffic shows up in the protocol inspectors.
+- **GraphQL link (Round 3)**: new `DevConnectLink` for `graphql_flutter`
+  / ferry — emits `client:graphql_operation` and
+  `client:graphql_response` events with operation name, variables,
+  response data, and errors for the desktop GraphQL inspector.
+- **Mock server (Round 4)**: `MockRule`, `setMockRules`, and
+  `findMatch` implement the server→client mock rule push
+  (`server:mock_rules_update`). The HTTP interceptors check the mock
+  store before hitting the network and return the canned response
+  (regex + header matching, optional delay).
+- **Structured header/query values**: network interceptors now carry
+  structured data for headers and query parameters instead of
+  stringifying everything.
+
 ## 1.0.5
 
 - **Hot reload / hot restart from desktop**: new public API
