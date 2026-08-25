@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.9
+
+- **WebSocket inspector (Round 3)**: new `installWebSocketInterceptor()`
+  patches `global.WebSocket` so every constructed socket automatically
+  emits `client:ws_open`, `client:ws_frame`, and `client:ws_close`
+  events to the DevConnect desktop. Idempotent — multiple calls are
+  safe and return a cleanup function that restores the original
+  constructor.
+- **Apollo Link (Round 3)**: new `devConnectApolloLink` for Apollo
+  Client. Captures GraphQL operation name, variables, response data,
+  and errors, surfaces them in the GraphQL inspector on the desktop.
+- **Source map uploader (Round 4)**: new `uploadSourceMap({ bundleName,
+  buildId, mapPath | mapContent })` reads the Metro-generated
+  `main.jsbundle.map` and ships it to the desktop so minified JS stack
+  traces decode in the Error Inspector. SHA-256 map id, 5 MB cap,
+  graceful fallback when `globalThis.crypto.subtle` is unavailable.
+- **Mock server interceptor (Round 4)**: new `installMockServerInterceptor()`
+  plus `setMockRules` / `findMockMatch` / `buildMockResponse` helpers.
+  Desktop pushes rule sets down (`server:install_mock_rules`); the
+  SDK patches `global.fetch` to match the regex + headers + scope
+  and returns the canned response, with optional delay.
+
 ## 1.0.8
 
 - **Nested fetch dedup correctness**: the in-flight `fetch` tracker
