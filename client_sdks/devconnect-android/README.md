@@ -22,7 +22,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("io.github.buivietphi:devconnect-android:1.0.0")
+    implementation("io.github.buivietphi:devconnect-android:1.1.0")
 }
 ```
 
@@ -303,10 +303,45 @@ daemon thread pings the main `Looper` every 500 ms and reports an
 for ≥6 seconds. The event payload includes the first 20 frames of the
 main thread's stack trace.
 
-The watchdog runs entirely on the JVM — no NDK, no native signal
-handlers. C++/JNI crashes are not covered; report them via
-`ErrorMonitor.reportNativeCrash(signal, stackTrace)` from your own
-signal handler if you need them.
+**Native (C++/JNI) crashes** are captured automatically by the bundled
+NDK signal handler — call `NativeCrashHandler.start()` once after
+install and SIGSEGV/SIGABRT/SIGBUS/SIGFPE/SIGILL crashes report a
+native backtrace before the process dies. You can still report your
+own via `ErrorMonitor.reportNativeCrash(signal, stackTrace)`.
+
+### WebSocket inspector
+
+Wrap OkHttp WebSockets with the `devConnectWrap` extension to stream
+open / frame / close events (`client:ws_*`) to the desktop:
+
+```kotlin
+val ws = client.newWebSocket(request, devConnectWrap(listener))
+```
+
+### GraphQL / gRPC
+
+```kotlin
+// Apollo Kotlin
+apolloClient.addInterceptor(DevConnect.apolloInterceptor())
+
+// gRPC (io.grpc.ClientInterceptor)
+channel = ManagedChannelBuilder.forAddress(host, port)
+    .intercept(DevConnect.grpcClientInterceptor())
+    .build()
+```
+
+### Mock server (Round 4)
+
+The desktop pushes mock rules down over the websocket; the SDK's OkHttp
+interceptor matches them (method + URL regex + headers) and returns the
+canned response with optional delay — no app code needed. Push rules
+programmatically with `DevConnect.installMockRulesFromJson(json)`.
+
+### Jetpack Compose
+
+`ComposeStateObserver.start()` reports composable state reads/writes so
+the desktop State Inspector can show Compose state alongside
+ViewModel/StateFlow/LiveData. Call `stop()` when done.
 
 ### Storage
 

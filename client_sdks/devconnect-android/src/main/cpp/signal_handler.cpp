@@ -1,15 +1,19 @@
 // DevConnect native crash handler.
 //
 // Installs `sigaction` handlers for SIGSEGV, SIGABRT, SIGBUS, SIGILL,
-// SIGFPE, SIGPIPE, SIGSYS, SIGTRAP. The handler captures a fixed-size
-// stack trace (via `backtrace()` / `backtrace_symbols()`) into a
-// pre-allocated buffer that is safe to write from signal context, then
-// re-raises the signal with the default disposition so the process
-// still dies normally — without this the process hangs in a crash loop.
+// SIGFPE, SIGPIPE, SIGSYS, SIGTRAP. The handler captures raw program
+// counters via `_Unwind_Backtrace()` (<unwind.h> — available on every
+// Android API level, unlike <execinfo.h>'s `backtrace()` which Bionic
+// only exposes from API 33). Only pre-allocated buffers are written,
+// so it is async-signal-safe: no malloc, no locks, no JNI calls.
 //
-// Async-signal-safe by construction: the handler writes only to
-// pre-allocated `sig_atomic_t` and `char[]` slots. No locks, no
-// malloc, no JNI calls.
+// Symbolication happens later on the Kotlin polling thread inside
+// `nativeTakeCrash()` using `dladdr()` — that thread is not in signal
+// context, so formatting/symbol lookup is safe there.
+//
+// After capturing, the handler restores the default disposition and
+// re-raises so the process still dies normally (tombstone + system
+// crash dialog) instead of hanging in a crash loop.
 //
 // A Kotlin coroutine polls the buffer via JNI on a normal thread
 // (`NativeCrashHandler.kt`) and forwards captured crashes to
@@ -17,9 +21,11 @@
 
 #include <jni.h>
 #include <signal.h>
-#include <execinfo.h>
+#include <unwind.h>
+#include <dlfcn.h>
 #include <unistd.h>
 #include <cstring>
+#include <cstdio>
 #include <cstdlib>
 
 #define DC_NATIVE_STACK_DEPTH 32
@@ -29,8 +35,8 @@
 struct DcCrashRecord {
     volatile sig_atomic_t pending;       // 1 when a crash was captured
     volatile sig_atomic_t signal;        // the signal number
-    int frame_count;                     // number of valid frames
-    char stack[DC_NATIVE_STACK_DEPTH][256];
+    int frame_count;                     // number of valid PCs
+    void *pcs[DC_NATIVE_STACK_DEPTH];    // raw program counters
 };
 
 static DcCrashRecord g_crash;
@@ -45,6 +51,23 @@ static const int g_signals[DC_NATIVE_SIGNAL_COUNT] = {
 // because we re-raise at the end.
 static volatile sig_atomic_t g_in_handler = 0;
 
+struct DcUnwindState {
+    void **pcs;
+    int count;
+    int max;
+};
+
+static _Unwind_Reason_Code dc_unwind_callback(
+        struct _Unwind_Context *ctx, void *data) {
+    DcUnwindState *s = static_cast<DcUnwindState *>(data);
+    if (s->count >= s->max) {
+        return _URC_END_OF_STACK;
+    }
+    s->pcs[s->count++] =
+        reinterpret_cast<void *>(_Unwind_GetIP(ctx));
+    return _URC_NO_REASON;
+}
+
 static void dc_crash_handler(int sig, siginfo_t * /*info*/, void * /*ucontext*/) {
     if (g_in_handler) {
         return;
@@ -53,33 +76,12 @@ static void dc_crash_handler(int sig, siginfo_t * /*info*/, void * /*ucontext*/)
 
     g_crash.signal = sig;
 
-    // `backtrace()` and `backtrace_symbols()` are not in POSIX's
-    // list of async-signal-safe functions, but they are widely used
-    // for this purpose in production Android apps (see xCrash,
-    // Crashpad, Breakpad) and are stable on API 21+ on AOSP. The
-    // alternative — calling `unwind.h` directly — adds 200+ lines of
-    // unsafe code for marginal robustness gain.
-    void *bt[DC_NATIVE_STACK_DEPTH];
-    int n = backtrace(bt, DC_NATIVE_STACK_DEPTH);
-    char **syms = backtrace_symbols(bt, n);
-
-    int frames = (n < DC_NATIVE_STACK_DEPTH) ? n : DC_NATIVE_STACK_DEPTH;
-    if (syms) {
-        for (int i = 0; i < frames; i++) {
-            const char *src = syms[i] ? syms[i] : "?";
-            size_t len = strlen(src);
-            if (len >= sizeof(g_crash.stack[i])) {
-                len = sizeof(g_crash.stack[i]) - 1;
-            }
-            memcpy(g_crash.stack[i], src, len);
-            g_crash.stack[i][len] = '\0';
-        }
-        free(syms);
-        g_crash.frame_count = frames;
-    } else {
-        g_crash.frame_count = 0;
-    }
-
+    // Collect raw PCs only — `_Unwind_Backtrace` walks the DWARF/EHABI
+    // unwind tables without allocating, so it is safe from signal
+    // context. Symbolication is deferred to `nativeTakeCrash`.
+    DcUnwindState state{g_crash.pcs, 0, DC_NATIVE_STACK_DEPTH};
+    _Unwind_Backtrace(dc_unwind_callback, &state);
+    g_crash.frame_count = state.count;
     g_crash.pending = 1;
 
     // Restore default disposition for this signal and re-raise so the
@@ -92,6 +94,25 @@ static void dc_crash_handler(int sig, siginfo_t * /*info*/, void * /*ucontext*/)
     sigemptyset(&dfl.sa_mask);
     sigaction(sig, &dfl, nullptr);
     raise(sig);
+}
+
+// Format one PC as "<lib> (<symbol>+<off>) [pc 0x...]" or a bare hex
+// fallback when dladdr can't resolve it. Runs on the polling thread —
+// NOT in signal context — so snprintf/dladdr are fine here.
+static void dc_format_pc(void *pc, char *out, size_t outSize) {
+    Dl_info info{};
+    if (dladdr(pc, &info) && info.dli_fname) {
+        const char *sym = info.dli_sname ? info.dli_sname : "?";
+        long off = info.dli_saddr
+            ? static_cast<long>(
+                  reinterpret_cast<char *>(pc) -
+                  reinterpret_cast<char *>(info.dli_saddr))
+            : 0L;
+        snprintf(out, outSize, "%s (%s+%ld) [pc %p]",
+                 info.dli_fname, sym, off, pc);
+    } else {
+        snprintf(out, outSize, "pc %p", pc);
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -132,9 +153,13 @@ Java_com_devconnect_plugins_NativeCrashHandler_nativeTakeCrash(
     int n = g_crash.frame_count;
     if (n > DC_NATIVE_STACK_DEPTH) n = DC_NATIVE_STACK_DEPTH;
 
-    // Fill the JVM-allocated String[] with captured stack lines.
+    // Symbolicate + fill the JVM-allocated String[]. We are on the
+    // Kotlin polling thread here, NOT in signal context, so dladdr and
+    // snprintf are safe.
     for (int i = 0; i < n; i++) {
-        jstring s = env->NewStringUTF(g_crash.stack[i]);
+        char line[256];
+        dc_format_pc(g_crash.pcs[i], line, sizeof(line));
+        jstring s = env->NewStringUTF(line);
         env->SetObjectArrayElement(stackBuf, i, s);
         // Delete the local ref so we don't leak slots — JNI local
         // refs are per-frame and the default capacity is 16.

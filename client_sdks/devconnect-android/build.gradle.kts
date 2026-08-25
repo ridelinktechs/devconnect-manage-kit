@@ -7,6 +7,9 @@ plugins {
 android {
     namespace = "com.devconnect"
     compileSdk = 36
+    // NDK 27 (r27) — required by the native crash handler
+    // (src/main/cpp/signal_handler.cpp). AGP downloads it on demand.
+    ndkVersion = "27.1.12297006"
 
     defaultConfig {
         minSdk = 21
@@ -115,23 +118,23 @@ dependencies {
 //   ./gradlew :publishToMavenLocal                       (test config)
 //   ./gradlew :publishMavenCentralPublicationToCentralPortal   (push to Central)
 mavenPublishing {
-    publishToMavenCentral(automaticRelease = false)
+    publishToMavenCentral(automaticRelease = true)
     signAllPublications()
 
     coordinates(
         groupId = "io.github.buivietphi",
         artifactId = "devconnect-android",
-        version = "1.0.0"
+        version = "1.1.0"
     )
 
     pom {
         name.set("DevConnect Android SDK")
         description.set(
             "Android client SDK for DevConnect - auto-intercepts OkHttp, Retrofit, " +
-            "Log, Timber, SharedPreferences. Includes ANR watchdog and ViewModel " +
-            "auto-discovery (StateFlow/LiveData)."
+            "Ktor, Log/Timber/Kermit/Napier, SharedPreferences/MMKV. Includes ANR " +
+            "watchdog, native crash handler, ViewModel auto-discovery and mock server."
         )
-        url.set("https://github.com/buivietphi/devconnect")
+        url.set("https://github.com/ridelinktechs/devconnect-manage-kit")
         licenses {
             license {
                 name.set("MIT License")
@@ -141,14 +144,14 @@ mavenPublishing {
         developers {
             developer {
                 id.set("buivietphi")
-                name.set("Bùi Viết Phi")
-                email.set("phibvcfc@gmail.com")
+                name.set("Phi Bui")
+                email.set("buivietphii@gmail.com")
             }
         }
         scm {
-            connection.set("scm:git:git://github.com/buivietphi/devconnect.git")
-            developerConnection.set("scm:git:ssh://git@github.com/buivietphi/devconnect.git")
-            url.set("https://github.com/buivietphi/devconnect")
+            connection.set("scm:git:git://github.com/ridelinktechs/devconnect-manage-kit.git")
+            developerConnection.set("scm:git:ssh://git@github.com/ridelinktechs/devconnect-manage-kit.git")
+            url.set("https://github.com/ridelinktechs/devconnect-manage-kit/tree/main/client_sdks/devconnect-android")
         }
     }
 }

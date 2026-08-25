@@ -21,4 +21,6 @@ add_library(dc-native SHARED signal_handler.cpp)
 # development — production code paths use `__android_log_print` via
 # `android/log.h` if we ever need it). Linking `log` keeps the option
 # open without adding build cost.
-target_link_libraries(dc-native PRIVATE log)
+# `unwind` provides `_Unwind_Backtrace` for the crash handler — part of
+# the NDK toolchain on arm64/x86_64, explicit on 32-bit ABIs.
+target_link_libraries(dc-native PRIVATE log unwind)
