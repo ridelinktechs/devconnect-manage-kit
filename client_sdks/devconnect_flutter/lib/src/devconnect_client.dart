@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 
+import 'version.dart';
+
 typedef OnConnected = void Function();
 typedef OnDisconnected = void Function();
 
@@ -626,7 +628,7 @@ class DevConnectClient {
         'appName': _appName,
         'appVersion': _appVersion,
         if (_versionCode != null) 'versionCode': _versionCode,
-        'sdkVersion': '1.0.0',
+        'sdkVersion': devConnectSdkVersion,
       },
     });
   }

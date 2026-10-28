@@ -1,612 +1,472 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/providers/local_projects_provider.dart';
 import '../../core/providers/sdk_versions_provider.dart';
+import '../../core/theme/chrome_palette.dart';
+import '../../core/utils/sdk_version.dart';
 import '../../l10n/app_localizations.dart';
+import '../../models/device_info.dart';
+import '../../server/providers/server_providers.dart';
+import 'title_bar_flyout.dart';
 
-/// Compact, dismissible "Tips" pill anchored at the top-right of the
-/// title bar. Collapsed to a small amber dot + label, expands on
-/// hover into a glass panel listing the SDKs the client app must be
-/// on for DevConnect to ingest the full payload.
+/// "Tips" pill anchored at the top-right of the title bar. Hover
+/// previews — or click pins — a popover below it with the SDK a client
+/// app must be on for DevConnect to ingest the full payload.
 ///
-/// Design philosophy:
-///   - **Rest state** is one dot + one short word. It must NEVER
-///     compete with page content or block clicks.
-///   - **Hover state** springs open with a soft cubic ease + tinted
-///     glass refraction — feels deliberate, not a popover.
-///   - **Self-dismiss**: panel collapses back to the dot when the
-///     mouse leaves; we never block the screen.
+/// Follows the project selected in the device bar: with one selected,
+/// the pill turns into that project's SDK version (when known) and the
+/// popover shows only its platform; switching project switches both. With
+/// "all" (or nothing) selected it lists every SDK against the oldest
+/// connected one.
 ///
-/// Each row shows:
-///   - **Installed** version (hardcoded below in `_SdkCatalog`).
-///   - **Latest** version, fetched live from npm / pub.dev by
-///     [sdkLatestVersionsProvider]. Skipped entirely on fetch failure.
-///   - **Update** chip in amber when installed < latest.
-///
-/// When a new SDK ships, bump the matching `_SdkCatalog` entry. The
-/// panel will keep showing the bumped number against whatever the
-/// registry says is newest.
-class LibUpdateTips extends ConsumerStatefulWidget {
+/// Each SDK row shows:
+///   - **Latest** version, fetched live from pub.dev / npm / Maven
+///     Central by [sdkLatestVersionsProvider].
+///   - **Installed** version, from [deviceSdkVersion]: read from the
+///     connected project's files on this machine (found through its
+///     Metro / `flutter run` process), else the handshake. Across several
+///     devices the oldest one wins. When it's unknown — Android, a folder
+///     the OS won't let us read, no dev server here — the row asks the
+///     user to check their project instead.
+///   - **Update** badge when device < latest. Amber is reserved for that
+///     state (the pill grows an amber dot too) so it keeps its meaning.
+///   - Copyable install snippets pinned to the latest version.
+class LibUpdateTips extends ConsumerWidget {
   const LibUpdateTips({super.key});
 
   @override
-  ConsumerState<LibUpdateTips> createState() => _LibUpdateTipsState();
-}
-
-class _LibUpdateTipsState extends ConsumerState<LibUpdateTips> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ChromePalette.of(context);
     final loc = S.of(context);
-    final accent = const Color(0xFFFBBF24); // amber — advisory, never error
-    // Touching the provider here also kicks off the initial fetch —
-    // the StateNotifier's constructor schedules it as soon as it's
-    // first watched.
-    final latestVersions = ref.watch(sdkLatestVersionsProvider);
+    final latest = ref.watch(sdkLatestVersionsProvider);
+    final localProjects = ref.watch(localProjectsProvider).value ?? const [];
+    final devices = ref.watch(connectedDevicesProvider);
+    final selectedId = ref.watch(selectedDeviceProvider);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        height: _hovered ? null : 28,
-        width: _hovered ? 360 : 108,
-        padding: EdgeInsets.symmetric(
-          horizontal: _hovered ? 14 : 11,
-          vertical: _hovered ? 12 : 6,
-        ),
-        decoration: BoxDecoration(
-          color: _hovered
-              ? (isDark
-                  ? const Color(0xFF1F242B).withValues(alpha: 0.96)
-                  : Colors.white.withValues(alpha: 0.97))
-              : (isDark
-                  ? const Color(0xFF1F242B).withValues(alpha: 0.85)
-                  : Colors.white.withValues(alpha: 0.92)),
-          borderRadius: BorderRadius.circular(_hovered ? 14 : 14),
-          // 1px border even at rest so the pill reads as a discrete
-          // chip, not a smudge floating in the title bar.
-          border: Border.all(
-            color: _hovered
-                ? (isDark
-                    ? Colors.white.withValues(alpha: 0.10)
-                    : Colors.black.withValues(alpha: 0.08))
-                : (isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.black.withValues(alpha: 0.05)),
-          ),
-          boxShadow: [
-            if (_hovered)
-              BoxShadow(
-                color: accent.withValues(alpha: isDark ? 0.18 : 0.12),
-                blurRadius: 18,
-                spreadRadius: -4,
-                offset: const Offset(0, 6),
-              )
-            else
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+    _SdkStatus status(
+      _SdkEntry entry,
+      String? installed, {
+      String? project,
+      LocalProject? local,
+    }) => _SdkStatus(
+      entry: entry,
+      fetch: latest.fetchStateFor(entry.platform),
+      latest: latest.latestFor(entry.platform),
+      installed: installed,
+      project: project,
+      local: local,
+    );
+
+    final selected = devices.where((d) => d.deviceId == selectedId).firstOrNull;
+    final selectedEntry = _SdkCatalog.entries
+        .where((e) => e.platform.handshakeId == selected?.platform)
+        .firstOrNull;
+    final project = selected != null && selectedEntry != null
+        ? status(
+            selectedEntry,
+            deviceSdkVersion(selected, localProjects),
+            project: '${selected.appName} · ${selected.deviceName}',
+            local: localProjectFor(selected, localProjects),
+          )
+        : null;
+    final rows = project != null
+        ? [project]
+        : [
+            for (final entry in _SdkCatalog.entries)
+              status(
+                entry,
+                _installedFor(devices, entry.platform, localProjects),
+                // A folder we couldn't read, so the row can say why.
+                local: localProjects
+                    .where((p) => p.platform == entry.platform)
+                    .where((p) => p.accessDenied)
+                    .firstOrNull,
               ),
-          ],
-        ),
-        child: _hovered
-            ? _ExpandedPanel(
-                accent: accent,
-                isDark: isDark,
-                loc: loc,
-                sdkList: _SdkCatalog.entries,
-                latestVersions: latestVersions,
-                onRetry: () =>
-                    ref.read(sdkLatestVersionsProvider.notifier).refresh(),
+          ];
+    final projectVersion = project?.installed;
+    final needsUpdate = rows.any((r) => r.outdated);
+
+    return TitleBarFlyout(
+      semanticLabel: loc.sdkTipsHeader,
+      alignRight: true,
+      // Re-scan on open: picks up a dev server started, or folder access
+      // granted, since the device connected.
+      onOpen: () => ref.invalidate(localProjectsProvider),
+      pill: (open, focusRing) {
+        // A selected project turns the pill into its version.
+        final (icon, color) = projectVersion != null
+            ? platformLook(
+                project!.entry.platform.handshakeId,
+                isDark: palette.isDark,
               )
-            : _CollapsedPill(accent: accent, isDark: isDark, loc: loc),
+            : (
+                LucideIcons.sparkles,
+                needsUpdate ? palette.accent : palette.textMuted,
+              );
+        return FlyoutPill(
+          palette: palette,
+          leading: Icon(icon, size: 12, color: color),
+          label: projectVersion != null
+              ? loc.sdkTipsVersionLabel(projectVersion)
+              : loc.sdkTipsPill,
+          mono: projectVersion != null,
+          active: open,
+          focusRing: focusRing,
+          dot: needsUpdate,
+        );
+      },
+      popover: (context) => FlyoutPanel(
+        palette: palette,
+        icon: LucideIcons.sparkles,
+        title: loc.sdkTipsHeader,
+        subtitle: loc.sdkTipsSubtitle,
+        sections: [
+          for (final row in rows)
+            _SdkRow(
+              status: row,
+              palette: palette,
+              onRetry: () =>
+                  ref.read(sdkLatestVersionsProvider.notifier).refresh(),
+            ),
+        ],
       ),
     );
   }
 }
 
-// ─── Collapsed pill (rest state) ─────────────────────────────────────
-
-class _CollapsedPill extends StatelessWidget {
-  final Color accent;
-  final bool isDark;
-  final S loc;
-
-  const _CollapsedPill({
-    required this.accent,
-    required this.isDark,
-    required this.loc,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          LucideIcons.sparkles,
-          size: 12,
-          color: accent,
-        ),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            loc.sdkTipsPill,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+/// Oldest known SDK version among connected devices of [p] — the one that
+/// most needs the update. Null when none is known.
+String? _installedFor(
+  List<DeviceInfo> devices,
+  SdkPlatform p,
+  List<LocalProject> projects,
+) {
+  final versions =
+      devices
+          .where((d) => d.platform == p.handshakeId)
+          .map((d) => deviceSdkVersion(d, projects))
+          .nonNulls
+          .toList()
+        ..sort(compareSdkVersions);
+  return versions.firstOrNull;
 }
 
-// ─── Expanded panel (hover state) ────────────────────────────────────
-
-class _ExpandedPanel extends StatelessWidget {
-  final Color accent;
-  final bool isDark;
-  final S loc;
-  final List<_SdkEntry> sdkList;
-  final SdkLatestVersions latestVersions;
-  final VoidCallback onRetry;
-
-  const _ExpandedPanel({
-    required this.accent,
-    required this.isDark,
-    required this.loc,
-    required this.sdkList,
-    required this.latestVersions,
-    required this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          children: [
-            Icon(LucideIcons.sparkles, size: 13, color: accent),
-            const SizedBox(width: 6),
-            Text(
-              loc.sdkTipsHeader,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : Colors.black87,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        // Subtitle now does the heavy lifting. It explains *why*
-        // updating the libraries matters, instead of just pointing at
-        // a folder.
-        Text(
-          loc.sdkTipsSubtitle,
-          style: TextStyle(
-            fontSize: 9.5,
-            color: isDark ? Colors.white54 : Colors.black54,
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          height: 1,
-          margin: const EdgeInsets.only(bottom: 6),
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.06),
-        ),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final sdk in sdkList) ...[
-              _SdkRow(
-                entry: sdk,
-                isDark: isDark,
-                loc: loc,
-                accent: accent,
-                status: _statusFor(sdk),
-                latest: _latestFor(sdk),
-                onRetry: onRetry,
-              ),
-              const SizedBox(height: 6),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-
-  String? _latestFor(_SdkEntry e) => switch (e.platform) {
-        _SdkPlatform.flutter => latestVersions.flutter,
-        _SdkPlatform.reactNative => latestVersions.reactNative,
-        // Android: pretend installed == latest so the row renders as
-        // up-to-date. Avoids a permanent spinner on a platform we
-        // don't fetch yet.
-        _SdkPlatform.android => e.version,
-      };
-
-  SdkVersionFetch _statusFor(_SdkEntry e) => switch (e.platform) {
-        // Android has no live fetch wired in — show the row as
-        // "loaded / up-to-date" using the installed version rather
-        // than a permanent loading spinner.
-        _SdkPlatform.android => SdkVersionFetch.loaded,
-        _ => latestVersions.fetchStateFor(e.platform == _SdkPlatform.flutter),
-      };
-}
-
-// ─── SDK entry data ──────────────────────────────────────────────────
+// ─── Data ─────────────────────────────────────────────────────────────
 
 class _SdkEntry {
-  final _SdkPlatform platform;
-  final String name;
+  final SdkPlatform platform;
 
-  /// Fallback version shown only when there's no live fetch for this
-  /// platform (currently just Android — no Maven fetch wired in).
-  /// For Flutter / React Native the row always renders the version
-  /// returned by [sdkVersionsProvider].
-  final String? version;
+  /// Copyable install lines; `<version>` is swapped for the latest release.
+  final List<String> snippets;
 
-  /// Install hint shown under the version pill. Static copy — the
-  /// command doesn't change between releases, only the version tag.
-  final String note;
-
-  const _SdkEntry({
-    required this.platform,
-    required this.name,
-    required this.note,
-    this.version,
-  });
+  const _SdkEntry(this.platform, this.snippets);
 }
 
-enum _SdkPlatform { flutter, reactNative, android }
-
 class _SdkCatalog {
-  static const List<_SdkEntry> entries = [
-    _SdkEntry(
-      platform: _SdkPlatform.flutter,
-      name: 'devconnect_manage_kit',
-      note: 'pubspec.yaml → devconnect_manage_kit: ^<version>',
-    ),
-    _SdkEntry(
-      platform: _SdkPlatform.reactNative,
-      name: 'devconnect-manage-kit',
-      note: 'npm i / yarn add / pnpm add devconnect-manage-kit@<version>',
-    ),
-    _SdkEntry(
-      platform: _SdkPlatform.android,
-      name: 'com.devconnect',
-      version: '1.0.0',
-      note: 'implementation("com.devconnect:devconnect:1.0.0")',
-    ),
+  static const entries = [
+    _SdkEntry(SdkPlatform.flutter, ['devconnect_manage_kit: ^<version>']),
+    _SdkEntry(SdkPlatform.reactNative, [
+      'npm i devconnect-manage-kit@<version>',
+      'yarn add devconnect-manage-kit@<version>',
+    ]),
+    _SdkEntry(SdkPlatform.android, [
+      'implementation("io.github.buivietphi:devconnect-android:<version>")',
+    ]),
   ];
 }
 
-// ─── SDK row ──────────────────────────────────────────────────────────
-
-class _SdkRow extends StatefulWidget {
+/// One SDK row: what the registry says vs what connected devices run.
+class _SdkStatus {
   final _SdkEntry entry;
-  final bool isDark;
-  final S loc;
-  final Color accent;
+  final SdkVersionFetch fetch;
   final String? latest;
-  final SdkVersionFetch status;
+  final String? installed;
+
+  /// "App · device" when this row is for the selected project.
+  final String? project;
+
+  /// The local project [installed] was read from — or couldn't be.
+  final LocalProject? local;
+
+  const _SdkStatus({
+    required this.entry,
+    required this.fetch,
+    required this.latest,
+    required this.installed,
+    this.project,
+    this.local,
+  });
+
+  bool get outdated =>
+      installed != null &&
+      latest != null &&
+      compareSdkVersions(installed!, latest!) < 0;
+
+  bool get upToDate => installed != null && latest != null && !outdated;
+
+  List<String> get snippets => [
+    for (final s in entry.snippets)
+      latest == null ? s : s.replaceAll('<version>', latest!),
+  ];
+}
+
+// ─── Look ─────────────────────────────────────────────────────────────
+
+String _platformLabel(S loc, SdkPlatform p) => switch (p) {
+  SdkPlatform.flutter => loc.sdkTipsFlutter,
+  SdkPlatform.reactNative => loc.sdkTipsReactNative,
+  SdkPlatform.android => loc.sdkTipsAndroid,
+};
+
+/// System Settings › Privacy & Security › Files and Folders.
+final _filesAndFoldersSettings = Uri.parse(
+  'x-apple.systempreferences:com.apple.preference.security'
+  '?Privacy_FilesAndFolders',
+);
+
+class _SdkRow extends StatelessWidget {
+  final _SdkStatus status;
+  final ChromePalette palette;
   final VoidCallback onRetry;
 
   const _SdkRow({
-    required this.entry,
-    required this.isDark,
-    required this.loc,
-    required this.accent,
-    required this.latest,
     required this.status,
+    required this.palette,
     required this.onRetry,
   });
 
   @override
-  State<_SdkRow> createState() => _SdkRowState();
-}
-
-class _SdkRowState extends State<_SdkRow>
-    with SingleTickerProviderStateMixin {
-  bool _hovered = false;
-  late final AnimationController _loadingSpin;
-
-  @override
-  void initState() {
-    super.initState();
-    // Perpetual rotation for the loading indicator. Keeps the panel
-    // feeling "alive" while the registry fetch is in flight, so the
-    // user can see this row isn't the same as the offline state.
-    _loadingSpin = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _loadingSpin.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final e = widget.entry;
-    final isDark = widget.isDark;
-    final loc = widget.loc;
-    final accent = widget.accent;
-    final latest = widget.latest;
-    final status = widget.status;
-
-    // What the top-row version pill shows:
-    //   - Android (entry has hardcoded `version`): always that version.
-    //     No fetch wired in, so `latest` is null.
-    //   - Flutter / RN (entry has no baseline): the fetched latest,
-    //     or "—" while loading / on error.
-    final pillVersion = e.version ?? latest ?? '—';
-    final isLive = e.version == null;
-
-    String platformLabel(_SdkPlatform p) {
-      switch (p) {
-        case _SdkPlatform.flutter:
-          return loc.sdkTipsFlutter;
-        case _SdkPlatform.reactNative:
-          return loc.sdkTipsReactNative;
-        case _SdkPlatform.android:
-          return loc.sdkTipsAndroid;
-      }
-    }
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: _hovered
-              ? (isDark
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : Colors.black.withValues(alpha: 0.04))
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.05)
-                : Colors.black.withValues(alpha: 0.04),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final loc = S.of(context);
+    final muted = TextStyle(
+      fontSize: 11.5,
+      height: 1.45,
+      color: palette.textMuted,
+    );
+    final (icon, tint) = platformLook(
+      status.entry.platform.handshakeId,
+      isDark: palette.isDark,
+    );
+    final local = status.local;
+    final denied = local?.accessDenied ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: isDark ? 0.16 : 0.14),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    platformLabel(e.platform),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Icon(icon, size: 15, color: tint),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _platformLabel(loc, status.entry.platform),
                     style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
-                      color: accent,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    e.name,
-                    style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      fontFamily: 'monospace',
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.06)
-                        : Colors.black.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    loc.sdkTipsVersionLabel(pillVersion),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'monospace',
-                      color: isDark ? Colors.white70 : Colors.black87,
+                      color: palette.text,
                     ),
                   ),
-                ),
-              ],
-            ),
-            // Second-line status strip. Only meaningful for live-fetched
-            // platforms (Flutter / RN). Android (no fetch) gets just the
-            // install note — no spinner / no retry / no Update badge,
-            // since there's nothing to compare against.
-            // In the "loaded" state the top-row pill already shows the
-            // fetched version, so the second row is intentionally empty
-            // — the install note below the row carries the rest.
-            if (isLive) ...[
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.only(left: 2),
-                child: Row(
-                  children: [
+                  if (status.project case final project?)
                     Text(
-                      '→',
+                      project,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 10,
-                        fontFamily: 'monospace',
-                        color: isDark ? Colors.white38 : Colors.black45,
+                        fontSize: 11.5,
+                        color: palette.textMuted,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    if (status == SdkVersionFetch.loading) ...[
-                      RotationTransition(
-                        turns: _loadingSpin,
-                        child: Icon(
-                          LucideIcons.loader,
-                          size: 11,
-                          color: isDark ? Colors.white54 : Colors.black54,
-                        ),
+                  // Where the version was read from, so a wrong match is
+                  // easy to spot. Last three segments; full path on hover.
+                  if (local != null)
+                    Tooltip(
+                      message: local.root,
+                      child: Row(
+                        children: [
+                          Icon(
+                            denied
+                                ? LucideIcons.folderLock
+                                : LucideIcons.folder,
+                            size: 11,
+                            color: palette.textMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              local.root
+                                  .split('/')
+                                  .reversed
+                                  .take(3)
+                                  .toList()
+                                  .reversed
+                                  .join('/'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: chromeMono(
+                                context,
+                                size: 10.5,
+                                color: palette.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        loc.sdkTipsChecking,
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          color: isDark ? Colors.white54 : Colors.black54,
-                        ),
-                      ),
-                    ] else if (status == SdkVersionFetch.error) ...[
-                      Icon(
-                        LucideIcons.cloudOff,
-                        size: 11,
-                        color: isDark ? Colors.white38 : Colors.black45,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        loc.sdkTipsOffline,
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          color: isDark ? Colors.white38 : Colors.black45,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      _RetryChip(
-                        label: loc.sdkTipsRetry,
-                        isDark: isDark,
-                        onTap: widget.onRetry,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.only(left: 2),
-              child: Text(
-                e.note,
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontFamily: 'monospace',
-                  color: isDark ? Colors.white38 : Colors.black45,
-                ),
+                    ),
+                ],
               ),
             ),
+            if (status.outdated)
+              FlyoutUpdateBadge(palette: palette, label: loc.sdkTipsUpdate)
+            else if (status.upToDate)
+              Tooltip(
+                message: loc.sdkTipsLatestLabel,
+                child: Icon(
+                  LucideIcons.circleCheck,
+                  size: 15,
+                  color: palette.success,
+                  semanticLabel: loc.sdkTipsLatestLabel,
+                ),
+              ),
           ],
         ),
-      ),
+        // Indented to line up with the platform name, past the icon tile.
+        Padding(
+          padding: const EdgeInsets.only(left: 40, top: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FlyoutVersionLine(
+                palette: palette,
+                installed: status.installed,
+                latest: status.latest,
+                fetch: status.fetch,
+                onRetry: onRetry,
+              ),
+              if (denied)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(loc.sdkTipsAccessDenied, style: muted),
+                    if (Platform.isMacOS)
+                      FlyoutButton(
+                        palette: palette,
+                        icon: LucideIcons.settings,
+                        label: loc.sdkTipsOpenSettings,
+                        onPressed: () => launchUrl(_filesAndFoldersSettings),
+                      ),
+                  ],
+                )
+              else if (status.installed == null &&
+                  status.fetch == SdkVersionFetch.loaded)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(loc.sdkTipsCheckProject, style: muted),
+                ),
+            ],
+          ),
+        ),
+        for (final (i, snippet) in status.snippets.indexed)
+          Padding(
+            padding: EdgeInsets.only(left: 40, top: i == 0 ? 8 : 6),
+            child: _Snippet(text: snippet, palette: palette),
+          ),
+      ],
     );
   }
 }
 
-/// Compact pill button shown next to the "Live check unavailable"
-/// caption on the offline row. Click → `onTap`, which the parent
-/// wires to `sdkLatestVersionsProvider.notifier.refresh()`.
-///
-/// Visually a tiny ghost chip: muted text on a tinted glass surface,
-/// 1px inner border for the "liquid glass" refraction feel. Slight
-/// scale-down on press for tactile feedback (skill rule: physical
-/// push indicating success/action).
-class _RetryChip extends StatefulWidget {
-  final String label;
-  final bool isDark;
-  final VoidCallback onTap;
+/// Install line in an inset code box with a copy button that flips to a
+/// check for a moment after copying.
+class _Snippet extends StatefulWidget {
+  final String text;
+  final ChromePalette palette;
 
-  const _RetryChip({
-    required this.label,
-    required this.isDark,
-    required this.onTap,
-  });
+  const _Snippet({required this.text, required this.palette});
 
   @override
-  State<_RetryChip> createState() => _RetryChipState();
+  State<_Snippet> createState() => _SnippetState();
 }
 
-class _RetryChipState extends State<_RetryChip> {
-  bool _pressed = false;
+class _SnippetState extends State<_Snippet> {
+  Timer? _reset;
+  bool _copied = false;
+
+  @override
+  void dispose() {
+    _reset?.cancel();
+    super.dispose();
+  }
+
+  void _copy() {
+    Clipboard.setData(ClipboardData(text: widget.text));
+    _reset?.cancel();
+    setState(() => _copied = true);
+    _reset = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.isDark;
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Colors.black.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.12)
-                  : Colors.black.withValues(alpha: 0.08),
-              width: 0.7,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                LucideIcons.refreshCw,
-                size: 9,
-                color: isDark ? Colors.white70 : Colors.black87,
+    final palette = widget.palette;
+    final loc = S.of(context);
+    return Material(
+      color: palette.codeBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(7),
+        side: BorderSide(color: palette.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 3, 3, 3),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                // Zero-width break after ':' so long Gradle coordinates
+                // wrap between segments, not mid-word. Copy keeps the raw text.
+                widget.text.replaceAll(':', ':'),
+                style: chromeMono(context, size: 11, color: palette.text),
               ),
-              const SizedBox(width: 4),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                  color: isDark ? Colors.white70 : Colors.black87,
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: _copy,
+              tooltip: _copied ? loc.copied : loc.copy,
+              icon: Icon(
+                _copied ? LucideIcons.check : LucideIcons.copy,
+                size: 13,
+              ),
+              style: IconButton.styleFrom(
+                foregroundColor: _copied ? palette.success : palette.textMuted,
+                fixedSize: const Size.square(26),
+                minimumSize: const Size.square(26),
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(5),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

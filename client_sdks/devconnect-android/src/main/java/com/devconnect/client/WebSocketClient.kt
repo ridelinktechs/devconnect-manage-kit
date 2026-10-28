@@ -1,5 +1,6 @@
 package com.devconnect.client
 
+import com.devconnect.BuildConfig
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.BufferedInputStream
@@ -135,7 +136,7 @@ class WebSocketClient(
                 put("appName", appName)
                 put("appVersion", appVersion)
                 if (versionCode != null) put("versionCode", versionCode)
-                put("sdkVersion", "1.0.0")
+                put("sdkVersion", BuildConfig.SDK_VERSION)
             })
         }
 

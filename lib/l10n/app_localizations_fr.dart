@@ -664,6 +664,9 @@ class SFr extends S {
   }
 
   @override
+  String get sdkTipsInstalled => 'Installé';
+
+  @override
   String get sdkTipsLatestLabel => 'Récent';
 
   @override
@@ -677,6 +680,47 @@ class SFr extends S {
 
   @override
   String get sdkTipsRetry => 'Réessayer';
+
+  @override
+  String get sdkTipsCheckProject =>
+      'Vérifiez la version dans votre projet et mettez à jour si besoin.';
+
+  @override
+  String get sdkTipsAccessDenied => 'Pas d\'autorisation pour lire ce dossier.';
+
+  @override
+  String get sdkTipsOpenSettings => 'Ouvrir les Réglages';
+
+  @override
+  String get appUpdateTitle => 'Version de DevConnect';
+
+  @override
+  String get appUpdateAvailable => 'Une nouvelle version est disponible.';
+
+  @override
+  String get appUpdateUpToDate => 'Vous utilisez la dernière version.';
+
+  @override
+  String get appUpdateViewRelease => 'Voir la version';
+
+  @override
+  String devicesConnected(Object count) {
+    return '$count connecté(s)';
+  }
+
+  @override
+  String get devicesAll => 'Tous';
+
+  @override
+  String devicesCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count appareils',
+      one: '1 appareil',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get networkTitle => 'Réseau';

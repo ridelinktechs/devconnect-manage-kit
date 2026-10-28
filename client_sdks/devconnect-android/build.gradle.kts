@@ -4,6 +4,10 @@ plugins {
     id("com.vanniktech.maven.publish") version "0.34.0"
 }
 
+// Published version — also baked into BuildConfig.SDK_VERSION so the
+// handshake reports what the app actually ships with.
+val sdkVersion = "1.1.0"
+
 android {
     namespace = "com.devconnect"
     compileSdk = 36
@@ -16,6 +20,7 @@ android {
         aarMetadata {
             minCompileSdk = 21
         }
+        buildConfigField("String", "SDK_VERSION", "\"$sdkVersion\"")
         // Native crash handler is built per-ABI and shipped inside
         // the AAR. We don't restrict ABIs because the consumer app's
         // APK packaging already merges the right .so files; letting
@@ -41,6 +46,10 @@ android {
             path = file("src/main/cpp/CMakeLists.txt")
             version = "3.22.1"
         }
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {
@@ -124,7 +133,7 @@ mavenPublishing {
     coordinates(
         groupId = "io.github.buivietphi",
         artifactId = "devconnect-android",
-        version = "1.1.0"
+        version = sdkVersion
     )
 
     pom {

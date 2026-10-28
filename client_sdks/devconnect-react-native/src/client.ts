@@ -8,6 +8,7 @@
  */
 
 import { Platform, NativeModules } from 'react-native';
+import { SDK_VERSION } from './version';
 
 interface DevConnectConfig {
   appName: string;
@@ -826,7 +827,7 @@ export class DevConnect {
         appName: this.config.appName,
         appVersion: this.config.appVersion,
         ...(this.config.versionCode ? { versionCode: this.config.versionCode } : {}),
-        sdkVersion: '1.0.0',
+        sdkVersion: SDK_VERSION,
       },
     });
   }

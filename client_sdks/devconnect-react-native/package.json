@@ -9,7 +9,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/write-version.js && tsc",
     "prepublishOnly": "npm run build",
     "lint": "eslint src/"
   },

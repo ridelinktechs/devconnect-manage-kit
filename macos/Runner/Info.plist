@@ -30,5 +30,15 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>DevConnect reads which DevConnect SDK version the project you're running has installed (node_modules or pubspec.lock), to tell you in Tips whether it needs an update.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>DevConnect reads which DevConnect SDK version the project you're running has installed (node_modules or pubspec.lock), to tell you in Tips whether it needs an update.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>DevConnect reads which DevConnect SDK version the project you're running has installed (node_modules or pubspec.lock), to tell you in Tips whether it needs an update.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>DevConnect reads which DevConnect SDK version the project you're running has installed (node_modules or pubspec.lock), to tell you in Tips whether it needs an update.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>DevConnect reads which DevConnect SDK version the project you're running has installed (node_modules or pubspec.lock), to tell you in Tips whether it needs an update.</string>
 </dict>
 </plist>
