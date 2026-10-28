@@ -258,9 +258,7 @@ class _JsonNodeState extends State<_JsonNode> {
                 style: TextStyle(
                   fontFamily: AppConstants.monoFontFamily,
                   fontSize: 12,
-                  color: isDark
-                      ? const Color(0xFFE06C75)
-                      : ColorTokens.primary,
+                  color: isDark ? const Color(0xFFE06C75) : ColorTokens.primary,
                 ),
               ),
             Flexible(
@@ -341,6 +339,7 @@ class _JsonNodeState extends State<_JsonNode> {
 class _HighlightResult {
   final String formatted;
   final int lineCount;
+
   /// Per-line tokens: lineTokens[i] = [text, colorInt, bold, text, colorInt, bold, ...]
   final List<List<Object>> lineTokens;
 
@@ -405,13 +404,22 @@ _HighlightResult _computeHighlight(List<dynamic> args) {
       }
       int color;
       int bold = 0;
-      if (m.group(1) != null) { color = dKey; bold = 1; }
-      else if (m.group(2) != null) { color = dString; }
-      else if (m.group(3) != null) { color = dNumber; }
-      else if (m.group(4) != null) { color = dBool; }
-      else if (m.group(5) != null) { color = dNull; }
-      else if (m.group(6) != null) { color = dBracket; }
-      else { color = dPunct; }
+      if (m.group(1) != null) {
+        color = dKey;
+        bold = 1;
+      } else if (m.group(2) != null) {
+        color = dString;
+      } else if (m.group(3) != null) {
+        color = dNumber;
+      } else if (m.group(4) != null) {
+        color = dBool;
+      } else if (m.group(5) != null) {
+        color = dNull;
+      } else if (m.group(6) != null) {
+        color = dBracket;
+      } else {
+        color = dPunct;
+      }
       tokens.addAll([m.group(0)!, color, bold]);
       cursor = m.end;
     }
@@ -428,7 +436,8 @@ _HighlightResult _computeHighlight(List<dynamic> args) {
 /// are evicted in LRU order once the budget is exceeded.
 final _highlightCache = LruCache<int, _HighlightResult>(
   maxBytes: 10 * 1024 * 1024,
-  weightOf: (r) => r.formatted.length * 2 + // string chars ~2 bytes UTF-16
+  weightOf: (r) =>
+      r.formatted.length * 2 + // string chars ~2 bytes UTF-16
       r.lineTokens.length * 48, // per-line List overhead estimate
 );
 
@@ -498,6 +507,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   bool _saving = false;
   bool? _lastIsDark;
   final _scrollController = SmoothScrollController();
+
   /// The cache key for the entry currently displayed. Pinned so a cache
   /// pressure from other pages can't evict the value the user is looking at.
   int? _pinnedKey;
@@ -548,7 +558,10 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
       _lineNumbersText = null;
       return;
     }
-    _lineNumbersText = List.generate(_result!.lineCount, (i) => '${i + 1}').join('\n');
+    _lineNumbersText = List.generate(
+      _result!.lineCount,
+      (i) => '${i + 1}',
+    ).join('\n');
     _cachedSpans = _buildAllSpans(_result!);
   }
 
@@ -557,15 +570,17 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     for (int lineIdx = 0; lineIdx < result.lineTokens.length; lineIdx++) {
       final tokens = result.lineTokens[lineIdx];
       for (int i = 0; i < tokens.length; i += 3) {
-        spans.add(TextSpan(
-          text: tokens[i] as String,
-          style: TextStyle(
-            color: Color(tokens[i + 1] as int),
-            fontWeight: (tokens[i + 2] as int) == 1
-                ? FontWeight.w600
-                : FontWeight.normal,
+        spans.add(
+          TextSpan(
+            text: tokens[i] as String,
+            style: TextStyle(
+              color: Color(tokens[i + 1] as int),
+              fontWeight: (tokens[i + 2] as int) == 1
+                  ? FontWeight.w600
+                  : FontWeight.normal,
+            ),
           ),
-        ));
+        );
       }
       if (lineIdx < result.lineTokens.length - 1) {
         spans.add(const TextSpan(text: '\n'));
@@ -589,20 +604,22 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     _loading = true;
     final isDark =
         WidgetsBinding.instance.platformDispatcher.platformBrightness ==
-            Brightness.dark;
+        Brightness.dark;
 
-    compute(_computeHighlight, [widget.data, isDark]).then((result) {
-      if (!mounted) return;
-      _highlightCache.put(_cacheKey, result);
-      setState(() {
-        _result = result;
-        _updateSpans();
-        _loading = false;
-      });
-    }).catchError((e) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-    });
+    compute(_computeHighlight, [widget.data, isDark])
+        .then((result) {
+          if (!mounted) return;
+          _highlightCache.put(_cacheKey, result);
+          setState(() {
+            _result = result;
+            _updateSpans();
+            _loading = false;
+          });
+        })
+        .catchError((e) {
+          if (!mounted) return;
+          setState(() => _loading = false);
+        });
   }
 
   Future<void> _saveJsonFile(String content) async {
@@ -618,18 +635,10 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     try {
       await File(location.path).writeAsString(content);
       if (!mounted) return;
-      showSuccessToast(
-        context,
-        message: 'Saved JSON',
-        subtitle: fileName,
-      );
+      showSuccessToast(context, message: 'Saved JSON', subtitle: fileName);
     } catch (e) {
       if (!mounted) return;
-      showErrorToast(
-        context,
-        message: 'Save failed',
-        error: e.toString(),
-      );
+      showErrorToast(context, message: 'Save failed', error: e.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -664,7 +673,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Toolbar
           Container(
@@ -672,8 +681,9 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF252526) : const Color(0xFFF0F0F0),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
+              ),
               border: Border(
                 bottom: BorderSide(
                   color: isDark
@@ -684,11 +694,13 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.braces,
-                    size: 12,
-                    color: isDark
-                        ? const Color(0xFFFFD700)
-                        : const Color(0xFF0451A5)),
+                Icon(
+                  LucideIcons.braces,
+                  size: 12,
+                  color: isDark
+                      ? const Color(0xFFFFD700)
+                      : const Color(0xFF0451A5),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'JSON',
@@ -718,7 +730,8 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                     isDark: isDark,
                     onTap: () {
                       Clipboard.setData(
-                          ClipboardData(text: _result!.formatted));
+                        ClipboardData(text: _result!.formatted),
+                      );
                       showCopiedToast(context, label: 'JSON copied');
                     },
                   ),
@@ -728,7 +741,9 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                     tooltip: 'Save as file',
                     isDark: isDark,
                     loading: _saving,
-                    onTap: _saving ? () {} : () => _saveJsonFile(_result!.formatted),
+                    onTap: _saving
+                        ? () {}
+                        : () => _saveJsonFile(_result!.formatted),
                   ),
                 ],
               ],
@@ -786,7 +801,9 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                                 fontFamily: AppConstants.monoFontFamily,
                                 fontSize: 12,
                                 height: 1.5,
-                                color: isDark ? Colors.grey[600] : Colors.grey[500],
+                                color: isDark
+                                    ? Colors.grey[600]
+                                    : Colors.grey[500],
                               ),
                             ),
                           ),
@@ -840,7 +857,9 @@ class _MiniButtonState extends State<_MiniButton> {
     return GestureDetector(
       onTap: widget.onTap,
       child: MouseRegion(
-        cursor: widget.loading ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        cursor: widget.loading
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: Tooltip(
@@ -851,8 +870,8 @@ class _MiniButtonState extends State<_MiniButton> {
             decoration: BoxDecoration(
               color: _hovered && !widget.loading
                   ? (widget.isDark
-                      ? Colors.white.withValues(alpha: 0.1)
-                      : Colors.black.withValues(alpha: 0.06))
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.black.withValues(alpha: 0.06))
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(4),
             ),
@@ -862,7 +881,9 @@ class _MiniButtonState extends State<_MiniButton> {
                     height: 13,
                     child: CircularProgressIndicator(
                       strokeWidth: 1.6,
-                      color: widget.isDark ? Colors.grey[600] : Colors.grey[400],
+                      color: widget.isDark
+                          ? Colors.grey[600]
+                          : Colors.grey[400],
                     ),
                   )
                 : Icon(
@@ -1099,8 +1120,8 @@ class _SegmentState extends State<_Segment> {
             decoration: BoxDecoration(
               color: _hovered && !isActive
                   ? (isDark
-                      ? Colors.white.withValues(alpha: 0.04)
-                      : Colors.black.withValues(alpha: 0.03))
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : Colors.black.withValues(alpha: 0.03))
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
             ),
@@ -1154,8 +1175,7 @@ class CodeViewer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final hasTypes =
-        generated.types != null && generated.types!.isNotEmpty;
+    final hasTypes = generated.types != null && generated.types!.isNotEmpty;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1231,10 +1251,10 @@ class _CodePanel extends StatelessWidget {
             height: 32,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color:
-                  isDark ? const Color(0xFF252526) : const Color(0xFFF0F0F0),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(8)),
+              color: isDark ? const Color(0xFF252526) : const Color(0xFFF0F0F0),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
+              ),
               border: Border(
                 bottom: BorderSide(
                   color: isDark
@@ -1381,7 +1401,8 @@ class _DeferredBuilderState extends State<DeferredBuilder> {
 /// heavy widget tree (JsonViewer, JsonPrettyViewer, CodeViewer) is built.
 class AsyncJsonParser extends StatefulWidget {
   final dynamic rawData;
-  final Widget Function(BuildContext context, dynamic parsedData, bool isJson) builder;
+  final Widget Function(BuildContext context, dynamic parsedData, bool isJson)
+  builder;
 
   const AsyncJsonParser({
     super.key,
@@ -1510,13 +1531,15 @@ class _AsyncJsonParserState extends State<AsyncJsonParser> {
       if (trimmed.length >= 10000 &&
           trimmed.isNotEmpty &&
           (trimmed[0] == '{' || trimmed[0] == '[')) {
-        compute(_decodeJsonIsolate, trimmed).then((parsed) {
-          if (!mounted || !identical(_lastRawData, raw)) return;
-          _finalize(parsed ?? raw, parsed is Map || parsed is List);
-        }).catchError((_) {
-          if (!mounted || !identical(_lastRawData, raw)) return;
-          _finalize(raw, false);
-        });
+        compute(_decodeJsonIsolate, trimmed)
+            .then((parsed) {
+              if (!mounted || !identical(_lastRawData, raw)) return;
+              _finalize(parsed ?? raw, parsed is Map || parsed is List);
+            })
+            .catchError((_) {
+              if (!mounted || !identical(_lastRawData, raw)) return;
+              _finalize(raw, false);
+            });
         return;
       }
     }
@@ -1656,6 +1679,3 @@ class _LazyTabState extends State<LazyTab> {
     return widget.builder(context);
   }
 }
-
-
-

@@ -645,6 +645,9 @@ class SZh extends S {
   }
 
   @override
+  String get sdkTipsInstalled => '当前';
+
+  @override
   String get sdkTipsLatestLabel => '最新';
 
   @override
@@ -658,6 +661,45 @@ class SZh extends S {
 
   @override
   String get sdkTipsRetry => '重试';
+
+  @override
+  String get sdkTipsCheckProject => '请检查项目中的版本，必要时更新。';
+
+  @override
+  String get sdkTipsAccessDenied => '没有读取此文件夹的权限。';
+
+  @override
+  String get sdkTipsOpenSettings => '打开设置';
+
+  @override
+  String get appUpdateTitle => 'DevConnect 版本';
+
+  @override
+  String get appUpdateAvailable => '有新版本可用。';
+
+  @override
+  String get appUpdateUpToDate => '已是最新版本。';
+
+  @override
+  String get appUpdateViewRelease => '查看发布说明';
+
+  @override
+  String devicesConnected(Object count) {
+    return '已连接 $count 台';
+  }
+
+  @override
+  String get devicesAll => '全部';
+
+  @override
+  String devicesCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台设备',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get networkTitle => '网络';
@@ -1848,6 +1890,9 @@ class SZhCn extends SZh {
   }
 
   @override
+  String get sdkTipsInstalled => '当前';
+
+  @override
   String get sdkTipsLatestLabel => '最新';
 
   @override
@@ -1861,6 +1906,45 @@ class SZhCn extends SZh {
 
   @override
   String get sdkTipsRetry => '重试';
+
+  @override
+  String get sdkTipsCheckProject => '请检查项目中的版本，必要时更新。';
+
+  @override
+  String get sdkTipsAccessDenied => '没有读取此文件夹的权限。';
+
+  @override
+  String get sdkTipsOpenSettings => '打开设置';
+
+  @override
+  String get appUpdateTitle => 'DevConnect 版本';
+
+  @override
+  String get appUpdateAvailable => '有新版本可用。';
+
+  @override
+  String get appUpdateUpToDate => '已是最新版本。';
+
+  @override
+  String get appUpdateViewRelease => '查看发布说明';
+
+  @override
+  String devicesConnected(Object count) {
+    return '已连接 $count 台';
+  }
+
+  @override
+  String get devicesAll => '全部';
+
+  @override
+  String devicesCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台设备',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get networkTitle => '网络';
@@ -3051,6 +3135,9 @@ class SZhTw extends SZh {
   }
 
   @override
+  String get sdkTipsInstalled => '目前';
+
+  @override
   String get sdkTipsLatestLabel => '最新';
 
   @override
@@ -3064,6 +3151,45 @@ class SZhTw extends SZh {
 
   @override
   String get sdkTipsRetry => '重試';
+
+  @override
+  String get sdkTipsCheckProject => '請檢查專案中的版本，必要時更新。';
+
+  @override
+  String get sdkTipsAccessDenied => '沒有讀取此資料夾的權限。';
+
+  @override
+  String get sdkTipsOpenSettings => '打開設定';
+
+  @override
+  String get appUpdateTitle => 'DevConnect 版本';
+
+  @override
+  String get appUpdateAvailable => '有新版本可用。';
+
+  @override
+  String get appUpdateUpToDate => '已是最新版本。';
+
+  @override
+  String get appUpdateViewRelease => '查看發布說明';
+
+  @override
+  String devicesConnected(Object count) {
+    return '已連線 $count 台';
+  }
+
+  @override
+  String get devicesAll => '全部';
+
+  @override
+  String devicesCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台裝置',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get networkTitle => '網路';

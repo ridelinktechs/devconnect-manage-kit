@@ -34,6 +34,23 @@ jobs:
           echo "✓ No print()/debugPrint() in lib/"
       - run: flutter analyze --no-fatal-infos lib/
 
+  test:
+    name: Flutter Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter test
+      # Includes version_test.dart, which keeps the version the SDK reports
+      # in its handshake in step with pubspec.yaml.
+      - name: Flutter SDK tests
+        working-directory: client_sdks/devconnect_flutter
+        run: flutter test
+
   build-macos:
     name: Build macOS
     runs-on: macos-latest
@@ -67,3 +84,9 @@ jobs:
         with:
           node-version: "20"
       - run: cd client_sdks/devconnect-react-native && npm install && npm run build
+      # The build regenerates src/version.ts (the version the SDK reports in
+      # its handshake) from package.json; a diff means it wasn't committed.
+      - name: src/version.ts matches package.json
+        run: |
+          git diff --exit-code -- client_sdks/devconnect-react-native/src/version.ts ||
+            { echo "::error::Run 'npm run build' in client_sdks/devconnect-react-native and commit src/version.ts"; exit 1; }

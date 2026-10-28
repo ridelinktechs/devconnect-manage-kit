@@ -1185,6 +1185,12 @@ abstract class S {
   /// **'v{version}'**
   String sdkTipsVersionLabel(Object version);
 
+  /// No description provided for @sdkTipsInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed'**
+  String get sdkTipsInstalled;
+
   /// No description provided for @sdkTipsLatestLabel.
   ///
   /// In en, this message translates to:
@@ -1214,6 +1220,66 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Retry'**
   String get sdkTipsRetry;
+
+  /// No description provided for @sdkTipsCheckProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the version in your project and update if needed.'**
+  String get sdkTipsCheckProject;
+
+  /// No description provided for @sdkTipsAccessDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'No permission to read this folder.'**
+  String get sdkTipsAccessDenied;
+
+  /// No description provided for @sdkTipsOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get sdkTipsOpenSettings;
+
+  /// No description provided for @appUpdateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'DevConnect version'**
+  String get appUpdateTitle;
+
+  /// No description provided for @appUpdateAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'A new version is available.'**
+  String get appUpdateAvailable;
+
+  /// No description provided for @appUpdateUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re on the latest version.'**
+  String get appUpdateUpToDate;
+
+  /// No description provided for @appUpdateViewRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'View release'**
+  String get appUpdateViewRelease;
+
+  /// No description provided for @devicesConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} connected'**
+  String devicesConnected(Object count);
+
+  /// No description provided for @devicesAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get devicesAll;
+
+  /// No description provided for @devicesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 device} other{{count} devices}}'**
+  String devicesCount(num count);
 
   /// No description provided for @networkTitle.
   ///

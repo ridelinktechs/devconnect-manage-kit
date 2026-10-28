@@ -657,6 +657,9 @@ class SJa extends S {
   }
 
   @override
+  String get sdkTipsInstalled => '使用中';
+
+  @override
   String get sdkTipsLatestLabel => '最新';
 
   @override
@@ -670,6 +673,45 @@ class SJa extends S {
 
   @override
   String get sdkTipsRetry => '再試行';
+
+  @override
+  String get sdkTipsCheckProject => 'プロジェクトのバージョンを確認し、必要なら更新してください。';
+
+  @override
+  String get sdkTipsAccessDenied => 'このフォルダを読み取る権限がありません。';
+
+  @override
+  String get sdkTipsOpenSettings => '設定を開く';
+
+  @override
+  String get appUpdateTitle => 'DevConnect のバージョン';
+
+  @override
+  String get appUpdateAvailable => '新しいバージョンがあります。';
+
+  @override
+  String get appUpdateUpToDate => '最新バージョンを使用しています。';
+
+  @override
+  String get appUpdateViewRelease => 'リリースを見る';
+
+  @override
+  String devicesConnected(Object count) {
+    return '$count 台接続中';
+  }
+
+  @override
+  String get devicesAll => 'すべて';
+
+  @override
+  String devicesCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get networkTitle => 'ネットワーク';

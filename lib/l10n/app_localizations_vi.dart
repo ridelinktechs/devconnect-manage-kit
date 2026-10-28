@@ -663,6 +663,9 @@ class SVi extends S {
   }
 
   @override
+  String get sdkTipsInstalled => 'Đang dùng';
+
+  @override
   String get sdkTipsLatestLabel => 'Mới nhất';
 
   @override
@@ -676,6 +679,46 @@ class SVi extends S {
 
   @override
   String get sdkTipsRetry => 'Thử lại';
+
+  @override
+  String get sdkTipsCheckProject =>
+      'Kiểm tra version trong project và cập nhật nếu cần.';
+
+  @override
+  String get sdkTipsAccessDenied => 'Chưa có quyền đọc thư mục này.';
+
+  @override
+  String get sdkTipsOpenSettings => 'Mở Cài đặt';
+
+  @override
+  String get appUpdateTitle => 'Phiên bản DevConnect';
+
+  @override
+  String get appUpdateAvailable => 'Đã có phiên bản mới.';
+
+  @override
+  String get appUpdateUpToDate => 'Bạn đang dùng phiên bản mới nhất.';
+
+  @override
+  String get appUpdateViewRelease => 'Xem bản phát hành';
+
+  @override
+  String devicesConnected(Object count) {
+    return '$count đã kết nối';
+  }
+
+  @override
+  String get devicesAll => 'Tất cả';
+
+  @override
+  String devicesCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count thiết bị',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get networkTitle => 'Mạng';

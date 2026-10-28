@@ -15,9 +15,9 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('BlocObserverBase class comment documents the no-super-chain limit',
       () {
+    // Relative: `flutter test` runs from the package root, locally and on CI.
     final src = File(
-      '/Users/phibui/Documents/ridelink-techs/connect-totron/client_sdks/'
-      'devconnect_flutter/lib/src/interceptors/bloc/devconnect_bloc_observer.dart',
+      'lib/src/interceptors/bloc/devconnect_bloc_observer.dart',
     ).readAsStringSync();
 
     // Find the BlocObserverBase class block. The doc comment sits

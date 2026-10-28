@@ -661,6 +661,9 @@ class SEn extends S {
   }
 
   @override
+  String get sdkTipsInstalled => 'Installed';
+
+  @override
   String get sdkTipsLatestLabel => 'Latest';
 
   @override
@@ -674,6 +677,47 @@ class SEn extends S {
 
   @override
   String get sdkTipsRetry => 'Retry';
+
+  @override
+  String get sdkTipsCheckProject =>
+      'Check the version in your project and update if needed.';
+
+  @override
+  String get sdkTipsAccessDenied => 'No permission to read this folder.';
+
+  @override
+  String get sdkTipsOpenSettings => 'Open Settings';
+
+  @override
+  String get appUpdateTitle => 'DevConnect version';
+
+  @override
+  String get appUpdateAvailable => 'A new version is available.';
+
+  @override
+  String get appUpdateUpToDate => 'You\'re on the latest version.';
+
+  @override
+  String get appUpdateViewRelease => 'View release';
+
+  @override
+  String devicesConnected(Object count) {
+    return '$count connected';
+  }
+
+  @override
+  String get devicesAll => 'All';
+
+  @override
+  String devicesCount(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count devices',
+      one: '1 device',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get networkTitle => 'Network';

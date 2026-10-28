@@ -84,7 +84,8 @@ class _Harness {
   }
 
   void dispose() {
-    notifier.cancelSubscription();
+    // Disposing the container cancels the notifier's subscription
+    // (`ref.onDispose` in `StorageNotifier.build`).
     handler.dispose();
     container.dispose();
   }
