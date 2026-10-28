@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/all_events/presentation/pages/all_events_page.dart';
+import '../../features/async_ops/presentation/pages/async_ops_page.dart';
 import '../../features/console/presentation/pages/console_page.dart';
+import '../../features/custom_commands/presentation/pages/custom_commands_page.dart';
 import '../../features/database_viewer/presentation/pages/database_viewer_page.dart';
+import '../../features/display/presentation/pages/display_page.dart';
 import '../../features/network_inspector/presentation/pages/network_inspector_page.dart';
 import '../../features/last_connected/presentation/pages/last_connected_page.dart';
 import '../../features/mock_server/presentation/mock_server_page.dart';
@@ -90,6 +93,24 @@ final appRouter = GoRouter(
           path: '/errors',
           pageBuilder: (context, state) => const NoTransitionPage(
             child: ErrorInspectorPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/display',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: DisplayPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/async',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: AsyncOpsPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/commands',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: CustomCommandsPage(),
           ),
         ),
         GoRoute(

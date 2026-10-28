@@ -336,12 +336,24 @@ public final class DevConnectJava {
      * }</pre>
      */
     public static void registerCommand(String name, CommandHandler handler) {
+        // Hand the result back: it's what the desktop shows for the run.
         @SuppressWarnings({"rawtypes", "unchecked"})
-        Function1 adapter = args -> {
-            handler.onCommand((Map<String, Object>) args);
-            return Unit.INSTANCE;
-        };
+        Function1 adapter = args -> handler.onCommand((Map<String, Object>) args);
         DevConnect.INSTANCE.registerCommand(name, adapter);
+    }
+
+    /**
+     * Lets the desktop's Database tab browse and query a SQLite database.
+     * The query runs one SQL statement and returns its cursor, which the
+     * SDK reads and closes.
+     *
+     * <p>Java example:</p>
+     * <pre>{@code
+     * DevConnectJava.registerDatabase("app.db", sql -> db.rawQuery(sql, null));
+     * }</pre>
+     */
+    public static void registerDatabase(String name, DatabaseQuery query) {
+        DevConnect.INSTANCE.registerDatabase(name, query::query);
     }
 
     // ───────────────────── Listeners (Java-friendly) ─────────────────────
@@ -488,6 +500,14 @@ public final class DevConnectJava {
      */
     public interface CommandHandler {
         Object onCommand(Map<String, Object> args);
+    }
+
+    /**
+     * Query for {@link DevConnectJava#registerDatabase(String, DatabaseQuery)}:
+     * runs one SQL statement and returns its cursor.
+     */
+    public interface DatabaseQuery {
+        android.database.Cursor query(String sql);
     }
 
     /** Listener for {@link DevConnectJava#setOnStateRestore(StateListener)}. */

@@ -753,6 +753,26 @@ class DevConnect {
     client.registerCommand(name, handler);
   }
 
+  // ---- Database ----
+
+  /// Lets the desktop's Database tab browse and query a SQLite database.
+  /// [query] runs one SQL statement and returns its rows — `db.rawQuery`
+  /// with sqflite:
+  ///
+  /// ```dart
+  /// DevConnect.registerDatabase('app.db', db.rawQuery);
+  /// // drift:
+  /// DevConnect.registerDatabase('app', (sql) async =>
+  ///     [for (final r in await db.customSelect(sql).get()) r.data]);
+  /// ```
+  static void registerDatabase(
+    String name,
+    Future<List<Map<String, Object?>>> Function(String sql) query,
+  ) {
+    if (!_active) return;
+    client.registerDatabase(name, query);
+  }
+
   // ---- Network (manual) ----
 
   /// Manually report a network request start.

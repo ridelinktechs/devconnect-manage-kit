@@ -723,6 +723,90 @@ class SFr extends S {
   }
 
   @override
+  String get commandsTitle => 'Commandes personnalisées';
+
+  @override
+  String get commandsNoDevice =>
+      'Connectez un appareil pour lancer ses commandes.';
+
+  @override
+  String get commandsEmptyHint =>
+      'Aucune commande enregistrée. Ajoutez-en une dans l\'app avec DevConnect.registerCommand(name, handler), ou saisissez un nom de commande pour la lancer.';
+
+  @override
+  String get commandsName => 'Commande';
+
+  @override
+  String get commandsArgs => 'Arguments — objet JSON, facultatif';
+
+  @override
+  String get commandsArgsInvalid => 'Les arguments doivent être un objet JSON.';
+
+  @override
+  String get commandsRun => 'Exécuter';
+
+  @override
+  String commandsTarget(Object device) {
+    return 'S\'exécute sur $device';
+  }
+
+  @override
+  String get commandsHistoryEmpty =>
+      'Les résultats des commandes exécutées s\'affichent ici.';
+
+  @override
+  String get commandsNoResponse =>
+      'Pas de réponse. La commande est-elle enregistrée dans l\'app ?';
+
+  @override
+  String get dbTables => 'Tables';
+
+  @override
+  String get dbRefresh => 'Recharger les tables';
+
+  @override
+  String get dbNoDevice =>
+      'Connectez un appareil pour parcourir ses bases de données.';
+
+  @override
+  String get dbSelectDevice =>
+      'Sélectionnez un appareil dans la barre du bas pour parcourir ses bases de données.';
+
+  @override
+  String get dbNoDatabases =>
+      'Aucune base de données enregistrée. Ajoutez-en une dans l\'app avec DevConnect.registerDatabase(name, query), puis rechargez les tables.';
+
+  @override
+  String get dbRun => 'Exécuter';
+
+  @override
+  String get dbRunHint => 'Choisissez une table ou écrivez du SQL';
+
+  @override
+  String get dbRunHintSubtitle =>
+      'Choisir une table affiche ses 50 premières lignes.';
+
+  @override
+  String dbRows(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count lignes',
+      one: '1 ligne',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dbTruncated(Object count) {
+    return 'seulement les $count premières';
+  }
+
+  @override
+  String get dbNoResponse =>
+      'Pas de réponse. L\'app enregistre-t-elle une base avec DevConnect.registerDatabase ? Il faut le dernier SDK.';
+
+  @override
   String get networkTitle => 'Réseau';
 
   @override

@@ -241,6 +241,22 @@ DevConnect.registerCommand('clearCache', (args) {
 });
 ```
 
+Registered commands show up in the desktop's **Commands** tab, where you
+run them with optional JSON args and see what they return (async handlers
+are awaited; a throw shows as the error).
+
+### Database
+
+Let the desktop's **Database** tab browse your SQLite tables and run SQL:
+
+```dart
+DevConnect.registerDatabase('app.db', db.rawQuery); // sqflite
+```
+
+Any `Future<List<Map<String, Object?>>> Function(String sql)` works (drift:
+`(sql) async => [for (final r in await db.customSelect(sql).get()) r.data]`).
+Results are capped at 1000 rows.
+
 ### Hot Reload / Hot Restart from Desktop
 
 Since **1.0.5** — let DevConnect Manage Tool trigger a hot-reload

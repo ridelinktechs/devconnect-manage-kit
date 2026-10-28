@@ -1281,6 +1281,132 @@ abstract class S {
   /// **'{count, plural, =1{1 device} other{{count} devices}}'**
   String devicesCount(num count);
 
+  /// No description provided for @commandsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom commands'**
+  String get commandsTitle;
+
+  /// No description provided for @commandsNoDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect a device to run its commands.'**
+  String get commandsNoDevice;
+
+  /// No description provided for @commandsEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'No commands registered yet. Add one in the app with DevConnect.registerCommand(name, handler), or type a command name to run it.'**
+  String get commandsEmptyHint;
+
+  /// No description provided for @commandsName.
+  ///
+  /// In en, this message translates to:
+  /// **'Command'**
+  String get commandsName;
+
+  /// No description provided for @commandsArgs.
+  ///
+  /// In en, this message translates to:
+  /// **'Arguments — JSON object, optional'**
+  String get commandsArgs;
+
+  /// No description provided for @commandsArgsInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Arguments must be a JSON object.'**
+  String get commandsArgsInvalid;
+
+  /// No description provided for @commandsRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Run'**
+  String get commandsRun;
+
+  /// No description provided for @commandsTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Runs on {device}'**
+  String commandsTarget(Object device);
+
+  /// No description provided for @commandsHistoryEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Results of the commands you run show up here.'**
+  String get commandsHistoryEmpty;
+
+  /// No description provided for @commandsNoResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'No response. Is the command registered in the app?'**
+  String get commandsNoResponse;
+
+  /// No description provided for @dbTables.
+  ///
+  /// In en, this message translates to:
+  /// **'Tables'**
+  String get dbTables;
+
+  /// No description provided for @dbRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload tables'**
+  String get dbRefresh;
+
+  /// No description provided for @dbNoDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect a device to browse its databases.'**
+  String get dbNoDevice;
+
+  /// No description provided for @dbSelectDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a device in the bottom bar to browse its databases.'**
+  String get dbSelectDevice;
+
+  /// No description provided for @dbNoDatabases.
+  ///
+  /// In en, this message translates to:
+  /// **'No database registered. Add one in the app with DevConnect.registerDatabase(name, query), then reload tables.'**
+  String get dbNoDatabases;
+
+  /// No description provided for @dbRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Run'**
+  String get dbRun;
+
+  /// No description provided for @dbRunHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a table or write SQL'**
+  String get dbRunHint;
+
+  /// No description provided for @dbRunHintSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Picking a table previews its first 50 rows.'**
+  String get dbRunHintSubtitle;
+
+  /// No description provided for @dbRows.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 row} other{{count} rows}}'**
+  String dbRows(num count);
+
+  /// No description provided for @dbTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'first {count} only'**
+  String dbTruncated(Object count);
+
+  /// No description provided for @dbNoResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'No response. Does the app register a database with DevConnect.registerDatabase? It needs the latest SDK.'**
+  String get dbNoResponse;
+
   /// No description provided for @networkTitle.
   ///
   /// In en, this message translates to:

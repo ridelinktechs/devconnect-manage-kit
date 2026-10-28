@@ -444,6 +444,24 @@ DevConnect.registerCommand("clearCache") { args ->
 }
 ```
 
+Registered commands show up in the desktop's **Commands** tab, where you
+run them with optional JSON args and see what they return.
+
+### Database
+
+Let the desktop's **Database** tab browse your SQLite tables and run SQL —
+pass a function that runs one statement and returns its cursor (the SDK
+reads and closes it):
+
+```kotlin
+DevConnect.registerDatabase("app.db") { sql -> db.rawQuery(sql, null) }
+// Room
+DevConnect.registerDatabase("room") { sql -> roomDb.openHelper.readableDatabase.query(sql) }
+```
+
+Java: `DevConnectJava.registerDatabase("app.db", sql -> db.rawQuery(sql, null));`.
+Results are capped at 1000 rows.
+
 ## Production Safety
 
 Disabled when `enabled = false` — zero runtime overhead. Use `BuildConfig.DEBUG` to auto-disable in release.

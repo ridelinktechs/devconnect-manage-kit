@@ -106,6 +106,9 @@ class WsMessageHandler {
   final _benchmarkStepController = StreamController<Map<String, dynamic>>.broadcast();
   final _stateSnapshotController = StreamController<Map<String, dynamic>>.broadcast();
   final _customResultController = StreamController<Map<String, dynamic>>.broadcast();
+  final _customCommandsController = StreamController<Map<String, dynamic>>.broadcast();
+  final _databaseSchemaController = StreamController<Map<String, dynamic>>.broadcast();
+  final _databaseQueryController = StreamController<Map<String, dynamic>>.broadcast();
   final _performanceController = StreamController<PerformanceEntry>.broadcast();
   final _memoryLeakController = StreamController<MemoryLeakEntry>.broadcast();
   final _displayController = StreamController<DisplayEntry>.broadcast();
@@ -129,6 +132,18 @@ class WsMessageHandler {
   Stream<Map<String, dynamic>> get onBenchmarkStep => _benchmarkStepController.stream;
   Stream<Map<String, dynamic>> get onStateSnapshot => _stateSnapshotController.stream;
   Stream<Map<String, dynamic>> get onCustomResult => _customResultController.stream;
+
+  /// `{deviceId, commands}`: the custom commands a device's app registered.
+  Stream<Map<String, dynamic>> get onCustomCommands =>
+      _customCommandsController.stream;
+
+  /// `{deviceId, databases}`: the app's registered databases and tables.
+  Stream<Map<String, dynamic>> get onDatabaseSchema =>
+      _databaseSchemaController.stream;
+
+  /// `{deviceId, database, columns, rows, truncated, error, executionTimeMs}`.
+  Stream<Map<String, dynamic>> get onDatabaseQueryResult =>
+      _databaseQueryController.stream;
   Stream<PerformanceEntry> get onPerformance => _performanceController.stream;
   Stream<MemoryLeakEntry> get onMemoryLeak => _memoryLeakController.stream;
   Stream<DisplayEntry> get onDisplay => _displayController.stream;
@@ -350,6 +365,27 @@ class WsMessageHandler {
           ...message.payload,
         });
         break;
+      case WsMessageTypes.clientCustomCommands:
+        _customCommandsController.add({
+          'deviceId': message.deviceId,
+          'commands': [
+            for (final c in message.payload['commands'] as List? ?? const [])
+              if (c is String) c,
+          ],
+        });
+        break;
+      case WsMessageTypes.clientDatabaseSchema:
+        _databaseSchemaController.add({
+          'deviceId': message.deviceId,
+          ...message.payload,
+        });
+        break;
+      case WsMessageTypes.clientDatabaseQueryResult:
+        _databaseQueryController.add({
+          'deviceId': message.deviceId,
+          ...message.payload,
+        });
+        break;
       case WsMessageTypes.clientBlocChange:
       case WsMessageTypes.clientProviderUpdate:
       case WsMessageTypes.clientReactQueryChange:
@@ -406,14 +442,42 @@ class WsMessageHandler {
     ));
   }
 
-  /// Send a custom command to the app
-  void sendCustomCommand(String deviceId, String command, {Map<String, dynamic>? args}) {
+  /// Sends a custom command to the app. Returns the id the SDKs echo back
+  /// as `correlationId` in `client:custom:command_result`.
+  String sendCustomCommand(String deviceId, String command, {Map<String, dynamic>? args}) {
+    final id = _uuid.v4();
     server.sendToDevice(deviceId, DCMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: id,
       type: WsMessageTypes.serverCustomCommand,
       deviceId: 'server',
       timestamp: DateTime.now().millisecondsSinceEpoch,
       payload: {'command': command, if (args != null) 'args': args},
+      correlationId: id,
+    ));
+    return id;
+  }
+
+  /// Asks the app for the tables of every database it registered; they
+  /// come back as `client:database:schema`.
+  void requestDatabaseSchema(String deviceId) {
+    server.sendToDevice(deviceId, DCMessage(
+      id: _uuid.v4(),
+      type: WsMessageTypes.serverDatabaseRequestSchema,
+      deviceId: 'server',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      payload: const {},
+    ));
+  }
+
+  /// Runs [sql] on the app's [database]; the rows come back as
+  /// `client:database:query_result`.
+  void queryDatabase(String deviceId, String database, String sql) {
+    server.sendToDevice(deviceId, DCMessage(
+      id: _uuid.v4(),
+      type: WsMessageTypes.serverDatabaseQuery,
+      deviceId: 'server',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      payload: {'database': database, 'sql': sql},
     ));
   }
 
@@ -446,19 +510,6 @@ class WsMessageHandler {
       timestamp: DateTime.now().millisecondsSinceEpoch,
       payload: const {},
     ));
-  }
-
-  /// Broadcast reload to every connected device.
-  /// Pass [hotRestart] = true to send the heavier `server:hot_restart`
-  /// message instead of the standard `server:reload`.
-  void broadcastReload({bool hotRestart = false}) {
-    for (final conn in server.connections.values) {
-      if (hotRestart) {
-        triggerHotRestart(conn.deviceInfo.deviceId);
-      } else {
-        triggerReload(conn.deviceInfo.deviceId);
-      }
-    }
   }
 
   /// Round 4: replace the SDK's mock-rule list with [rules].
@@ -1139,6 +1190,9 @@ class WsMessageHandler {
     _benchmarkStepController.close();
     _stateSnapshotController.close();
     _customResultController.close();
+    _customCommandsController.close();
+    _databaseSchemaController.close();
+    _databaseQueryController.close();
     _performanceController.close();
     _memoryLeakController.close();
     _displayController.close();

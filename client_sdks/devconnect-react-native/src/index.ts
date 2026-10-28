@@ -1,4 +1,5 @@
 export { DevConnect } from './client';
+export type { DatabaseQuery } from './client';
 export { devConnectReduxMiddleware } from './interceptors/reduxMiddleware';
 export { setupMobxSpy } from './interceptors/mobxSpy';
 export { setupAxiosInterceptor } from './interceptors/axiosInterceptor';

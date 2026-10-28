@@ -46,6 +46,10 @@ class WsMessageTypes {
   static const String clientCustom = 'client:custom';
   static const String clientCustomCommandResult =
       'client:custom:command_result';
+
+  /// The custom commands the app registered — sent after the handshake and
+  /// whenever one is added.
+  static const String clientCustomCommands = 'client:custom:commands';
   static const String clientPerformanceMetric =
       'client:performance:metric';
   static const String clientMemoryLeak = 'client:memory:leak';

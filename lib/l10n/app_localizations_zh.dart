@@ -702,6 +702,83 @@ class SZh extends S {
   }
 
   @override
+  String get commandsTitle => '自定义命令';
+
+  @override
+  String get commandsNoDevice => '连接设备后即可运行其命令。';
+
+  @override
+  String get commandsEmptyHint =>
+      '应用尚未注册命令。可在应用中用 DevConnect.registerCommand(name, handler) 添加，或输入命令名直接运行。';
+
+  @override
+  String get commandsName => '命令';
+
+  @override
+  String get commandsArgs => '参数 — JSON 对象（可选）';
+
+  @override
+  String get commandsArgsInvalid => '参数必须是 JSON 对象。';
+
+  @override
+  String get commandsRun => '运行';
+
+  @override
+  String commandsTarget(Object device) {
+    return '在 $device 上运行';
+  }
+
+  @override
+  String get commandsHistoryEmpty => '运行的命令结果会显示在这里。';
+
+  @override
+  String get commandsNoResponse => '无响应。应用是否注册了该命令？';
+
+  @override
+  String get dbTables => '表';
+
+  @override
+  String get dbRefresh => '重新加载表';
+
+  @override
+  String get dbNoDevice => '连接设备后即可浏览其数据库。';
+
+  @override
+  String get dbSelectDevice => '在底部栏选择设备以浏览其数据库。';
+
+  @override
+  String get dbNoDatabases =>
+      '应用尚未注册数据库。可用 DevConnect.registerDatabase(name, query) 添加，然后重新加载表。';
+
+  @override
+  String get dbRun => '运行';
+
+  @override
+  String get dbRunHint => '选择一个表或编写 SQL';
+
+  @override
+  String get dbRunHintSubtitle => '选择表即可预览前 50 行。';
+
+  @override
+  String dbRows(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 行',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dbTruncated(Object count) {
+    return '仅前 $count 行';
+  }
+
+  @override
+  String get dbNoResponse =>
+      '无响应。应用是否用 DevConnect.registerDatabase 注册了数据库？需要最新的 SDK。';
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -1947,6 +2024,83 @@ class SZhCn extends SZh {
   }
 
   @override
+  String get commandsTitle => '自定义命令';
+
+  @override
+  String get commandsNoDevice => '连接设备后即可运行其命令。';
+
+  @override
+  String get commandsEmptyHint =>
+      '应用尚未注册命令。可在应用中用 DevConnect.registerCommand(name, handler) 添加，或输入命令名直接运行。';
+
+  @override
+  String get commandsName => '命令';
+
+  @override
+  String get commandsArgs => '参数 — JSON 对象（可选）';
+
+  @override
+  String get commandsArgsInvalid => '参数必须是 JSON 对象。';
+
+  @override
+  String get commandsRun => '运行';
+
+  @override
+  String commandsTarget(Object device) {
+    return '在 $device 上运行';
+  }
+
+  @override
+  String get commandsHistoryEmpty => '运行的命令结果会显示在这里。';
+
+  @override
+  String get commandsNoResponse => '无响应。应用是否注册了该命令？';
+
+  @override
+  String get dbTables => '表';
+
+  @override
+  String get dbRefresh => '重新加载表';
+
+  @override
+  String get dbNoDevice => '连接设备后即可浏览其数据库。';
+
+  @override
+  String get dbSelectDevice => '在底部栏选择设备以浏览其数据库。';
+
+  @override
+  String get dbNoDatabases =>
+      '应用尚未注册数据库。可用 DevConnect.registerDatabase(name, query) 添加，然后重新加载表。';
+
+  @override
+  String get dbRun => '运行';
+
+  @override
+  String get dbRunHint => '选择一个表或编写 SQL';
+
+  @override
+  String get dbRunHintSubtitle => '选择表即可预览前 50 行。';
+
+  @override
+  String dbRows(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 行',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dbTruncated(Object count) {
+    return '仅前 $count 行';
+  }
+
+  @override
+  String get dbNoResponse =>
+      '无响应。应用是否用 DevConnect.registerDatabase 注册了数据库？需要最新的 SDK。';
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -3190,6 +3344,83 @@ class SZhTw extends SZh {
     );
     return '$_temp0';
   }
+
+  @override
+  String get commandsTitle => '自訂指令';
+
+  @override
+  String get commandsNoDevice => '連線裝置後即可執行其指令。';
+
+  @override
+  String get commandsEmptyHint =>
+      '應用尚未註冊指令。可在應用中用 DevConnect.registerCommand(name, handler) 新增，或輸入指令名稱直接執行。';
+
+  @override
+  String get commandsName => '指令';
+
+  @override
+  String get commandsArgs => '參數 — JSON 物件（選填）';
+
+  @override
+  String get commandsArgsInvalid => '參數必須是 JSON 物件。';
+
+  @override
+  String get commandsRun => '執行';
+
+  @override
+  String commandsTarget(Object device) {
+    return '在 $device 上執行';
+  }
+
+  @override
+  String get commandsHistoryEmpty => '執行的指令結果會顯示在這裡。';
+
+  @override
+  String get commandsNoResponse => '無回應。應用是否註冊了此指令？';
+
+  @override
+  String get dbTables => '資料表';
+
+  @override
+  String get dbRefresh => '重新載入資料表';
+
+  @override
+  String get dbNoDevice => '連線裝置後即可瀏覽其資料庫。';
+
+  @override
+  String get dbSelectDevice => '在底部列選擇裝置以瀏覽其資料庫。';
+
+  @override
+  String get dbNoDatabases =>
+      '應用尚未註冊資料庫。可用 DevConnect.registerDatabase(name, query) 新增，然後重新載入資料表。';
+
+  @override
+  String get dbRun => '執行';
+
+  @override
+  String get dbRunHint => '選擇資料表或撰寫 SQL';
+
+  @override
+  String get dbRunHintSubtitle => '選擇資料表即可預覽前 50 列。';
+
+  @override
+  String dbRows(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 列',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dbTruncated(Object count) {
+    return '僅前 $count 列';
+  }
+
+  @override
+  String get dbNoResponse =>
+      '無回應。應用是否用 DevConnect.registerDatabase 註冊了資料庫？需要最新的 SDK。';
 
   @override
   String get networkTitle => '網路';

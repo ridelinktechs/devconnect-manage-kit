@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/providers/local_projects_provider.dart';
 import '../../core/theme/chrome_palette.dart';
 import '../../core/theme/color_tokens.dart';
+import '../../core/utils/reload_apps.dart';
 import '../../core/utils/smooth_scroll_controller.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/device_info.dart';
@@ -40,6 +41,8 @@ class _DeviceBottomBarState extends ConsumerState<DeviceBottomBar> {
     final isDark = palette.isDark;
 
     if (devices.isEmpty) return const SizedBox.shrink();
+    final selected = devices.where((d) => d.deviceId == selectedId).toList();
+    final targets = selected.isNotEmpty ? selected : devices;
 
     return Container(
       height: 44,
@@ -102,7 +105,28 @@ class _DeviceBottomBarState extends ConsumerState<DeviceBottomBar> {
               },
             ),
           ),
-          const SizedBox(width: 8),
+          // Reload the selected device's app, or every app when none is.
+          Container(width: 1, height: 16, color: palette.border),
+          const SizedBox(width: 6),
+          for (final a in reloadActionsFor(targets, loc))
+            IconButton(
+              onPressed: () =>
+                  reloadApps(context, ref, hotRestart: a.hotRestart),
+              tooltip:
+                  '${a.label} (${reloadShortcutLabel(hotRestart: a.hotRestart)})',
+              icon: Icon(a.icon, size: 14),
+              style: IconButton.styleFrom(
+                foregroundColor: palette.textMuted,
+                fixedSize: const Size.square(28),
+                minimumSize: const Size.square(28),
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          const SizedBox(width: 10),
         ],
       ),
     );

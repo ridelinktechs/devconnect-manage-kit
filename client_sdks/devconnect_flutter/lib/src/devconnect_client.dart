@@ -95,6 +95,10 @@ class DevConnectClient {
   /// Custom command handlers: command name -> handler
   final Map<String, dynamic Function(Map<String, dynamic>?)> _commandHandlers = {};
 
+  /// Databases the desktop's Database tab can query: name -> SQL runner.
+  final Map<String, Future<List<Map<String, Object?>>> Function(String sql)>
+      _databases = {};
+
   /// Custom server-message handlers registered by SDK plugins
   /// (e.g. layout inspector, mock server interceptor). Keyed by the
   /// `type` field of the incoming WebSocket message.
@@ -567,14 +571,33 @@ class DevConnectClient {
               final cmd = msg['payload']?['command'] as String?;
               final args = msg['payload']?['args'] as Map<String, dynamic>?;
               if (cmd != null && _commandHandlers.containsKey(cmd)) {
-                try {
-                  final result = _commandHandlers[cmd]!(args);
-                  _send('client:custom:command_result', {
+                final correlationId = msg['correlationId'] as String?;
+                // Async handlers resolve before the result goes back; a throw
+                // (sync or async) is reported as the error.
+                Future.sync(() => _commandHandlers[cmd]!(args)).then(
+                  (result) => _send('client:custom:command_result', {
                     'command': cmd,
                     'result': result,
-                  }, correlationId: msg['correlationId'] as String?);
-                } catch (_) {}
+                  }, correlationId: correlationId),
+                  onError: (Object e) => _send('client:custom:command_result', {
+                    'command': cmd,
+                    'error': e.toString(),
+                  }, correlationId: correlationId),
+                );
               }
+            } else if (type == 'server:database:request_schema') {
+              final correlationId = msg['correlationId'] as String?;
+              unawaited(_databaseSchemas().then((databases) => _send(
+                  'client:database:schema', {'databases': databases},
+                  correlationId: correlationId)));
+            } else if (type == 'server:database:query') {
+              final payload = msg['payload'] as Map<String, dynamic>?;
+              final correlationId = msg['correlationId'] as String?;
+              unawaited(_runDatabaseQuery(
+                payload?['database'] as String?,
+                payload?['sql'] as String? ?? '',
+              ).then((result) => _send('client:database:query_result', result,
+                  correlationId: correlationId)));
             } else if (type == 'server:reload') {
               // Desktop asking the app to reload itself.
               // Flutter offers no public hot-reload API outside the IDE, so we
@@ -631,6 +654,12 @@ class DevConnectClient {
         'sdkVersion': devConnectSdkVersion,
       },
     });
+    _announceCommands();
+  }
+
+  /// Tells the desktop which custom commands it can run (Commands panel).
+  void _announceCommands() {
+    _send('client:custom:commands', {'commands': _commandHandlers.keys.toList()});
   }
 
   /// Default handler for [WsMessageTypes.serverReload].
@@ -1132,6 +1161,88 @@ class DevConnectClient {
   void registerCommand(
       String name, dynamic Function(Map<String, dynamic>?) handler) {
     _commandHandlers[name] = handler;
+    // Before connecting, the handshake announces every command so far.
+    if (_connected) _announceCommands();
+  }
+
+  // ---- Databases ----
+
+  void registerDatabase(String name,
+      Future<List<Map<String, Object?>>> Function(String sql) query) {
+    _databases[name] = query;
+  }
+
+  /// Rows past this are left out of a query result, which says `truncated`.
+  static const _maxQueryRows = 1000;
+
+  Future<List<Map<String, dynamic>>> _databaseSchemas() async => [
+        for (final MapEntry(key: name, value: query) in _databases.entries)
+          {'name': name, 'tables': await sqliteTables(query)},
+      ];
+
+  /// SQLite tables with their columns and row counts; empty if unreadable.
+  @visibleForTesting
+  static Future<List<Map<String, dynamic>>> sqliteTables(
+      Future<List<Map<String, Object?>>> Function(String sql) query) async {
+    try {
+      final names = await query("SELECT name FROM sqlite_master WHERE "
+          "type = 'table' AND name NOT LIKE 'sqlite_%' "
+          "AND name <> 'android_metadata' ORDER BY name");
+      return [
+        for (final row in names)
+          await () async {
+            final table = '${row['name']}';
+            final quoted = '"${table.replaceAll('"', '""')}"';
+            final columns = await query('PRAGMA table_info($quoted)');
+            final count = await query('SELECT COUNT(*) AS c FROM $quoted');
+            return {
+              'name': table,
+              'columns': [
+                for (final c in columns)
+                  {
+                    'name': '${c['name']}',
+                    'type': '${c['type'] ?? ''}',
+                    'isPrimaryKey': ((c['pk'] as num?) ?? 0) > 0,
+                    'isNullable': ((c['notnull'] as num?) ?? 0) == 0,
+                  },
+              ],
+              'rowCount': count.isEmpty ? 0 : count.first['c'],
+            };
+          }(),
+      ];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> _runDatabaseQuery(
+      String? database, String sql) async {
+    final stopwatch = Stopwatch()..start();
+    final result = <String, dynamic>{'database': database};
+    try {
+      final query = _databases[database] ?? _databases.values.firstOrNull;
+      if (query == null) {
+        throw StateError(
+            'No database registered with DevConnect.registerDatabase');
+      }
+      final rows = await query(sql);
+      result
+        ..['columns'] = rows.isEmpty ? <String>[] : rows.first.keys.toList()
+        ..['rows'] = [
+          for (final row in rows.take(_maxQueryRows))
+            {
+              for (final MapEntry(:key, :value) in row.entries)
+                key: value is List<int> ? '<blob ${value.length} bytes>' : value,
+            },
+        ]
+        ..['truncated'] = rows.length > _maxQueryRows;
+    } catch (e) {
+      result
+        ..['columns'] = <String>[]
+        ..['rows'] = <Map<String, dynamic>>[]
+        ..['error'] = e.toString();
+    }
+    return result..['executionTimeMs'] = stopwatch.elapsedMilliseconds;
   }
 
   Future<void> disconnect() async {

@@ -239,6 +239,24 @@ DevConnect.registerCommand("clearCache", () => {
 });
 ```
 
+Registered commands show up in the desktop's **Commands** tab, where you
+run them with optional JSON args and see what they return (async handlers
+are awaited; a throw shows as the error).
+
+### Database
+
+Let the desktop's **Database** tab browse your SQLite tables and run SQL —
+pass a function that runs one statement and returns its rows:
+
+```typescript
+// op-sqlite
+DevConnect.registerDatabase("app.db", async (sql) => (await db.execute(sql)).rows);
+// expo-sqlite
+DevConnect.registerDatabase("app.db", (sql) => db.getAllAsync(sql));
+```
+
+Results are capped at 1000 rows.
+
 ### Hot Reload from Desktop
 
 Since **1.0.6** — let DevConnect Manage Tool trigger `server:reload`

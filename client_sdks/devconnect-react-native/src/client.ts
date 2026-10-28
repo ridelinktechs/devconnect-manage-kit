@@ -467,6 +467,44 @@ function readFinalHeaders(
 
 // ---- Main Class ----
 
+/** Runs one SQL statement against an app database and returns its rows. */
+export type DatabaseQuery = (
+  sql: string,
+) => Promise<Array<Record<string, any>>> | Array<Record<string, any>>;
+
+/** Rows past this are left out of a query result, which says `truncated`. */
+const MAX_QUERY_ROWS = 1000;
+
+/** SQLite tables with their columns and row counts; empty if unreadable. */
+export async function sqliteTables(query: DatabaseQuery): Promise<Array<Record<string, any>>> {
+  try {
+    const names = await query(
+      "SELECT name FROM sqlite_master WHERE type = 'table' " +
+        "AND name NOT LIKE 'sqlite_%' AND name <> 'android_metadata' ORDER BY name",
+    );
+    const tables: Array<Record<string, any>> = [];
+    for (const row of names) {
+      const table = String(row.name);
+      const quoted = `"${table.replace(/"/g, '""')}"`;
+      const columns = await query(`PRAGMA table_info(${quoted})`);
+      const [count] = await query(`SELECT COUNT(*) AS c FROM ${quoted}`);
+      tables.push({
+        name: table,
+        columns: columns.map((c) => ({
+          name: String(c.name),
+          type: String(c.type ?? ''),
+          isPrimaryKey: Number(c.pk) > 0,
+          isNullable: Number(c.notnull) === 0,
+        })),
+        rowCount: Number(count?.c ?? 0),
+      });
+    }
+    return tables;
+  } catch (_) {
+    return [];
+  }
+}
+
 export class DevConnect {
   private static instance: DevConnect | null = null;
   private ws: WebSocket | null = null;
@@ -481,6 +519,7 @@ export class DevConnect {
   private _reduxStore: any = null;
   private _stateRestoreHandler: ((state: any) => void) | null = null;
   private _customCommandHandlers: Map<string, (args?: any) => any> = new Map();
+  private _databases: Map<string, DatabaseQuery> = new Map();
   /**
    * Generic server-message subscribers (used by internal plugins).
    * Each handler receives the full parsed `msg` object and may act or
@@ -699,19 +738,27 @@ export class DevConnect {
             const cmd = msg.payload?.command;
             const handler = this._customCommandHandlers.get(cmd);
             if (handler) {
-              try {
-                const result = handler(msg.payload?.args);
-                this.send('client:custom:command_result', {
-                  command: cmd,
-                  result,
-                }, msg.correlationId);
-              } catch (cmdErr: any) {
-                this.send('client:custom:command_result', {
-                  command: cmd,
-                  error: cmdErr?.message ?? String(cmdErr),
-                }, msg.correlationId);
-              }
+              // Async handlers resolve before the result goes back; a throw
+              // (sync or async) is reported as the error.
+              Promise.resolve()
+                .then(() => handler(msg.payload?.args))
+                .then(
+                  (result) => this.send('client:custom:command_result', {
+                    command: cmd,
+                    result,
+                  }, msg.correlationId),
+                  (cmdErr: any) => this.send('client:custom:command_result', {
+                    command: cmd,
+                    error: cmdErr?.message ?? String(cmdErr),
+                  }, msg.correlationId),
+                );
             }
+          } else if (msg.type === 'server:database:request_schema') {
+            this._databaseSchemas().then((databases) =>
+              this.send('client:database:schema', { databases }, msg.correlationId));
+          } else if (msg.type === 'server:database:query') {
+            this._runDatabaseQuery(msg.payload?.database, msg.payload?.sql ?? '').then((result) =>
+              this.send('client:database:query_result', result, msg.correlationId));
           } else if (msg.type === 'server:reload') {
             // Desktop asking the app to reload itself. Triggers Metro reload
             // via the official DevSettings module (the same path the RN
@@ -829,6 +876,41 @@ export class DevConnect {
         ...(this.config.versionCode ? { versionCode: this.config.versionCode } : {}),
         sdkVersion: SDK_VERSION,
       },
+    });
+    this._announceCommands();
+  }
+
+  private async _databaseSchemas(): Promise<Array<Record<string, any>>> {
+    const schemas: Array<Record<string, any>> = [];
+    for (const [name, query] of this._databases) {
+      schemas.push({ name, tables: await sqliteTables(query) });
+    }
+    return schemas;
+  }
+
+  private async _runDatabaseQuery(database: string | undefined, sql: string): Promise<Record<string, any>> {
+    const start = Date.now();
+    const result: Record<string, any> = { database };
+    try {
+      const query = this._databases.get(database ?? '') ?? this._databases.values().next().value;
+      if (!query) throw new Error('No database registered with DevConnect.registerDatabase');
+      const rows = (await query(sql)) ?? [];
+      result.columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+      result.rows = rows.slice(0, MAX_QUERY_ROWS);
+      result.truncated = rows.length > MAX_QUERY_ROWS;
+    } catch (e: any) {
+      result.columns = [];
+      result.rows = [];
+      result.error = e?.message ?? String(e);
+    }
+    result.executionTimeMs = Date.now() - start;
+    return result;
+  }
+
+  /** Tells the desktop which custom commands it can run (Commands panel). */
+  private _announceCommands(): void {
+    this.send('client:custom:commands', {
+      commands: [...this._customCommandHandlers.keys()],
     });
   }
 
@@ -1694,14 +1776,47 @@ export class DevConnect {
    * ```
    */
   static registerCommand(name: string, handler: (args?: any) => any): void {
+    // Before the handshake the desktop wouldn't know the device yet; the
+    // handshake announces every command registered by then.
+    const register = (dc: DevConnect) => {
+      dc._customCommandHandlers.set(name, handler);
+      if (dc.connected) dc._announceCommands();
+    };
     const instance = DevConnect.getInstanceSafe();
     if (instance) {
-      instance._customCommandHandlers.set(name, handler);
+      register(instance);
     } else {
       const interval = setInterval(() => {
         const dc = DevConnect.getInstanceSafe();
         if (dc) {
-          dc._customCommandHandlers.set(name, handler);
+          register(dc);
+          clearInterval(interval);
+        }
+      }, 100);
+      setTimeout(() => clearInterval(interval), 10000);
+    }
+  }
+
+  /**
+   * Let the desktop's Database tab browse and query a SQLite database.
+   * `query` runs one SQL statement and returns its rows (sync or async):
+   *
+   * ```typescript
+   * // op-sqlite
+   * DevConnect.registerDatabase('app.db', async (sql) => (await db.execute(sql)).rows);
+   * // expo-sqlite
+   * DevConnect.registerDatabase('app.db', (sql) => db.getAllAsync(sql));
+   * ```
+   */
+  static registerDatabase(name: string, query: DatabaseQuery): void {
+    const instance = DevConnect.getInstanceSafe();
+    if (instance) {
+      instance._databases.set(name, query);
+    } else {
+      const interval = setInterval(() => {
+        const dc = DevConnect.getInstanceSafe();
+        if (dc) {
+          dc._databases.set(name, query);
           clearInterval(interval);
         }
       }, 100);

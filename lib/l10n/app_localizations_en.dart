@@ -720,6 +720,87 @@ class SEn extends S {
   }
 
   @override
+  String get commandsTitle => 'Custom commands';
+
+  @override
+  String get commandsNoDevice => 'Connect a device to run its commands.';
+
+  @override
+  String get commandsEmptyHint =>
+      'No commands registered yet. Add one in the app with DevConnect.registerCommand(name, handler), or type a command name to run it.';
+
+  @override
+  String get commandsName => 'Command';
+
+  @override
+  String get commandsArgs => 'Arguments — JSON object, optional';
+
+  @override
+  String get commandsArgsInvalid => 'Arguments must be a JSON object.';
+
+  @override
+  String get commandsRun => 'Run';
+
+  @override
+  String commandsTarget(Object device) {
+    return 'Runs on $device';
+  }
+
+  @override
+  String get commandsHistoryEmpty =>
+      'Results of the commands you run show up here.';
+
+  @override
+  String get commandsNoResponse =>
+      'No response. Is the command registered in the app?';
+
+  @override
+  String get dbTables => 'Tables';
+
+  @override
+  String get dbRefresh => 'Reload tables';
+
+  @override
+  String get dbNoDevice => 'Connect a device to browse its databases.';
+
+  @override
+  String get dbSelectDevice =>
+      'Select a device in the bottom bar to browse its databases.';
+
+  @override
+  String get dbNoDatabases =>
+      'No database registered. Add one in the app with DevConnect.registerDatabase(name, query), then reload tables.';
+
+  @override
+  String get dbRun => 'Run';
+
+  @override
+  String get dbRunHint => 'Pick a table or write SQL';
+
+  @override
+  String get dbRunHintSubtitle => 'Picking a table previews its first 50 rows.';
+
+  @override
+  String dbRows(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count rows',
+      one: '1 row',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dbTruncated(Object count) {
+    return 'first $count only';
+  }
+
+  @override
+  String get dbNoResponse =>
+      'No response. Does the app register a database with DevConnect.registerDatabase? It needs the latest SDK.';
+
+  @override
   String get networkTitle => 'Network';
 
   @override

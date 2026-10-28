@@ -465,6 +465,8 @@ object DevConnect {
                 if (!machineId.isNullOrEmpty()) {
                     saveHostCache(host, port, machineId)
                 }
+                // The handshake just went out: tell the desktop what it can run.
+                announceCommands()
             }
             ws.onServerMessage = { type, json ->
                 val payload = json.optJSONObject("payload") ?: JSONObject()
@@ -525,6 +527,16 @@ object DevConnect {
                     }
                     "server:reload" -> handleReloadRequest(json.optString("type"))
                     "server:hot_restart" -> handleReloadRequest(json.optString("type"))
+                    // Off the socket's reader: a big table can take a while.
+                    "server:database:request_schema" -> initScope.launch {
+                        send("client:database:schema", JSONObject().put("databases", databaseSchemas()))
+                    }
+                    "server:database:query" -> initScope.launch {
+                        send(
+                            "client:database:query_result",
+                            runDatabaseQuery(payload.optString("database"), payload.optString("sql")),
+                        )
+                    }
                     "server:mock_rules_update" -> {
                         try {
                             com.devconnect.interceptors.MockRuleStore.loadFromJson(payload.toString())
@@ -1341,6 +1353,104 @@ object DevConnect {
 
     fun registerCommand(name: String, handler: (Map<String, Any>?) -> Any?) {
         commandHandlers[name] = handler
+        // Before connecting, the handshake announces every command so far.
+        if (isConnected()) announceCommands()
+    }
+
+    // ---- Database (desktop Database tab) ----
+
+    private val databases =
+        java.util.concurrent.ConcurrentHashMap<String, (String) -> android.database.Cursor>()
+
+    /**
+     * Lets the desktop's Database tab browse and query a SQLite database.
+     * [query] runs one SQL statement and returns its cursor, which the SDK
+     * reads and closes:
+     *
+     * ```kotlin
+     * DevConnect.registerDatabase("app.db") { sql -> db.rawQuery(sql, null) }
+     * DevConnect.registerDatabase("room") { sql -> roomDb.openHelper.readableDatabase.query(sql) }
+     * ```
+     */
+    fun registerDatabase(name: String, query: (String) -> android.database.Cursor) {
+        databases[name] = query
+    }
+
+    /** Rows past this are left out of a query result, which says `truncated`. */
+    private const val MAX_QUERY_ROWS = 1000
+
+    private fun databaseSchemas() = org.json.JSONArray().apply {
+        for ((name, query) in databases) {
+            val tables = org.json.JSONArray()
+            try {
+                val names = query(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' " +
+                        "AND name NOT LIKE 'sqlite_%' AND name <> 'android_metadata' ORDER BY name"
+                ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+                for (table in names) {
+                    val quoted = "\"" + table.replace("\"", "\"\"") + "\""
+                    val columns = query("PRAGMA table_info($quoted)").use { c ->
+                        org.json.JSONArray().apply {
+                            while (c.moveToNext()) put(
+                                JSONObject()
+                                    .put("name", c.getString(c.getColumnIndexOrThrow("name")))
+                                    .put("type", c.getString(c.getColumnIndexOrThrow("type")) ?: "")
+                                    .put("isPrimaryKey", c.getInt(c.getColumnIndexOrThrow("pk")) > 0)
+                                    .put("isNullable", c.getInt(c.getColumnIndexOrThrow("notnull")) == 0)
+                            )
+                        }
+                    }
+                    val rowCount = query("SELECT COUNT(*) FROM $quoted")
+                        .use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+                    tables.put(
+                        JSONObject().put("name", table).put("columns", columns).put("rowCount", rowCount)
+                    )
+                }
+            } catch (_: Exception) {
+                // Unreadable database: listed without tables.
+            }
+            put(JSONObject().put("name", name).put("tables", tables))
+        }
+    }
+
+    private fun runDatabaseQuery(database: String, sql: String): JSONObject {
+        val start = System.currentTimeMillis()
+        val result = JSONObject().put("database", database)
+        try {
+            val query = databases[database] ?: databases.values.firstOrNull()
+                ?: throw IllegalStateException("No database registered with DevConnect.registerDatabase")
+            query(sql).use { c ->
+                val columns = c.columnNames.toList()
+                val rows = org.json.JSONArray()
+                while (rows.length() < MAX_QUERY_ROWS && c.moveToNext()) {
+                    rows.put(JSONObject().apply {
+                        for (i in columns.indices) put(columns[i], when (c.getType(i)) {
+                            android.database.Cursor.FIELD_TYPE_NULL -> JSONObject.NULL
+                            android.database.Cursor.FIELD_TYPE_INTEGER -> c.getLong(i)
+                            android.database.Cursor.FIELD_TYPE_FLOAT -> c.getDouble(i)
+                            android.database.Cursor.FIELD_TYPE_BLOB -> "<blob ${c.getBlob(i).size} bytes>"
+                            else -> c.getString(i)
+                        })
+                    })
+                }
+                result.put("columns", org.json.JSONArray(columns))
+                    .put("rows", rows)
+                    .put("truncated", c.moveToNext())
+            }
+        } catch (e: Exception) {
+            result.put("columns", org.json.JSONArray())
+                .put("rows", org.json.JSONArray())
+                .put("error", e.message ?: e.javaClass.simpleName)
+        }
+        return result.put("executionTimeMs", System.currentTimeMillis() - start)
+    }
+
+    /** Tells the desktop which custom commands it can run (Commands panel). */
+    private fun announceCommands() {
+        send(
+            "client:custom:commands",
+            JSONObject().put("commands", org.json.JSONArray(commandHandlers.keys.toList())),
+        )
     }
 
     // ---- Log (internal, used by DCLog/Timber/LogInterceptor) ----

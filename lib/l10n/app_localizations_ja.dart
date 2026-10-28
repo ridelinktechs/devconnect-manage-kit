@@ -714,6 +714,83 @@ class SJa extends S {
   }
 
   @override
+  String get commandsTitle => 'カスタムコマンド';
+
+  @override
+  String get commandsNoDevice => 'デバイスを接続するとコマンドを実行できます。';
+
+  @override
+  String get commandsEmptyHint =>
+      'まだコマンドが登録されていません。アプリで DevConnect.registerCommand(name, handler) を使って追加するか、コマンド名を入力して実行してください。';
+
+  @override
+  String get commandsName => 'コマンド';
+
+  @override
+  String get commandsArgs => '引数 — JSON オブジェクト（任意）';
+
+  @override
+  String get commandsArgsInvalid => '引数は JSON オブジェクトにしてください。';
+
+  @override
+  String get commandsRun => '実行';
+
+  @override
+  String commandsTarget(Object device) {
+    return '$device で実行';
+  }
+
+  @override
+  String get commandsHistoryEmpty => '実行したコマンドの結果がここに表示されます。';
+
+  @override
+  String get commandsNoResponse => '応答がありません。アプリにこのコマンドは登録されていますか？';
+
+  @override
+  String get dbTables => 'テーブル';
+
+  @override
+  String get dbRefresh => 'テーブルを再読み込み';
+
+  @override
+  String get dbNoDevice => 'デバイスを接続するとデータベースを閲覧できます。';
+
+  @override
+  String get dbSelectDevice => '下部バーでデバイスを選ぶとデータベースを閲覧できます。';
+
+  @override
+  String get dbNoDatabases =>
+      'データベースが登録されていません。アプリで DevConnect.registerDatabase(name, query) を使って追加し、テーブルを再読み込みしてください。';
+
+  @override
+  String get dbRun => '実行';
+
+  @override
+  String get dbRunHint => 'テーブルを選ぶか SQL を書いてください';
+
+  @override
+  String get dbRunHintSubtitle => 'テーブルを選ぶと先頭 50 行をプレビューします。';
+
+  @override
+  String dbRows(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 行',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dbTruncated(Object count) {
+    return '先頭 $count 行のみ';
+  }
+
+  @override
+  String get dbNoResponse =>
+      '応答がありません。アプリは DevConnect.registerDatabase でデータベースを登録していますか？最新の SDK が必要です。';
+
+  @override
   String get networkTitle => 'ネットワーク';
 
   @override

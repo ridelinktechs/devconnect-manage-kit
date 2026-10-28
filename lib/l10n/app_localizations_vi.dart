@@ -721,6 +721,85 @@ class SVi extends S {
   }
 
   @override
+  String get commandsTitle => 'Lệnh tùy biến';
+
+  @override
+  String get commandsNoDevice => 'Kết nối một thiết bị để chạy lệnh của nó.';
+
+  @override
+  String get commandsEmptyHint =>
+      'App chưa đăng ký lệnh nào. Thêm bằng DevConnect.registerCommand(name, handler), hoặc gõ tên lệnh để chạy.';
+
+  @override
+  String get commandsName => 'Lệnh';
+
+  @override
+  String get commandsArgs => 'Tham số — object JSON, không bắt buộc';
+
+  @override
+  String get commandsArgsInvalid => 'Tham số phải là một object JSON.';
+
+  @override
+  String get commandsRun => 'Chạy';
+
+  @override
+  String commandsTarget(Object device) {
+    return 'Chạy trên $device';
+  }
+
+  @override
+  String get commandsHistoryEmpty => 'Kết quả các lệnh bạn chạy sẽ hiện ở đây.';
+
+  @override
+  String get commandsNoResponse =>
+      'Không có phản hồi. App đã đăng ký lệnh này chưa?';
+
+  @override
+  String get dbTables => 'Bảng';
+
+  @override
+  String get dbRefresh => 'Tải lại danh sách bảng';
+
+  @override
+  String get dbNoDevice => 'Kết nối một thiết bị để xem database của nó.';
+
+  @override
+  String get dbSelectDevice =>
+      'Chọn một thiết bị ở thanh dưới để xem database của nó.';
+
+  @override
+  String get dbNoDatabases =>
+      'App chưa đăng ký database nào. Thêm bằng DevConnect.registerDatabase(name, query) rồi tải lại danh sách bảng.';
+
+  @override
+  String get dbRun => 'Chạy';
+
+  @override
+  String get dbRunHint => 'Chọn một bảng hoặc viết câu SQL';
+
+  @override
+  String get dbRunHintSubtitle => 'Chọn một bảng để xem trước 50 dòng đầu.';
+
+  @override
+  String dbRows(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count dòng',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dbTruncated(Object count) {
+    return 'chỉ $count dòng đầu';
+  }
+
+  @override
+  String get dbNoResponse =>
+      'Không có phản hồi. App đã đăng ký database bằng DevConnect.registerDatabase chưa? Tính năng này cần SDK mới nhất.';
+
+  @override
   String get networkTitle => 'Mạng';
 
   @override
