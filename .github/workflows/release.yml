@@ -32,11 +32,23 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
+      # *.g.dart / *.freezed.dart are gitignored, so generate them first.
+      - run: dart run build_runner build --delete-conflicting-outputs
       - run: flutter build macos --release
+      # One zip per platform, named like scripts/build_macos_release.sh's,
+      # instead of the bundle's files uploaded one by one. ditto keeps the
+      # frameworks' symlinks, and needs an absolute source.
+      - name: Zip app
+        env:
+          VERSION: ${{ inputs.version_name }}
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$PWD/build/macos/Build/Products/Release/DevConnect.app" \
+            "$PWD/DevConnectManageTool-macOS-v$VERSION-universal-app.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: DevConnect-macos-${{ inputs.version_name }}
-          path: build/macos/Build/Products/Release/DevConnect.app
+          path: DevConnectManageTool-macOS-v${{ inputs.version_name }}-universal-app.zip
 
   build-windows:
     name: Build Windows
@@ -48,11 +60,20 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
       - run: flutter build windows --release
+      # The exe only runs next to its DLLs and data/, so ship the folder.
+      - name: Zip app
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version_name }}
+        run: |
+          Compress-Archive -Path build/windows/x64/runner/Release/* `
+            -DestinationPath "DevConnectManageTool-Windows-v$env:VERSION.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: DevConnect-windows-${{ inputs.version_name }}
-          path: build/windows/x64/runner/Release/
+          path: DevConnectManageTool-Windows-v${{ inputs.version_name }}.zip
 
   release-github:
     name: Create GitHub Release
@@ -70,6 +91,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version_name }}
-          name: DevConnect v${{ inputs.version_name }}
-          files: artifacts/**/*
+          name: DevConnect Manage Tool v${{ inputs.version_name }}
+          files: artifacts/**/*.zip
           generate_release_notes: true
