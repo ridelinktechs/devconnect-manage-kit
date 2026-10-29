@@ -108,6 +108,8 @@ class WsMessageHandler {
   final _customResultController = StreamController<Map<String, dynamic>>.broadcast();
   final _customCommandsController = StreamController<Map<String, dynamic>>.broadcast();
   final _databaseSchemaController = StreamController<Map<String, dynamic>>.broadcast();
+  final _storageSnapshotController = StreamController<Map<String, dynamic>>.broadcast();
+  final _layoutController = StreamController<Map<String, dynamic>>.broadcast();
   final _databaseQueryController = StreamController<Map<String, dynamic>>.broadcast();
   final _performanceController = StreamController<PerformanceEntry>.broadcast();
   final _memoryLeakController = StreamController<MemoryLeakEntry>.broadcast();
@@ -136,6 +138,14 @@ class WsMessageHandler {
   /// `{deviceId, commands}`: the custom commands a device's app registered.
   Stream<Map<String, dynamic>> get onCustomCommands =>
       _customCommandsController.stream;
+
+  /// `{deviceId, width, height, screenshot, root}`: the app's screen and
+  /// view tree.
+  Stream<Map<String, dynamic>> get onLayoutSnapshot => _layoutController.stream;
+
+  /// `{deviceId, storageType, entries, error?}`: a store's current contents.
+  Stream<Map<String, dynamic>> get onStorageSnapshot =>
+      _storageSnapshotController.stream;
 
   /// `{deviceId, databases}`: the app's registered databases and tables.
   Stream<Map<String, dynamic>> get onDatabaseSchema =>
@@ -326,8 +336,19 @@ class WsMessageHandler {
         _handleState(message);
         break;
       case WsMessageTypes.clientStorageOperation:
-      case WsMessageTypes.clientStorageAllData:
         _handleStorage(message);
+        break;
+      case WsMessageTypes.clientLayoutSnapshot:
+        _layoutController.add({
+          'deviceId': message.deviceId,
+          ...message.payload,
+        });
+        break;
+      case WsMessageTypes.clientStorageAllData:
+        _storageSnapshotController.add({
+          'deviceId': message.deviceId,
+          ...message.payload,
+        });
         break;
       case WsMessageTypes.clientBenchmark:
         _benchmarkController.add({
@@ -456,6 +477,60 @@ class WsMessageHandler {
     ));
     return id;
   }
+
+  void _command(String deviceId, String type, [Map<String, dynamic> payload = const {}]) {
+    server.sendToDevice(deviceId, DCMessage(
+      id: _uuid.v4(),
+      type: type,
+      deviceId: 'server',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      payload: payload,
+    ));
+  }
+
+  /// Asks the app for the contents of its registered stores (or just
+  /// [storageType]); each comes back as `client:storage:all_data`.
+  void requestStorage(String deviceId, {String? storageType}) => _command(
+      deviceId, WsMessageTypes.serverStorageRequestAll,
+      {'storageType': ?storageType});
+
+  void writeStorage(String deviceId, String storageType, String key, Object? value) =>
+      _command(deviceId, WsMessageTypes.serverStorageWrite,
+          {'storageType': storageType, 'key': key, 'value': value});
+
+  void deleteStorage(String deviceId, String storageType, String key) => _command(
+      deviceId, WsMessageTypes.serverStorageDelete,
+      {'storageType': storageType, 'key': key});
+
+  void clearStorage(String deviceId, String storageType) => _command(
+      deviceId, WsMessageTypes.serverStorageClear, {'storageType': storageType});
+
+  /// Asks the app for its screen and view tree (`client:layout:snapshot`).
+  void captureLayout(String deviceId) =>
+      _command(deviceId, WsMessageTypes.serverLayoutCapture);
+
+  /// Opens [url] in the app, as a deep link.
+  void openUrl(String deviceId, String url) =>
+      _command(deviceId, WsMessageTypes.serverOpenUrl, {'url': url});
+
+  /// Opens the React Native dev menu.
+  void showDevMenu(String deviceId) =>
+      _command(deviceId, WsMessageTypes.serverDevMenu);
+
+  /// Applies network conditions to the app's own HTTP traffic.
+  void setNetworkConditions(String deviceId, {int latencyMs = 0, bool offline = false}) =>
+      _command(deviceId, WsMessageTypes.serverNetworkThrottle,
+          {'latencyMs': latencyMs, 'offline': offline});
+
+  /// Has the app send [entry]'s request again.
+  void replayRequest(NetworkEntry entry) => _command(
+      entry.deviceId, WsMessageTypes.serverNetworkReplay, {
+        'requestId': entry.id,
+        'method': entry.method,
+        'url': entry.url,
+        'headers': entry.requestHeaders,
+        'body': ?entry.requestBody,
+      });
 
   /// Asks the app for the tables of every database it registered; they
   /// come back as `client:database:schema`.
@@ -1192,6 +1267,8 @@ class WsMessageHandler {
     _customResultController.close();
     _customCommandsController.close();
     _databaseSchemaController.close();
+    _storageSnapshotController.close();
+    _layoutController.close();
     _databaseQueryController.close();
     _performanceController.close();
     _memoryLeakController.close();

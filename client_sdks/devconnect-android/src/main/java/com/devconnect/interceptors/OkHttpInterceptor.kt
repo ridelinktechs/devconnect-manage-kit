@@ -36,6 +36,7 @@ class OkHttpInterceptor : okhttp3.Interceptor {
     override fun intercept(chain: okhttp3.Interceptor.Chain): Response {
         val requestId = UUID.randomUUID().toString()
         val request = chain.request()
+        OkHttpCalls.remember(requestId, chain.call())
         val startTime = System.currentTimeMillis()
 
         // Extract request info
@@ -123,6 +124,8 @@ class OkHttpInterceptor : okhttp3.Interceptor {
 
         // Execute the request
         return try {
+            // Desktop-set throttling; failing here reports like a real failure.
+            DevConnect.applyNetworkConditions()
             val response = chain.proceed(request)
 
             // Response headers — same redaction pass.
@@ -233,5 +236,35 @@ class OkHttpInterceptor : okhttp3.Interceptor {
             val lower = key.lowercase()
             return if (SENSITIVE_KEY_HINTS.any { lower.contains(it) }) "[REDACTED]" else value
         }
+    }
+}
+
+/** Recent OkHttp calls by request id, so the desktop can replay one. */
+internal object OkHttpCalls {
+    private val recent = object : LinkedHashMap<String, okhttp3.Call>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, okhttp3.Call>?) =
+            size > 200
+    }
+
+    @Synchronized
+    fun remember(requestId: String, call: okhttp3.Call) {
+        recent[requestId] = call
+    }
+
+    /**
+     * Sends call [requestId] again as an OkHttp clone: the app's own client
+     * and interceptors run it (real auth headers, which the capture
+     * redacts) and DevConnect records it. False when it's not remembered.
+     */
+    fun replay(requestId: String): Boolean {
+        val call = synchronized(this) { recent[requestId] } ?: return false
+        call.clone().enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+
+            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                response.close()
+            }
+        })
+        return true
     }
 }

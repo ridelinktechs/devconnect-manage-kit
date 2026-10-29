@@ -800,6 +800,291 @@ class SVi extends S {
       'Không có phản hồi. App đã đăng ký database bằng DevConnect.registerDatabase chưa? Tính năng này cần SDK mới nhất.';
 
   @override
+  String get stateToolsTab => 'Điều khiển';
+
+  @override
+  String get stateNoDevice =>
+      'Chọn một thiết bị ở thanh dưới để theo dõi, chụp và điều khiển state của nó.';
+
+  @override
+  String get stateNoState => 'Thiết bị này chưa gửi state nào.';
+
+  @override
+  String get stateSubscriptions => 'Theo dõi';
+
+  @override
+  String get stateSubscriptionsHint =>
+      'Ghim một đường dẫn state để xem giá trị trực tiếp, ví dụ auth.user hoặc cart.items[0].price.';
+
+  @override
+  String get statePinPath => 'Ghim đường dẫn';
+
+  @override
+  String get statePathMissing => '(không có trong state)';
+
+  @override
+  String get stateRemove => 'Xóa';
+
+  @override
+  String get stateSnapshots => 'Snapshot';
+
+  @override
+  String get stateSnapshotsHint =>
+      'Lưu state hiện tại rồi gửi ngược lại sau để tái hiện bug hoặc bỏ qua form dài. App áp dụng trong onStateRestore.';
+
+  @override
+  String get stateTakeSnapshot => 'Chụp state';
+
+  @override
+  String stateKeys(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count khóa',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stateRestore => 'Khôi phục';
+
+  @override
+  String get stateRestoreHere => 'Khôi phục state của app về thời điểm này';
+
+  @override
+  String get stateSaveSnapshot => 'Lưu thành snapshot';
+
+  @override
+  String get stateSnapshotSaved => 'Đã lưu snapshot';
+
+  @override
+  String get stateRestoreSent => 'Đã gửi lệnh khôi phục state';
+
+  @override
+  String get stateDispatch => 'Dispatch action';
+
+  @override
+  String get stateDispatchHint =>
+      'Gửi một Redux action vào app. Cần nối store: connectReduxStore(store) với React Native, onReduxDispatch với Flutter và Android.';
+
+  @override
+  String get stateDispatchButton => 'Dispatch';
+
+  @override
+  String get stateDispatchSent => 'Đã gửi action';
+
+  @override
+  String get stateActionInvalid => 'Action phải là một object JSON.';
+
+  @override
+  String get stateRecentActions => 'Gần đây';
+
+  @override
+  String get jsonTreeView => 'Cây';
+
+  @override
+  String get jsonTableView => 'Bảng';
+
+  @override
+  String get jsonSearchHint => 'Tìm key và giá trị';
+
+  @override
+  String get jsonExportCsv => 'Tải bảng xuống (CSV)';
+
+  @override
+  String get jsonTableNoMatch => 'Không có dòng nào khớp';
+
+  @override
+  String get jsonPrevMatch => 'Kết quả trước';
+
+  @override
+  String get jsonNextMatch => 'Kết quả sau';
+
+  @override
+  String get jsonExpandAll => 'Mở rộng tất cả';
+
+  @override
+  String get jsonCollapseAll => 'Thu gọn tất cả';
+
+  @override
+  String get jsonCopyKey => 'Copy key';
+
+  @override
+  String get jsonCopyValue => 'Copy giá trị';
+
+  @override
+  String get jsonCopyPath => 'Copy đường dẫn';
+
+  @override
+  String get jsonKeyCopied => 'Đã copy key';
+
+  @override
+  String get jsonValueCopied => 'Đã copy giá trị';
+
+  @override
+  String get jsonPathCopied => 'Đã copy đường dẫn';
+
+  @override
+  String jsonTableTruncated(Object count) {
+    return 'Chỉ hiện $count dòng đầu.';
+  }
+
+  @override
+  String get networkErrors => 'Lỗi';
+
+  @override
+  String get networkSearchBodies => 'Tìm cả trong body request & response';
+
+  @override
+  String get networkExportHar => 'Xuất các request đang hiển thị ra file HAR';
+
+  @override
+  String get networkNothingToExport => 'Không có request nào để xuất';
+
+  @override
+  String get fileSaved => 'Đã lưu file';
+
+  @override
+  String get consoleGroupRepeats => 'Gộp log lặp lại';
+
+  @override
+  String get consoleOccurrences => 'Các lần lặp';
+
+  @override
+  String get consoleExport => 'Xuất log';
+
+  @override
+  String get consoleExportText => 'Văn bản (.txt)';
+
+  @override
+  String get consoleExportJson => 'JSON (.json)';
+
+  @override
+  String get consoleNothingToExport => 'Không có log nào để xuất';
+
+  @override
+  String get errorSymbolicate => 'Giải mã';
+
+  @override
+  String get errorSymbolicated => 'Đã giải mã về mã nguồn';
+
+  @override
+  String get errorSymbolicateFailed =>
+      'Không giải mã được stack này: không kết nối được Metro và bản build này chưa upload source map (uploadSourceMap trong SDK).';
+
+  @override
+  String get storageTabHistory => 'Lịch sử';
+
+  @override
+  String get storageTabKeyValue => 'Key-Value';
+
+  @override
+  String get storageKvNoDevice =>
+      'Chọn một thiết bị ở thanh dưới để xem và sửa storage của nó.';
+
+  @override
+  String get storageKvEmpty =>
+      'Chưa có storage nào sửa được. Bọc store bằng SDK (DevConnectAsyncStorage.wrap, DevConnectMMKV.wrap, DevConnectSharedPreferences.wrap…) — cần SDK mới nhất.';
+
+  @override
+  String get storageKvRefresh => 'Tải lại';
+
+  @override
+  String get storageKvAdd => 'Thêm key';
+
+  @override
+  String get storageKvEdit => 'Sửa giá trị';
+
+  @override
+  String get storageKvDelete => 'Xóa key';
+
+  @override
+  String get storageKvClear => 'Xóa tất cả';
+
+  @override
+  String storageKvClearConfirm(Object storage) {
+    return 'Xóa mọi key trong $storage? Không thể hoàn tác.';
+  }
+
+  @override
+  String get storageKvKey => 'Key';
+
+  @override
+  String get storageKvValue => 'Giá trị';
+
+  @override
+  String get storageKvSave => 'Lưu';
+
+  @override
+  String get storageKvFilter => 'Lọc key';
+
+  @override
+  String get deepLinkTitle => 'Mở deep link';
+
+  @override
+  String get deepLinkHint =>
+      'App sẽ mở như khi người dùng bấm vào một link của nó.';
+
+  @override
+  String get deepLinkOpen => 'Mở';
+
+  @override
+  String get deepLinkSent => 'Đã gửi deep link';
+
+  @override
+  String get devMenu => 'Mở Dev Menu';
+
+  @override
+  String get networkReplay => 'Gửi lại request';
+
+  @override
+  String get networkReplaySent =>
+      'Đã gửi lại request — kết quả hiện thành một dòng mới';
+
+  @override
+  String get networkConditions => 'Điều kiện mạng';
+
+  @override
+  String get networkPresetNormal => 'Bình thường';
+
+  @override
+  String get networkPresetSlow => 'Chậm (+500 ms)';
+
+  @override
+  String get networkPresetSlow3g => '3G chậm (~2 s)';
+
+  @override
+  String get networkPresetOffline => 'Mất mạng';
+
+  @override
+  String get layoutTitle => 'Bố cục';
+
+  @override
+  String get layoutCapture => 'Chụp';
+
+  @override
+  String get layoutHint =>
+      'Chụp màn hình hiện tại của app để xem cây phần tử. Di chuột trên ảnh để highlight phần tử, click để xem thuộc tính.';
+
+  @override
+  String get layoutNoDevice =>
+      'Kết nối một app hoặc chọn thiết bị để xem bố cục.';
+
+  @override
+  String get layoutNoScreenshot =>
+      'App không gửi ảnh chụp, chỉ hiển thị khung viền phần tử. React Native: thêm bằng DevConnect.registerScreenshot.';
+
+  @override
+  String get layoutPickElement =>
+      'Di chuột hoặc click vào phần tử trên ảnh chụp, hoặc chọn trong cây.';
+
+  @override
+  String get layoutTree => 'Cây phần tử';
+
+  @override
+  String get layoutProperties => 'Thuộc tính';
+
+  @override
   String get networkTitle => 'Mạng';
 
   @override

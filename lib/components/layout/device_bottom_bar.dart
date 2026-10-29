@@ -8,6 +8,7 @@ import '../../core/theme/color_tokens.dart';
 import '../../core/utils/reload_apps.dart';
 import '../../core/utils/smooth_scroll_controller.dart';
 import '../../l10n/app_localizations.dart';
+import 'deep_link_dialog.dart';
 import '../../models/device_info.dart';
 import '../../server/providers/server_providers.dart';
 
@@ -105,29 +106,77 @@ class _DeviceBottomBarState extends ConsumerState<DeviceBottomBar> {
               },
             ),
           ),
-          // Reload the selected device's app, or every app when none is.
+          // Device tools for the selected app, or every app when none is.
           Container(width: 1, height: 16, color: palette.border),
           const SizedBox(width: 6),
+          _BarButton(
+            icon: LucideIcons.link,
+            tooltip: loc.deepLinkTitle,
+            palette: palette,
+            onPressed: () => openDeepLink(context, ref, targets),
+          ),
+          if (targets.any((d) => _isReactNative(d.platform)))
+            _BarButton(
+              icon: LucideIcons.squareMenu,
+              tooltip: loc.devMenu,
+              palette: palette,
+              onPressed: () {
+                final handler = ref.read(wsMessageHandlerProvider);
+                for (final d in targets) {
+                  if (_isReactNative(d.platform)) {
+                    handler.showDevMenu(d.deviceId);
+                  }
+                }
+              },
+            ),
           for (final a in reloadActionsFor(targets, loc))
-            IconButton(
-              onPressed: () =>
-                  reloadApps(context, ref, hotRestart: a.hotRestart),
+            _BarButton(
+              icon: a.icon,
               tooltip:
                   '${a.label} (${reloadShortcutLabel(hotRestart: a.hotRestart)})',
-              icon: Icon(a.icon, size: 14),
-              style: IconButton.styleFrom(
-                foregroundColor: palette.textMuted,
-                fixedSize: const Size.square(28),
-                minimumSize: const Size.square(28),
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
+              palette: palette,
+              onPressed: () =>
+                  reloadApps(context, ref, hotRestart: a.hotRestart),
             ),
           const SizedBox(width: 10),
         ],
+      ),
+    );
+  }
+}
+
+bool _isReactNative(String platform) => const {
+  'react_native',
+  'reactnative',
+  'rn',
+}.contains(platform.toLowerCase());
+
+class _BarButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final ChromePalette palette;
+  final VoidCallback onPressed;
+
+  const _BarButton({
+    required this.icon,
+    required this.tooltip,
+    required this.palette,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      icon: Icon(icon, size: 14),
+      style: IconButton.styleFrom(
+        foregroundColor: palette.textMuted,
+        fixedSize: const Size.square(28),
+        minimumSize: const Size.square(28),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
     );
   }

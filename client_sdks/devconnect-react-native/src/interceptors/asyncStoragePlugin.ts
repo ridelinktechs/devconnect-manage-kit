@@ -27,7 +27,7 @@ export class DevConnectAsyncStorage {
    * Returns a wrapped version of AsyncStorage that reports operations.
    */
   static wrap(asyncStorage: any): any {
-    return {
+    const wrapped = {
       getItem: async (key: string, ...args: any[]) => {
         const value = await asyncStorage.getItem(key, ...args);
         DevConnect.reportStorageOperation({
@@ -131,6 +131,8 @@ export class DevConnectAsyncStorage {
         });
       },
     };
+    registerAsyncStorage(wrapped, asyncStorage);
+    return wrapped;
   }
 
   /**
@@ -172,5 +174,25 @@ export class DevConnectAsyncStorage {
         storageType: 'async_storage', key: '*', operation: 'clear',
       });
     };
+    registerAsyncStorage(asyncStorage, asyncStorage);
   }
+}
+
+/**
+ * Lets the desktop's Storage tab list and edit AsyncStorage. Edits go
+ * through [storage] (the wrapped or patched one) so they're reported like
+ * the app's own; listing reads [raw] so it doesn't flood the log.
+ */
+function registerAsyncStorage(storage: any, raw: any): void {
+  DevConnect.registerStorage('async_storage', {
+    getAll: async () => {
+      const keys: string[] = await raw.getAllKeys();
+      const pairs: Array<[string, string | null]> = await raw.multiGet(keys);
+      return Object.fromEntries(pairs);
+    },
+    set: (key, value) =>
+      storage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)),
+    remove: (key) => storage.removeItem(key),
+    clear: () => storage.clear(),
+  });
 }

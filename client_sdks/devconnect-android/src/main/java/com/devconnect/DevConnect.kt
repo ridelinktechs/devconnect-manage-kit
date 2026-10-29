@@ -527,6 +527,22 @@ object DevConnect {
                     }
                     "server:reload" -> handleReloadRequest(json.optString("type"))
                     "server:hot_restart" -> handleReloadRequest(json.optString("type"))
+                    "server:storage:request_all", "server:storage:write",
+                    "server:storage:delete", "server:storage:clear" ->
+                        initScope.launch { handleStorageCommand(type, payload) }
+                    "server:open_url" -> openUrl(payload.optString("url"))
+                    "server:layout:capture" -> initScope.launch {
+                        val activity = trackedActivityRef?.get() ?: return@launch
+                        val snapshot = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            com.devconnect.plugins.LayoutInspector.capture(activity)
+                        }
+                        send("client:layout:snapshot", snapshot)
+                    }
+                    "server:network:throttle" -> {
+                        networkLatencyMs = payload.optLong("latencyMs", 0).coerceAtLeast(0)
+                        networkOffline = payload.optBoolean("offline", false)
+                    }
+                    "server:network:replay" -> initScope.launch { replayRequest(payload) }
                     // Off the socket's reader: a big table can take a while.
                     "server:database:request_schema" -> initScope.launch {
                         send("client:database:schema", JSONObject().put("databases", databaseSchemas()))
@@ -1355,6 +1371,123 @@ object DevConnect {
         commandHandlers[name] = handler
         // Before connecting, the handshake announces every command so far.
         if (isConnected()) announceCommands()
+    }
+
+    // ---- Storage (desktop Storage tab) ----
+
+    /** A key-value store the desktop's Storage tab can list and edit. */
+    interface StorageAdapter {
+        fun getAll(): Map<String, Any?>
+        fun set(key: String, value: Any?)
+        fun remove(key: String)
+        fun clear()
+    }
+
+    private val storages = java.util.concurrent.ConcurrentHashMap<String, StorageAdapter>()
+
+    /**
+     * Lets the desktop's Storage tab list, edit, delete and clear a store.
+     * [DevConnectSharedPrefs] and [DevConnectMMKV] register theirs.
+     */
+    fun registerStorage(storageType: String, adapter: StorageAdapter) {
+        storages[storageType] = adapter
+    }
+
+    /** Reads / writes / deletes / clears a registered store, then sends its contents. */
+    private fun handleStorageCommand(type: String, p: JSONObject) {
+        val only = p.optString("storageType").ifEmpty { null }
+        val targets = if (only == null) storages.toList()
+        else listOfNotNull(storages[only]?.let { only to it })
+        for ((name, adapter) in targets) {
+            val result = JSONObject().put("storageType", name)
+            try {
+                val key = p.optString("key")
+                when (type) {
+                    "server:storage:write" -> adapter.set(key, fromJson(p.opt("value")))
+                    "server:storage:delete" -> adapter.remove(key)
+                    "server:storage:clear" -> adapter.clear()
+                }
+                result.put("entries", JSONObject(adapter.getAll()))
+            } catch (e: Exception) {
+                result.put("entries", JSONObject()).put("error", e.message ?: e.javaClass.simpleName)
+            }
+            send("client:storage:all_data", result)
+        }
+    }
+
+    private fun fromJson(v: Any?): Any? = when (v) {
+        null, JSONObject.NULL -> null
+        is JSONObject -> jsonObjectToMap(v)
+        is org.json.JSONArray -> List(v.length()) { fromJson(v.opt(it)) }
+        else -> v
+    }
+
+    // ---- Network conditions, replay, deep links ----
+
+    @Volatile private var networkLatencyMs = 0L
+    @Volatile private var networkOffline = false
+
+    /**
+     * Applies the desktop-set network conditions to an app request: fails it
+     * the way an offline device does, or holds it back. DevConnect's own
+     * socket doesn't go through OkHttp, so it's unaffected.
+     */
+    internal fun applyNetworkConditions() {
+        if (networkOffline) {
+            throw java.net.UnknownHostException("Network is unreachable (simulated by DevConnect)")
+        }
+        if (networkLatencyMs > 0) Thread.sleep(networkLatencyMs)
+    }
+
+    /**
+     * Sends a captured request again: as a clone of the app's own OkHttp
+     * call when it's remembered (real headers, same interceptors), else over
+     * HttpURLConnection with the captured method, URL, headers and body.
+     */
+    private fun replayRequest(p: JSONObject) {
+        val requestId = p.optString("requestId")
+        val viaOkHttp = try {
+            requestId.isNotEmpty() && com.devconnect.interceptors.OkHttpCalls.replay(requestId)
+        } catch (_: LinkageError) {
+            false // the app doesn't ship OkHttp
+        }
+        if (viaOkHttp) return
+        val url = p.optString("url").ifEmpty { return }
+        val method = p.optString("method", "GET").uppercase()
+        try {
+            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = method
+            p.optJSONObject("headers")?.let { headers ->
+                for (name in headers.keys()) {
+                    if (!name.equals("content-length", ignoreCase = true)) {
+                        conn.setRequestProperty(name, headers.optString(name))
+                    }
+                }
+            }
+            val body = p.opt("body")
+            if (body != null && body != JSONObject.NULL && method != "GET" && method != "HEAD") {
+                conn.doOutput = true
+                conn.outputStream.use { it.write(body.toString().toByteArray()) }
+            }
+            (if (conn.responseCode >= 400) conn.errorStream else conn.inputStream)?.use { it.readBytes() }
+        } catch (_: Exception) {
+            // Reported like any other failed request.
+        }
+    }
+
+    /** Opens [url] in this app, the way a tap on one of its links does. */
+    private fun openUrl(url: String) {
+        val ctx = appContext ?: return
+        if (url.isEmpty()) return
+        try {
+            ctx.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    .setPackage(ctx.packageName)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (_: Exception) {
+            sendLog("warn", "No activity of this app handles $url", "DevConnect", null)
+        }
     }
 
     // ---- Database (desktop Database tab) ----

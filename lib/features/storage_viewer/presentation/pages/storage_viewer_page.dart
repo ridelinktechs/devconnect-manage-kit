@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
@@ -14,6 +15,7 @@ import '../../provider/storage_providers.dart';
 import '../detail/detail_panel.dart';
 import '../event_row/storage_entry_tile.dart';
 import '../header/toolbar.dart';
+import '../key_value/storage_key_value_panel.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
 /// Storage Viewer Page — streaming list of storage operations with
@@ -162,6 +164,28 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
     final scrollDir = ref.watch(scrollDirectionProvider);
     final isReversed = scrollDir == ScrollDirection.top;
 
+    // History of operations | the stores' live contents, editable.
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          _StorageTabBar(),
+          const Divider(height: 1),
+          Expanded(
+            child: TabBarView(
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _history(theme, isReversed),
+                const StorageKeyValuePanel(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _history(ThemeData theme, bool isReversed) {
     return Column(
       children: [
         Toolbar(
@@ -275,6 +299,32 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _StorageTabBar extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      color: theme.colorScheme.surface,
+      child: TabBar(
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        labelColor: ColorTokens.primary,
+        unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+        indicatorColor: ColorTokens.primary,
+        indicatorWeight: 2,
+        labelStyle:
+            theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+        unselectedLabelStyle:
+            theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w500),
+        tabs: [
+          Tab(text: S.of(context).storageTabHistory),
+          Tab(text: S.of(context).storageTabKeyValue),
+        ],
+      ),
     );
   }
 }

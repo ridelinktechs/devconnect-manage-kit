@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
@@ -76,6 +78,58 @@ class _NetworkSourceFilterNotifier extends Notifier<Set<String>> {
   }
 }
 
+/// Status class filter: 2xx, 3xx, or errors (4xx / 5xx and failed requests).
+enum NetworkStatusFilter { success, redirect, error }
+
+final networkStatusFilterProvider =
+    NotifierProvider<_NetworkStatusFilterNotifier, NetworkStatusFilter?>(
+  _NetworkStatusFilterNotifier.new,
+);
+
+class _NetworkStatusFilterNotifier extends Notifier<NetworkStatusFilter?> {
+  @override
+  NetworkStatusFilter? build() => null;
+
+  void set(NetworkStatusFilter? v) => state = v;
+}
+
+bool matchesStatus(NetworkEntry e, NetworkStatusFilter filter) =>
+    switch (filter) {
+      NetworkStatusFilter.success => e.statusCode >= 200 && e.statusCode < 300,
+      NetworkStatusFilter.redirect => e.statusCode >= 300 && e.statusCode < 400,
+      NetworkStatusFilter.error => e.statusCode >= 400 || e.error != null,
+    };
+
+/// Whether the search also looks inside request and response bodies.
+final networkSearchBodiesProvider =
+    NotifierProvider<_NetworkSearchBodiesNotifier, bool>(
+  _NetworkSearchBodiesNotifier.new,
+);
+
+class _NetworkSearchBodiesNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void toggle() => state = !state;
+}
+
+/// Entries are immutable, so each one's bodies are stringified at most once.
+final _bodyText = Expando<String>();
+
+/// Request and response bodies of [e] as one lowercased string, to search.
+String networkBodyText(NetworkEntry e) => _bodyText[e] ??=
+    '${_stringify(e.requestBody)}\n${_stringify(e.responseBody)}'.toLowerCase();
+
+String _stringify(Object? body) {
+  if (body == null) return '';
+  if (body is String) return body;
+  try {
+    return jsonEncode(body);
+  } catch (_) {
+    return '$body';
+  }
+}
+
 /// System URLs to hide by default (connectivity checks, captive portal, etc.)
 const _systemUrlPatterns = [
   'generate_204',
@@ -99,6 +153,8 @@ final filteredNetworkEntriesProvider = Provider<List<NetworkEntry>>((ref) {
   final methodFilter = ref.watch(networkMethodFilterProvider);
   final selectedDevice = ref.watch(selectedDeviceProvider);
   final sourceFilter = ref.watch(networkSourceFilterProvider);
+  final statusFilter = ref.watch(networkStatusFilterProvider);
+  final searchBodies = ref.watch(networkSearchBodiesProvider);
 
   return entries.where((e) {
     if (selectedDevice == null) return false;
@@ -107,10 +163,12 @@ final filteredNetworkEntriesProvider = Provider<List<NetworkEntry>>((ref) {
       return false;
     }
     if (!sourceFilter.contains(e.source)) return false;
+    if (statusFilter != null && !matchesStatus(e, statusFilter)) return false;
     // Hide system/connectivity check URLs unless searching for them
     if (search.isEmpty && _isSystemUrl(e.url)) return false;
     if (search.isNotEmpty) {
-      return e.url.toLowerCase().contains(search);
+      return e.url.toLowerCase().contains(search) ||
+          (searchBodies && networkBodyText(e).contains(search));
     }
     return true;
   }).toList();

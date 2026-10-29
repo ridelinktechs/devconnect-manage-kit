@@ -40,6 +40,9 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
   int _generation = 0;
   final List<LogEntry> _entries = [];
 
+  /// Every log of each row standing for a run of identical logs.
+  Map<String, List<LogEntry>> _runs = const {};
+
   @override
   void initState() {
     super.initState();
@@ -50,10 +53,11 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
     // `StableListView.shouldRebuild` returned false and new entries
     // were never materialised in the viewport even though
     // `_visibleCount` had grown.
-    ref.listenManual<List<LogEntry>>(
-      filteredConsoleEntriesProvider,
+    ref.listenManual(
+      groupedConsoleEntriesProvider,
       (previous, next) {
-        _entries..clear()..addAll(next);
+        _entries..clear()..addAll(next.entries);
+        _runs = next.runs;
         _entryCount.value = _entries.length;
         _visibleCount = _entries.length;
         _generation++;
@@ -235,6 +239,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                               return LogEntryContent(
                                 entry: entry,
                                 platform: device?.platform,
+                                run: _runs[entry.id] ?? const [],
                               );
                             },
                             decorationBuilder: (isSelected, isDark) {
@@ -275,6 +280,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                                   child: LogDetailPanel(
                                     key: ValueKey(selected.id),
                                     entry: selected,
+                                    occurrences: _runs[selected.id] ?? const [],
                                     onClose: () => _selectedId.value = null,
                                   ),
                                 ),

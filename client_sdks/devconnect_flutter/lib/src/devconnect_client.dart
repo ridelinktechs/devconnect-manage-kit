@@ -4,9 +4,12 @@ import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 
+import 'layout_inspector.dart';
+import 'storage_adapter.dart';
 import 'version.dart';
 
 typedef OnConnected = void Function();
@@ -26,6 +29,45 @@ class DevConnectClient {
   /// Returns instance or null if not yet initialized.
   /// Use this in interceptors/reporters that may run before init().
   static DevConnectClient? get instanceSafe => _instance;
+
+  /// Key-value stores the desktop can edit, by storage type. Static: the
+  /// storage wrappers may be created before the client.
+  static final Map<String, DevConnectStorageAdapter> _storages = {};
+
+  static void registerStorage(
+          String storageType, DevConnectStorageAdapter adapter) =>
+      _storages[storageType] = adapter;
+
+  /// Desktop-set network conditions, applied by `DevConnectHttpOverrides`.
+  static int _latencyMs = 0;
+  static bool _offline = false;
+
+  @visibleForTesting
+  static void setNetworkConditions({int latencyMs = 0, bool offline = false}) {
+    _latencyMs = latencyMs < 0 ? 0 : latencyMs;
+    _offline = offline;
+  }
+
+  @visibleForTesting
+  static Map<String, DevConnectStorageAdapter> get storages =>
+      Map.unmodifiable(_storages);
+
+  /// Holds a request back by the desktop-set latency, or fails it the way
+  /// an offline device does. DevConnect's own connection is exempt — else
+  /// "offline" would cut the desktop off from turning it back on.
+  static Future<void> applyNetworkConditions(Uri url) async {
+    final self = _instance;
+    if (self != null && url.host == self._host && url.port == self._port) {
+      return;
+    }
+    if (_offline) {
+      throw const SocketException(
+          'Network is unreachable (simulated by DevConnect)');
+    }
+    if (_latencyMs > 0) {
+      await Future<void>.delayed(Duration(milliseconds: _latencyMs));
+    }
+  }
 
   /// Pre-init message queue: messages sent before init() completes.
   static final List<Map<String, dynamic>> _preInitQueue = [];
@@ -585,6 +627,26 @@ class DevConnectClient {
                   }, correlationId: correlationId),
                 );
               }
+            } else if (type is String && type.startsWith('server:storage:')) {
+              unawaited(_handleStorageCommand(
+                  type, (msg['payload'] as Map?)?.cast<String, dynamic>() ?? {}));
+            } else if (type == 'server:open_url') {
+              final url = msg['payload']?['url'] as String?;
+              if (url != null) _openUrl(url);
+            } else if (type == 'server:network:throttle') {
+              final payload = msg['payload'] as Map?;
+              setNetworkConditions(
+                latencyMs: (payload?['latencyMs'] as num?)?.toInt() ?? 0,
+                offline: payload?['offline'] == true,
+              );
+            } else if (type == 'server:network:replay') {
+              unawaited(_replayRequest(
+                  (msg['payload'] as Map?)?.cast<String, dynamic>() ?? {}));
+            } else if (type == 'server:layout:capture') {
+              final correlationId = msg['correlationId'] as String?;
+              unawaited(captureLayout().then((snapshot) => _send(
+                  'client:layout:snapshot', snapshot,
+                  correlationId: correlationId)));
             } else if (type == 'server:database:request_schema') {
               final correlationId = msg['correlationId'] as String?;
               unawaited(_databaseSchemas().then((databases) => _send(
@@ -1163,6 +1225,76 @@ class DevConnectClient {
     _commandHandlers[name] = handler;
     // Before connecting, the handshake announces every command so far.
     if (_connected) _announceCommands();
+  }
+
+  // ---- Storage, deep links, replay ----
+
+  /// Reads / writes / deletes / clears a registered storage, then sends its
+  /// contents back.
+  Future<void> _handleStorageCommand(
+      String type, Map<String, dynamic> p) async {
+    final storageType = p['storageType'] as String?;
+    final targets = storageType == null
+        ? _storages.entries.toList()
+        : [
+            if (_storages[storageType] case final adapter?)
+              MapEntry(storageType, adapter),
+          ];
+    for (final MapEntry(key: name, value: adapter) in targets) {
+      try {
+        final key = p['key'] as String? ?? '';
+        switch (type) {
+          case 'server:storage:write':
+            await adapter.set(key, p['value']);
+          case 'server:storage:delete':
+            await adapter.remove(key);
+          case 'server:storage:clear':
+            await adapter.clear();
+        }
+        _send('client:storage:all_data',
+            {'storageType': name, 'entries': await adapter.getAll()});
+      } catch (e) {
+        _send('client:storage:all_data',
+            {'storageType': name, 'entries': {}, 'error': e.toString()});
+      }
+    }
+  }
+
+  /// Delivers [url] the way the engine delivers a deep link, so the app's
+  /// Router (or Navigator's onGenerateRoute) handles it.
+  static void _openUrl(String url) {
+    ServicesBinding.instance.channelBuffers.push(
+      SystemChannels.navigation.name,
+      SystemChannels.navigation.codec.encodeMethodCall(MethodCall(
+          'pushRouteInformation', {'location': url, 'state': null})),
+      (_) {},
+    );
+  }
+
+  /// Sends a captured request again through `HttpClient`, which
+  /// `DevConnectHttpOverrides` intercepts, so the replay shows up too.
+  static Future<void> _replayRequest(Map<String, dynamic> p) async {
+    final url = Uri.tryParse(p['url'] as String? ?? '');
+    if (url == null) return;
+    final method = (p['method'] as String? ?? 'GET').toUpperCase();
+    final client = HttpClient();
+    try {
+      final request = await client.openUrl(method, url);
+      (p['headers'] as Map?)?.forEach((k, v) {
+        if ('$k'.toLowerCase() != 'content-length') {
+          request.headers.set('$k', '$v');
+        }
+      });
+      final body = p['body'];
+      if (body != null && method != 'GET' && method != 'HEAD') {
+        request.write(body is String ? body : jsonEncode(body));
+      }
+      await (await request.close()).drain<void>();
+    } catch (_) {
+      // Reported like any other failed request.
+    } finally {
+      client.close();
+    }
   }
 
   // ---- Databases ----

@@ -244,7 +244,10 @@ class WsServer {
       try { oldConn.socket.close(); } catch (_) {}
     }
 
-    // Fallback dedup: same clientIp + appName = same device (handles old SDK with random deviceId)
+    // Fallback dedup: same clientIp + appName + platform + deviceName +
+    // osVersion = same device (handles old SDK with random deviceId).
+    // clientIp + appName alone isn't enough: every simulator / emulator on
+    // this Mac shares the IP, so two of them would knock each other off.
     if (clientIp != null) {
       final appName = deviceInfo.appName;
       final staleIds = <String>[];
@@ -252,6 +255,9 @@ class WsServer {
         if (entry.key != deviceId &&
             entry.value.deviceInfo.clientIp == clientIp &&
             entry.value.deviceInfo.appName == appName &&
+            entry.value.deviceInfo.platform == deviceInfo.platform &&
+            entry.value.deviceInfo.deviceName == deviceInfo.deviceName &&
+            entry.value.deviceInfo.osVersion == deviceInfo.osVersion &&
             entry.value.socket != socket) {
           staleIds.add(entry.key);
           try { entry.value.socket.close(); } catch (_) {}

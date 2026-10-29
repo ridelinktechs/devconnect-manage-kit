@@ -243,7 +243,7 @@ Registered commands show up in the desktop's **Commands** tab, where you
 run them with optional JSON args and see what they return (async handlers
 are awaited; a throw shows as the error).
 
-### Database
+### Database Browser
 
 Let the desktop's **Database** tab browse your SQLite tables and run SQL —
 pass a function that runs one statement and returns its rows:
@@ -256,6 +256,35 @@ DevConnect.registerDatabase("app.db", (sql) => db.getAllAsync(sql));
 ```
 
 Results are capped at 1000 rows.
+
+### Storage Editing
+
+The desktop's **Storage** tab lists, edits, deletes and clears AsyncStorage
+and MMKV once they're set up as above. For any other key-value store:
+
+```typescript
+DevConnect.registerStorage("prefs", {
+  getAll: () => prefs.getAll(),
+  set: (key, value) => prefs.set(key, value),
+  remove: (key) => prefs.delete(key),
+  clear: () => prefs.clear(),
+});
+```
+
+### Layout Inspector
+
+The desktop's **Layout** tab captures the current screen's component tree,
+with each component's bounds, props and padding/margin (dev builds: it
+reads React DevTools' hook). For the screenshot behind it, register a
+capture function, e.g. with `react-native-view-shot`:
+
+```typescript
+import { captureScreen } from "react-native-view-shot";
+
+DevConnect.registerScreenshot(() => captureScreen({ format: "png", result: "base64" }));
+```
+
+Without one the tab draws the components' outlines only.
 
 ### Hot Reload from Desktop
 

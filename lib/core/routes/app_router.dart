@@ -7,6 +7,7 @@ import '../../features/console/presentation/pages/console_page.dart';
 import '../../features/custom_commands/presentation/pages/custom_commands_page.dart';
 import '../../features/database_viewer/presentation/pages/database_viewer_page.dart';
 import '../../features/display/presentation/pages/display_page.dart';
+import '../../features/layout_inspector/presentation/layout_inspector_page.dart';
 import '../../features/network_inspector/presentation/pages/network_inspector_page.dart';
 import '../../features/last_connected/presentation/pages/last_connected_page.dart';
 import '../../features/mock_server/presentation/mock_server_page.dart';
@@ -111,6 +112,12 @@ final appRouter = GoRouter(
           path: '/commands',
           pageBuilder: (context, state) => const NoTransitionPage(
             child: CustomCommandsPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/layout',
+          pageBuilder: (context, state) => const NoTransitionPage(
+            child: LayoutInspectorPage(),
           ),
         ),
         GoRoute(

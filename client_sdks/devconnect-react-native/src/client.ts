@@ -7,7 +7,8 @@
  * 3. Subnet scanning for real devices on WiFi
  */
 
-import { Platform, NativeModules } from 'react-native';
+import { Platform, NativeModules, Linking, Dimensions } from 'react-native';
+import { captureComponentTree } from './plugins/layoutInspector';
 import { SDK_VERSION } from './version';
 
 interface DevConnectConfig {
@@ -467,6 +468,14 @@ function readFinalHeaders(
 
 // ---- Main Class ----
 
+/** A key-value store the desktop can read and edit (see `registerStorage`). */
+export interface StorageAdapter {
+  getAll(): Promise<Record<string, any>> | Record<string, any>;
+  set(key: string, value: any): Promise<void> | void;
+  remove(key: string): Promise<void> | void;
+  clear(): Promise<void> | void;
+}
+
 /** Runs one SQL statement against an app database and returns its rows. */
 export type DatabaseQuery = (
   sql: string,
@@ -520,6 +529,11 @@ export class DevConnect {
   private _stateRestoreHandler: ((state: any) => void) | null = null;
   private _customCommandHandlers: Map<string, (args?: any) => any> = new Map();
   private _databases: Map<string, DatabaseQuery> = new Map();
+  private _storages: Map<string, StorageAdapter> = new Map();
+  /** Screenshot function the app registered for the Layout tab, if any. */
+  private _screenshot: (() => Promise<string>) | null = null;
+  /** Desktop-set network conditions, applied to every XHR (fetch rides on XHR). */
+  private _throttle = { latencyMs: 0, offline: false };
   /**
    * Generic server-message subscribers (used by internal plugins).
    * Each handler receives the full parsed `msg` object and may act or
@@ -753,6 +767,23 @@ export class DevConnect {
                   }, msg.correlationId),
                 );
             }
+          } else if (typeof msg.type === 'string' && msg.type.startsWith('server:storage:')) {
+            this._handleStorageCommand(msg.type, msg.payload ?? {});
+          } else if (msg.type === 'server:layout:capture') {
+            this._layoutSnapshot().then((snapshot) =>
+              this.send('client:layout:snapshot', snapshot, msg.correlationId));
+          } else if (msg.type === 'server:open_url') {
+            // Deep link: the app's own Linking handlers route it.
+            if (msg.payload?.url) Linking.openURL(msg.payload.url).catch(() => {});
+          } else if (msg.type === 'server:dev_menu') {
+            NativeModules.DevMenu?.show?.();
+          } else if (msg.type === 'server:network:throttle') {
+            this._throttle = {
+              latencyMs: Math.max(0, Number(msg.payload?.latencyMs) || 0),
+              offline: msg.payload?.offline === true,
+            };
+          } else if (msg.type === 'server:network:replay') {
+            this._replayRequest(msg.payload ?? {});
           } else if (msg.type === 'server:database:request_schema') {
             this._databaseSchemas().then((databases) =>
               this.send('client:database:schema', { databases }, msg.correlationId));
@@ -878,6 +909,59 @@ export class DevConnect {
       },
     });
     this._announceCommands();
+  }
+
+  /** Read / write / delete / clear a registered storage, then send its contents. */
+  private async _handleStorageCommand(type: string, p: Record<string, any>): Promise<void> {
+    const targets: Array<[string, StorageAdapter | undefined]> = p.storageType
+      ? [[p.storageType, this._storages.get(p.storageType)]]
+      : [...this._storages];
+    for (const [storageType, adapter] of targets) {
+      if (!adapter) continue;
+      try {
+        if (type === 'server:storage:write') await adapter.set(p.key, p.value);
+        else if (type === 'server:storage:delete') await adapter.remove(p.key);
+        else if (type === 'server:storage:clear') await adapter.clear();
+        this.send('client:storage:all_data', { storageType, entries: await adapter.getAll() });
+      } catch (e: any) {
+        this.send('client:storage:all_data', { storageType, entries: {}, error: e?.message ?? String(e) });
+      }
+    }
+  }
+
+  /** Screen size, the registered screenshot and the component tree, for the Layout tab. */
+  private async _layoutSnapshot(): Promise<Record<string, any>> {
+    const { width, height } = Dimensions.get('window');
+    const roots = await captureComponentTree().catch(() => []);
+    let screenshot: string | null = null;
+    if (this._screenshot) {
+      try {
+        screenshot = String(await this._screenshot()).replace(/^data:image\/\w+;base64,/, '');
+      } catch (_) {
+        // The tree is still useful without a picture.
+      }
+    }
+    return {
+      width,
+      height,
+      screenshot,
+      root: roots.length === 1
+        ? roots[0]
+        : { id: 'root', name: 'Root', x: 0, y: 0, w: width, h: height, props: {}, children: roots },
+    };
+  }
+
+  /** Sends a captured request again through the app's own (intercepted) fetch. */
+  private _replayRequest(p: Record<string, any>): void {
+    if (typeof p.url !== 'string') return;
+    const method = String(p.method ?? 'GET').toUpperCase();
+    const hasBody = p.body != null && method !== 'GET' && method !== 'HEAD';
+    // The global fetch is the intercepted one, so the replay is captured.
+    fetch(p.url, {
+      method,
+      headers: p.headers ?? {},
+      body: hasBody ? (typeof p.body === 'string' ? p.body : JSON.stringify(p.body)) : undefined,
+    }).catch(() => {}); // the failure is reported like any other request
   }
 
   private async _databaseSchemas(): Promise<Array<Record<string, any>>> {
@@ -1152,6 +1236,16 @@ export class DevConnect {
         const isFetchRequest = isFetchXhr || (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
         if (!isFetchRequest) {
           dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source: classifyUrl(url), via: 'xhr' });
+        }
+        const { latencyMs, offline } = dc._throttle;
+        if (offline) {
+          // Connection refused right away: the error an offline app sees.
+          origOpen(method, 'http://127.0.0.1:9');
+          return origSend();
+        }
+        if (latencyMs > 0) {
+          setTimeout(() => origSend(body), latencyMs);
+          return;
         }
         return origSend(body);
       };
@@ -1790,6 +1884,51 @@ export class DevConnect {
         const dc = DevConnect.getInstanceSafe();
         if (dc) {
           register(dc);
+          clearInterval(interval);
+        }
+      }, 100);
+      setTimeout(() => clearInterval(interval), 10000);
+    }
+  }
+
+  /**
+   * Gives the desktop's Layout tab a screenshot to draw component bounds on
+   * (React Native has no built-in one). With react-native-view-shot:
+   *
+   * ```typescript
+   * DevConnect.registerScreenshot(() => captureScreen({ format: 'png', result: 'base64' }));
+   * ```
+   */
+  static registerScreenshot(capture: () => Promise<string>): void {
+    const instance = DevConnect.getInstanceSafe();
+    if (instance) {
+      instance._screenshot = capture;
+    } else {
+      const interval = setInterval(() => {
+        const dc = DevConnect.getInstanceSafe();
+        if (dc) {
+          dc._screenshot = capture;
+          clearInterval(interval);
+        }
+      }, 100);
+      setTimeout(() => clearInterval(interval), 10000);
+    }
+  }
+
+  /**
+   * Let the desktop's Storage tab show, edit, delete and clear a key-value
+   * store. `DevConnectAsyncStorage` and `DevConnectMMKV` register theirs;
+   * call this for any other store.
+   */
+  static registerStorage(storageType: string, adapter: StorageAdapter): void {
+    const instance = DevConnect.getInstanceSafe();
+    if (instance) {
+      instance._storages.set(storageType, adapter);
+    } else {
+      const interval = setInterval(() => {
+        const dc = DevConnect.getInstanceSafe();
+        if (dc) {
+          dc._storages.set(storageType, adapter);
           clearInterval(interval);
         }
       }, 100);

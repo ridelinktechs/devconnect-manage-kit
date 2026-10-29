@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -5,9 +7,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/misc/retention_hint.dart';
 import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/providers/app_update_provider.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/utils/save_file.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/providers/retention_provider.dart';
+import '../../export/har.dart';
+import '../../provider/network_control.dart';
 import '../../provider/network_providers.dart';
 import 'clear_stale_btn.dart';
 import 'icon_btn.dart';
@@ -39,6 +46,9 @@ class Toolbar extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
     final methodFilter = ref.watch(networkMethodFilterProvider);
     final sourceFilter = ref.watch(networkSourceFilterProvider);
+    final statusFilter = ref.watch(networkStatusFilterProvider);
+    final searchBodies = ref.watch(networkSearchBodiesProvider);
+    final networkPreset = ref.watch(networkPresetProvider);
     final retentionPreset = ref.watch(retentionLimitProvider);
     final retentionLimit = retentionPreset.limit;
     final retentionLabel = retentionPreset.label;
@@ -77,52 +87,123 @@ class Toolbar extends ConsumerWidget {
           ),
           const SizedBox(width: 16),
 
-          // ── Method segment group ──
-          SegmentGroup(
-            isDark: isDark,
-            children: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) {
-              final isActive = methodFilter == m;
-              final color = ColorTokens.httpMethodColor(m);
-              return SegmentChip(
-                label: m,
-                isActive: isActive,
-                color: color,
-                isMono: true,
-                onTap: () => ref
-                    .read(networkMethodFilterProvider.notifier)
-                    .set(isActive ? null : m),
-              );
-            }).toList(),
-          ),
-          const SizedBox(width: 10),
+          // Filters scroll sideways rather than overflow a narrow window.
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    // ── Method segment group ──
+                    SegmentGroup(
+                      isDark: isDark,
+                      children: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) {
+                        final isActive = methodFilter == m;
+                        final color = ColorTokens.httpMethodColor(m);
+                        return SegmentChip(
+                          label: m,
+                          isActive: isActive,
+                          color: color,
+                          isMono: true,
+                          onTap: () => ref
+                              .read(networkMethodFilterProvider.notifier)
+                              .set(isActive ? null : m),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(width: 10),
 
-          // ── Source segment group ──
-          SegmentGroup(
-            isDark: isDark,
-            children: [
-              SegmentChip(
-                label: 'App',
-                isActive: sourceFilter.contains('app'),
-                color: ColorTokens.primary,
-                onTap: () => _toggleSource(ref, 'app'),
+                    // ── Source segment group ──
+                    SegmentGroup(
+                      isDark: isDark,
+                      children: [
+                        SegmentChip(
+                          label: 'App',
+                          isActive: sourceFilter.contains('app'),
+                          color: ColorTokens.primary,
+                          onTap: () => _toggleSource(ref, 'app'),
+                        ),
+                        SegmentChip(
+                          label: 'Library',
+                          isActive: sourceFilter.contains('library'),
+                          color: ColorTokens.warning,
+                          onTap: () => _toggleSource(ref, 'library'),
+                        ),
+                        SegmentChip(
+                          label: 'System',
+                          isActive: sourceFilter.contains('system'),
+                          color: Colors.grey,
+                          onTap: () => _toggleSource(ref, 'system'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 10),
+
+                    // ── Status segment group ──
+                    SegmentGroup(
+                      isDark: isDark,
+                      children: [
+                        for (final (filter, label, color) in [
+                          (NetworkStatusFilter.success, '2xx', ColorTokens.success),
+                          (NetworkStatusFilter.redirect, '3xx', ColorTokens.info),
+                          (
+                            NetworkStatusFilter.error,
+                            S.of(context).networkErrors,
+                            ColorTokens.error,
+                          ),
+                        ])
+                          SegmentChip(
+                            label: label,
+                            isActive: statusFilter == filter,
+                            color: color,
+                            isMono: filter != NetworkStatusFilter.error,
+                            onTap: () => ref
+                                .read(networkStatusFilterProvider.notifier)
+                                .set(statusFilter == filter ? null : filter),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              SegmentChip(
-                label: 'Library',
-                isActive: sourceFilter.contains('library'),
-                color: ColorTokens.warning,
-                onTap: () => _toggleSource(ref, 'library'),
-              ),
-              SegmentChip(
-                label: 'System',
-                isActive: sourceFilter.contains('system'),
-                color: Colors.grey,
-                onTap: () => _toggleSource(ref, 'system'),
-              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Simulated network conditions for the apps' own requests.
+          MenuAnchor(
+            menuChildren: [
+              for (final preset in NetworkPreset.values)
+                MenuItemButton(
+                  leadingIcon: Icon(
+                    preset == networkPreset ? LucideIcons.check : null,
+                    size: 14,
+                  ),
+                  onPressed: () =>
+                      ref.read(networkPresetProvider.notifier).set(preset),
+                  child: Text(networkPresetLabel(S.of(context), preset)),
+                ),
             ],
+            builder: (context, controller, _) => IconBtn(
+              icon: networkPreset == NetworkPreset.offline
+                  ? LucideIcons.wifiOff
+                  : LucideIcons.gauge,
+              tooltip:
+                  '${S.of(context).networkConditions}: ${networkPresetLabel(S.of(context), networkPreset)}',
+              isActive: networkPreset != NetworkPreset.normal,
+              onTap: () =>
+                  controller.isOpen ? controller.close() : controller.open(),
+            ),
           ),
-
-          const Spacer(),
-
+          const SizedBox(width: 4),
+          IconBtn(
+            icon: LucideIcons.fileSearch,
+            tooltip: S.of(context).networkSearchBodies,
+            isActive: searchBodies,
+            onTap: () => ref.read(networkSearchBodiesProvider.notifier).toggle(),
+          ),
+          const SizedBox(width: 4),
           // Search
           SizedBox(
             width: 200,
@@ -170,6 +251,12 @@ class Toolbar extends ConsumerWidget {
                               : ScrollDirection.top),
                     );
                   },
+                ),
+                const SizedBox(width: 2),
+                IconBtn(
+                  icon: LucideIcons.fileDown,
+                  tooltip: S.of(context).networkExportHar,
+                  onTap: () => _exportHar(context, ref),
                 ),
                 const SizedBox(width: 2),
                 Container(
@@ -223,6 +310,26 @@ class Toolbar extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Saves the requests the list shows (current filters) as a HAR file.
+Future<void> _exportHar(BuildContext context, WidgetRef ref) async {
+  final entries = ref.read(filteredNetworkEntriesProvider);
+  if (entries.isEmpty) {
+    showInfoToast(context, message: S.of(context).networkNothingToExport);
+    return;
+  }
+  final har = buildHar(
+    entries,
+    creatorVersion: ref.read(appUpdateProvider).currentVersion ?? '',
+  );
+  await saveTextFile(
+    context,
+    suggestedName: exportFileName('network', 'har'),
+    typeLabel: 'HTTP Archive',
+    extension: 'har',
+    content: const JsonEncoder.withIndent('  ').convert(har),
+  );
 }
 
 void _toggleSource(WidgetRef ref, String key) {

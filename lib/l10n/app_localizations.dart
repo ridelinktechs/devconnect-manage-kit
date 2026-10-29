@@ -1407,6 +1407,528 @@ abstract class S {
   /// **'No response. Does the app register a database with DevConnect.registerDatabase? It needs the latest SDK.'**
   String get dbNoResponse;
 
+  /// No description provided for @stateToolsTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Controls'**
+  String get stateToolsTab;
+
+  /// No description provided for @stateNoDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a device in the bottom bar to watch, snapshot and drive its state.'**
+  String get stateNoDevice;
+
+  /// No description provided for @stateNoState.
+  ///
+  /// In en, this message translates to:
+  /// **'This device hasn\'t reported any state yet.'**
+  String get stateNoState;
+
+  /// No description provided for @stateSubscriptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscriptions'**
+  String get stateSubscriptions;
+
+  /// No description provided for @stateSubscriptionsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pin a state path to watch its live value, e.g. auth.user or cart.items[0].price.'**
+  String get stateSubscriptionsHint;
+
+  /// No description provided for @statePinPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Pin path'**
+  String get statePinPath;
+
+  /// No description provided for @statePathMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'(not in state)'**
+  String get statePathMissing;
+
+  /// No description provided for @stateRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get stateRemove;
+
+  /// No description provided for @stateSnapshots.
+  ///
+  /// In en, this message translates to:
+  /// **'Snapshots'**
+  String get stateSnapshots;
+
+  /// No description provided for @stateSnapshotsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Save the current state and send it back later to reproduce a bug or skip a long form. The app applies it in onStateRestore.'**
+  String get stateSnapshotsHint;
+
+  /// No description provided for @stateTakeSnapshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Take snapshot'**
+  String get stateTakeSnapshot;
+
+  /// No description provided for @stateKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 key} other{{count} keys}}'**
+  String stateKeys(num count);
+
+  /// No description provided for @stateRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get stateRestore;
+
+  /// No description provided for @stateRestoreHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore the app\'s state to this point'**
+  String get stateRestoreHere;
+
+  /// No description provided for @stateSaveSnapshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as snapshot'**
+  String get stateSaveSnapshot;
+
+  /// No description provided for @stateSnapshotSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Snapshot saved'**
+  String get stateSnapshotSaved;
+
+  /// No description provided for @stateRestoreSent.
+  ///
+  /// In en, this message translates to:
+  /// **'State restore sent'**
+  String get stateRestoreSent;
+
+  /// No description provided for @stateDispatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch action'**
+  String get stateDispatch;
+
+  /// No description provided for @stateDispatchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Send a Redux action to the app. Needs the store wired: connectReduxStore(store) on React Native, onReduxDispatch on Flutter and Android.'**
+  String get stateDispatchHint;
+
+  /// No description provided for @stateDispatchButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Dispatch'**
+  String get stateDispatchButton;
+
+  /// No description provided for @stateDispatchSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Action dispatched'**
+  String get stateDispatchSent;
+
+  /// No description provided for @stateActionInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'The action must be a JSON object.'**
+  String get stateActionInvalid;
+
+  /// No description provided for @stateRecentActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get stateRecentActions;
+
+  /// No description provided for @jsonTreeView.
+  ///
+  /// In en, this message translates to:
+  /// **'Tree'**
+  String get jsonTreeView;
+
+  /// No description provided for @jsonTableView.
+  ///
+  /// In en, this message translates to:
+  /// **'Table'**
+  String get jsonTableView;
+
+  /// No description provided for @jsonSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search keys & values'**
+  String get jsonSearchHint;
+
+  /// No description provided for @jsonExportCsv.
+  ///
+  /// In en, this message translates to:
+  /// **'Download table as CSV'**
+  String get jsonExportCsv;
+
+  /// No description provided for @jsonTableNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No rows match'**
+  String get jsonTableNoMatch;
+
+  /// No description provided for @jsonPrevMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous match'**
+  String get jsonPrevMatch;
+
+  /// No description provided for @jsonNextMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Next match'**
+  String get jsonNextMatch;
+
+  /// No description provided for @jsonExpandAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand all'**
+  String get jsonExpandAll;
+
+  /// No description provided for @jsonCollapseAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse all'**
+  String get jsonCollapseAll;
+
+  /// No description provided for @jsonCopyKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy key'**
+  String get jsonCopyKey;
+
+  /// No description provided for @jsonCopyValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy value'**
+  String get jsonCopyValue;
+
+  /// No description provided for @jsonCopyPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy path'**
+  String get jsonCopyPath;
+
+  /// No description provided for @jsonKeyCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Key copied'**
+  String get jsonKeyCopied;
+
+  /// No description provided for @jsonValueCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Value copied'**
+  String get jsonValueCopied;
+
+  /// No description provided for @jsonPathCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Path copied'**
+  String get jsonPathCopied;
+
+  /// No description provided for @jsonTableTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'Showing the first {count} rows.'**
+  String jsonTableTruncated(Object count);
+
+  /// No description provided for @networkErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'Errors'**
+  String get networkErrors;
+
+  /// No description provided for @networkSearchBodies.
+  ///
+  /// In en, this message translates to:
+  /// **'Also search request & response bodies'**
+  String get networkSearchBodies;
+
+  /// No description provided for @networkExportHar.
+  ///
+  /// In en, this message translates to:
+  /// **'Export the listed requests as HAR'**
+  String get networkExportHar;
+
+  /// No description provided for @networkNothingToExport.
+  ///
+  /// In en, this message translates to:
+  /// **'No requests to export'**
+  String get networkNothingToExport;
+
+  /// No description provided for @fileSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'File saved'**
+  String get fileSaved;
+
+  /// No description provided for @consoleGroupRepeats.
+  ///
+  /// In en, this message translates to:
+  /// **'Group repeated logs'**
+  String get consoleGroupRepeats;
+
+  /// No description provided for @consoleOccurrences.
+  ///
+  /// In en, this message translates to:
+  /// **'Occurrences'**
+  String get consoleOccurrences;
+
+  /// No description provided for @consoleExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export logs'**
+  String get consoleExport;
+
+  /// No description provided for @consoleExportText.
+  ///
+  /// In en, this message translates to:
+  /// **'Text (.txt)'**
+  String get consoleExportText;
+
+  /// No description provided for @consoleExportJson.
+  ///
+  /// In en, this message translates to:
+  /// **'JSON (.json)'**
+  String get consoleExportJson;
+
+  /// No description provided for @consoleNothingToExport.
+  ///
+  /// In en, this message translates to:
+  /// **'No logs to export'**
+  String get consoleNothingToExport;
+
+  /// No description provided for @errorSymbolicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Symbolicate'**
+  String get errorSymbolicate;
+
+  /// No description provided for @errorSymbolicated.
+  ///
+  /// In en, this message translates to:
+  /// **'Mapped to source'**
+  String get errorSymbolicated;
+
+  /// No description provided for @errorSymbolicateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t map this stack: Metro isn\'t reachable from here and no source map was uploaded for this build (uploadSourceMap in the SDK).'**
+  String get errorSymbolicateFailed;
+
+  /// No description provided for @storageTabHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'History'**
+  String get storageTabHistory;
+
+  /// No description provided for @storageTabKeyValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Key-Value'**
+  String get storageTabKeyValue;
+
+  /// No description provided for @storageKvNoDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a device in the bottom bar to see and edit its storage.'**
+  String get storageKvNoDevice;
+
+  /// No description provided for @storageKvEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No editable storage yet. Wrap the store with the SDK (DevConnectAsyncStorage.wrap, DevConnectMMKV.wrap, DevConnectSharedPreferences.wrap…) — it needs the latest SDK.'**
+  String get storageKvEmpty;
+
+  /// No description provided for @storageKvRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload'**
+  String get storageKvRefresh;
+
+  /// No description provided for @storageKvAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add key'**
+  String get storageKvAdd;
+
+  /// No description provided for @storageKvEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit value'**
+  String get storageKvEdit;
+
+  /// No description provided for @storageKvDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete key'**
+  String get storageKvDelete;
+
+  /// No description provided for @storageKvClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all'**
+  String get storageKvClear;
+
+  /// No description provided for @storageKvClearConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete every key in {storage}? This can\'t be undone.'**
+  String storageKvClearConfirm(Object storage);
+
+  /// No description provided for @storageKvKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Key'**
+  String get storageKvKey;
+
+  /// No description provided for @storageKvValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Value'**
+  String get storageKvValue;
+
+  /// No description provided for @storageKvSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get storageKvSave;
+
+  /// No description provided for @storageKvFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter keys'**
+  String get storageKvFilter;
+
+  /// No description provided for @deepLinkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a deep link'**
+  String get deepLinkTitle;
+
+  /// No description provided for @deepLinkHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The app opens it as if one of its links was tapped.'**
+  String get deepLinkHint;
+
+  /// No description provided for @deepLinkOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get deepLinkOpen;
+
+  /// No description provided for @deepLinkSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Deep link sent'**
+  String get deepLinkSent;
+
+  /// No description provided for @devMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the dev menu'**
+  String get devMenu;
+
+  /// No description provided for @networkReplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Replay request'**
+  String get networkReplay;
+
+  /// No description provided for @networkReplaySent.
+  ///
+  /// In en, this message translates to:
+  /// **'Request sent again — it shows up as a new row'**
+  String get networkReplaySent;
+
+  /// No description provided for @networkConditions.
+  ///
+  /// In en, this message translates to:
+  /// **'Network conditions'**
+  String get networkConditions;
+
+  /// No description provided for @networkPresetNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get networkPresetNormal;
+
+  /// No description provided for @networkPresetSlow.
+  ///
+  /// In en, this message translates to:
+  /// **'Slow (+500 ms)'**
+  String get networkPresetSlow;
+
+  /// No description provided for @networkPresetSlow3g.
+  ///
+  /// In en, this message translates to:
+  /// **'Slow 3G (~2 s)'**
+  String get networkPresetSlow3g;
+
+  /// No description provided for @networkPresetOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get networkPresetOffline;
+
+  /// No description provided for @layoutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Layout'**
+  String get layoutTitle;
+
+  /// No description provided for @layoutCapture.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture'**
+  String get layoutCapture;
+
+  /// No description provided for @layoutHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture the app\'s current screen to see its element tree. Hover the screenshot to highlight an element, click it to see its properties.'**
+  String get layoutHint;
+
+  /// No description provided for @layoutNoDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect an app, or select a device, to inspect its layout.'**
+  String get layoutNoDevice;
+
+  /// No description provided for @layoutNoScreenshot.
+  ///
+  /// In en, this message translates to:
+  /// **'No screenshot from this app, showing element outlines only. React Native: add one with DevConnect.registerScreenshot.'**
+  String get layoutNoScreenshot;
+
+  /// No description provided for @layoutPickElement.
+  ///
+  /// In en, this message translates to:
+  /// **'Hover or click an element on the screenshot, or pick one in the tree.'**
+  String get layoutPickElement;
+
+  /// No description provided for @layoutTree.
+  ///
+  /// In en, this message translates to:
+  /// **'Element tree'**
+  String get layoutTree;
+
+  /// No description provided for @layoutProperties.
+  ///
+  /// In en, this message translates to:
+  /// **'Properties'**
+  String get layoutProperties;
+
   /// No description provided for @networkTitle.
   ///
   /// In en, this message translates to:

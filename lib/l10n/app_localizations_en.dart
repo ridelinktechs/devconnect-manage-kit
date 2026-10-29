@@ -801,6 +801,292 @@ class SEn extends S {
       'No response. Does the app register a database with DevConnect.registerDatabase? It needs the latest SDK.';
 
   @override
+  String get stateToolsTab => 'Controls';
+
+  @override
+  String get stateNoDevice =>
+      'Select a device in the bottom bar to watch, snapshot and drive its state.';
+
+  @override
+  String get stateNoState => 'This device hasn\'t reported any state yet.';
+
+  @override
+  String get stateSubscriptions => 'Subscriptions';
+
+  @override
+  String get stateSubscriptionsHint =>
+      'Pin a state path to watch its live value, e.g. auth.user or cart.items[0].price.';
+
+  @override
+  String get statePinPath => 'Pin path';
+
+  @override
+  String get statePathMissing => '(not in state)';
+
+  @override
+  String get stateRemove => 'Remove';
+
+  @override
+  String get stateSnapshots => 'Snapshots';
+
+  @override
+  String get stateSnapshotsHint =>
+      'Save the current state and send it back later to reproduce a bug or skip a long form. The app applies it in onStateRestore.';
+
+  @override
+  String get stateTakeSnapshot => 'Take snapshot';
+
+  @override
+  String stateKeys(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count keys',
+      one: '1 key',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stateRestore => 'Restore';
+
+  @override
+  String get stateRestoreHere => 'Restore the app\'s state to this point';
+
+  @override
+  String get stateSaveSnapshot => 'Save as snapshot';
+
+  @override
+  String get stateSnapshotSaved => 'Snapshot saved';
+
+  @override
+  String get stateRestoreSent => 'State restore sent';
+
+  @override
+  String get stateDispatch => 'Dispatch action';
+
+  @override
+  String get stateDispatchHint =>
+      'Send a Redux action to the app. Needs the store wired: connectReduxStore(store) on React Native, onReduxDispatch on Flutter and Android.';
+
+  @override
+  String get stateDispatchButton => 'Dispatch';
+
+  @override
+  String get stateDispatchSent => 'Action dispatched';
+
+  @override
+  String get stateActionInvalid => 'The action must be a JSON object.';
+
+  @override
+  String get stateRecentActions => 'Recent';
+
+  @override
+  String get jsonTreeView => 'Tree';
+
+  @override
+  String get jsonTableView => 'Table';
+
+  @override
+  String get jsonSearchHint => 'Search keys & values';
+
+  @override
+  String get jsonExportCsv => 'Download table as CSV';
+
+  @override
+  String get jsonTableNoMatch => 'No rows match';
+
+  @override
+  String get jsonPrevMatch => 'Previous match';
+
+  @override
+  String get jsonNextMatch => 'Next match';
+
+  @override
+  String get jsonExpandAll => 'Expand all';
+
+  @override
+  String get jsonCollapseAll => 'Collapse all';
+
+  @override
+  String get jsonCopyKey => 'Copy key';
+
+  @override
+  String get jsonCopyValue => 'Copy value';
+
+  @override
+  String get jsonCopyPath => 'Copy path';
+
+  @override
+  String get jsonKeyCopied => 'Key copied';
+
+  @override
+  String get jsonValueCopied => 'Value copied';
+
+  @override
+  String get jsonPathCopied => 'Path copied';
+
+  @override
+  String jsonTableTruncated(Object count) {
+    return 'Showing the first $count rows.';
+  }
+
+  @override
+  String get networkErrors => 'Errors';
+
+  @override
+  String get networkSearchBodies => 'Also search request & response bodies';
+
+  @override
+  String get networkExportHar => 'Export the listed requests as HAR';
+
+  @override
+  String get networkNothingToExport => 'No requests to export';
+
+  @override
+  String get fileSaved => 'File saved';
+
+  @override
+  String get consoleGroupRepeats => 'Group repeated logs';
+
+  @override
+  String get consoleOccurrences => 'Occurrences';
+
+  @override
+  String get consoleExport => 'Export logs';
+
+  @override
+  String get consoleExportText => 'Text (.txt)';
+
+  @override
+  String get consoleExportJson => 'JSON (.json)';
+
+  @override
+  String get consoleNothingToExport => 'No logs to export';
+
+  @override
+  String get errorSymbolicate => 'Symbolicate';
+
+  @override
+  String get errorSymbolicated => 'Mapped to source';
+
+  @override
+  String get errorSymbolicateFailed =>
+      'Couldn\'t map this stack: Metro isn\'t reachable from here and no source map was uploaded for this build (uploadSourceMap in the SDK).';
+
+  @override
+  String get storageTabHistory => 'History';
+
+  @override
+  String get storageTabKeyValue => 'Key-Value';
+
+  @override
+  String get storageKvNoDevice =>
+      'Select a device in the bottom bar to see and edit its storage.';
+
+  @override
+  String get storageKvEmpty =>
+      'No editable storage yet. Wrap the store with the SDK (DevConnectAsyncStorage.wrap, DevConnectMMKV.wrap, DevConnectSharedPreferences.wrap…) — it needs the latest SDK.';
+
+  @override
+  String get storageKvRefresh => 'Reload';
+
+  @override
+  String get storageKvAdd => 'Add key';
+
+  @override
+  String get storageKvEdit => 'Edit value';
+
+  @override
+  String get storageKvDelete => 'Delete key';
+
+  @override
+  String get storageKvClear => 'Clear all';
+
+  @override
+  String storageKvClearConfirm(Object storage) {
+    return 'Delete every key in $storage? This can\'t be undone.';
+  }
+
+  @override
+  String get storageKvKey => 'Key';
+
+  @override
+  String get storageKvValue => 'Value';
+
+  @override
+  String get storageKvSave => 'Save';
+
+  @override
+  String get storageKvFilter => 'Filter keys';
+
+  @override
+  String get deepLinkTitle => 'Open a deep link';
+
+  @override
+  String get deepLinkHint =>
+      'The app opens it as if one of its links was tapped.';
+
+  @override
+  String get deepLinkOpen => 'Open';
+
+  @override
+  String get deepLinkSent => 'Deep link sent';
+
+  @override
+  String get devMenu => 'Open the dev menu';
+
+  @override
+  String get networkReplay => 'Replay request';
+
+  @override
+  String get networkReplaySent =>
+      'Request sent again — it shows up as a new row';
+
+  @override
+  String get networkConditions => 'Network conditions';
+
+  @override
+  String get networkPresetNormal => 'Normal';
+
+  @override
+  String get networkPresetSlow => 'Slow (+500 ms)';
+
+  @override
+  String get networkPresetSlow3g => 'Slow 3G (~2 s)';
+
+  @override
+  String get networkPresetOffline => 'Offline';
+
+  @override
+  String get layoutTitle => 'Layout';
+
+  @override
+  String get layoutCapture => 'Capture';
+
+  @override
+  String get layoutHint =>
+      'Capture the app\'s current screen to see its element tree. Hover the screenshot to highlight an element, click it to see its properties.';
+
+  @override
+  String get layoutNoDevice =>
+      'Connect an app, or select a device, to inspect its layout.';
+
+  @override
+  String get layoutNoScreenshot =>
+      'No screenshot from this app, showing element outlines only. React Native: add one with DevConnect.registerScreenshot.';
+
+  @override
+  String get layoutPickElement =>
+      'Hover or click an element on the screenshot, or pick one in the tree.';
+
+  @override
+  String get layoutTree => 'Element tree';
+
+  @override
+  String get layoutProperties => 'Properties';
+
+  @override
   String get networkTitle => 'Network';
 
   @override

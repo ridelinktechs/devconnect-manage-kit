@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../provider/network_control.dart';
 import '../../../../components/misc/status_badge.dart';
 import '../../../../components/text/text_component.dart';
 import '../../../../components/viewers/json_viewer.dart';
@@ -167,6 +168,13 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                         ),
                       ),
                     const Spacer(),
+                    HeaderIconButton(
+                      icon: LucideIcons.repeat,
+                      tooltip: S.of(context).networkReplay,
+                      onPressed: () =>
+                          replayNetworkRequest(context, ref, widget.entry),
+                    ),
+                    const SizedBox(width: 2),
                     // Screenshot buttons
                     Tooltip(
                       message: S.of(context).captureFullTooltip,

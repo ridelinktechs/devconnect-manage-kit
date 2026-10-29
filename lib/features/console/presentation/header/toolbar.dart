@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -6,6 +8,8 @@ import '../../../../components/inputs/search_field.dart';
 import '../../../../components/misc/retention_hint.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/utils/save_file.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../core/providers/retention_provider.dart';
@@ -133,6 +137,33 @@ class Toolbar extends ConsumerWidget {
                   },
                 ),
                 const SizedBox(width: 2),
+                IconBtn(
+                  icon: LucideIcons.listCollapse,
+                  tooltip: S.of(context).consoleGroupRepeats,
+                  isActive: ref.watch(consoleGroupRepeatsProvider),
+                  onTap: () =>
+                      ref.read(consoleGroupRepeatsProvider.notifier).toggle(),
+                ),
+                const SizedBox(width: 2),
+                MenuAnchor(
+                  menuChildren: [
+                    MenuItemButton(
+                      onPressed: () => _exportLogs(context, ref, json: false),
+                      child: Text(S.of(context).consoleExportText),
+                    ),
+                    MenuItemButton(
+                      onPressed: () => _exportLogs(context, ref, json: true),
+                      child: Text(S.of(context).consoleExportJson),
+                    ),
+                  ],
+                  builder: (context, controller, _) => IconBtn(
+                    icon: LucideIcons.fileDown,
+                    tooltip: S.of(context).consoleExport,
+                    onTap: () =>
+                        controller.isOpen ? controller.close() : controller.open(),
+                  ),
+                ),
+                const SizedBox(width: 2),
                 Container(
                   width: 1,
                   height: 18,
@@ -154,4 +185,28 @@ class Toolbar extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Saves the logs the list shows (current filters, repeats unfolded).
+Future<void> _exportLogs(
+  BuildContext context,
+  WidgetRef ref, {
+  required bool json,
+}) async {
+  final entries = ref.read(filteredConsoleEntriesProvider);
+  if (entries.isEmpty) {
+    showInfoToast(context, message: S.of(context).consoleNothingToExport);
+    return;
+  }
+  await saveTextFile(
+    context,
+    suggestedName: exportFileName('logs', json ? 'json' : 'txt'),
+    typeLabel: json ? 'JSON' : 'Text',
+    extension: json ? 'json' : 'txt',
+    content: json
+        ? const JsonEncoder.withIndent(
+            '  ',
+          ).convert([for (final e in entries) e.toJson()])
+        : formatLogsAsText(entries),
+  );
 }

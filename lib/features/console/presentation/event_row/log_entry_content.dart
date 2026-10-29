@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/misc/status_badge.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/utils/log_message_summary.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../../models/log/log_entry.dart';
 import '../shared/level_color.dart';
 import '../shared/tag_badge.dart';
@@ -21,10 +24,15 @@ class LogEntryContent extends StatelessWidget {
   final LogEntry entry;
   final String? platform;
 
+  /// The identical logs in a row this one stands for, oldest first; empty
+  /// when it stands for itself only.
+  final List<LogEntry> run;
+
   const LogEntryContent({
     super.key,
     required this.entry,
     this.platform,
+    this.run = const [],
   });
 
   @override
@@ -77,6 +85,10 @@ class LogEntryContent extends StatelessWidget {
                         const SizedBox(width: 6),
                         TagBadge(tag: entry.tag!),
                       ],
+                      if (run.length > 1) ...[
+                        const Spacer(),
+                        _RepeatPill(run: run, color: color),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -98,6 +110,55 @@ class LogEntryContent extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// How many times a folded log ran, on its level color; the tooltip says
+/// from when to when.
+class _RepeatPill extends StatelessWidget {
+  final List<LogEntry> run;
+  final Color color;
+
+  const _RepeatPill({required this.run, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final time = DateFormat('HH:mm:ss.SSS');
+    String at(LogEntry e) =>
+        time.format(DateTime.fromMillisecondsSinceEpoch(e.timestamp));
+    // White or near-black, whichever reads better on the level color.
+    final l = color.computeLuminance();
+    final onColor = 1.05 / (l + 0.05) >= (l + 0.05) / 0.067
+        ? Colors.white
+        : const Color(0xFF1F2328);
+    return Tooltip(
+      message:
+          '${S.of(context).consoleOccurrences}: ${run.length} · '
+          '${at(run.first)} → ${at(run.last)}',
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(6, 2, 8, 2),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.repeat2, size: 12, color: onColor),
+            const SizedBox(width: 4),
+            Text(
+              '${run.length}',
+              style: chromeMono(
+                context,
+                size: 11.5,
+                color: onColor,
+                weight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

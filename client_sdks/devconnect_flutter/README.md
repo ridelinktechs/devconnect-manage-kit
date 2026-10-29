@@ -245,7 +245,7 @@ Registered commands show up in the desktop's **Commands** tab, where you
 run them with optional JSON args and see what they return (async handlers
 are awaited; a throw shows as the error).
 
-### Database
+### Database Browser
 
 Let the desktop's **Database** tab browse your SQLite tables and run SQL:
 
@@ -256,6 +256,25 @@ DevConnect.registerDatabase('app.db', db.rawQuery); // sqflite
 Any `Future<List<Map<String, Object?>>> Function(String sql)` works (drift:
 `(sql) async => [for (final r in await db.customSelect(sql).get()) r.data]`).
 Results are capped at 1000 rows.
+
+### Storage Editing
+
+The desktop's **Storage** tab lists, edits, deletes and clears
+SharedPreferences (through the wrapper above). For any other store:
+
+```dart
+DevConnect.registerStorage('hive:settings', DevConnectStorageAdapter(
+  getAll: () => box.toMap().map((k, v) => MapEntry('$k', v)),
+  set: box.put,
+  remove: box.delete,
+  clear: box.clear,
+));
+```
+
+### Layout Inspector
+
+Nothing to set up: the desktop's **Layout** tab captures a screenshot and
+the widget tree, with each widget's bounds, properties and padding.
 
 ### Hot Reload / Hot Restart from Desktop
 

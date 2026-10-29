@@ -6,23 +6,30 @@ import 'package:devconnect_manage_tool/server/ws_connection.dart';
 import 'package:devconnect_manage_tool/server/ws_server.dart';
 
 /// In-memory [WsServer]: [emit] plays a device message into the handler,
-/// [sent] records what the desktop sent to devices.
+/// [connect] a device connecting; [sent] / [sentTo] record what the desktop
+/// sent and to which device.
 class FakeWsServer implements WsServer {
   final _messages = StreamController<DCMessage>.broadcast(sync: true);
+  final _connections = StreamController<DeviceInfo>.broadcast(sync: true);
   final sent = <DCMessage>[];
+  final sentTo = <String>[];
 
   void emit(DCMessage m) => _messages.add(m);
+  void connect(DeviceInfo device) => _connections.add(device);
 
   @override
   Stream<DCMessage> get onMessage => _messages.stream;
   @override
-  Stream<DeviceInfo> get onConnection => const Stream.empty();
+  Stream<DeviceInfo> get onConnection => _connections.stream;
   @override
   Stream<String> get onDisconnection => const Stream.empty();
   @override
   Map<String, WsConnection> get connections => const {};
   @override
-  void sendToDevice(String deviceId, DCMessage message) => sent.add(message);
+  void sendToDevice(String deviceId, DCMessage message) {
+    sentTo.add(deviceId);
+    sent.add(message);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;

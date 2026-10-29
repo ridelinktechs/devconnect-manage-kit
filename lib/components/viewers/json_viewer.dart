@@ -8,14 +8,22 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/chrome_palette.dart';
 import '../../core/theme/color_tokens.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../core/utils/code_generator.dart';
 import '../../core/utils/toast_utils.dart';
 import '../../core/utils/code_highlighter.dart';
 import '../../core/utils/lru_cache.dart';
+import '../../core/utils/save_file.dart';
 import '../../core/utils/smooth_scroll_controller.dart';
+import '../../l10n/app_localizations.dart';
+import 'json_paths.dart';
 
+/// JSON tree: expand / collapse all, search (⌘F; Enter / ⇧Enter step
+/// through matches, which get revealed and highlighted), copy a row's key,
+/// value or path on hover, and a table view for a list of objects (the
+/// search filters its rows; it downloads as CSV).
 class JsonViewer extends StatefulWidget {
   final dynamic data;
   final bool initiallyExpanded;
@@ -32,10 +40,33 @@ class JsonViewer extends StatefulWidget {
 
 class _JsonViewerState extends State<JsonViewer> {
   final _scrollController = SmoothScrollController();
+  final _search = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  /// Bumped by expand / collapse all; every node then adopts [_expandAll].
+  int _generation = 0;
+  bool? _expandAll;
+  bool _table = false;
+  ({List<String> matches, Set<String> ancestors}) _found = (
+    matches: const [],
+    ancestors: const {},
+  );
+  int _current = 0;
+
+  @override
+  void didUpdateWidget(JsonViewer old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.data, widget.data) && _search.text.isNotEmpty) {
+      _found = jsonSearch(widget.data, _search.text);
+      _current = 0;
+    }
+  }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -47,65 +78,207 @@ class _JsonViewerState extends State<JsonViewer> {
     }
   }
 
+  void _setAll(bool expanded) => setState(() {
+    _expandAll = expanded;
+    _generation++;
+  });
+
+  void _onQuery(String query) => setState(() {
+    _found = jsonSearch(widget.data, query);
+    _current = 0;
+  });
+
+  void _step(int delta) {
+    final n = _found.matches.length;
+    if (n == 0) return;
+    setState(() => _current = ((_current + delta) % n + n) % n);
+  }
+
+  Future<void> _exportCsv(List rows, List<int> hits, List<String> columns) =>
+      saveTextFile(
+        context,
+        suggestedName: exportFileName('table', 'csv'),
+        typeLabel: 'CSV',
+        extension: 'csv',
+        // A byte-order mark first, so Excel reads the file as UTF-8.
+        content:
+            String.fromCharCode(0xFEFF) +
+            jsonTableCsv([for (final i in hits) rows[i] as Map], columns),
+      );
+
   @override
   Widget build(BuildContext context) {
     final data = widget.data;
-    final initiallyExpanded = widget.initiallyExpanded;
     if (data == null) {
       return Text('null', style: Theme.of(context).textTheme.labelMedium);
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // SelectionArea lets users drag across multiple rows to select/copy
-    // many fields at once. Individual Text widgets become selectable as
-    // part of a single unified selection scope.
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Toolbar with "Copy All" button. Mirrors JsonPrettyViewer's header
-        // so users always have a one-click way to copy the whole tree.
-        _JsonViewerToolbar(
-          isDark: isDark,
-          onCopyAll: () {
-            Clipboard.setData(ClipboardData(text: _formatAll()));
-            showCopiedToast(context, label: 'Tree copied as JSON');
-          },
-        ),
-        const SizedBox(height: 6),
-        Flexible(
-          child: SelectionArea(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _JsonNode(
-                    keyName: null,
-                    value: data,
-                    depth: 0,
-                    initiallyExpanded: initiallyExpanded,
-                  ),
-                ],
-              ),
+    final columns = jsonTableColumns(data);
+    final table = _table && columns != null;
+    final matches = _found.matches;
+    final query = _search.text.trim();
+    // Rows of the table the search keeps (all of them without one).
+    final hits = table ? jsonTableFilter(data as List, query) : const <int>[];
+    return CallbackShortcuts(
+      bindings: {
+        SingleActivator(
+          LogicalKeyboardKey.keyF,
+          meta: Platform.isMacOS,
+          control: !Platform.isMacOS,
+        ): () =>
+            _searchFocus.requestFocus(),
+      },
+      child: Focus(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _JsonViewerToolbar(
+              isDark: isDark,
+              tableAvailable: columns != null,
+              table: table,
+              onTable: (v) => setState(() => _table = v),
+              search: _search,
+              searchFocus: _searchFocus,
+              onQuery: _onQuery,
+              matchCount: matches.length,
+              current: _current,
+              onStep: _step,
+              tableCount: table && query.isNotEmpty
+                  ? '${hits.length}/${(data as List).length}'
+                  : null,
+              onExportCsv: table
+                  ? () => _exportCsv(data as List, hits, columns)
+                  : null,
+              onExpandAll: () => _setAll(true),
+              onCollapseAll: () => _setAll(false),
+              onCopyAll: () {
+                Clipboard.setData(ClipboardData(text: _formatAll()));
+                showCopiedToast(context, label: 'Tree copied as JSON');
+              },
             ),
-          ),
+            const SizedBox(height: 6),
+            Flexible(
+              child: table
+                  ? _JsonTable(
+                      rows: data as List,
+                      hits: hits,
+                      columns: columns,
+                      query: query.toLowerCase(),
+                    )
+                  : SelectionArea(
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _JsonScope(
+                              query: _search.text.trim().toLowerCase(),
+                              currentPath: matches.isEmpty
+                                  ? null
+                                  : matches[_current],
+                              reveal: _found.ancestors,
+                              generation: _generation,
+                              expandAll: _expandAll,
+                              child: _JsonNode(
+                                keyName: null,
+                                value: data,
+                                path: '',
+                                depth: 0,
+                                initiallyExpanded: widget.initiallyExpanded,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
 class _JsonViewerToolbar extends StatelessWidget {
   final bool isDark;
+  final bool tableAvailable;
+  final bool table;
+  final ValueChanged<bool> onTable;
+  final TextEditingController search;
+  final FocusNode searchFocus;
+  final ValueChanged<String> onQuery;
+  final int matchCount;
+  final int current;
+  final ValueChanged<int> onStep;
+
+  /// Table mode: `shown/total` rows while searching.
+  final String? tableCount;
+  final VoidCallback? onExportCsv;
+  final VoidCallback onExpandAll;
+  final VoidCallback onCollapseAll;
   final VoidCallback onCopyAll;
 
-  const _JsonViewerToolbar({required this.isDark, required this.onCopyAll});
+  const _JsonViewerToolbar({
+    required this.isDark,
+    required this.tableAvailable,
+    required this.table,
+    required this.onTable,
+    required this.search,
+    required this.searchFocus,
+    required this.onQuery,
+    required this.matchCount,
+    required this.current,
+    required this.onStep,
+    required this.tableCount,
+    required this.onExportCsv,
+    required this.onExpandAll,
+    required this.onCollapseAll,
+    required this.onCopyAll,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final loc = S.of(context);
+    final muted = isDark ? Colors.grey[400]! : Colors.grey[600]!;
+    final accent = isDark ? const Color(0xFF7FD4E4) : const Color(0xFF0451A5);
+    Widget mode(String label, IconData icon, bool selected, VoidCallback onTap) =>
+        GestureDetector(
+          onTap: onTap,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: selected
+                    ? (isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : Colors.black.withValues(alpha: 0.06))
+                    : null,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 12, color: selected ? accent : muted),
+                  const SizedBox(width: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? accent : muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+    final hasQuery = search.text.trim().isNotEmpty;
     return Container(
       height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.only(left: 8, right: 6),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF252526) : const Color(0xFFF0F0F0),
         borderRadius: BorderRadius.circular(8),
@@ -117,22 +290,92 @@ class _JsonViewerToolbar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            LucideIcons.listTree,
-            size: 12,
-            color: isDark ? const Color(0xFF7FD4E4) : const Color(0xFF0451A5),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            'Tree',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              fontFamily: AppConstants.monoFontFamily,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
+          mode(loc.jsonTreeView, LucideIcons.listTree, !table, () => onTable(false)),
+          if (tableAvailable) ...[
+            const SizedBox(width: 2),
+            mode(loc.jsonTableView, LucideIcons.table2, table, () => onTable(true)),
+          ],
+          const SizedBox(width: 8),
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 200),
+              child: CallbackShortcuts(
+                bindings: {
+                  const SingleActivator(LogicalKeyboardKey.enter, shift: true):
+                      () => onStep(-1),
+                  const SingleActivator(LogicalKeyboardKey.escape): () {
+                    search.clear();
+                    onQuery('');
+                  },
+                },
+                child: TextField(
+                  controller: search,
+                  focusNode: searchFocus,
+                  onChanged: onQuery,
+                  onSubmitted: (_) {
+                    onStep(1);
+                    searchFocus.requestFocus();
+                  },
+                  style: chromeMono(
+                    context,
+                    size: 11,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: loc.jsonSearchHint,
+                    hintStyle: TextStyle(fontSize: 11, color: muted),
+                    prefixIcon: Icon(LucideIcons.search, size: 12, color: muted),
+                    prefixIconConstraints: const BoxConstraints(minWidth: 24),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                  ),
+                ),
+              ),
             ),
           ),
+          if (hasQuery && table)
+            Text(tableCount ?? '', style: TextStyle(fontSize: 10, color: muted))
+          else if (hasQuery) ...[
+            Text(
+              matchCount == 0 ? '0' : '${current + 1}/$matchCount',
+              style: TextStyle(fontSize: 10, color: muted),
+            ),
+            _MiniButton(
+              icon: LucideIcons.chevronUp,
+              tooltip: '${loc.jsonPrevMatch} (⇧↵)',
+              isDark: isDark,
+              onTap: () => onStep(-1),
+            ),
+            _MiniButton(
+              icon: LucideIcons.chevronDown,
+              tooltip: '${loc.jsonNextMatch} (↵)',
+              isDark: isDark,
+              onTap: () => onStep(1),
+            ),
+          ],
           const Spacer(),
+          if (!table) ...[
+            _MiniButton(
+              icon: LucideIcons.chevronsUpDown,
+              tooltip: loc.jsonExpandAll,
+              isDark: isDark,
+              onTap: onExpandAll,
+            ),
+            _MiniButton(
+              icon: LucideIcons.chevronsDownUp,
+              tooltip: loc.jsonCollapseAll,
+              isDark: isDark,
+              onTap: onCollapseAll,
+            ),
+          ],
+          if (onExportCsv != null)
+            _MiniButton(
+              icon: LucideIcons.download,
+              tooltip: loc.jsonExportCsv,
+              isDark: isDark,
+              onTap: onExportCsv!,
+            ),
           _MiniButton(
             icon: LucideIcons.copy,
             tooltip: 'Copy entire tree as JSON',
@@ -145,15 +388,48 @@ class _JsonViewerToolbar extends StatelessWidget {
   }
 }
 
+/// What every node of one [JsonViewer] shares: the search (lowercased
+/// [query], the [currentPath] match, the containers to [reveal]) and the
+/// last expand / collapse all.
+class _JsonScope extends InheritedWidget {
+  final String query;
+  final String? currentPath;
+  final Set<String> reveal;
+  final int generation;
+  final bool? expandAll;
+
+  const _JsonScope({
+    required this.query,
+    required this.currentPath,
+    required this.reveal,
+    required this.generation,
+    required this.expandAll,
+    required super.child,
+  });
+
+  static _JsonScope? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_JsonScope>();
+
+  @override
+  bool updateShouldNotify(_JsonScope old) =>
+      query != old.query ||
+      currentPath != old.currentPath ||
+      generation != old.generation ||
+      !identical(reveal, old.reveal);
+}
+
 class _JsonNode extends StatefulWidget {
-  final String? keyName;
+  /// Map key or list index; null for the root.
+  final Object? keyName;
   final dynamic value;
+  final String path;
   final int depth;
   final bool initiallyExpanded;
 
   const _JsonNode({
     required this.keyName,
     required this.value,
+    required this.path,
     required this.depth,
     this.initiallyExpanded = false,
   });
@@ -163,13 +439,25 @@ class _JsonNode extends StatefulWidget {
 }
 
 class _JsonNodeState extends State<_JsonNode> {
-  late bool _expanded;
+  late bool _expanded = widget.initiallyExpanded && widget.depth < 2;
   List<_JsonNode>? _cachedChildren;
+  int _generation = 0;
+  String _query = '';
+  bool _wasCurrent = false;
 
   @override
-  void initState() {
-    super.initState();
-    _expanded = widget.initiallyExpanded && widget.depth < 2;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scope = _JsonScope.of(context);
+    if (scope == null) return;
+    if (scope.generation != _generation) {
+      _generation = scope.generation;
+      if (scope.expandAll case final all?) _expanded = all;
+    }
+    if (scope.query != _query) {
+      _query = scope.query;
+      if (scope.reveal.contains(widget.path)) _expanded = true;
+    }
   }
 
   @override
@@ -183,154 +471,435 @@ class _JsonNodeState extends State<_JsonNode> {
 
   List<_JsonNode> _buildChildren() {
     if (_cachedChildren != null) return _cachedChildren!;
-
-    if (widget.value is Map) {
-      _cachedChildren = (widget.value as Map).entries.map((e) {
-        return _JsonNode(
-          keyName: e.key.toString(),
-          value: e.value,
+    final value = widget.value;
+    final Iterable<(Object?, Object?)> entries = value is Map
+        ? value.entries.map((e) => (e.key, e.value))
+        : value is List
+        ? value.indexed
+        : const [];
+    return _cachedChildren = [
+      for (final (key, child) in entries)
+        _JsonNode(
+          keyName: key,
+          value: child,
+          path: jsonChildPath(widget.path, key),
           depth: widget.depth + 1,
-        );
-      }).toList();
-    } else if (widget.value is List) {
-      _cachedChildren = (widget.value as List).asMap().entries.map((e) {
-        return _JsonNode(
-          keyName: '${e.key}',
-          value: e.value,
-          depth: widget.depth + 1,
-        );
-      }).toList();
-    } else {
-      _cachedChildren = [];
-    }
-    return _cachedChildren!;
+        ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final indent = widget.depth * 16.0;
-
-    if (widget.value is Map) {
-      return _buildExpandable(
-        '{${(widget.value as Map).length}}',
-        indent,
-        isDark,
-      );
+    final scope = _JsonScope.of(context);
+    final query = scope?.query ?? '';
+    final current = query.isNotEmpty && scope?.currentPath == widget.path;
+    if (current && !_wasCurrent) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Scrollable.ensureVisible(
+            context,
+            alignment: 0.3,
+            duration: const Duration(milliseconds: 150),
+          );
+        }
+      });
     }
+    _wasCurrent = current;
 
-    if (widget.value is List) {
-      return _buildExpandable(
-        '[${(widget.value as List).length}]',
-        indent,
-        isDark,
-      );
+    final value = widget.value;
+    final container = value is Map || value is List;
+    final (String text, Color color) = switch (value) {
+      Map() => ('{${value.length}}', Colors.grey[500]!),
+      List() => ('[${value.length}]', Colors.grey[500]!),
+      String() => (
+        '"$value"',
+        isDark ? const Color(0xFF98C379) : const Color(0xFF50A14F),
+      ),
+      num() => (
+        '$value',
+        isDark ? const Color(0xFFD19A66) : const Color(0xFF986801),
+      ),
+      bool() => (
+        '$value',
+        isDark ? const Color(0xFF56B6C2) : const Color(0xFF0184BC),
+      ),
+      _ => ('null', Colors.grey),
+    };
+    final row = _JsonRow(
+      indent: widget.depth * 16.0,
+      expanded: container ? _expanded : null,
+      onToggle: () => setState(() => _expanded = !_expanded),
+      keyText: widget.keyName?.toString(),
+      valueText: text,
+      valueColor: color,
+      // Containers only match on their key.
+      query: query,
+      valueSearchable: !container,
+      current: current,
+      path: widget.path,
+      copyValue: () => _copyValue(value),
+      isDark: isDark,
+    );
+    if (!container || !_expanded) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [row, ..._buildChildren()],
+    );
+  }
+
+  static String _copyValue(Object? value) {
+    if (value is String) return value;
+    if (value is! Map && value is! List) return '$value';
+    try {
+      return const JsonEncoder.withIndent('  ').convert(value);
+    } catch (_) {
+      return '$value';
     }
+  }
+}
 
-    // Primitive value
-    Color valueColor;
-    String displayValue;
+/// One tree line: chevron (containers), key, value, search highlights, and
+/// copy-key / copy-value / copy-path buttons on hover.
+class _JsonRow extends StatefulWidget {
+  final double indent;
 
-    if (widget.value is String) {
-      valueColor = isDark ? const Color(0xFF98C379) : const Color(0xFF50A14F);
-      displayValue = '"${widget.value}"';
-    } else if (widget.value is num) {
-      valueColor = isDark ? const Color(0xFFD19A66) : const Color(0xFF986801);
-      displayValue = '${widget.value}';
-    } else if (widget.value is bool) {
-      valueColor = isDark ? const Color(0xFF56B6C2) : const Color(0xFF0184BC);
-      displayValue = '${widget.value}';
-    } else {
-      valueColor = Colors.grey;
-      displayValue = 'null';
-    }
+  /// Null for a leaf.
+  final bool? expanded;
+  final VoidCallback onToggle;
+  final String? keyText;
+  final String valueText;
+  final Color valueColor;
+  final String query;
+  final bool valueSearchable;
+  final bool current;
+  final String path;
+  final String Function() copyValue;
+  final bool isDark;
 
-    return Padding(
-      padding: EdgeInsets.only(left: indent),
+  const _JsonRow({
+    required this.indent,
+    required this.expanded,
+    required this.onToggle,
+    required this.keyText,
+    required this.valueText,
+    required this.valueColor,
+    required this.query,
+    required this.valueSearchable,
+    required this.current,
+    required this.path,
+    required this.copyValue,
+    required this.isDark,
+  });
+
+  @override
+  State<_JsonRow> createState() => _JsonRowState();
+}
+
+class _JsonRowState extends State<_JsonRow> {
+  bool _hovered = false;
+
+  /// [text] with every occurrence of the query marked.
+  InlineSpan _marked(String text, TextStyle style) =>
+      _markQuery(text, widget.query, style, current: widget.current);
+
+  void _copy(String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    showCopiedToast(context, label: label);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = S.of(context);
+    final isDark = widget.isDark;
+    final keyStyle = chromeMono(
+      context,
+      size: 12,
+      color: isDark ? const Color(0xFFE06C75) : ColorTokens.primary,
+      weight: FontWeight.w400,
+    );
+    final valueStyle = chromeMono(
+      context,
+      size: widget.expanded == null ? 12 : 11,
+      color: widget.valueColor,
+      weight: FontWeight.w400,
+    );
+    final keyText = widget.keyText;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 1),
+        padding: EdgeInsets.only(left: widget.indent, top: 1, bottom: 1),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.keyName != null)
-              Text(
-                '${widget.keyName}: ',
-                style: TextStyle(
-                  fontFamily: AppConstants.monoFontFamily,
-                  fontSize: 12,
-                  color: isDark ? const Color(0xFFE06C75) : ColorTokens.primary,
-                ),
-              ),
+            // Only the chevron toggles expand. Excluded from the ambient
+            // SelectionArea so the arrow isn't dragged into copied text.
+            SelectionContainer.disabled(
+              child: widget.expanded == null
+                  ? const SizedBox(width: 16)
+                  : GestureDetector(
+                      onTap: widget.onToggle,
+                      behavior: HitTestBehavior.opaque,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: Icon(
+                          widget.expanded!
+                              ? Icons.keyboard_arrow_down
+                              : Icons.keyboard_arrow_right,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+            ),
             Flexible(
-              child: Text(
-                displayValue,
-                style: TextStyle(
-                  fontFamily: AppConstants.monoFontFamily,
-                  fontSize: 12,
-                  color: valueColor,
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    if (keyText != null) ...[
+                      _marked(keyText, keyStyle),
+                      TextSpan(text: ': ', style: keyStyle),
+                    ],
+                    widget.valueSearchable
+                        ? _marked(widget.valueText, valueStyle)
+                        : TextSpan(text: widget.valueText, style: valueStyle),
+                  ],
                 ),
               ),
             ),
+            if (_hovered)
+              SelectionContainer.disabled(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(width: 6),
+                    if (keyText != null)
+                      _RowAction(
+                        icon: LucideIcons.key,
+                        tooltip: loc.jsonCopyKey,
+                        onTap: () => _copy(keyText, loc.jsonKeyCopied),
+                      ),
+                    _RowAction(
+                      icon: LucideIcons.copy,
+                      tooltip: loc.jsonCopyValue,
+                      onTap: () => _copy(widget.copyValue(), loc.jsonValueCopied),
+                    ),
+                    if (widget.path.isNotEmpty)
+                      _RowAction(
+                        icon: LucideIcons.route,
+                        tooltip: '${loc.jsonCopyPath}: ${widget.path}',
+                        onTap: () => _copy(widget.path, loc.jsonPathCopied),
+                      ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildExpandable(String badge, double indent, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: indent),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 1),
-            child: Row(
-              children: [
-                // Only the chevron toggles expand. Excluded from the ambient
-                // SelectionArea so the arrow character isn't dragged into the
-                // copied text when users select across rows.
-                SelectionContainer.disabled(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _expanded = !_expanded),
-                    behavior: HitTestBehavior.opaque,
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: Icon(
-                        _expanded
-                            ? Icons.keyboard_arrow_down
-                            : Icons.keyboard_arrow_right,
-                        size: 16,
-                        color: Colors.grey,
+class _RowAction extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _RowAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+          child: Icon(icon, size: 12, color: Colors.grey[500]),
+        ),
+      ),
+    );
+  }
+}
+
+/// [text] with every occurrence of the lowercased [query] marked, strongly
+/// for the [current] search match.
+InlineSpan _markQuery(
+  String text,
+  String query,
+  TextStyle style, {
+  bool current = false,
+}) {
+  if (query.isEmpty) return TextSpan(text: text, style: style);
+  final mark = style.copyWith(
+    color: current ? const Color(0xFF1F2328) : null,
+    backgroundColor: current ? const Color(0xFFFBBF24) : const Color(0x59FBBF24),
+  );
+  final spans = <TextSpan>[];
+  final lower = text.toLowerCase();
+  var start = 0;
+  for (var i = lower.indexOf(query); i >= 0; i = lower.indexOf(query, i + query.length)) {
+    if (i > start) spans.add(TextSpan(text: text.substring(start, i)));
+    spans.add(TextSpan(text: text.substring(i, i + query.length), style: mark));
+    start = i + query.length;
+  }
+  if (start < text.length) spans.add(TextSpan(text: text.substring(start)));
+  return TextSpan(style: style, children: spans);
+}
+
+/// A list of objects as a grid: one column per key, first-seen order, `#`
+/// being the row's index in the list. Scrolls both ways inside its own box
+/// with both scrollbars in view; the lowercased [query] is marked.
+class _JsonTable extends StatefulWidget {
+  final List rows;
+
+  /// Indexes of the [rows] to show (the search's matches).
+  final List<int> hits;
+  final List<String> columns;
+  final String query;
+
+  const _JsonTable({
+    required this.rows,
+    required this.hits,
+    required this.columns,
+    required this.query,
+  });
+
+  /// Past this, rows are left out (the grid isn't virtualised).
+  static const maxRows = 500;
+
+  /// Height when the parent leaves it unbounded (a scrolling detail panel).
+  static const maxHeight = 420.0;
+
+  @override
+  State<_JsonTable> createState() => _JsonTableState();
+}
+
+class _JsonTableState extends State<_JsonTable> {
+  final _horizontal = SmoothScrollController();
+  final _vertical = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    _vertical.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = TextStyle(fontSize: 10.5, color: Colors.grey[500]);
+    final cellStyle = chromeMono(
+      context,
+      size: 11,
+      color: isDark ? Colors.white70 : Colors.black87,
+    );
+    final grid = DataTable(
+      headingRowHeight: 30,
+      dataRowMinHeight: 26,
+      dataRowMaxHeight: 26,
+      columnSpacing: 20,
+      horizontalMargin: 8,
+      headingTextStyle: chromeMono(
+        context,
+        size: 11,
+        color: isDark ? const Color(0xFFE06C75) : ColorTokens.primary,
+        weight: FontWeight.w600,
+      ),
+      dataTextStyle: cellStyle,
+      columns: [
+        const DataColumn(label: Text('#')),
+        for (final c in widget.columns) DataColumn(label: Text(c)),
+      ],
+      rows: [
+        for (final i in widget.hits.take(_JsonTable.maxRows))
+          DataRow(
+            cells: [
+              DataCell(Text('$i', style: TextStyle(color: Colors.grey[500]))),
+              for (final c in widget.columns)
+                DataCell(
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 280),
+                    child: Text.rich(
+                      _markQuery(
+                        (widget.rows[i] as Map).containsKey(c)
+                            ? jsonCellText((widget.rows[i] as Map)[c])
+                            : '',
+                        widget.query,
+                        cellStyle,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
-                if (widget.keyName != null)
-                  Text(
-                    '${widget.keyName}: ',
-                    style: TextStyle(
-                      fontFamily: AppConstants.monoFontFamily,
-                      fontSize: 12,
-                      color: isDark
-                          ? const Color(0xFFE06C75)
-                          : ColorTokens.primary,
+            ],
+          ),
+      ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: constraints.hasBoundedHeight
+                  ? constraints.maxHeight
+                  : _JsonTable.maxHeight,
+            ),
+            // Both bars hang off the visible box: the vertical one on its
+            // right edge, the horizontal one (depth 1: the inner scroll
+            // view's) along its bottom, wherever the grid is scrolled.
+            child: Scrollbar(
+              controller: _vertical,
+              thumbVisibility: true,
+              child: Scrollbar(
+                controller: _horizontal,
+                thumbVisibility: true,
+                notificationPredicate: (n) => n.depth == 1,
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    controller: _vertical,
+                    // Room below the last row for the horizontal bar…
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: SingleChildScrollView(
+                      controller: _horizontal,
+                      scrollDirection: Axis.horizontal,
+                      // …and after the last column for the vertical one.
+                      padding: const EdgeInsets.only(right: 14),
+                      child: SelectionArea(child: grid),
                     ),
                   ),
-                Text(
-                  badge,
-                  style: TextStyle(
-                    fontFamily: AppConstants.monoFontFamily,
-                    fontSize: 11,
-                    color: Colors.grey[500],
-                  ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-        if (_expanded) ..._buildChildren(),
-      ],
+          if (widget.hits.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(S.of(context).jsonTableNoMatch, style: muted),
+            )
+          else if (widget.hits.length > _JsonTable.maxRows)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                S.of(context).jsonTableTruncated(_JsonTable.maxRows),
+                style: muted,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

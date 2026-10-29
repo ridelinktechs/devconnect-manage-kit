@@ -42,7 +42,7 @@ export class DevConnectMMKV {
           ? mmkv.delete.bind(mmkv)
           : undefined;
 
-    return new Proxy(mmkv, {
+    const proxy = new Proxy(mmkv, {
       get(target: any, prop: string | symbol, receiver: any) {
         const original = Reflect.get(target, prop, receiver);
 
@@ -233,6 +233,29 @@ export class DevConnectMMKV {
         return original;
       },
     });
+
+    // Lets the desktop's Storage tab list and edit this instance; edits go
+    // through the proxy so they're reported like the app's own.
+    DevConnect.registerStorage(storageType, {
+      getAll: () =>
+        Object.fromEntries(
+          (mmkv.getAllKeys() as string[]).map((k) => [
+            k,
+            mmkv.getString(k) ?? mmkv.getNumber(k) ?? mmkv.getBoolean(k),
+          ]),
+        ),
+      set: (key, value) => {
+        proxy.set(key, value);
+      },
+      remove: (key) => {
+        if (typeof proxy.remove === 'function') proxy.remove(key);
+        else proxy.delete(key);
+      },
+      clear: () => {
+        proxy.clearAll();
+      },
+    });
+    return proxy;
   }
 
   /**

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'devconnect_client.dart';
+import 'storage_adapter.dart';
 import 'interceptors/dio_interceptor.dart';
 import 'interceptors/getx_interceptor.dart';
 import 'interceptors/http_client_interceptor.dart';
@@ -752,6 +753,26 @@ class DevConnect {
     if (!_active) return;
     client.registerCommand(name, handler);
   }
+
+  // ---- Storage ----
+
+  /// Lets the desktop's Storage tab list, edit, delete and clear a
+  /// key-value store. `DevConnectSharedPreferences.wrap` registers its own;
+  /// call this for any other store:
+  ///
+  /// ```dart
+  /// DevConnect.registerStorage('hive:settings', DevConnectStorageAdapter(
+  ///   getAll: () => box.toMap().map((k, v) => MapEntry('$k', v)),
+  ///   set: box.put,
+  ///   remove: box.delete,
+  ///   clear: box.clear,
+  /// ));
+  /// ```
+  static void registerStorage(
+    String storageType,
+    DevConnectStorageAdapter adapter,
+  ) =>
+      DevConnectClient.registerStorage(storageType, adapter);
 
   // ---- Database ----
 

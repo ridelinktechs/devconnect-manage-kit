@@ -20,7 +20,31 @@ class DevConnectMMKV private constructor(
 ) {
     companion object {
         fun wrap(mmkv: Any, label: String = "mmkv"): DevConnectMMKV {
-            return DevConnectMMKV(mmkv, label)
+            val wrapped = DevConnectMMKV(mmkv, label)
+            // Lets the desktop's Storage tab list and edit it. Listing reads
+            // the raw instance so it doesn't flood the log with reads.
+            DevConnect.registerStorage("mmkv:$label", object : DevConnect.StorageAdapter {
+                override fun getAll(): Map<String, Any?> {
+                    val keys = mmkv.javaClass.getMethod("allKeys").invoke(mmkv) as? Array<*>
+                        ?: return emptyMap()
+                    val decode = mmkv.javaClass.getMethod("decodeString", String::class.java)
+                    return keys.filterIsInstance<String>().associateWith { decode.invoke(mmkv, it) }
+                }
+
+                override fun set(key: String, value: Any?) {
+                    wrapped.encode(
+                        key,
+                        if (value is Collection<*> || value is Map<*, *>) {
+                            org.json.JSONObject.wrap(value).toString()
+                        } else value,
+                    )
+                }
+
+                override fun remove(key: String) = wrapped.removeValueForKey(key)
+
+                override fun clear() = wrapped.clearAll()
+            })
+            return wrapped
         }
     }
 

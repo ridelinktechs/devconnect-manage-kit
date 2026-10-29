@@ -19,8 +19,11 @@ import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/utils/position_retained_scroll_physics.dart';
 import '../../../../core/utils/smooth_scroll_controller.dart';
 import '../../../../core/providers/retention_provider.dart';
+import '../../../../core/utils/toast_utils.dart';
 import '../../provider/state_providers.dart';
+import '../../provider/state_tools_providers.dart';
 import '../../../round/presentation/state_round_panel.dart';
+import '../widgets/state_tools_panel.dart';
 
 class StateInspectorPage extends ConsumerStatefulWidget {
   const StateInspectorPage({super.key});
@@ -159,7 +162,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
     final isReversed = scrollDir == ScrollDirection.top;
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(
         children: [
           _StateManagerTabBar(),
@@ -169,6 +172,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
               children: [
                 _buildReduxTab(selected, theme, isReversed),
                 const StateRoundPanel(),
+                const StateToolsPanel(),
               ],
             ),
           ),
@@ -266,6 +270,23 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                               onClose: () => ref
                                   .read(selectedStateChangeIdProvider.notifier)
                                   .set(null),
+                              // Time travel: send the app back to the state
+                              // after this action.
+                              onRestore: () => restoreAppState(
+                                context,
+                                ref,
+                                selected.deviceId,
+                                selected.nextState,
+                              ),
+                              onSnapshot: () {
+                                ref.read(stateSnapshotsProvider.notifier).add(
+                                      '${selected.actionName} · ${DateFormat.Hms().format(DateTime.fromMillisecondsSinceEpoch(selected.timestamp))}',
+                                      selected.deviceId,
+                                      selected.nextState,
+                                    );
+                                showSuccessToast(context,
+                                    message: S.of(context).stateSnapshotSaved);
+                              },
                             ),
                           ),
                         ],
@@ -306,9 +327,10 @@ class _StateManagerTabBar extends StatelessWidget {
             ?.copyWith(fontWeight: FontWeight.w600),
         unselectedLabelStyle:
             theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w500),
-        tabs: const [
-          Tab(text: 'Redux'),
-          Tab(text: 'State Managers'),
+        tabs: [
+          const Tab(text: 'Redux'),
+          const Tab(text: 'State Managers'),
+          Tab(text: S.of(context).stateToolsTab),
         ],
       ),
     );
@@ -563,8 +585,15 @@ class _StateChangeTile extends ConsumerWidget {
 class _StateDetailPanel extends StatefulWidget {
   final StateChange entry;
   final VoidCallback onClose;
+  final VoidCallback onRestore;
+  final VoidCallback onSnapshot;
 
-  const _StateDetailPanel({required this.entry, required this.onClose});
+  const _StateDetailPanel({
+    required this.entry,
+    required this.onClose,
+    required this.onRestore,
+    required this.onSnapshot,
+  });
 
   @override
   State<_StateDetailPanel> createState() => _StateDetailPanelState();
@@ -720,6 +749,20 @@ class _StateDetailPanelState extends State<_StateDetailPanel> {
                         ),
                       ),
                       const SizedBox(width: 6),
+                      _DetailIconBtn(
+                        icon: LucideIcons.rotateCcw,
+                        tooltip: S.of(context).stateRestoreHere,
+                        isDark: isDark,
+                        onTap: widget.onRestore,
+                      ),
+                      const SizedBox(width: 4),
+                      _DetailIconBtn(
+                        icon: LucideIcons.bookmarkPlus,
+                        tooltip: S.of(context).stateSaveSnapshot,
+                        isDark: isDark,
+                        onTap: widget.onSnapshot,
+                      ),
+                      const SizedBox(width: 4),
                       // Screenshot button
                       _DetailIconBtn(
                         icon: LucideIcons.camera,

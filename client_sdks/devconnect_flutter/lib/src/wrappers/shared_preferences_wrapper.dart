@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import '../devconnect_client.dart';
+import '../storage_adapter.dart';
 
 /// Auto-reporting wrapper for SharedPreferences.
 ///
@@ -17,7 +20,29 @@ class DevConnectSharedPreferences {
 
   /// Wrap a SharedPreferences instance for auto-reporting.
   static DevConnectSharedPreferences wrap(dynamic prefs) {
-    return DevConnectSharedPreferences._(prefs);
+    final wrapped = DevConnectSharedPreferences._(prefs);
+    // Lets the desktop's Storage tab list and edit it; edits go through the
+    // wrapper so they're reported like the app's own.
+    DevConnectClient.registerStorage(
+      'shared_preferences',
+      DevConnectStorageAdapter(
+        getAll: () => {
+          for (final key in prefs.getKeys() as Set<String>) key: prefs.get(key),
+        },
+        set: (key, value) => switch (value) {
+          final String v => wrapped.setString(key, v),
+          final int v => wrapped.setInt(key, v),
+          final double v => wrapped.setDouble(key, v),
+          final bool v => wrapped.setBool(key, v),
+          final List<dynamic> v =>
+            wrapped.setStringList(key, [for (final e in v) '$e']),
+          _ => wrapped.setString(key, jsonEncode(value)),
+        },
+        remove: wrapped.remove,
+        clear: wrapped.clear,
+      ),
+    );
+    return wrapped;
   }
 
   // ---- Write ----

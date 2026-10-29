@@ -343,6 +343,15 @@ public final class DevConnectJava {
     }
 
     /**
+     * Lets the desktop's Storage tab list, edit, delete and clear a
+     * key-value store. {@code DevConnectSharedPrefs} and {@code DevConnectMMKV}
+     * register theirs.
+     */
+    public static void registerStorage(String storageType, DevConnect.StorageAdapter adapter) {
+        DevConnect.INSTANCE.registerStorage(storageType, adapter);
+    }
+
+    /**
      * Lets the desktop's Database tab browse and query a SQLite database.
      * The query runs one SQL statement and returns its cursor, which the
      * SDK reads and closes.

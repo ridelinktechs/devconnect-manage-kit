@@ -807,6 +807,293 @@ class SFr extends S {
       'Pas de réponse. L\'app enregistre-t-elle une base avec DevConnect.registerDatabase ? Il faut le dernier SDK.';
 
   @override
+  String get stateToolsTab => 'Contrôles';
+
+  @override
+  String get stateNoDevice =>
+      'Sélectionnez un appareil dans la barre du bas pour suivre, capturer et piloter son état.';
+
+  @override
+  String get stateNoState => 'Cet appareil n\'a encore envoyé aucun état.';
+
+  @override
+  String get stateSubscriptions => 'Abonnements';
+
+  @override
+  String get stateSubscriptionsHint =>
+      'Épinglez un chemin d\'état pour suivre sa valeur en direct, par ex. auth.user ou cart.items[0].price.';
+
+  @override
+  String get statePinPath => 'Épingler le chemin';
+
+  @override
+  String get statePathMissing => '(absent de l\'état)';
+
+  @override
+  String get stateRemove => 'Supprimer';
+
+  @override
+  String get stateSnapshots => 'Instantanés';
+
+  @override
+  String get stateSnapshotsHint =>
+      'Enregistrez l\'état actuel et renvoyez-le plus tard pour reproduire un bug ou sauter un long formulaire. L\'app l\'applique dans onStateRestore.';
+
+  @override
+  String get stateTakeSnapshot => 'Prendre un instantané';
+
+  @override
+  String stateKeys(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count clés',
+      one: '1 clé',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stateRestore => 'Restaurer';
+
+  @override
+  String get stateRestoreHere => 'Restaurer l\'état de l\'app à ce point';
+
+  @override
+  String get stateSaveSnapshot => 'Enregistrer comme instantané';
+
+  @override
+  String get stateSnapshotSaved => 'Instantané enregistré';
+
+  @override
+  String get stateRestoreSent => 'Restauration de l\'état envoyée';
+
+  @override
+  String get stateDispatch => 'Dispatcher une action';
+
+  @override
+  String get stateDispatchHint =>
+      'Envoyez une action Redux à l\'app. Le store doit être branché : connectReduxStore(store) sur React Native, onReduxDispatch sur Flutter et Android.';
+
+  @override
+  String get stateDispatchButton => 'Dispatcher';
+
+  @override
+  String get stateDispatchSent => 'Action envoyée';
+
+  @override
+  String get stateActionInvalid => 'L\'action doit être un objet JSON.';
+
+  @override
+  String get stateRecentActions => 'Récentes';
+
+  @override
+  String get jsonTreeView => 'Arbre';
+
+  @override
+  String get jsonTableView => 'Tableau';
+
+  @override
+  String get jsonSearchHint => 'Rechercher clés et valeurs';
+
+  @override
+  String get jsonExportCsv => 'Télécharger le tableau (CSV)';
+
+  @override
+  String get jsonTableNoMatch => 'Aucune ligne ne correspond';
+
+  @override
+  String get jsonPrevMatch => 'Résultat précédent';
+
+  @override
+  String get jsonNextMatch => 'Résultat suivant';
+
+  @override
+  String get jsonExpandAll => 'Tout déplier';
+
+  @override
+  String get jsonCollapseAll => 'Tout replier';
+
+  @override
+  String get jsonCopyKey => 'Copier la clé';
+
+  @override
+  String get jsonCopyValue => 'Copier la valeur';
+
+  @override
+  String get jsonCopyPath => 'Copier le chemin';
+
+  @override
+  String get jsonKeyCopied => 'Clé copiée';
+
+  @override
+  String get jsonValueCopied => 'Valeur copiée';
+
+  @override
+  String get jsonPathCopied => 'Chemin copié';
+
+  @override
+  String jsonTableTruncated(Object count) {
+    return 'Seules les $count premières lignes sont affichées.';
+  }
+
+  @override
+  String get networkErrors => 'Erreurs';
+
+  @override
+  String get networkSearchBodies =>
+      'Chercher aussi dans les corps de requête et de réponse';
+
+  @override
+  String get networkExportHar => 'Exporter les requêtes affichées en HAR';
+
+  @override
+  String get networkNothingToExport => 'Aucune requête à exporter';
+
+  @override
+  String get fileSaved => 'Fichier enregistré';
+
+  @override
+  String get consoleGroupRepeats => 'Regrouper les logs répétés';
+
+  @override
+  String get consoleOccurrences => 'Occurrences';
+
+  @override
+  String get consoleExport => 'Exporter les logs';
+
+  @override
+  String get consoleExportText => 'Texte (.txt)';
+
+  @override
+  String get consoleExportJson => 'JSON (.json)';
+
+  @override
+  String get consoleNothingToExport => 'Aucun log à exporter';
+
+  @override
+  String get errorSymbolicate => 'Symboliser';
+
+  @override
+  String get errorSymbolicated => 'Rapporté au code source';
+
+  @override
+  String get errorSymbolicateFailed =>
+      'Impossible de résoudre cette pile : Metro est injoignable et aucune source map n\'a été envoyée pour ce build (uploadSourceMap dans le SDK).';
+
+  @override
+  String get storageTabHistory => 'Historique';
+
+  @override
+  String get storageTabKeyValue => 'Clé-valeur';
+
+  @override
+  String get storageKvNoDevice =>
+      'Sélectionnez un appareil dans la barre du bas pour voir et modifier son stockage.';
+
+  @override
+  String get storageKvEmpty =>
+      'Aucun stockage modifiable. Enveloppez le store avec le SDK (DevConnectAsyncStorage.wrap, DevConnectMMKV.wrap, DevConnectSharedPreferences.wrap…) — il faut le dernier SDK.';
+
+  @override
+  String get storageKvRefresh => 'Recharger';
+
+  @override
+  String get storageKvAdd => 'Ajouter une clé';
+
+  @override
+  String get storageKvEdit => 'Modifier la valeur';
+
+  @override
+  String get storageKvDelete => 'Supprimer la clé';
+
+  @override
+  String get storageKvClear => 'Tout effacer';
+
+  @override
+  String storageKvClearConfirm(Object storage) {
+    return 'Supprimer toutes les clés de $storage ? Action irréversible.';
+  }
+
+  @override
+  String get storageKvKey => 'Clé';
+
+  @override
+  String get storageKvValue => 'Valeur';
+
+  @override
+  String get storageKvSave => 'Enregistrer';
+
+  @override
+  String get storageKvFilter => 'Filtrer les clés';
+
+  @override
+  String get deepLinkTitle => 'Ouvrir un lien profond';
+
+  @override
+  String get deepLinkHint =>
+      'L\'app l\'ouvre comme si l\'un de ses liens avait été touché.';
+
+  @override
+  String get deepLinkOpen => 'Ouvrir';
+
+  @override
+  String get deepLinkSent => 'Lien profond envoyé';
+
+  @override
+  String get devMenu => 'Ouvrir le menu de dev';
+
+  @override
+  String get networkReplay => 'Rejouer la requête';
+
+  @override
+  String get networkReplaySent =>
+      'Requête renvoyée — elle apparaît comme une nouvelle ligne';
+
+  @override
+  String get networkConditions => 'Conditions réseau';
+
+  @override
+  String get networkPresetNormal => 'Normal';
+
+  @override
+  String get networkPresetSlow => 'Lent (+500 ms)';
+
+  @override
+  String get networkPresetSlow3g => '3G lente (~2 s)';
+
+  @override
+  String get networkPresetOffline => 'Hors ligne';
+
+  @override
+  String get layoutTitle => 'Mise en page';
+
+  @override
+  String get layoutCapture => 'Capturer';
+
+  @override
+  String get layoutHint =>
+      'Capturez l\'écran actuel de l\'app pour voir son arbre d\'éléments. Survolez la capture pour surligner un élément, cliquez pour voir ses propriétés.';
+
+  @override
+  String get layoutNoDevice =>
+      'Connectez une app ou sélectionnez un appareil pour inspecter sa mise en page.';
+
+  @override
+  String get layoutNoScreenshot =>
+      'Pas de capture d\'écran de cette app, seuls les contours des éléments sont affichés. React Native : ajoutez-en une avec DevConnect.registerScreenshot.';
+
+  @override
+  String get layoutPickElement =>
+      'Survolez ou cliquez sur un élément de la capture, ou choisissez-en un dans l\'arbre.';
+
+  @override
+  String get layoutTree => 'Arbre des éléments';
+
+  @override
+  String get layoutProperties => 'Propriétés';
+
+  @override
   String get networkTitle => 'Réseau';
 
   @override

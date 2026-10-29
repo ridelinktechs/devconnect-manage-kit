@@ -447,7 +447,7 @@ DevConnect.registerCommand("clearCache") { args ->
 Registered commands show up in the desktop's **Commands** tab, where you
 run them with optional JSON args and see what they return.
 
-### Database
+### Database Browser
 
 Let the desktop's **Database** tab browse your SQLite tables and run SQL —
 pass a function that runs one statement and returns its cursor (the SDK
@@ -461,6 +461,26 @@ DevConnect.registerDatabase("room") { sql -> roomDb.openHelper.readableDatabase.
 
 Java: `DevConnectJava.registerDatabase("app.db", sql -> db.rawQuery(sql, null));`.
 Results are capped at 1000 rows.
+
+### Storage Editing
+
+The desktop's **Storage** tab lists, edits, deletes and clears stores
+wrapped with `DevConnectSharedPrefs` / `DevConnectMMKV`. For any other:
+
+```kotlin
+DevConnect.registerStorage("settings", object : DevConnect.StorageAdapter {
+    override fun getAll() = store.all()
+    override fun set(key: String, value: Any?) = store.put(key, value)
+    override fun remove(key: String) = store.remove(key)
+    override fun clear() = store.clear()
+})
+```
+
+### Layout Inspector
+
+Nothing to set up: the desktop's **Layout** tab captures a screenshot of
+the current activity and its view tree, with each view's bounds,
+properties, padding and margin (Compose content shows as its `ComposeView`).
 
 ## Production Safety
 

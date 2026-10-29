@@ -6,6 +6,22 @@ class WsMessageTypes {
   static const String serverStorageRequestAll = 'server:storage:request_all';
   static const String serverStorageWrite = 'server:storage:write';
   static const String serverStorageDelete = 'server:storage:delete';
+  static const String serverStorageClear = 'server:storage:clear';
+
+  /// Deep link: the app opens the URL as if one of its links was tapped.
+  static const String serverOpenUrl = 'server:open_url';
+
+  /// React Native: opens the dev menu (⌘D / ⌘M).
+  static const String serverDevMenu = 'server:dev_menu';
+
+  /// `{latencyMs, offline}` applied to the app's own HTTP traffic.
+  static const String serverNetworkThrottle = 'server:network:throttle';
+
+  /// `{requestId, method, url, headers, body}`: send a request again.
+  static const String serverNetworkReplay = 'server:network:replay';
+
+  /// Asks for a `client:layout:snapshot` (screenshot + view tree).
+  static const String serverLayoutCapture = 'server:layout:capture';
   static const String serverDatabaseQuery = 'server:database:query';
   static const String serverDatabaseRequestSchema =
       'server:database:request_schema';
@@ -42,6 +58,7 @@ class WsMessageTypes {
   static const String clientDatabaseQueryResult =
       'client:database:query_result';
   static const String clientDatabaseSchema = 'client:database:schema';
+  static const String clientLayoutSnapshot = 'client:layout:snapshot';
   static const String clientBenchmark = 'client:benchmark';
   static const String clientCustom = 'client:custom';
   static const String clientCustomCommandResult =

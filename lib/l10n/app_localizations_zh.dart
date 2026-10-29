@@ -779,6 +779,284 @@ class SZh extends S {
       '无响应。应用是否用 DevConnect.registerDatabase 注册了数据库？需要最新的 SDK。';
 
   @override
+  String get stateToolsTab => '控制';
+
+  @override
+  String get stateNoDevice => '在底部栏选择设备，以监视、快照并操控其状态。';
+
+  @override
+  String get stateNoState => '该设备尚未上报任何状态。';
+
+  @override
+  String get stateSubscriptions => '订阅';
+
+  @override
+  String get stateSubscriptionsHint =>
+      '固定一个状态路径以实时查看其值，例如 auth.user 或 cart.items[0].price。';
+
+  @override
+  String get statePinPath => '固定路径';
+
+  @override
+  String get statePathMissing => '（状态中不存在）';
+
+  @override
+  String get stateRemove => '移除';
+
+  @override
+  String get stateSnapshots => '快照';
+
+  @override
+  String get stateSnapshotsHint =>
+      '保存当前状态，稍后发回以复现 bug 或跳过长表单。应用在 onStateRestore 中应用它。';
+
+  @override
+  String get stateTakeSnapshot => '拍摄快照';
+
+  @override
+  String stateKeys(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个键',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stateRestore => '恢复';
+
+  @override
+  String get stateRestoreHere => '将应用状态恢复到此时';
+
+  @override
+  String get stateSaveSnapshot => '保存为快照';
+
+  @override
+  String get stateSnapshotSaved => '快照已保存';
+
+  @override
+  String get stateRestoreSent => '已发送状态恢复';
+
+  @override
+  String get stateDispatch => '派发 action';
+
+  @override
+  String get stateDispatchHint =>
+      '向应用发送一个 Redux action。需要连接 store：React Native 用 connectReduxStore(store)，Flutter 和 Android 用 onReduxDispatch。';
+
+  @override
+  String get stateDispatchButton => '派发';
+
+  @override
+  String get stateDispatchSent => 'action 已派发';
+
+  @override
+  String get stateActionInvalid => 'action 必须是 JSON 对象。';
+
+  @override
+  String get stateRecentActions => '最近';
+
+  @override
+  String get jsonTreeView => '树';
+
+  @override
+  String get jsonTableView => '表格';
+
+  @override
+  String get jsonSearchHint => '搜索键和值';
+
+  @override
+  String get jsonExportCsv => '下载表格 (CSV)';
+
+  @override
+  String get jsonTableNoMatch => '没有匹配的行';
+
+  @override
+  String get jsonPrevMatch => '上一个匹配';
+
+  @override
+  String get jsonNextMatch => '下一个匹配';
+
+  @override
+  String get jsonExpandAll => '全部展开';
+
+  @override
+  String get jsonCollapseAll => '全部折叠';
+
+  @override
+  String get jsonCopyKey => '复制键';
+
+  @override
+  String get jsonCopyValue => '复制值';
+
+  @override
+  String get jsonCopyPath => '复制路径';
+
+  @override
+  String get jsonKeyCopied => '已复制键';
+
+  @override
+  String get jsonValueCopied => '已复制值';
+
+  @override
+  String get jsonPathCopied => '已复制路径';
+
+  @override
+  String jsonTableTruncated(Object count) {
+    return '仅显示前 $count 行。';
+  }
+
+  @override
+  String get networkErrors => '错误';
+
+  @override
+  String get networkSearchBodies => '同时搜索请求和响应正文';
+
+  @override
+  String get networkExportHar => '将列出的请求导出为 HAR';
+
+  @override
+  String get networkNothingToExport => '没有可导出的请求';
+
+  @override
+  String get fileSaved => '文件已保存';
+
+  @override
+  String get consoleGroupRepeats => '合并重复日志';
+
+  @override
+  String get consoleOccurrences => '重复记录';
+
+  @override
+  String get consoleExport => '导出日志';
+
+  @override
+  String get consoleExportText => '文本 (.txt)';
+
+  @override
+  String get consoleExportJson => 'JSON (.json)';
+
+  @override
+  String get consoleNothingToExport => '没有可导出的日志';
+
+  @override
+  String get errorSymbolicate => '符号化';
+
+  @override
+  String get errorSymbolicated => '已映射到源码';
+
+  @override
+  String get errorSymbolicateFailed =>
+      '无法解析此堆栈：无法连接 Metro，且此构建未上传 source map（SDK 中的 uploadSourceMap）。';
+
+  @override
+  String get storageTabHistory => '历史';
+
+  @override
+  String get storageTabKeyValue => '键值';
+
+  @override
+  String get storageKvNoDevice => '在底部栏选择设备以查看和编辑其存储。';
+
+  @override
+  String get storageKvEmpty =>
+      '暂无可编辑的存储。请用 SDK 包装存储（DevConnectAsyncStorage.wrap、DevConnectMMKV.wrap、DevConnectSharedPreferences.wrap…）— 需要最新的 SDK。';
+
+  @override
+  String get storageKvRefresh => '重新加载';
+
+  @override
+  String get storageKvAdd => '添加键';
+
+  @override
+  String get storageKvEdit => '编辑值';
+
+  @override
+  String get storageKvDelete => '删除键';
+
+  @override
+  String get storageKvClear => '全部清除';
+
+  @override
+  String storageKvClearConfirm(Object storage) {
+    return '删除 $storage 中的所有键？此操作无法撤销。';
+  }
+
+  @override
+  String get storageKvKey => '键';
+
+  @override
+  String get storageKvValue => '值';
+
+  @override
+  String get storageKvSave => '保存';
+
+  @override
+  String get storageKvFilter => '筛选键';
+
+  @override
+  String get deepLinkTitle => '打开深层链接';
+
+  @override
+  String get deepLinkHint => '应用会像点击了其链接一样打开它。';
+
+  @override
+  String get deepLinkOpen => '打开';
+
+  @override
+  String get deepLinkSent => '已发送深层链接';
+
+  @override
+  String get devMenu => '打开开发菜单';
+
+  @override
+  String get networkReplay => '重放请求';
+
+  @override
+  String get networkReplaySent => '已重新发送请求 — 将显示为新的一行';
+
+  @override
+  String get networkConditions => '网络条件';
+
+  @override
+  String get networkPresetNormal => '正常';
+
+  @override
+  String get networkPresetSlow => '慢速 (+500 ms)';
+
+  @override
+  String get networkPresetSlow3g => '慢速 3G (~2 秒)';
+
+  @override
+  String get networkPresetOffline => '离线';
+
+  @override
+  String get layoutTitle => '布局';
+
+  @override
+  String get layoutCapture => '捕获';
+
+  @override
+  String get layoutHint => '捕获应用当前屏幕以查看其元素树。将鼠标悬停在截图上可高亮元素，点击可查看其属性。';
+
+  @override
+  String get layoutNoDevice => '连接应用或选择设备以检查其布局。';
+
+  @override
+  String get layoutNoScreenshot =>
+      '该应用未提供截图，仅显示元素轮廓。React Native：使用 DevConnect.registerScreenshot 添加。';
+
+  @override
+  String get layoutPickElement => '悬停或点击截图上的元素，或在树中选择一个。';
+
+  @override
+  String get layoutTree => '元素树';
+
+  @override
+  String get layoutProperties => '属性';
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -2101,6 +2379,284 @@ class SZhCn extends SZh {
       '无响应。应用是否用 DevConnect.registerDatabase 注册了数据库？需要最新的 SDK。';
 
   @override
+  String get stateToolsTab => '控制';
+
+  @override
+  String get stateNoDevice => '在底部栏选择设备，以监视、快照并操控其状态。';
+
+  @override
+  String get stateNoState => '该设备尚未上报任何状态。';
+
+  @override
+  String get stateSubscriptions => '订阅';
+
+  @override
+  String get stateSubscriptionsHint =>
+      '固定一个状态路径以实时查看其值，例如 auth.user 或 cart.items[0].price。';
+
+  @override
+  String get statePinPath => '固定路径';
+
+  @override
+  String get statePathMissing => '（状态中不存在）';
+
+  @override
+  String get stateRemove => '移除';
+
+  @override
+  String get stateSnapshots => '快照';
+
+  @override
+  String get stateSnapshotsHint =>
+      '保存当前状态，稍后发回以复现 bug 或跳过长表单。应用在 onStateRestore 中应用它。';
+
+  @override
+  String get stateTakeSnapshot => '拍摄快照';
+
+  @override
+  String stateKeys(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个键',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stateRestore => '恢复';
+
+  @override
+  String get stateRestoreHere => '将应用状态恢复到此时';
+
+  @override
+  String get stateSaveSnapshot => '保存为快照';
+
+  @override
+  String get stateSnapshotSaved => '快照已保存';
+
+  @override
+  String get stateRestoreSent => '已发送状态恢复';
+
+  @override
+  String get stateDispatch => '派发 action';
+
+  @override
+  String get stateDispatchHint =>
+      '向应用发送一个 Redux action。需要连接 store：React Native 用 connectReduxStore(store)，Flutter 和 Android 用 onReduxDispatch。';
+
+  @override
+  String get stateDispatchButton => '派发';
+
+  @override
+  String get stateDispatchSent => 'action 已派发';
+
+  @override
+  String get stateActionInvalid => 'action 必须是 JSON 对象。';
+
+  @override
+  String get stateRecentActions => '最近';
+
+  @override
+  String get jsonTreeView => '树';
+
+  @override
+  String get jsonTableView => '表格';
+
+  @override
+  String get jsonSearchHint => '搜索键和值';
+
+  @override
+  String get jsonExportCsv => '下载表格 (CSV)';
+
+  @override
+  String get jsonTableNoMatch => '没有匹配的行';
+
+  @override
+  String get jsonPrevMatch => '上一个匹配';
+
+  @override
+  String get jsonNextMatch => '下一个匹配';
+
+  @override
+  String get jsonExpandAll => '全部展开';
+
+  @override
+  String get jsonCollapseAll => '全部折叠';
+
+  @override
+  String get jsonCopyKey => '复制键';
+
+  @override
+  String get jsonCopyValue => '复制值';
+
+  @override
+  String get jsonCopyPath => '复制路径';
+
+  @override
+  String get jsonKeyCopied => '已复制键';
+
+  @override
+  String get jsonValueCopied => '已复制值';
+
+  @override
+  String get jsonPathCopied => '已复制路径';
+
+  @override
+  String jsonTableTruncated(Object count) {
+    return '仅显示前 $count 行。';
+  }
+
+  @override
+  String get networkErrors => '错误';
+
+  @override
+  String get networkSearchBodies => '同时搜索请求和响应正文';
+
+  @override
+  String get networkExportHar => '将列出的请求导出为 HAR';
+
+  @override
+  String get networkNothingToExport => '没有可导出的请求';
+
+  @override
+  String get fileSaved => '文件已保存';
+
+  @override
+  String get consoleGroupRepeats => '合并重复日志';
+
+  @override
+  String get consoleOccurrences => '重复记录';
+
+  @override
+  String get consoleExport => '导出日志';
+
+  @override
+  String get consoleExportText => '文本 (.txt)';
+
+  @override
+  String get consoleExportJson => 'JSON (.json)';
+
+  @override
+  String get consoleNothingToExport => '没有可导出的日志';
+
+  @override
+  String get errorSymbolicate => '符号化';
+
+  @override
+  String get errorSymbolicated => '已映射到源码';
+
+  @override
+  String get errorSymbolicateFailed =>
+      '无法解析此堆栈：无法连接 Metro，且此构建未上传 source map（SDK 中的 uploadSourceMap）。';
+
+  @override
+  String get storageTabHistory => '历史';
+
+  @override
+  String get storageTabKeyValue => '键值';
+
+  @override
+  String get storageKvNoDevice => '在底部栏选择设备以查看和编辑其存储。';
+
+  @override
+  String get storageKvEmpty =>
+      '暂无可编辑的存储。请用 SDK 包装存储（DevConnectAsyncStorage.wrap、DevConnectMMKV.wrap、DevConnectSharedPreferences.wrap…）— 需要最新的 SDK。';
+
+  @override
+  String get storageKvRefresh => '重新加载';
+
+  @override
+  String get storageKvAdd => '添加键';
+
+  @override
+  String get storageKvEdit => '编辑值';
+
+  @override
+  String get storageKvDelete => '删除键';
+
+  @override
+  String get storageKvClear => '全部清除';
+
+  @override
+  String storageKvClearConfirm(Object storage) {
+    return '删除 $storage 中的所有键？此操作无法撤销。';
+  }
+
+  @override
+  String get storageKvKey => '键';
+
+  @override
+  String get storageKvValue => '值';
+
+  @override
+  String get storageKvSave => '保存';
+
+  @override
+  String get storageKvFilter => '筛选键';
+
+  @override
+  String get deepLinkTitle => '打开深层链接';
+
+  @override
+  String get deepLinkHint => '应用会像点击了其链接一样打开它。';
+
+  @override
+  String get deepLinkOpen => '打开';
+
+  @override
+  String get deepLinkSent => '已发送深层链接';
+
+  @override
+  String get devMenu => '打开开发菜单';
+
+  @override
+  String get networkReplay => '重放请求';
+
+  @override
+  String get networkReplaySent => '已重新发送请求 — 将显示为新的一行';
+
+  @override
+  String get networkConditions => '网络条件';
+
+  @override
+  String get networkPresetNormal => '正常';
+
+  @override
+  String get networkPresetSlow => '慢速 (+500 ms)';
+
+  @override
+  String get networkPresetSlow3g => '慢速 3G (~2 秒)';
+
+  @override
+  String get networkPresetOffline => '离线';
+
+  @override
+  String get layoutTitle => '布局';
+
+  @override
+  String get layoutCapture => '捕获';
+
+  @override
+  String get layoutHint => '捕获应用当前屏幕以查看其元素树。将鼠标悬停在截图上可高亮元素，点击可查看其属性。';
+
+  @override
+  String get layoutNoDevice => '连接应用或选择设备以检查其布局。';
+
+  @override
+  String get layoutNoScreenshot =>
+      '该应用未提供截图，仅显示元素轮廓。React Native：使用 DevConnect.registerScreenshot 添加。';
+
+  @override
+  String get layoutPickElement => '悬停或点击截图上的元素，或在树中选择一个。';
+
+  @override
+  String get layoutTree => '元素树';
+
+  @override
+  String get layoutProperties => '属性';
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -3421,6 +3977,284 @@ class SZhTw extends SZh {
   @override
   String get dbNoResponse =>
       '無回應。應用是否用 DevConnect.registerDatabase 註冊了資料庫？需要最新的 SDK。';
+
+  @override
+  String get stateToolsTab => '控制';
+
+  @override
+  String get stateNoDevice => '在底部列選擇裝置，以監看、快照並操控其狀態。';
+
+  @override
+  String get stateNoState => '此裝置尚未回報任何狀態。';
+
+  @override
+  String get stateSubscriptions => '訂閱';
+
+  @override
+  String get stateSubscriptionsHint =>
+      '釘選狀態路徑以即時查看其值，例如 auth.user 或 cart.items[0].price。';
+
+  @override
+  String get statePinPath => '釘選路徑';
+
+  @override
+  String get statePathMissing => '（狀態中不存在）';
+
+  @override
+  String get stateRemove => '移除';
+
+  @override
+  String get stateSnapshots => '快照';
+
+  @override
+  String get stateSnapshotsHint =>
+      '儲存目前狀態，稍後送回以重現 bug 或略過長表單。應用在 onStateRestore 中套用。';
+
+  @override
+  String get stateTakeSnapshot => '拍攝快照';
+
+  @override
+  String stateKeys(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 個鍵',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stateRestore => '還原';
+
+  @override
+  String get stateRestoreHere => '將應用狀態還原到此時';
+
+  @override
+  String get stateSaveSnapshot => '儲存為快照';
+
+  @override
+  String get stateSnapshotSaved => '快照已儲存';
+
+  @override
+  String get stateRestoreSent => '已送出狀態還原';
+
+  @override
+  String get stateDispatch => '派發 action';
+
+  @override
+  String get stateDispatchHint =>
+      '向應用傳送 Redux action。需要連接 store：React Native 用 connectReduxStore(store)，Flutter 和 Android 用 onReduxDispatch。';
+
+  @override
+  String get stateDispatchButton => '派發';
+
+  @override
+  String get stateDispatchSent => 'action 已派發';
+
+  @override
+  String get stateActionInvalid => 'action 必須是 JSON 物件。';
+
+  @override
+  String get stateRecentActions => '最近';
+
+  @override
+  String get jsonTreeView => '樹';
+
+  @override
+  String get jsonTableView => '表格';
+
+  @override
+  String get jsonSearchHint => '搜尋鍵與值';
+
+  @override
+  String get jsonExportCsv => '下載表格 (CSV)';
+
+  @override
+  String get jsonTableNoMatch => '沒有符合的列';
+
+  @override
+  String get jsonPrevMatch => '上一個符合';
+
+  @override
+  String get jsonNextMatch => '下一個符合';
+
+  @override
+  String get jsonExpandAll => '全部展開';
+
+  @override
+  String get jsonCollapseAll => '全部摺疊';
+
+  @override
+  String get jsonCopyKey => '複製鍵';
+
+  @override
+  String get jsonCopyValue => '複製值';
+
+  @override
+  String get jsonCopyPath => '複製路徑';
+
+  @override
+  String get jsonKeyCopied => '已複製鍵';
+
+  @override
+  String get jsonValueCopied => '已複製值';
+
+  @override
+  String get jsonPathCopied => '已複製路徑';
+
+  @override
+  String jsonTableTruncated(Object count) {
+    return '僅顯示前 $count 列。';
+  }
+
+  @override
+  String get networkErrors => '錯誤';
+
+  @override
+  String get networkSearchBodies => '同時搜尋請求與回應內文';
+
+  @override
+  String get networkExportHar => '將列出的請求匯出為 HAR';
+
+  @override
+  String get networkNothingToExport => '沒有可匯出的請求';
+
+  @override
+  String get fileSaved => '檔案已儲存';
+
+  @override
+  String get consoleGroupRepeats => '合併重複日誌';
+
+  @override
+  String get consoleOccurrences => '重複記錄';
+
+  @override
+  String get consoleExport => '匯出日誌';
+
+  @override
+  String get consoleExportText => '文字 (.txt)';
+
+  @override
+  String get consoleExportJson => 'JSON (.json)';
+
+  @override
+  String get consoleNothingToExport => '沒有可匯出的日誌';
+
+  @override
+  String get errorSymbolicate => '符號化';
+
+  @override
+  String get errorSymbolicated => '已對應到原始碼';
+
+  @override
+  String get errorSymbolicateFailed =>
+      '無法解析此堆疊：無法連線 Metro，且此建置未上傳 source map（SDK 中的 uploadSourceMap）。';
+
+  @override
+  String get storageTabHistory => '歷史';
+
+  @override
+  String get storageTabKeyValue => '鍵值';
+
+  @override
+  String get storageKvNoDevice => '在底部列選擇裝置以檢視並編輯其儲存。';
+
+  @override
+  String get storageKvEmpty =>
+      '尚無可編輯的儲存。請用 SDK 包裝儲存（DevConnectAsyncStorage.wrap、DevConnectMMKV.wrap、DevConnectSharedPreferences.wrap…）— 需要最新的 SDK。';
+
+  @override
+  String get storageKvRefresh => '重新載入';
+
+  @override
+  String get storageKvAdd => '新增鍵';
+
+  @override
+  String get storageKvEdit => '編輯值';
+
+  @override
+  String get storageKvDelete => '刪除鍵';
+
+  @override
+  String get storageKvClear => '全部清除';
+
+  @override
+  String storageKvClearConfirm(Object storage) {
+    return '刪除 $storage 中的所有鍵？此操作無法復原。';
+  }
+
+  @override
+  String get storageKvKey => '鍵';
+
+  @override
+  String get storageKvValue => '值';
+
+  @override
+  String get storageKvSave => '儲存';
+
+  @override
+  String get storageKvFilter => '篩選鍵';
+
+  @override
+  String get deepLinkTitle => '開啟深層連結';
+
+  @override
+  String get deepLinkHint => '應用會像點擊了其連結一樣開啟它。';
+
+  @override
+  String get deepLinkOpen => '開啟';
+
+  @override
+  String get deepLinkSent => '已送出深層連結';
+
+  @override
+  String get devMenu => '開啟開發選單';
+
+  @override
+  String get networkReplay => '重送請求';
+
+  @override
+  String get networkReplaySent => '已重新送出請求 — 將顯示為新的一列';
+
+  @override
+  String get networkConditions => '網路條件';
+
+  @override
+  String get networkPresetNormal => '正常';
+
+  @override
+  String get networkPresetSlow => '慢速 (+500 ms)';
+
+  @override
+  String get networkPresetSlow3g => '慢速 3G (~2 秒)';
+
+  @override
+  String get networkPresetOffline => '離線';
+
+  @override
+  String get layoutTitle => '版面配置';
+
+  @override
+  String get layoutCapture => '擷取';
+
+  @override
+  String get layoutHint => '擷取應用程式目前的畫面以檢視其元素樹。將滑鼠停在截圖上可醒目提示元素，點擊可檢視其屬性。';
+
+  @override
+  String get layoutNoDevice => '連接應用程式或選擇裝置以檢查其版面配置。';
+
+  @override
+  String get layoutNoScreenshot =>
+      '此應用程式未提供截圖，僅顯示元素外框。React Native：使用 DevConnect.registerScreenshot 新增。';
+
+  @override
+  String get layoutPickElement => '停留或點擊截圖上的元素，或在樹中選擇一個。';
+
+  @override
+  String get layoutTree => '元素樹';
+
+  @override
+  String get layoutProperties => '屬性';
 
   @override
   String get networkTitle => '網路';

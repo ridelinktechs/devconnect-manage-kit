@@ -49,6 +49,7 @@ class _DevConnectHttpClient implements HttpClient {
   // Intercept all request methods
   @override
   Future<HttpClientRequest> openUrl(String method, Uri url) async {
+    await DevConnectClient.applyNetworkConditions(url);
     final request = await _inner.openUrl(method, url);
     return _DevConnectHttpClientRequest(request, method, url, _uuid);
   }
@@ -74,8 +75,10 @@ class _DevConnectHttpClient implements HttpClient {
   @override
   Future<HttpClientRequest> open(
           String method, String host, int port, String path) =>
-      _inner.open(method, host, port, path).then((request) =>
-          _DevConnectHttpClientRequest(
+      DevConnectClient.applyNetworkConditions(
+              Uri(scheme: 'http', host: host, port: port, path: path))
+          .then((_) => _inner.open(method, host, port, path))
+          .then((request) => _DevConnectHttpClientRequest(
               request, method, request.uri, _uuid));
 
   @override

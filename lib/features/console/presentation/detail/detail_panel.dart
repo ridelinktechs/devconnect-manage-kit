@@ -16,6 +16,7 @@ import '../shared/section_label.dart';
 import '../shared/tag_badge.dart';
 import 'log_message_block.dart';
 import 'metadata_block.dart';
+import 'occurrences_block.dart';
 import 'screenshot_builder.dart';
 
 /// Right-pane detail panel for a selected log entry. Owns:
@@ -24,11 +25,16 @@ import 'screenshot_builder.dart';
 ///   • the level-tinted stack trace styling
 class LogDetailPanel extends StatefulWidget {
   final LogEntry entry;
+
+  /// Every log [entry]'s row stands for when repeats are folded, oldest
+  /// first; empty otherwise.
+  final List<LogEntry> occurrences;
   final VoidCallback onClose;
 
   const LogDetailPanel({
     super.key,
     required this.entry,
+    this.occurrences = const [],
     required this.onClose,
   });
 
@@ -39,6 +45,9 @@ class LogDetailPanel extends StatefulWidget {
 class _LogDetailPanelState extends State<LogDetailPanel> {
   final _scrollController = SmoothScrollController();
 
+  /// The occurrence picked in [OccurrencesBlock]; the row's own log if none.
+  String? _occurrenceId;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -47,7 +56,10 @@ class _LogDetailPanelState extends State<LogDetailPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final entry = widget.entry;
+    final occurrences = widget.occurrences;
+    final entry =
+        occurrences.where((e) => e.id == _occurrenceId).firstOrNull ??
+            widget.entry;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final color = levelColor(entry.level);
@@ -173,6 +185,17 @@ class _LogDetailPanelState extends State<LogDetailPanel> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // When each folded repeat ran; picking one shows its details.
+                  if (occurrences.length > 1) ...[
+                    OccurrencesBlock(
+                      occurrences: occurrences,
+                      selectedId: entry.id,
+                      color: color,
+                      onSelect: (e) => setState(() => _occurrenceId = e.id),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
                   // Tag
                   if (entry.tag != null) ...[
                     SectionLabel(label: S.of(context).tag),

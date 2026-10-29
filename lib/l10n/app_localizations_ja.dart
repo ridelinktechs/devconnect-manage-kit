@@ -791,6 +791,286 @@ class SJa extends S {
       '応答がありません。アプリは DevConnect.registerDatabase でデータベースを登録していますか？最新の SDK が必要です。';
 
   @override
+  String get stateToolsTab => 'コントロール';
+
+  @override
+  String get stateNoDevice => '下部バーでデバイスを選ぶと、状態の監視・スナップショット・操作ができます。';
+
+  @override
+  String get stateNoState => 'このデバイスはまだ状態を送信していません。';
+
+  @override
+  String get stateSubscriptions => 'サブスクリプション';
+
+  @override
+  String get stateSubscriptionsHint =>
+      '状態のパスをピン留めすると値をライブで確認できます（例: auth.user、cart.items[0].price）。';
+
+  @override
+  String get statePinPath => 'パスをピン留め';
+
+  @override
+  String get statePathMissing => '（状態にありません）';
+
+  @override
+  String get stateRemove => '削除';
+
+  @override
+  String get stateSnapshots => 'スナップショット';
+
+  @override
+  String get stateSnapshotsHint =>
+      '現在の状態を保存し、後で送り返してバグの再現や長いフォームの省略に使えます。アプリは onStateRestore で適用します。';
+
+  @override
+  String get stateTakeSnapshot => 'スナップショットを撮る';
+
+  @override
+  String stateKeys(num count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count キー',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stateRestore => '復元';
+
+  @override
+  String get stateRestoreHere => 'アプリの状態をこの時点に復元';
+
+  @override
+  String get stateSaveSnapshot => 'スナップショットとして保存';
+
+  @override
+  String get stateSnapshotSaved => 'スナップショットを保存しました';
+
+  @override
+  String get stateRestoreSent => '状態の復元を送信しました';
+
+  @override
+  String get stateDispatch => 'アクションをディスパッチ';
+
+  @override
+  String get stateDispatchHint =>
+      'Redux アクションをアプリに送ります。ストアの接続が必要です: React Native は connectReduxStore(store)、Flutter と Android は onReduxDispatch。';
+
+  @override
+  String get stateDispatchButton => 'ディスパッチ';
+
+  @override
+  String get stateDispatchSent => 'アクションを送信しました';
+
+  @override
+  String get stateActionInvalid => 'アクションは JSON オブジェクトにしてください。';
+
+  @override
+  String get stateRecentActions => '最近';
+
+  @override
+  String get jsonTreeView => 'ツリー';
+
+  @override
+  String get jsonTableView => 'テーブル';
+
+  @override
+  String get jsonSearchHint => 'キーと値を検索';
+
+  @override
+  String get jsonExportCsv => '表をCSVでダウンロード';
+
+  @override
+  String get jsonTableNoMatch => '一致する行がありません';
+
+  @override
+  String get jsonPrevMatch => '前の一致';
+
+  @override
+  String get jsonNextMatch => '次の一致';
+
+  @override
+  String get jsonExpandAll => 'すべて展開';
+
+  @override
+  String get jsonCollapseAll => 'すべて折りたたむ';
+
+  @override
+  String get jsonCopyKey => 'キーをコピー';
+
+  @override
+  String get jsonCopyValue => '値をコピー';
+
+  @override
+  String get jsonCopyPath => 'パスをコピー';
+
+  @override
+  String get jsonKeyCopied => 'キーをコピーしました';
+
+  @override
+  String get jsonValueCopied => '値をコピーしました';
+
+  @override
+  String get jsonPathCopied => 'パスをコピーしました';
+
+  @override
+  String jsonTableTruncated(Object count) {
+    return '先頭 $count 行のみ表示しています。';
+  }
+
+  @override
+  String get networkErrors => 'エラー';
+
+  @override
+  String get networkSearchBodies => 'リクエスト/レスポンスのボディも検索';
+
+  @override
+  String get networkExportHar => '表示中のリクエストを HAR で書き出す';
+
+  @override
+  String get networkNothingToExport => '書き出すリクエストがありません';
+
+  @override
+  String get fileSaved => 'ファイルを保存しました';
+
+  @override
+  String get consoleGroupRepeats => '繰り返しログをまとめる';
+
+  @override
+  String get consoleOccurrences => '発生履歴';
+
+  @override
+  String get consoleExport => 'ログを書き出す';
+
+  @override
+  String get consoleExportText => 'テキスト (.txt)';
+
+  @override
+  String get consoleExportJson => 'JSON (.json)';
+
+  @override
+  String get consoleNothingToExport => '書き出すログがありません';
+
+  @override
+  String get errorSymbolicate => 'シンボル化';
+
+  @override
+  String get errorSymbolicated => 'ソースに対応付け済み';
+
+  @override
+  String get errorSymbolicateFailed =>
+      'このスタックを解決できません: Metro に接続できず、このビルドのソースマップもアップロードされていません（SDK の uploadSourceMap）。';
+
+  @override
+  String get storageTabHistory => '履歴';
+
+  @override
+  String get storageTabKeyValue => 'キー・値';
+
+  @override
+  String get storageKvNoDevice => '下部バーでデバイスを選ぶとストレージを表示・編集できます。';
+
+  @override
+  String get storageKvEmpty =>
+      '編集できるストレージがまだありません。SDK でストアをラップしてください（DevConnectAsyncStorage.wrap、DevConnectMMKV.wrap、DevConnectSharedPreferences.wrap など）— 最新の SDK が必要です。';
+
+  @override
+  String get storageKvRefresh => '再読み込み';
+
+  @override
+  String get storageKvAdd => 'キーを追加';
+
+  @override
+  String get storageKvEdit => '値を編集';
+
+  @override
+  String get storageKvDelete => 'キーを削除';
+
+  @override
+  String get storageKvClear => 'すべて消去';
+
+  @override
+  String storageKvClearConfirm(Object storage) {
+    return '$storage のキーをすべて削除しますか？元に戻せません。';
+  }
+
+  @override
+  String get storageKvKey => 'キー';
+
+  @override
+  String get storageKvValue => '値';
+
+  @override
+  String get storageKvSave => '保存';
+
+  @override
+  String get storageKvFilter => 'キーを絞り込む';
+
+  @override
+  String get deepLinkTitle => 'ディープリンクを開く';
+
+  @override
+  String get deepLinkHint => 'アプリ内のリンクをタップしたときと同じように開きます。';
+
+  @override
+  String get deepLinkOpen => '開く';
+
+  @override
+  String get deepLinkSent => 'ディープリンクを送信しました';
+
+  @override
+  String get devMenu => '開発メニューを開く';
+
+  @override
+  String get networkReplay => 'リクエストを再送';
+
+  @override
+  String get networkReplaySent => 'リクエストを再送しました — 新しい行として表示されます';
+
+  @override
+  String get networkConditions => 'ネットワーク条件';
+
+  @override
+  String get networkPresetNormal => '通常';
+
+  @override
+  String get networkPresetSlow => '低速 (+500 ms)';
+
+  @override
+  String get networkPresetSlow3g => '低速 3G (~2 秒)';
+
+  @override
+  String get networkPresetOffline => 'オフライン';
+
+  @override
+  String get layoutTitle => 'レイアウト';
+
+  @override
+  String get layoutCapture => 'キャプチャ';
+
+  @override
+  String get layoutHint =>
+      'アプリの現在の画面をキャプチャして要素ツリーを表示します。スクリーンショット上にカーソルを合わせると要素がハイライトされ、クリックするとプロパティが表示されます。';
+
+  @override
+  String get layoutNoDevice => 'レイアウトを調べるには、アプリを接続するかデバイスを選択してください。';
+
+  @override
+  String get layoutNoScreenshot =>
+      'このアプリからスクリーンショットがないため、要素の枠線のみ表示しています。React Native: DevConnect.registerScreenshot で追加できます。';
+
+  @override
+  String get layoutPickElement =>
+      'スクリーンショット上の要素にカーソルを合わせるかクリックするか、ツリーから選択してください。';
+
+  @override
+  String get layoutTree => '要素ツリー';
+
+  @override
+  String get layoutProperties => 'プロパティ';
+
+  @override
   String get networkTitle => 'ネットワーク';
 
   @override

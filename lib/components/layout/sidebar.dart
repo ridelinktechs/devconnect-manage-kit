@@ -82,6 +82,11 @@ final sidebarItems = [
     routePath: '/async',
   ),
   const SidebarItem(
+    label: 'Layout',
+    icon: LucideIcons.scanSearch,
+    routePath: '/layout',
+  ),
+  const SidebarItem(
     label: 'Commands',
     icon: LucideIcons.squareTerminal,
     routePath: '/commands',

@@ -36,6 +36,7 @@ library;
 
 export 'src/devconnect.dart';
 export 'src/devconnect_client.dart';
+export 'src/storage_adapter.dart';
 export 'src/interceptors/dio_interceptor.dart';
 export 'src/interceptors/getx_interceptor.dart';
 export 'src/interceptors/http_client_interceptor.dart';
