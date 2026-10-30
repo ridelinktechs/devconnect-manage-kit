@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:devconnect_manage_kit/src/layout_inspector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +26,7 @@ void main() {
               child: SizedBox(width: 120, height: 40, key: Key('box')),
             ),
             Offstage(child: Text('hidden route')),
+            Text('shown'),
           ],
         ),
       ),
@@ -44,8 +48,36 @@ void main() {
     expect(padding['padding'], [8.0, 8.0, 8.0, 8.0]);
     expect((padding['children'] as List).single, same(box));
 
+    // Widgets written in this package are the app's own; the RichText
+    // inside Text is the framework's.
+    expect(box['local'], isTrue);
+    expect(nodes.singleWhere((n) => n['name'] == 'RichText')['local'], isFalse);
+
     // Hidden Offstage subtrees and private widgets are left out.
-    expect(nodes.where((n) => n['name'] == 'Text'), isEmpty);
+    expect(nodes.where((n) => n['name'] == 'Text'), hasLength(1));
     expect(nodes.where((n) => (n['name'] as String).startsWith('_')), isEmpty);
+  });
+
+  testWidgets('photographs the whole screen, routes above included',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const Scaffold(body: Text('page')),
+        builder: (context, child) => child!,
+      ),
+    );
+    showDialog<void>(
+      context: tester.element(find.text('page')),
+      builder: (_) => const AlertDialog(content: Text('dialog')),
+    );
+    await tester.pumpAndSettle();
+
+    final layout =
+        await tester.runAsync(() => captureLayout()) as Map<String, dynamic>;
+    final png = base64Decode(layout['screenshot'] as String);
+    // PNG header: 800 × 600 logical pixels.
+    final header = ByteData.sublistView(png);
+    expect([header.getUint32(16), header.getUint32(20)], [800, 600]);
+    expect(layout.containsKey('truncated'), isFalse);
   });
 }

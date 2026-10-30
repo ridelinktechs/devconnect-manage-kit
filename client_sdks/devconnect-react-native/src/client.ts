@@ -940,9 +940,10 @@ export class DevConnect {
     const { width, height } = Dimensions.get('window');
     // A failure is reported, not swallowed: an empty tree alone says nothing.
     let roots: LayoutNode[] = [];
+    let truncated = false;
     let error: string | undefined;
     try {
-      roots = await captureComponentTree();
+      ({ roots, truncated } = await captureComponentTree());
     } catch (e: any) {
       error = String(e?.message ?? e);
     }
@@ -961,6 +962,7 @@ export class DevConnect {
       root: roots.length === 1
         ? roots[0]
         : { id: 'root', name: 'Root', x: 0, y: 0, w: width, h: height, props: {}, children: roots },
+      ...(truncated ? { truncated } : {}),
       ...(error ? { error } : {}),
     };
   }

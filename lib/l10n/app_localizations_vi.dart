@@ -1111,6 +1111,61 @@ class SVi extends S {
   String get layoutTreeError => 'Không đọc được cây phần tử';
 
   @override
+  String get layoutSearchHint => 'Tìm theo tên hoặc giá trị';
+
+  @override
+  String get layoutAppOnly => 'Chỉ phần tử của app';
+
+  @override
+  String get layoutFit => 'Vừa khung';
+
+  @override
+  String get layoutActualSize => 'Kích thước thật';
+
+  @override
+  String get layoutZoomIn => 'Phóng to';
+
+  @override
+  String get layoutZoomOut => 'Thu nhỏ';
+
+  @override
+  String get layoutZoomLevel => 'Mức zoom';
+
+  @override
+  String get layoutZoomToSelection => 'Phóng to phần tử đang chọn';
+
+  @override
+  String get layoutClose => 'Đóng bản chụp';
+
+  @override
+  String get layoutCopyName => 'Copy tên';
+
+  @override
+  String get layoutCopyJson => 'Copy dạng JSON';
+
+  @override
+  String get layoutExport => 'Xuất';
+
+  @override
+  String get layoutSavePng => 'Lưu ảnh chụp (PNG)';
+
+  @override
+  String get layoutSaveJson => 'Lưu snapshot (JSON)';
+
+  @override
+  String get layoutNoAnswer =>
+      'App không phản hồi. Tab Layout cần SDK DevConnect có hỗ trợ Layout và app chạy bản debug.';
+
+  @override
+  String get layoutTruncated => 'Cây quá lớn: chỉ lấy được phần đầu.';
+
+  @override
+  String get layoutState => 'State';
+
+  @override
+  String get layoutMeasureHint => '⌥ + rê chuột: đo khoảng cách';
+
+  @override
   String get networkTitle => 'Mạng';
 
   @override

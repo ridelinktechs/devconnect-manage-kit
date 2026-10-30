@@ -19,7 +19,16 @@ class LayoutNode {
   final EdgeInsets? padding;
   final EdgeInsets? margin;
   final Map<String, String> props;
+
+  /// A component's state (React), when the SDK reports it.
+  final Map<String, String> state;
   final List<LayoutNode> children;
+
+  /// A native view (`RCTView`…) rather than a component (React Native).
+  final bool host;
+
+  /// Whether the app's own code created it (Flutter, when it can tell).
+  final bool? local;
 
   const LayoutNode(
     this.id,
@@ -29,7 +38,41 @@ class LayoutNode {
     this.children, {
     this.padding,
     this.margin,
+    this.state = const {},
+    this.host = false,
+    this.local,
   });
+
+  /// This node with other [children].
+  LayoutNode withChildren(List<LayoutNode> children) => LayoutNode(
+    id,
+    name,
+    rect,
+    props,
+    children,
+    padding: padding,
+    margin: margin,
+    state: state,
+    host: host,
+    local: local,
+  );
+
+  /// The node and its subtree in the snapshot wire format.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'x': rect.left,
+    'y': rect.top,
+    'w': rect.width,
+    'h': rect.height,
+    if (padding case final p?) 'padding': [p.left, p.top, p.right, p.bottom],
+    if (margin case final m?) 'margin': [m.left, m.top, m.right, m.bottom],
+    if (host) 'host': true,
+    'local': ?local,
+    'props': props,
+    if (state.isNotEmpty) 'state': state,
+    'children': [for (final c in children) c.toJson()],
+  };
 
   /// Parses a `client:layout:snapshot` node; null if it isn't one.
   static LayoutNode? fromJson(Object? json) {
@@ -54,8 +97,83 @@ class LayoutNode {
       ],
       padding: insets(json['padding']),
       margin: insets(json['margin']),
+      state: {
+        for (final MapEntry(:key, :value)
+            in (json['state'] as Map? ?? const {}).entries)
+          if (value != null) '$key': '$value',
+      },
+      host: json['host'] == true,
+      local: json['local'] is bool ? json['local'] as bool : null,
     );
   }
+}
+
+/// Whether [node] belongs to the app rather than a library or the
+/// platform: written in the app (Flutter), or anything but a native view
+/// (React Native). Without either hint, everything does.
+bool isAppElement(LayoutNode node) => node.local ?? !node.host;
+
+/// [root] without the nodes [keep] turns down — their children take their
+/// place. The root always stays.
+LayoutNode layoutFiltered(LayoutNode root, bool Function(LayoutNode) keep) {
+  List<LayoutNode> kept(LayoutNode node) {
+    final children = [for (final c in node.children) ...kept(c)];
+    return keep(node) ? [node.withChildren(children)] : children;
+  }
+
+  return root.withChildren([for (final c in root.children) ...kept(c)]);
+}
+
+/// Rows (by their head's id, see [layoutChainOf]) holding an element whose
+/// name or any prop / state value contains [query], in tree order.
+List<String> layoutSearch(LayoutNode root, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return const [];
+  bool hit(LayoutNode n) =>
+      n.name.toLowerCase().contains(q) ||
+      n.props.values.any((v) => v.toLowerCase().contains(q)) ||
+      n.state.values.any((v) => v.toLowerCase().contains(q));
+  final heads = <String>{};
+  // (node, the head of its row), children pushed last-first.
+  final stack = <(LayoutNode, String)>[(root, root.id)];
+  while (stack.isNotEmpty) {
+    final (node, head) = stack.removeLast();
+    if (hit(node)) heads.add(head);
+    final sameBox =
+        node.children.length == 1 && node.children.single.rect == node.rect;
+    for (final child in node.children.reversed) {
+      stack.add((child, sameBox ? head : child.id));
+    }
+  }
+  return heads.toList();
+}
+
+/// Where [id] sits in [root] in terms that survive a new capture (ids
+/// don't): each step's name and its place among same-named siblings.
+List<(String, int)>? layoutSignature(LayoutNode root, String id) {
+  final path = layoutPathTo(root, id);
+  if (path.isEmpty) return null;
+  return [
+    for (var i = 1; i < path.length; i++)
+      (
+        path[i].name,
+        path[i - 1].children
+            .where((c) => c.name == path[i].name)
+            .toList()
+            .indexOf(path[i]),
+      ),
+  ];
+}
+
+/// The id at [signature] in [root] (see [layoutSignature]), or null.
+String? layoutFindSignature(LayoutNode root, List<(String, int)> signature) {
+  var node = root;
+  for (final (name, ordinal) in signature) {
+    final named = node.children.where((c) => c.name == name).toList();
+    if (ordinal >= named.length) return null;
+    node = named[ordinal];
+  }
+  return node.id;
 }
 
 /// The app's screen as captured: its size, a screenshot when the SDK could
@@ -69,12 +187,16 @@ class LayoutSnapshot {
   final String? error;
   final DateTime? capturedAt;
 
+  /// The SDK hit its element cap: part of the tree is missing.
+  final bool truncated;
+
   const LayoutSnapshot(
     this.size,
     this.screenshot,
     this.root, {
     this.error,
     this.capturedAt,
+    this.truncated = false,
   });
 }
 
@@ -162,6 +284,40 @@ LayoutNode? layoutElementAt(LayoutNode root, Offset point) {
   return path.firstWhere((n) => n.rect == path.last.rect);
 }
 
+/// Distance lines between boxes [a] and [b], as (from, to) pairs: from the
+/// inner box to each side of the outer one when one holds the other, else
+/// across the gaps between them. Overlapping boxes have none.
+List<(Offset, Offset)> layoutMeasure(Rect a, Rect b) {
+  final overlap = a.intersect(b);
+  if (overlap == a || overlap == b) {
+    final (inner, outer) = overlap == a ? (a, b) : (b, a);
+    final c = inner.center;
+    return [
+      if (inner.top > outer.top)
+        (Offset(c.dx, outer.top), Offset(c.dx, inner.top)),
+      if (inner.bottom < outer.bottom)
+        (Offset(c.dx, inner.bottom), Offset(c.dx, outer.bottom)),
+      if (inner.left > outer.left)
+        (Offset(outer.left, c.dy), Offset(inner.left, c.dy)),
+      if (inner.right < outer.right)
+        (Offset(inner.right, c.dy), Offset(outer.right, c.dy)),
+    ];
+  }
+  // Lines run through the middle of what the boxes share on the other axis.
+  final y = overlap.height > 0 ? overlap.center.dy : a.center.dy;
+  final x = overlap.width > 0 ? overlap.center.dx : a.center.dx;
+  return [
+    if (b.left > a.right)
+      (Offset(a.right, y), Offset(b.left, y))
+    else if (a.left > b.right)
+      (Offset(b.right, y), Offset(a.left, y)),
+    if (b.top > a.bottom)
+      (Offset(x, a.bottom), Offset(x, b.top))
+    else if (a.top > b.bottom)
+      (Offset(x, b.bottom), Offset(x, a.top)),
+  ];
+}
+
 /// The path from [root] to the element [id], or empty.
 List<LayoutNode> layoutPathTo(LayoutNode root, String id) {
   if (root.id == id) return [root];
@@ -185,6 +341,10 @@ class LayoutSnapshotsNotifier extends Notifier<Map<String, LayoutSnapshot?>> {
   /// Devices with a capture in flight.
   final pending = <String>{};
 
+  /// Devices whose last capture got no answer within [timeout] — an SDK
+  /// without layout support, or a release build.
+  final unanswered = <String>{};
+
   @override
   Map<String, LayoutSnapshot?> build() {
     final handler = ref.watch(wsMessageHandlerProvider);
@@ -206,6 +366,7 @@ class LayoutSnapshotsNotifier extends Notifier<Map<String, LayoutSnapshot?>> {
       // stretched picture puts every box off.
       final picture = png == null ? null : pngSize(png);
       pending.remove(deviceId);
+      unanswered.remove(deviceId);
       state = {
         ...state,
         deviceId: LayoutSnapshot(
@@ -216,6 +377,7 @@ class LayoutSnapshotsNotifier extends Notifier<Map<String, LayoutSnapshot?>> {
           LayoutNode.fromJson(m['root']),
           error: m['error'] is String ? m['error'] as String : null,
           capturedAt: DateTime.now(),
+          truncated: m['truncated'] == true,
         ),
       };
     });
@@ -223,12 +385,22 @@ class LayoutSnapshotsNotifier extends Notifier<Map<String, LayoutSnapshot?>> {
     return const {};
   }
 
+  /// Drops [deviceId]'s capture: the page goes back to its hint.
+  void clear(String deviceId) {
+    unanswered.remove(deviceId);
+    state = {...state}..remove(deviceId);
+  }
+
   void capture(String deviceId) {
     pending.add(deviceId);
+    unanswered.remove(deviceId);
     ref.read(wsMessageHandlerProvider).captureLayout(deviceId);
     state = {...state}; // show the spinner
     Timer(timeout, () {
-      if (ref.mounted && pending.remove(deviceId)) state = {...state};
+      if (ref.mounted && pending.remove(deviceId)) {
+        unanswered.add(deviceId);
+        state = {...state};
+      }
     });
   }
 }

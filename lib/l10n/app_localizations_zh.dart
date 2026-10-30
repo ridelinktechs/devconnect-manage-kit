@@ -1080,6 +1080,60 @@ class SZh extends S {
   String get layoutTreeError => '无法读取元素树';
 
   @override
+  String get layoutSearchHint => '按名称或值查找';
+
+  @override
+  String get layoutAppOnly => '仅显示应用元素';
+
+  @override
+  String get layoutFit => '适应窗口';
+
+  @override
+  String get layoutActualSize => '实际大小';
+
+  @override
+  String get layoutZoomIn => '放大';
+
+  @override
+  String get layoutZoomOut => '缩小';
+
+  @override
+  String get layoutZoomLevel => '缩放比例';
+
+  @override
+  String get layoutZoomToSelection => '缩放到所选元素';
+
+  @override
+  String get layoutClose => '关闭截图';
+
+  @override
+  String get layoutCopyName => '复制名称';
+
+  @override
+  String get layoutCopyJson => '复制为 JSON';
+
+  @override
+  String get layoutExport => '导出';
+
+  @override
+  String get layoutSavePng => '保存截图 (PNG)';
+
+  @override
+  String get layoutSaveJson => '保存快照 (JSON)';
+
+  @override
+  String get layoutNoAnswer => '应用没有响应。布局功能需要支持布局的 DevConnect SDK，并以调试版本运行。';
+
+  @override
+  String get layoutTruncated => '树过大：仅捕获了前一部分。';
+
+  @override
+  String get layoutState => '状态';
+
+  @override
+  String get layoutMeasureHint => '⌥ + 悬停：测量距离';
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -2703,6 +2757,60 @@ class SZhCn extends SZh {
   String get layoutTreeError => '无法读取元素树';
 
   @override
+  String get layoutSearchHint => '按名称或值查找';
+
+  @override
+  String get layoutAppOnly => '仅显示应用元素';
+
+  @override
+  String get layoutFit => '适应窗口';
+
+  @override
+  String get layoutActualSize => '实际大小';
+
+  @override
+  String get layoutZoomIn => '放大';
+
+  @override
+  String get layoutZoomOut => '缩小';
+
+  @override
+  String get layoutZoomLevel => '缩放比例';
+
+  @override
+  String get layoutZoomToSelection => '缩放到所选元素';
+
+  @override
+  String get layoutClose => '关闭截图';
+
+  @override
+  String get layoutCopyName => '复制名称';
+
+  @override
+  String get layoutCopyJson => '复制为 JSON';
+
+  @override
+  String get layoutExport => '导出';
+
+  @override
+  String get layoutSavePng => '保存截图 (PNG)';
+
+  @override
+  String get layoutSaveJson => '保存快照 (JSON)';
+
+  @override
+  String get layoutNoAnswer => '应用没有响应。布局功能需要支持布局的 DevConnect SDK，并以调试版本运行。';
+
+  @override
+  String get layoutTruncated => '树过大：仅捕获了前一部分。';
+
+  @override
+  String get layoutState => '状态';
+
+  @override
+  String get layoutMeasureHint => '⌥ + 悬停：测量距离';
+
+  @override
   String get networkTitle => '网络';
 
   @override
@@ -4324,6 +4432,61 @@ class SZhTw extends SZh {
 
   @override
   String get layoutTreeError => '無法讀取元素樹';
+
+  @override
+  String get layoutSearchHint => '依名稱或值尋找';
+
+  @override
+  String get layoutAppOnly => '僅顯示應用程式元素';
+
+  @override
+  String get layoutFit => '符合視窗';
+
+  @override
+  String get layoutActualSize => '實際大小';
+
+  @override
+  String get layoutZoomIn => '放大';
+
+  @override
+  String get layoutZoomOut => '縮小';
+
+  @override
+  String get layoutZoomLevel => '縮放比例';
+
+  @override
+  String get layoutZoomToSelection => '縮放至所選元素';
+
+  @override
+  String get layoutClose => '關閉截圖';
+
+  @override
+  String get layoutCopyName => '複製名稱';
+
+  @override
+  String get layoutCopyJson => '複製為 JSON';
+
+  @override
+  String get layoutExport => '匯出';
+
+  @override
+  String get layoutSavePng => '儲存截圖 (PNG)';
+
+  @override
+  String get layoutSaveJson => '儲存快照 (JSON)';
+
+  @override
+  String get layoutNoAnswer =>
+      '應用程式沒有回應。版面配置需要支援版面配置的 DevConnect SDK，並以除錯版本執行。';
+
+  @override
+  String get layoutTruncated => '樹過大：僅擷取了前一部分。';
+
+  @override
+  String get layoutState => '狀態';
+
+  @override
+  String get layoutMeasureHint => '⌥ + 懸停：測量距離';
 
   @override
   String get networkTitle => '網路';

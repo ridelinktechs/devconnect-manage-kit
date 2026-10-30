@@ -1094,6 +1094,61 @@ class SJa extends S {
   String get layoutTreeError => '要素ツリーを読み取れませんでした';
 
   @override
+  String get layoutSearchHint => '名前や値で検索';
+
+  @override
+  String get layoutAppOnly => 'アプリの要素のみ';
+
+  @override
+  String get layoutFit => '全体表示';
+
+  @override
+  String get layoutActualSize => '実寸';
+
+  @override
+  String get layoutZoomIn => '拡大';
+
+  @override
+  String get layoutZoomOut => '縮小';
+
+  @override
+  String get layoutZoomLevel => 'ズーム倍率';
+
+  @override
+  String get layoutZoomToSelection => '選択した要素にズーム';
+
+  @override
+  String get layoutClose => 'キャプチャを閉じる';
+
+  @override
+  String get layoutCopyName => '名前をコピー';
+
+  @override
+  String get layoutCopyJson => 'JSONでコピー';
+
+  @override
+  String get layoutExport => 'エクスポート';
+
+  @override
+  String get layoutSavePng => 'スクリーンショットを保存 (PNG)';
+
+  @override
+  String get layoutSaveJson => 'スナップショットを保存 (JSON)';
+
+  @override
+  String get layoutNoAnswer =>
+      'アプリが応答しませんでした。レイアウトにはレイアウト対応の DevConnect SDK とデバッグビルドが必要です。';
+
+  @override
+  String get layoutTruncated => 'ツリーが大きいため、最初の部分のみ取得しました。';
+
+  @override
+  String get layoutState => 'ステート';
+
+  @override
+  String get layoutMeasureHint => '⌥ + ホバー: 距離を測る';
+
+  @override
   String get networkTitle => 'ネットワーク';
 
   @override

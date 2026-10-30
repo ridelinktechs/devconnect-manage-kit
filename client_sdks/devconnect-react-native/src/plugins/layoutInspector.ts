@@ -11,8 +11,18 @@ export interface LayoutNode {
   /** [left, top, right, bottom], when a host view sets any. */
   padding?: number[];
   margin?: number[];
+  /** A native view (`RCTView`…) rather than a component. */
+  host?: boolean;
   props: Record<string, string>;
+  /** A class component's state, or a function component's useState values. */
+  state?: Record<string, string>;
   children: LayoutNode[];
+}
+
+/** What a capture found: the roots, and whether MAX_NODES cut it short. */
+export interface ComponentTree {
+  roots: LayoutNode[];
+  truncated: boolean;
 }
 
 // React fiber tags.
@@ -44,27 +54,64 @@ function fiberName(fiber: any): string | null {
   }
 }
 
-/** A fiber's props as short strings; functions show as `ƒ`. */
+/**
+ * [value] as short text (functions as `ƒ`, objects as JSON), or undefined
+ * when there is nothing to show. Past [limit] it's cut with `…`.
+ */
+function short(value: any, limit = 300): string | undefined {
+  let text: string | undefined;
+  try {
+    if (typeof value === 'function') text = 'ƒ';
+    else if (value !== null && typeof value === 'object') text = JSON.stringify(value);
+    else text = String(value);
+  } catch (_) {
+    text = '[object]'; // circular
+  }
+  if (text === undefined) return undefined;
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
+/** A fiber's props as short strings, `children` and `ref` left out. */
 function fiberProps(fiber: any): Record<string, string> {
   const out: Record<string, string> = {};
   const props = fiber.memoizedProps;
   if (!props || typeof props !== 'object') return out;
   for (const [key, value] of Object.entries(props)) {
-    if (key === 'children' || value === undefined || Object.keys(out).length >= 12) continue;
-    let text: string | undefined;
-    try {
-      if (typeof value === 'function') text = 'ƒ';
-      else if (key === 'style') text = JSON.stringify(StyleSheet.flatten(value as any));
-      else if (value !== null && typeof value === 'object') text = JSON.stringify(value);
-      else text = String(value);
-    } catch (_) {
-      text = '[object]';
-    }
-    // JSON.stringify gives undefined for an empty style (`style={null}`, `false`).
-    if (text === undefined) continue;
-    out[key] = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+    if (key === 'children' || key === 'ref' || value === undefined) continue;
+    if (Object.keys(out).length >= 12) break;
+    // A style is shown whole, flattened: cut short it's no longer JSON.
+    const text = key === 'style'
+      ? short(StyleSheet.flatten(value as any), 2000)
+      : short(value);
+    if (text !== undefined) out[key] = text;
   }
   return out;
+}
+
+/**
+ * A component's state as short strings: a class component's `state`, or a
+ * function component's useState / useReducer values (`#1`, `#2`…, in
+ * call order — hooks have no names at runtime).
+ */
+function fiberState(fiber: any): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  if (fiber.tag === CLASS) {
+    const state = fiber.stateNode?.state;
+    if (state && typeof state === 'object') {
+      for (const [key, value] of Object.entries(state).slice(0, 12)) {
+        const text = short(value);
+        if (text !== undefined) out[key] = text;
+      }
+    }
+  } else if (fiber.tag === FUNCTION || fiber.tag === FORWARD_REF || fiber.tag === SIMPLE_MEMO) {
+    let n = 0;
+    for (let hook = fiber.memoizedState; hook && n < 12; hook = hook.next) {
+      // Only state hooks have an update queue with a dispatcher.
+      if (typeof hook.queue?.dispatch !== 'function') continue;
+      out[`#${++n}`] = short(hook.memoizedState) ?? 'undefined';
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** [left, top, right, bottom] of a style's numeric padding or margin, if any. */
@@ -149,7 +196,7 @@ interface Kept {
  * No recursion: real fiber trees run hundreds of levels deep, and recursing
  * (worse, through async functions) overflows Hermes' stack.
  */
-export async function captureComponentTree(): Promise<LayoutNode[]> {
+export async function captureComponentTree(): Promise<ComponentTree> {
   const hook = (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
   if (!hook?.getFiberRoots || !hook.renderers) {
     throw new Error('React DevTools hook not found (dev builds only)');
@@ -170,6 +217,11 @@ export async function captureComponentTree(): Promise<LayoutNode[]> {
   }
   while (stack.length > 0 && order.length < MAX_NODES) {
     const [fiber, parent, rootIndex] = stack.pop()!;
+    // A screen react-native-screens has put away (behind the current one):
+    // not on screen, and in the way of picking what is.
+    if (fiber.tag === HOST && fiber.type === 'RNSScreen' && fiber.memoizedProps?.activityState === 0) {
+      continue;
+    }
     const name = fiberName(fiber);
     let owner = parent;
     if (name && !name.startsWith('_')) {
@@ -220,6 +272,7 @@ export async function captureComponentTree(): Promise<LayoutNode[]> {
     const only = k.fiber.tag !== HOST && children.length === 1 ? children[0] : null;
     const padding = only ? only.padding : insets(style, 'padding');
     const margin = only ? only.margin : insets(style, 'margin');
+    const state = fiberState(k.fiber);
     k.out = [
       {
         id: String(++count),
@@ -230,12 +283,14 @@ export async function captureComponentTree(): Promise<LayoutNode[]> {
         h: box[3],
         ...(padding && { padding }),
         ...(margin && { margin }),
+        ...(k.fiber.tag === HOST && { host: true }),
         props: fiberProps(k.fiber),
+        ...(state && { state }),
         children,
       },
     ];
   }
-  return outOf(top.kids);
+  return { roots: outOf(top.kids), truncated: stack.length > 0 };
 }
 
 /** The box around [nodes], or null when there are none. */

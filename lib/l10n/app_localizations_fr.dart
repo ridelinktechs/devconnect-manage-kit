@@ -1120,6 +1120,62 @@ class SFr extends S {
   String get layoutTreeError => 'Impossible de lire l\'arbre des éléments';
 
   @override
+  String get layoutSearchHint => 'Rechercher par nom ou valeur';
+
+  @override
+  String get layoutAppOnly => 'Éléments de l\'app uniquement';
+
+  @override
+  String get layoutFit => 'Ajuster';
+
+  @override
+  String get layoutActualSize => 'Taille réelle';
+
+  @override
+  String get layoutZoomIn => 'Zoom avant';
+
+  @override
+  String get layoutZoomOut => 'Zoom arrière';
+
+  @override
+  String get layoutZoomLevel => 'Niveau de zoom';
+
+  @override
+  String get layoutZoomToSelection => 'Zoomer sur la sélection';
+
+  @override
+  String get layoutClose => 'Fermer la capture';
+
+  @override
+  String get layoutCopyName => 'Copier le nom';
+
+  @override
+  String get layoutCopyJson => 'Copier en JSON';
+
+  @override
+  String get layoutExport => 'Exporter';
+
+  @override
+  String get layoutSavePng => 'Enregistrer la capture (PNG)';
+
+  @override
+  String get layoutSaveJson => 'Enregistrer le snapshot (JSON)';
+
+  @override
+  String get layoutNoAnswer =>
+      'L\'app n\'a pas répondu. La mise en page nécessite un SDK DevConnect qui la prend en charge, dans un build de debug.';
+
+  @override
+  String get layoutTruncated =>
+      'Arbre volumineux : seule la première partie a été capturée.';
+
+  @override
+  String get layoutState => 'État';
+
+  @override
+  String get layoutMeasureHint => '⌥ + survol : mesurer';
+
+  @override
   String get networkTitle => 'Réseau';
 
   @override

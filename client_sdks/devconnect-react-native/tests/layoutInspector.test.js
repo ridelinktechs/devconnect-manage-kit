@@ -57,7 +57,7 @@ test('named tree with bounds; components span their views', async () => {
       component('Card', [host('RCTView', [0, 200, 400, 100], [], { padding: 8 })]),
     ]),
   ]));
-  const [app] = await captureComponentTree();
+  const { roots: [app] } = await captureComponentTree();
   assert.equal(app.name, 'App');
   assert.deepEqual([app.x, app.y, app.w, app.h], [0, 0, 400, 800]);
   const view = app.children[0];
@@ -71,7 +71,7 @@ test('a fiber tree thousands of levels deep is read without overflowing', async 
   let fiber = host('RCTView', [0, 0, 400, 800]);
   for (let i = 0; i < 20000; i++) fiber = unnamed([fiber]);
   mount(fiber);
-  const roots = await captureComponentTree();
+  const { roots } = await captureComponentTree();
   assert.deepEqual(roots.map((r) => r.name), ['RCTView']);
 });
 
@@ -84,7 +84,7 @@ test('a view Android flattened away spans its children instead of 0×0', async (
     stateNode: { measureInWindow: (cb) => setImmediate(() => cb()) },
   }, [host('RCTText', [10, 20, 100, 30]), host('RCTImage', [10, 60, 50, 50])]);
   mount(flattened);
-  const [view] = await captureComponentTree();
+  const { roots: [view] } = await captureComponentTree();
   assert.deepEqual([view.x, view.y, view.w, view.h], [10, 20, 100, 90]);
 });
 
@@ -92,11 +92,46 @@ test('boxes are relative to the root view (Android translucent status bar)', asy
   rootBox = [0, -49, 400, 849]; // the root draws under a 49dp status bar
   try {
     mount(host('RCTView', [0, 0, 400, 100])); // measureInWindow: 0 = just below it
-    const [view] = await captureComponentTree();
+    const { roots: [view] } = await captureComponentTree();
     assert.deepEqual([view.x, view.y], [0, 49]);
   } finally {
     rootBox = [0, 0, 400, 800];
   }
+});
+
+test('props skip refs and keep long styles whole; state comes along', async () => {
+  const style = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`k${i}`, i]));
+  const stateHook = { memoizedState: 'loaded', queue: { dispatch() {} }, next: null };
+  const refHook = { memoizedState: { current: 1 }, queue: null, next: stateHook };
+  const comp = component('Profile', [host('RCTView', [0, 0, 10, 10], [], style)]);
+  comp.memoizedProps = { ref: { current: {} }, userId: 7 };
+  comp.memoizedState = refHook;
+  mount(comp);
+  const { roots: [profile] } = await captureComponentTree();
+  assert.deepEqual(profile.props, { userId: '7' });
+  assert.deepEqual(profile.state, { '#1': 'loaded' });
+  assert.equal(profile.host, undefined);
+  const view = profile.children[0];
+  assert.equal(view.host, true);
+  assert.deepEqual(JSON.parse(view.props.style), style); // longer than 200 chars
+});
+
+test('skips screens put away and says when the tree was cut', async () => {
+  const screen = (activityState, box) => link({
+    tag: 5,
+    type: 'RNSScreen',
+    memoizedProps: { activityState },
+    stateNode: { measureInWindow: (cb) => setImmediate(() => cb(...box)) },
+  }, [host('RCTView', box)]);
+  mount(component('Stack', [screen(0, [0, 0, 400, 800]), screen(2, [0, 0, 400, 800])]));
+  const { roots: [stack], truncated } = await captureComponentTree();
+  assert.equal(stack.children.length, 1); // only the active screen
+  assert.equal(truncated, false);
+
+  let wide = [];
+  for (let i = 0; i < 4100; i++) wide.push(host('RCTView', [0, i, 1, 1]));
+  mount(component('List', wide));
+  assert.equal((await captureComponentTree()).truncated, true);
 });
 
 test('says why when there is no DevTools hook', async () => {

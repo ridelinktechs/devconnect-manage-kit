@@ -14,6 +14,35 @@ Future<void> saveTextFile(
   required String typeLabel,
   required String extension,
   required String content,
+}) => _save(
+  context,
+  suggestedName: suggestedName,
+  typeLabel: typeLabel,
+  extension: extension,
+  write: (file) => file.writeAsString(content),
+);
+
+/// [saveTextFile] for [bytes] — an image, say.
+Future<void> saveBytesFile(
+  BuildContext context, {
+  required String suggestedName,
+  required String typeLabel,
+  required String extension,
+  required List<int> bytes,
+}) => _save(
+  context,
+  suggestedName: suggestedName,
+  typeLabel: typeLabel,
+  extension: extension,
+  write: (file) => file.writeAsBytes(bytes),
+);
+
+Future<void> _save(
+  BuildContext context, {
+  required String suggestedName,
+  required String typeLabel,
+  required String extension,
+  required Future<void> Function(File file) write,
 }) async {
   final location = await getSaveLocation(
     suggestedName: suggestedName,
@@ -23,7 +52,7 @@ Future<void> saveTextFile(
   );
   if (location == null) return;
   try {
-    await File(location.path).writeAsString(content);
+    await write(File(location.path));
     if (context.mounted) {
       showSuccessToast(
         context,

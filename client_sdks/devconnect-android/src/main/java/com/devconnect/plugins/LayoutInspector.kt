@@ -26,9 +26,14 @@ internal object LayoutInspector {
         val density = activity.resources.displayMetrics.density
         val origin = IntArray(2).also { root.getLocationOnScreen(it) }
         var count = 0
+        var truncated = false
 
         fun node(view: View): JSONObject? {
-            if (view.visibility == View.GONE || count >= MAX_NODES) return null
+            if (view.visibility == View.GONE) return null
+            if (count >= MAX_NODES) {
+                truncated = true
+                return null
+            }
             count++
             val location = IntArray(2).also { view.getLocationOnScreen(it) }
             val margin = view.layoutParams as? ViewGroup.MarginLayoutParams
@@ -54,6 +59,7 @@ internal object LayoutInspector {
             .put("height", root.height / density)
             .put("screenshot", if (screenshot) screenshotOf(root, density) else JSONObject.NULL)
             .put("root", node(root) ?: JSONObject.NULL)
+            .apply { if (truncated) put("truncated", true) }
     }
 
     /** `[left, top, right, bottom]` in dp, or null when all zero. */

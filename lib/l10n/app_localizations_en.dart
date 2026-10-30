@@ -1113,6 +1113,61 @@ class SEn extends S {
   String get layoutTreeError => 'Couldn\'t read the element tree';
 
   @override
+  String get layoutSearchHint => 'Find by name or value';
+
+  @override
+  String get layoutAppOnly => 'App elements only';
+
+  @override
+  String get layoutFit => 'Fit';
+
+  @override
+  String get layoutActualSize => 'Actual size';
+
+  @override
+  String get layoutZoomIn => 'Zoom in';
+
+  @override
+  String get layoutZoomOut => 'Zoom out';
+
+  @override
+  String get layoutZoomLevel => 'Zoom level';
+
+  @override
+  String get layoutZoomToSelection => 'Zoom to selection';
+
+  @override
+  String get layoutClose => 'Close capture';
+
+  @override
+  String get layoutCopyName => 'Copy name';
+
+  @override
+  String get layoutCopyJson => 'Copy as JSON';
+
+  @override
+  String get layoutExport => 'Export';
+
+  @override
+  String get layoutSavePng => 'Save screenshot (PNG)';
+
+  @override
+  String get layoutSaveJson => 'Save snapshot (JSON)';
+
+  @override
+  String get layoutNoAnswer =>
+      'The app didn\'t answer. Layout needs a DevConnect SDK with Layout support, in a debug build.';
+
+  @override
+  String get layoutTruncated => 'Large tree: only the first part was captured.';
+
+  @override
+  String get layoutState => 'State';
+
+  @override
+  String get layoutMeasureHint => '⌥ + hover: measure';
+
+  @override
   String get networkTitle => 'Network';
 
   @override

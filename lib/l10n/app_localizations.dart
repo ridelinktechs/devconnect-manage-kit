@@ -1971,6 +1971,114 @@ abstract class S {
   /// **'Couldn\'t read the element tree'**
   String get layoutTreeError;
 
+  /// No description provided for @layoutSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Find by name or value'**
+  String get layoutSearchHint;
+
+  /// No description provided for @layoutAppOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'App elements only'**
+  String get layoutAppOnly;
+
+  /// No description provided for @layoutFit.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit'**
+  String get layoutFit;
+
+  /// No description provided for @layoutActualSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Actual size'**
+  String get layoutActualSize;
+
+  /// No description provided for @layoutZoomIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom in'**
+  String get layoutZoomIn;
+
+  /// No description provided for @layoutZoomOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom out'**
+  String get layoutZoomOut;
+
+  /// No description provided for @layoutZoomLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom level'**
+  String get layoutZoomLevel;
+
+  /// No description provided for @layoutZoomToSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom to selection'**
+  String get layoutZoomToSelection;
+
+  /// No description provided for @layoutClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close capture'**
+  String get layoutClose;
+
+  /// No description provided for @layoutCopyName.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy name'**
+  String get layoutCopyName;
+
+  /// No description provided for @layoutCopyJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy as JSON'**
+  String get layoutCopyJson;
+
+  /// No description provided for @layoutExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get layoutExport;
+
+  /// No description provided for @layoutSavePng.
+  ///
+  /// In en, this message translates to:
+  /// **'Save screenshot (PNG)'**
+  String get layoutSavePng;
+
+  /// No description provided for @layoutSaveJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Save snapshot (JSON)'**
+  String get layoutSaveJson;
+
+  /// No description provided for @layoutNoAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'The app didn\'t answer. Layout needs a DevConnect SDK with Layout support, in a debug build.'**
+  String get layoutNoAnswer;
+
+  /// No description provided for @layoutTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'Large tree: only the first part was captured.'**
+  String get layoutTruncated;
+
+  /// No description provided for @layoutState.
+  ///
+  /// In en, this message translates to:
+  /// **'State'**
+  String get layoutState;
+
+  /// No description provided for @layoutMeasureHint.
+  ///
+  /// In en, this message translates to:
+  /// **'⌥ + hover: measure'**
+  String get layoutMeasureHint;
+
   /// No description provided for @networkTitle.
   ///
   /// In en, this message translates to:

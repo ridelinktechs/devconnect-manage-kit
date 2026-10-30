@@ -105,6 +105,82 @@ void main() {
     expect(pngSize(Uint8List(30)), isNull);
   });
 
+  test('reads host, local and state, and writes it all back', () {
+    final parsed = LayoutNode.fromJson({
+      ...node('a', 0, 0, 1, 1),
+      'host': true,
+      'local': false,
+      'state': {'#1': 'loaded', 'gone': null},
+    })!;
+    expect((parsed.host, parsed.local), (true, false));
+    expect(parsed.state, {'#1': 'loaded'});
+    expect(LayoutNode.fromJson(parsed.toJson())!.toJson(), parsed.toJson());
+  });
+
+  test('the app-only view drops native views, keeping their children', () {
+    final tree = LayoutNode.fromJson(
+      node('app', 0, 0, 10, 10, [
+        {
+          ...node('rct', 0, 0, 10, 10, [node('card', 0, 0, 5, 5)]),
+          'host': true,
+        },
+      ]),
+    )!;
+    expect(layoutFiltered(tree, isAppElement).children.map((c) => c.id), [
+      'card',
+    ]);
+    // Flutter marks its own widgets; with no marks everything stays.
+    final framework = {...node('x', 0, 0, 1, 1), 'local': false};
+    expect(isAppElement(LayoutNode.fromJson(framework)!), isFalse);
+    expect(isAppElement(LayoutNode.fromJson(node('y', 0, 0, 1, 1))!), isTrue);
+  });
+
+  test('search finds the rows holding a match, in tree order', () {
+    expect(layoutSearch(root, 'nb'), ['body', 'button']);
+    // `view` draws the same box as its parent: its row is `button`'s.
+    expect(layoutSearch(root, 'NVIEW'), ['button']);
+    expect(layoutSearch(root, '  '), isEmpty);
+  });
+
+  test('finds an element again in a new capture', () {
+    Map<String, dynamic> reId(Map<String, dynamic> json) => {
+      ...json,
+      'id': '${json['id']}-2',
+      'children': [
+        for (final c in json['children'] as List)
+          reId(c as Map<String, dynamic>),
+      ],
+    };
+    final recaptured = LayoutNode.fromJson(reId(root.toJson()))!;
+    final signature = layoutSignature(root, 'view')!;
+    expect(layoutFindSignature(recaptured, signature), 'view-2');
+    expect(layoutFindSignature(recaptured, [('Nope', 0)]), isNull);
+  });
+
+  test('measures between boxes', () {
+    List<double> lengths(Rect a, Rect b) => [
+      for (final (from, to) in layoutMeasure(a, b)) (to - from).distance,
+    ];
+    const outer = Rect.fromLTWH(0, 0, 100, 100);
+    // Inside: top, bottom, left, right.
+    expect(lengths(const Rect.fromLTWH(10, 20, 30, 40), outer), [
+      20,
+      40,
+      10,
+      60,
+    ]);
+    expect(lengths(outer, const Rect.fromLTWH(10, 20, 30, 40)), hasLength(4));
+    // Side by side: one line across the gap, at the shared band's middle.
+    final beside = layoutMeasure(outer, const Rect.fromLTWH(130, 50, 20, 100));
+    expect(beside, [(const Offset(100, 75), const Offset(130, 75))]);
+    // Below and to the left: both gaps.
+    expect(lengths(outer, const Rect.fromLTWH(-50, 110, 20, 20)), [30, 10]);
+    expect(
+      layoutMeasure(outer, const Rect.fromLTWH(50, 50, 100, 100)),
+      isEmpty,
+    );
+  });
+
   test('finds the path to an element', () {
     expect(layoutPathTo(root, 'view').map((n) => n.id), [
       'screen',
@@ -144,6 +220,7 @@ void main() {
           'height': 800,
           'screenshot': base64Encode([1, 2, 3]),
           'root': node('screen', 0, 0, 400, 800),
+          'truncated': true,
         }),
       );
       await Future<void>.delayed(Duration.zero);
@@ -152,7 +229,22 @@ void main() {
       expect(snap.size, const Size(400, 800));
       expect(snap.screenshot, [1, 2, 3]);
       expect(snap.root?.id, 'screen');
+      expect(snap.truncated, isTrue);
       expect(container.read(layoutSnapshotsProvider.notifier).pending, isEmpty);
+    });
+
+    test('a closed capture is gone', () async {
+      final notifier = container.read(layoutSnapshotsProvider.notifier);
+      server.emit(
+        deviceMessage(WsMessageTypes.clientLayoutSnapshot, {
+          'width': 400,
+          'height': 800,
+          'root': node('screen', 0, 0, 400, 800),
+        }),
+      );
+      await Future<void>.delayed(Duration.zero);
+      notifier.clear('dev');
+      expect(container.read(layoutSnapshotsProvider), isEmpty);
     });
 
     test('a bad screenshot still keeps the tree', () async {
@@ -208,6 +300,7 @@ void main() {
         ..capture('dev');
       await tester.pump(LayoutSnapshotsNotifier.timeout);
       expect(notifier.pending, isEmpty);
+      expect(notifier.unanswered, {'dev'}); // the page says so
     });
   });
 }
