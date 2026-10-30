@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../components/misc/color_sample.dart';
 import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/utils/toast_utils.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -104,124 +105,127 @@ class PropertiesPanel extends StatelessWidget {
       letterSpacing: 0.6,
       color: palette.textMuted,
     );
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 6, 8, 16),
-      children: [
-        SectionLabel(
-          loc.layoutProperties,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              MiniButton(
-                icon: LucideIcons.copy,
-                tooltip: loc.layoutCopyName,
-                onTap: () => _copy(context, node.name),
-              ),
-              MiniButton(
-                icon: LucideIcons.braces,
-                tooltip: loc.layoutCopyJson,
-                onTap: () => _copy(context, prettyJson.convert(node.toJson())),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        SelectableText(
-          node.name,
-          style: chromeMono(
-            context,
-            size: 14,
-            color: LayoutColors.accent(palette.isDark),
-            weight: FontWeight.w700,
-          ),
-        ),
-        // The rest of the row's chain: what this element renders.
-        if (chain.length > 1)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
+    return SelectionArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(14, 6, 8, 16),
+        children: [
+          SectionLabel(
+            loc.layoutProperties,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                for (final member in chain.skip(1)) ...[
-                  Icon(
-                    LucideIcons.cornerDownRight,
-                    size: 12,
-                    color: palette.textMuted,
-                  ),
-                  TagChip(member.name),
-                ],
-              ],
-            ),
-          ),
-        const SizedBox(height: 14),
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 300),
-            child: BoxModel(
-              rect: r,
-              padding: chain.map((c) => c.padding).nonNulls.firstOrNull,
-              margin: chain.map((c) => c.margin).nonNulls.firstOrNull,
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            for (final (label, value) in [
-              ('X', r.left),
-              ('Y', r.top),
-              ('W', r.width),
-              ('H', r.height),
-            ])
-              Expanded(
-                child: _Stat(label: label, value: formatDp(value)),
-              ),
-          ],
-        ),
-        // Each element of the chain has its own props and state.
-        for (final member in chain)
-          if (member.props.isNotEmpty || member.state.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Text(
-                  member.name,
-                  style: chromeMono(
-                    context,
-                    size: 12,
-                    color: palette.text,
-                    weight: FontWeight.w700,
-                  ),
+                MiniButton(
+                  icon: LucideIcons.copy,
+                  tooltip: loc.layoutCopyName,
+                  onTap: () => _copy(context, node.name),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  '${member.props.length}',
-                  style: chromeMono(
-                    context,
-                    size: 11,
-                    color: palette.textMuted,
-                  ),
+                MiniButton(
+                  icon: LucideIcons.braces,
+                  tooltip: loc.layoutCopyJson,
+                  onTap: () =>
+                      _copy(context, prettyJson.convert(node.toJson())),
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            node.name,
+            style: chromeMono(
+              context,
+              size: 14,
+              color: LayoutColors.accent(palette.isDark),
+              weight: FontWeight.w700,
+            ),
+          ),
+          // The rest of the row's chain: what this element renders.
+          if (chain.length > 1)
             Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 4),
-              child: Divider(height: 1, color: palette.border),
-            ),
-            for (final MapEntry(:key, :value) in member.props.entries)
-              ..._PropRows.of(context, key, _propValue(value)),
-            if (member.state.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 2),
-                child: Text(loc.layoutState.toUpperCase(), style: caption),
+              padding: const EdgeInsets.only(top: 6),
+              child: Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (final member in chain.skip(1)) ...[
+                    Icon(
+                      LucideIcons.cornerDownRight,
+                      size: 12,
+                      color: palette.textMuted,
+                    ),
+                    TagChip(member.name),
+                  ],
+                ],
               ),
-              for (final MapEntry(:key, :value) in member.state.entries)
-                ..._PropRows.of(context, key, _propValue(value)),
+            ),
+          const SizedBox(height: 14),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 300),
+              child: BoxModel(
+                rect: r,
+                padding: chain.map((c) => c.padding).nonNulls.firstOrNull,
+                margin: chain.map((c) => c.margin).nonNulls.firstOrNull,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (final (label, value) in [
+                ('X', r.left),
+                ('Y', r.top),
+                ('W', r.width),
+                ('H', r.height),
+              ])
+                Expanded(
+                  child: _Stat(label: label, value: formatDp(value)),
+                ),
             ],
-          ],
-      ],
+          ),
+          // Each element of the chain has its own props and state.
+          for (final member in chain)
+            if (member.props.isNotEmpty || member.state.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Text(
+                    member.name,
+                    style: chromeMono(
+                      context,
+                      size: 12,
+                      color: palette.text,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${member.props.length}',
+                    style: chromeMono(
+                      context,
+                      size: 11,
+                      color: palette.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 6, bottom: 4),
+                child: Divider(height: 1, color: palette.border),
+              ),
+              for (final MapEntry(:key, :value) in member.props.entries)
+                ..._PropRows.of(context, key, _propValue(value)),
+              if (member.state.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 2),
+                  child: Text(loc.layoutState.toUpperCase(), style: caption),
+                ),
+                for (final MapEntry(:key, :value) in member.state.entries)
+                  ..._PropRows.of(context, key, _propValue(value)),
+              ],
+            ],
+        ],
+      ),
     );
   }
 }
@@ -248,10 +252,7 @@ class _Stat extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 2),
-        SelectableText(
-          value,
-          style: chromeMono(context, size: 12, color: palette.text),
-        ),
+        Text(value, style: chromeMono(context, size: 12, color: palette.text)),
       ],
     );
   }
@@ -290,13 +291,19 @@ abstract final class _PropRows {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: SelectableText(
-              text,
-              style: chromeMono(
-                context,
-                size: 12,
-                color: color,
-              ).copyWith(height: 1.5),
+            child: Text.rich(
+              TextSpan(
+                style: chromeMono(
+                  context,
+                  size: 12,
+                  color: color,
+                ).copyWith(height: 1.5),
+                children: withColorSamples(
+                  text,
+                  colorSamplesIn(text, key: name),
+                  (piece) => TextSpan(text: piece),
+                ),
+              ),
             ),
           ),
         ],

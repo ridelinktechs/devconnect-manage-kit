@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:devconnect_manage_tool/components/misc/color_sample.dart';
 import 'package:devconnect_manage_tool/core/constants/ws_constants.dart';
 import 'package:devconnect_manage_tool/features/layout_inspector/presentation/layout_inspector_page.dart';
 import 'package:devconnect_manage_tool/l10n/app_localizations.dart';
@@ -57,7 +58,15 @@ void main() {
           'w': 390,
           'h': 844,
           'children': [
-            {'id': '2', 'name': 'Button', 'x': 16, 'y': 760, 'w': 358, 'h': 52},
+            {
+              'id': '2',
+              'name': 'Button',
+              'x': 16,
+              'y': 760,
+              'w': 358,
+              'h': 52,
+              'props': {'color': '#4F46E5', 'title': 'Pay'},
+            },
           ],
         },
       }),
@@ -114,6 +123,14 @@ void main() {
 
     await shortcut(tester, LogicalKeyboardKey.digit1);
     expect(tester.getRect(screen), fitted);
+  });
+
+  testWidgets('a color prop shows its sample', (tester) async {
+    await showCapture(tester);
+    await tester.tap(find.text('Button'));
+    await tester.pump();
+    final sample = tester.widget<ColorSample>(find.byType(ColorSample));
+    expect(sample.color.toARGB32(), 0xFF4F46E5);
   });
 
   testWidgets('closing the capture goes back to the hint', (tester) async {
