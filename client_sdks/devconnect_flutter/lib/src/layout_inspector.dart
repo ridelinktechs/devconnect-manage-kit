@@ -27,6 +27,10 @@ Future<Map<String, dynamic>> captureLayout({bool screenshot = true}) async {
   List<Map<String, dynamic>> visit(Element element) {
     final widget = element.widget;
     if (widget is Offstage && widget.offstage) return const [];
+    if (count >= _maxNodes) {
+      truncated = true;
+      return const [];
+    }
     final box = element.renderObject;
     // The view's own layer is photographed: the whole screen, dialogs and
     // sheets (routes with repaint boundaries of their own) included.
@@ -40,12 +44,13 @@ Future<Map<String, dynamic>> captureLayout({bool screenshot = true}) async {
         !box.attached) {
       return children;
     }
+    final origin = box.localToGlobal(Offset.zero);
+    if (!origin.isFinite || !box.size.isFinite) return children;
     if (count >= _maxNodes) {
       truncated = true;
       return children;
     }
     count++;
-    final origin = box.localToGlobal(Offset.zero);
     final padding = box is RenderPadding
         ? box.padding.resolve(box.textDirection)
         : EdgeInsets.zero;
@@ -113,16 +118,17 @@ Future<Map<String, dynamic>> captureLayout({bool screenshot = true}) async {
 /// short strings.
 @visibleForTesting
 Map<String, String> widgetProps(Widget widget) {
-  final props = <String, String>{
-    if (widget.key case final key?) 'key': '$key',
-  };
-  for (final p in widget.toDiagnosticsNode().getProperties()) {
-    if (props.length >= 16) break;
-    final name = p.name;
-    if (name == null || p.isFiltered(DiagnosticLevel.info)) continue;
-    final value = p.toDescription();
-    if (value.isEmpty || value == 'null') continue;
-    props[name] = value.length > 200 ? '${value.substring(0, 200)}…' : value;
-  }
+  final props = <String, String>{};
+  try {
+    if (widget.key case final key?) props['key'] = '$key';
+    for (final p in widget.toDiagnosticsNode().getProperties()) {
+      if (props.length >= 16) break;
+      final name = p.name;
+      if (name == null || p.isFiltered(DiagnosticLevel.info)) continue;
+      final value = p.toDescription();
+      if (value.isEmpty || value == 'null') continue;
+      props[name] = value.length > 200 ? '${value.substring(0, 200)}…' : value;
+    }
+  } catch (_) {}
   return props;
 }

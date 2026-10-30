@@ -28,6 +28,7 @@ void startErrorMonitor([ErrorMonitorOptions opts = const ErrorMonitorOptions()])
 
   // Flutter error handler
   if (opts.captureFlutterErrors) {
+    final originalOnError = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
       _sendError(
         platform: _getPlatform(),
@@ -41,7 +42,7 @@ void startErrorMonitor([ErrorMonitorOptions opts = const ErrorMonitorOptions()])
         },
       );
       // Call original handler
-      FlutterError.presentError(details);
+      (originalOnError ?? FlutterError.presentError)(details);
     };
   }
 
@@ -57,8 +58,7 @@ void startErrorMonitor([ErrorMonitorOptions opts = const ErrorMonitorOptions()])
         source: 'dart.isolate',
         metadata: {},
       );
-      originalOnError?.call(error, stack);
-      return true;
+      return originalOnError?.call(error, stack) ?? false;
     };
   }
 

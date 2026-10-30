@@ -72,6 +72,7 @@ data class MockResponse(
 object MockRuleStore {
 
     @Volatile private var rules: List<MockRule> = emptyList()
+    @Volatile private var fromDesktop = false
     private val regexCache = ConcurrentHashMap<String, Regex>()
 
     fun setRules(newRules: List<MockRule>) {
@@ -85,6 +86,7 @@ object MockRuleStore {
         // hot-reloading individual rules becomes a requirement.
         regexCache.clear()
         rules = newRules.filter { it.enabled }
+        fromDesktop = false
     }
 
     /**
@@ -138,8 +140,15 @@ object MockRuleStore {
      * Applies a `server:mock_rules_update` payload, `{"rules":[...]}`. It
      * always carries the full list, so a missing or empty one clears all rules.
      */
-    fun loadFromPayload(payload: JSONObject) =
+    fun loadFromPayload(payload: JSONObject) {
         loadFromJson(payload.optJSONArray("rules")?.toString() ?: "[]")
+        fromDesktop = true
+    }
+
+    /** Drops the rules the desktop pushed; ones the app installed itself stay. */
+    internal fun clearDesktopRules() {
+        if (fromDesktop) setRules(emptyList())
+    }
 
     /** Epoch ms of an ISO-8601 time (device-local when it has no offset); null if unparseable. */
     // shortcut: java.time needs API 26 (or desugaring), so older devices ignore expiresAt; parse by hand if they matter.

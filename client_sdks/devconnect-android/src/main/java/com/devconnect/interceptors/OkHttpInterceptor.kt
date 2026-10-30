@@ -90,12 +90,7 @@ class OkHttpInterceptor : okhttp3.Interceptor {
                     requestBody = bodySummary(body) ?: run {
                         val buffer = okio.Buffer()
                         body.writeTo(buffer)
-                        val bodyStr = buffer.readUtf8()
-                        try {
-                            JSONObject(bodyStr)
-                        } catch (_: Exception) {
-                            bodyStr
-                        }
+                        parseText(buffer.readUtf8())
                     }
                 }
             }
@@ -172,11 +167,15 @@ class OkHttpInterceptor : okhttp3.Interceptor {
     }
 
     private companion object {
-        // Cap captured bodies at 1 MB. The desktop inspector renders a
-        // small fraction of any body anyway; this avoids OOM on chatty
-        // or large-response APIs (e.g. Firebase Real Database snapshots,
-        // S3 list-objects).
+        // Request bodies that aren't text are summarised past 1 MB, so a
+        // big upload isn't buffered; text is captured whole.
         const val MAX_CAPTURED_BODY_BYTES = 1_048_576
+
+        /** Images up to this many bytes are sent for the desktop to show; bigger ones by their size. */
+        const val MAX_IMAGE_BYTES = 10 * 1_048_576
+
+        /** Text longer than this is sent unparsed: the desktop parses it, off its UI thread. */
+        const val MAX_PARSE_CHARS = 1_048_576
 
         // Header names that carry credentials. Compared case-insensitively.
         val SENSITIVE_HEADERS = setOf(
@@ -217,36 +216,45 @@ class OkHttpInterceptor : okhttp3.Interceptor {
          */
         fun bodySummary(body: okhttp3.RequestBody): String? {
             val length = body.contentLength()
+            val type = body.contentType()?.toString()?.lowercase() ?: ""
             return when {
                 body.isOneShot() || body.isDuplex() || length < 0 -> sized("stream", length)
-                length > MAX_CAPTURED_BODY_BYTES -> sized("large", length)
+                length > MAX_CAPTURED_BODY_BYTES && TEXT_TYPE_HINTS.none { type.contains(it) } ->
+                    sized("large", length)
                 else -> null
             }
         }
 
-        /** Text bodies via a capped peek; binary bodies and streams as a summary. */
+        /** Text bodies whole, images as a `data:` URL; other binary bodies and streams as a summary. */
         fun captureResponseBody(response: Response): Any {
             val body = response.body
             val type = body.contentType()?.toString()?.lowercase() ?: ""
             val length = body.contentLength()
             return when {
                 length == 0L -> ""
+                type.startsWith("image/") && !type.contains("svg") && length <= MAX_IMAGE_BYTES -> {
+                    val bytes = response.peekBody(MAX_IMAGE_BYTES + 1L).byteString()
+                    if (bytes.size > MAX_IMAGE_BYTES) {
+                        sized("binary", length)
+                    } else {
+                        "data:${type.substringBefore(';').trim()};base64,${bytes.base64()}"
+                    }
+                }
                 type.isNotEmpty() && TEXT_TYPE_HINTS.none { type.contains(it) } -> sized("binary", length)
                 // SSE / NDJSON stay open: peeking them would block the call.
                 type.contains("stream") || type.contains("ndjson") -> "<stream>"
-                else -> {
-                    val bytes = response.peekBody(MAX_CAPTURED_BODY_BYTES + 1L).bytes()
-                    val text = String(bytes, 0, minOf(bytes.size, MAX_CAPTURED_BODY_BYTES), Charsets.UTF_8)
-                    if (bytes.size > MAX_CAPTURED_BODY_BYTES) {
-                        "$text…[truncated]"
-                    } else {
-                        try {
-                            JSONObject(text)
-                        } catch (_: Exception) {
-                            text
-                        }
-                    }
-                }
+                else -> parseText(response.peekBody(Long.MAX_VALUE).string())
+            }
+        }
+
+        /** [text] as a JSONObject when it is one, unless it's longer than [MAX_PARSE_CHARS]. */
+        fun parseText(text: String): Any = if (text.length > MAX_PARSE_CHARS) {
+            text
+        } else {
+            try {
+                JSONObject(text)
+            } catch (_: Exception) {
+                text
             }
         }
 

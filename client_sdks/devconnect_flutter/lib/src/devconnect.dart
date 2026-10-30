@@ -62,7 +62,7 @@ class DevConnect {
 
   /// Safe no-op guard for release builds.
   /// Returns true if SDK is active (debug + initialized).
-  static bool get _active => kDebugMode && _initialized;
+  static bool get _active => kDebugMode && _initialized && clientSafe != null;
 
   /// One-line setup: init + intercept ALL HTTP + capture ALL developer logs.
   ///

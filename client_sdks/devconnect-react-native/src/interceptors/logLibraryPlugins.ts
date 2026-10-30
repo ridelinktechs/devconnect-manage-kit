@@ -1,4 +1,10 @@
-import { DevConnect } from '../client';
+import { DevConnect, safeString } from '../client';
+
+/** A logged value as text: JSON, or `safeString` when JSON can't encode it (cycle, BigInt). */
+function argText(a: any): string {
+  if (typeof a === 'string') return a;
+  try { return JSON.stringify(a); } catch (_) { return safeString(a); }
+}
 
 /**
  * Integration for `react-native-logs` package.
@@ -34,9 +40,7 @@ export const devConnectTransport = (props: {
   const level = levelMap[props.level.text.toLowerCase()] ?? 'debug';
   const tag = props.extension ? `rn-logs:${props.extension}` : 'react-native-logs';
 
-  const message = typeof props.msg === 'string'
-    ? props.msg
-    : JSON.stringify(props.msg);
+  const message = argText(props.msg);
 
   try {
     DevConnect.safeSend('client:log', {
@@ -71,9 +75,7 @@ export function patchLoglevel(loglevelInstance: any): void {
     const rawMethod = originalFactory(methodName, logLevel, loggerName);
 
     return function (...args: any[]) {
-      const message = args
-        .map((a: any) => (typeof a === 'string' ? a : JSON.stringify(a)))
-        .join(' ');
+      const message = args.map(argText).join(' ');
 
       const levelMap: Record<string, string> = {
         trace: 'debug',
@@ -255,9 +257,7 @@ export function wrapLogger(
         fn.call(loggerInstance, ...args);
 
         // Send to DevConnect
-        const message = args
-          .map((a) => (typeof a === 'string' ? a : JSON.stringify(a)))
-          .join(' ');
+        const message = args.map(argText).join(' ');
 
         try {
           DevConnect.safeSend('client:log', {

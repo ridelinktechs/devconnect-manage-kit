@@ -15,6 +15,10 @@ const { DevConnect } = clientModule;
 const apolloModule = require('../dist-test/integrations/apollo.js');
 const { setupApolloDevConnect } = apolloModule;
 
+let connected = true;
+DevConnect.isListening = () => connected;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function makeMockCache() {
   const watchers = [];
   const cache = {
@@ -98,4 +102,63 @@ test('initial snapshot is emitted on startup by default', () => {
   const snap = events.find(e => e.type === 'client:state:snapshot');
   assert.ok(snap);
   stop();
+});
+
+test('periodic snapshots leave the cache alone while the desktop is disconnected', async () => {
+  const { cache } = makeMockCache();
+  let extracts = 0;
+  cache.extract = () => { extracts++; return { a: 1 }; };
+  const events = [];
+  DevConnect.safeSend = (type, payload) => events.push(payload);
+  connected = false;
+  try {
+    const stop = setupApolloDevConnect({ cache }, { emitInitialSnapshot: false, snapshotIntervalMs: 10 });
+    await sleep(50);
+    stop();
+  } finally {
+    connected = true;
+  }
+  assert.equal(extracts, 0);
+  assert.equal(events.length, 0);
+});
+
+test('an unchanged cache is sent again only after a change or a reconnect', async () => {
+  const { cache } = makeMockCache();
+  let data = { a: 1 };
+  cache.extract = () => ({ ...data });
+  const events = [];
+  DevConnect.safeSend = (type, payload) => events.push(payload);
+  const stop = setupApolloDevConnect({ cache }, { emitInitialSnapshot: false, snapshotIntervalMs: 10 });
+  await sleep(50);
+  data = { a: 2 };
+  await sleep(50);
+  connected = false;
+  await sleep(30);
+  connected = true;
+  await sleep(30);
+  stop();
+  assert.deepEqual(events.map((e) => e.state), [{ a: 1 }, { a: 2 }, { a: 2 }]);
+});
+
+test('truncation finds the cut in one pass, without an encode/decode loop', () => {
+  const RealEncoder = global.TextEncoder;
+  let encodes = 0;
+  global.TextEncoder = class extends RealEncoder {
+    encode(input) { encodes++; return super.encode(input); }
+  };
+  const { cache } = makeMockCache();
+  cache.extract = () => ({ x: 'ß'.repeat(5000) });
+  const events = [];
+  DevConnect.safeSend = (type, payload) => events.push(payload);
+  try {
+    setupApolloDevConnect({ cache }, { snapshotIntervalMs: 0, maxSnapshotBytes: 1000 })();
+  } finally {
+    global.TextEncoder = RealEncoder;
+  }
+  assert.ok(encodes <= 2, `${encodes} encodes`);
+  const { state, metadata } = events[0];
+  assert.deepEqual(metadata, { truncated: true, originalSize: 10008 });
+  assert.ok(state.endsWith('…'));
+  assert.ok(JSON.stringify(cache.extract()).startsWith(state.slice(0, -1)));
+  assert.equal(Buffer.byteLength(state), 999);
 });

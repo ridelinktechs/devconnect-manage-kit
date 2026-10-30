@@ -903,6 +903,39 @@ class SZh extends S {
   String get jsonPathCopied => '已复制路径';
 
   @override
+  String jsonShowMore(int count, int remaining) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+    final intl.NumberFormat remainingNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String remainingString = remainingNumberFormat.format(remaining);
+
+    return '再显示 $countString 项（剩余 $remainingString 项）';
+  }
+
+  @override
+  String jsonLongValue(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '共 $countString 个字符，复制可获取全部';
+  }
+
+  @override
+  String jsonPrettyCut(int shown, int total) {
+    final intl.NumberFormat shownNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String shownString = shownNumberFormat.format(shown);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    return '显示前 $shownString 行，共 $totalString 行。复制或保存可获取全部内容。';
+  }
+
+  @override
   String jsonTableTruncated(Object count) {
     return '仅显示前 $count 行。';
   }
@@ -1585,11 +1618,14 @@ class SZh extends S {
 
   @override
   String binaryBodySize(String kb, int bytes) {
-    return '$kb KB ($bytes 字节)';
+    return '$kb ($bytes 字节)';
   }
 
   @override
   String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
+
+  @override
+  String get openWithDefaultApp => '用默认应用打开';
 
   @override
   String get tipsAndShortcuts => '提示与快捷方式';
@@ -2580,6 +2616,39 @@ class SZhCn extends SZh {
   String get jsonPathCopied => '已复制路径';
 
   @override
+  String jsonShowMore(int count, int remaining) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+    final intl.NumberFormat remainingNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String remainingString = remainingNumberFormat.format(remaining);
+
+    return '再显示 $countString 项（剩余 $remainingString 项）';
+  }
+
+  @override
+  String jsonLongValue(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '共 $countString 个字符，复制可获取全部';
+  }
+
+  @override
+  String jsonPrettyCut(int shown, int total) {
+    final intl.NumberFormat shownNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String shownString = shownNumberFormat.format(shown);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    return '显示前 $shownString 行，共 $totalString 行。复制或保存可获取全部内容。';
+  }
+
+  @override
   String jsonTableTruncated(Object count) {
     return '仅显示前 $count 行。';
   }
@@ -3262,11 +3331,14 @@ class SZhCn extends SZh {
 
   @override
   String binaryBodySize(String kb, int bytes) {
-    return '$kb KB ($bytes 字节)';
+    return '$kb ($bytes 字节)';
   }
 
   @override
   String get binaryBodyHint => '通过 X-Amz-Target 请求头识别操作。';
+
+  @override
+  String get openWithDefaultApp => '用默认应用打开';
 
   @override
   String get tipsAndShortcuts => '提示与快捷方式';
@@ -4257,6 +4329,39 @@ class SZhTw extends SZh {
   String get jsonPathCopied => '已複製路徑';
 
   @override
+  String jsonShowMore(int count, int remaining) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+    final intl.NumberFormat remainingNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String remainingString = remainingNumberFormat.format(remaining);
+
+    return '再顯示 $countString 項（剩餘 $remainingString 項）';
+  }
+
+  @override
+  String jsonLongValue(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '共 $countString 個字元，複製可取得全部';
+  }
+
+  @override
+  String jsonPrettyCut(int shown, int total) {
+    final intl.NumberFormat shownNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String shownString = shownNumberFormat.format(shown);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    return '顯示前 $shownString 行，共 $totalString 行。複製或儲存可取得全部內容。';
+  }
+
+  @override
   String jsonTableTruncated(Object count) {
     return '僅顯示前 $count 列。';
   }
@@ -4940,11 +5045,14 @@ class SZhTw extends SZh {
 
   @override
   String binaryBodySize(String kb, int bytes) {
-    return '$kb KB ($bytes 位元組)';
+    return '$kb ($bytes 位元組)';
   }
 
   @override
   String get binaryBodyHint => '透過 X-Amz-Target 標頭識別操作。';
+
+  @override
+  String get openWithDefaultApp => '用預設應用程式開啟';
 
   @override
   String get tipsAndShortcuts => '提示與快捷鍵';

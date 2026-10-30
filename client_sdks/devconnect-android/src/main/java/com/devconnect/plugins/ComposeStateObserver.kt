@@ -4,7 +4,9 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.snapshots.ObserverHandle
 import com.devconnect.DevConnect
 import java.lang.reflect.Method
+import java.util.Collections
 import java.util.Optional
+import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -36,7 +38,7 @@ object ComposeStateObserver {
      * Track the last emitted value per state instance so we only emit
      * when the value actually changes (not on every apply tick).
      */
-    private val lastValues = ConcurrentHashMap<Any, String>()
+    private val lastValues: MutableMap<Any, String> = Collections.synchronizedMap(WeakHashMap())
 
     /**
      * Cache of resolved `getValue()` [Method] per state class. `cls.methods`
@@ -58,6 +60,7 @@ object ComposeStateObserver {
      * Cap on serialized value size in bytes (per spec: 4 KB).
      */
     private const val MAX_VALUE_BYTES = 4096
+    private const val MAX_DESCRIBED_ITEMS = 100
 
     fun isRunning(): Boolean = running.get()
 
@@ -139,9 +142,24 @@ object ComposeStateObserver {
                 .getOrPut(cls) { Optional.ofNullable(cls.methods.firstOrNull { it.name == "getValue" && it.parameterCount == 0 }) }
                 .orElse(null) ?: return null
             val value = getValueMethod.invoke(state)
-            value?.toString()
+            value?.let { describe(it) }
         } catch (_: Throwable) {
             null
         }
     }
+
+    /** Big collections and maps, and arrays, as [preview]; anything else as its toString(). */
+    private fun describe(value: Any): String = when {
+        value is Collection<*> && value.size > MAX_DESCRIBED_ITEMS -> preview(value, value.size)
+        value is Map<*, *> && value.size > MAX_DESCRIBED_ITEMS -> preview(value.entries, value.size)
+        value.javaClass.isArray -> {
+            val size = java.lang.reflect.Array.getLength(value)
+            preview(List(minOf(size, MAX_DESCRIBED_ITEMS)) { java.lang.reflect.Array.get(value, it) }, size)
+        }
+        else -> value.toString()
+    }
+
+    /** "[a, b, … N items]": the first MAX_DESCRIBED_ITEMS of [items], then their [size] if some are left out. */
+    private fun preview(items: Iterable<*>, size: Int): String = items.take(MAX_DESCRIBED_ITEMS)
+        .joinToString(prefix = "[", postfix = if (size > MAX_DESCRIBED_ITEMS) ", … $size items]" else "]")
 }

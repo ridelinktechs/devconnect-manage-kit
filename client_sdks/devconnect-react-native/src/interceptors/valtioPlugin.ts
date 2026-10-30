@@ -62,7 +62,7 @@ export function watchValtio(
     return () => {};
   }
 
-  let previousSnapshot = safeSerialize(proxyState);
+  let previousSnapshot: Record<string, any> | undefined = safeSerialize(proxyState);
 
   // Send initial state
   try {
@@ -74,11 +74,15 @@ export function watchValtio(
   } catch (_) {}
 
   const unsubscribe = subscribeFn(proxyState, (ops: any) => {
+    if (!DevConnect.isListening()) {
+      previousSnapshot = undefined;
+      return;
+    }
     try {
       const nextSnapshot = safeSerialize(proxyState);
 
       // Build diff from valtio operations if available
-      const diff = buildDiff(ops, previousSnapshot, nextSnapshot, options?.keys);
+      const diff = buildDiff(ops, previousSnapshot ?? nextSnapshot, nextSnapshot, options?.keys);
 
       // Filter: if keys option is set and no relevant changes, skip
       if (options?.keys && diff.length === 0) {
@@ -154,9 +158,9 @@ function calculateDiff(
   next: Record<string, any>,
   path: string,
   filterKeys?: string[],
+  diffs: Array<Record<string, any>> = [],
+  depth = 0,
 ): Array<Record<string, any>> {
-  const diffs: Array<Record<string, any>> = [];
-
   if (prev === next) return diffs;
 
   if (typeof prev !== 'object' || typeof next !== 'object' || prev === null || next === null) {
@@ -171,6 +175,7 @@ function calculateDiff(
 
   const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
   for (const key of allKeys) {
+    if (diffs.length >= 50) break;
     // Apply key filter at top level only
     if (filterKeys && !path && !filterKeys.includes(key)) continue;
 
@@ -188,9 +193,9 @@ function calculateDiff(
         typeof nextVal === 'object' &&
         prevVal !== null &&
         nextVal !== null &&
-        diffs.length < 50
+        depth < 10
       ) {
-        diffs.push(...calculateDiff(prevVal, nextVal, currentPath));
+        calculateDiff(prevVal, nextVal, currentPath, undefined, diffs, depth + 1);
       } else {
         diffs.push({
           path: currentPath,

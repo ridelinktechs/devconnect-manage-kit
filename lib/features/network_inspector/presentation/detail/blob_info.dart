@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
@@ -14,11 +15,16 @@ class BlobInfo extends StatelessWidget {
   final int sizeBytes;
   final bool isDark;
 
+  /// Where the body can be fetched again, for a button that opens it in
+  /// the Mac's default app (a video in QuickTime, a PDF in Preview…).
+  final String? openUrl;
+
   const BlobInfo({
     super.key,
     required this.label,
     required this.sizeBytes,
     required this.isDark,
+    this.openUrl,
   });
 
   @override
@@ -55,14 +61,21 @@ class BlobInfo extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              S.of(context).binaryBodyHint,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                color: isDark ? Colors.white38 : Colors.black45,
+            if (openUrl case final url?)
+              OutlinedButton.icon(
+                onPressed: () => launchUrl(Uri.parse(url)),
+                icon: const Icon(LucideIcons.externalLink, size: 14),
+                label: Text(S.of(context).openWithDefaultApp),
+              )
+            else
+              Text(
+                S.of(context).binaryBodyHint,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white38 : Colors.black45,
+                ),
               ),
-            ),
           ],
         ),
       ),

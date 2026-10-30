@@ -52,6 +52,9 @@ function getDeviceInfo(): string {
 
 // ---- JS Error Handler (ErrorUtils + unhandledrejection) ----
 
+/** True while a native-crash line is passed on, so the JS reporter beneath doesn't report it again. */
+let forwardingNativeCrash = false;
+
 export function startJSErrorMonitor(): void {
   // Capture console.error that isn't our own to catch JS errors
   const originalError = console.error.bind(console);
@@ -60,6 +63,7 @@ export function startJSErrorMonitor(): void {
     originalError(...args);
 
     try {
+      if (forwardingNativeCrash) return;
       // Skip internal DevConnect errors
       const msg = safeString(args[0] ?? '');
       if (msg.includes('DevConnect') || msg.includes('[DC_')) return;
@@ -181,6 +185,7 @@ export function startErrorMonitor(): void {
     const originalConsoleError = console.error.bind(console);
     console.error = function(...args: any[]) {
       const msg = safeString(args[0] ?? '');
+      const forwarding = forwardingNativeCrash;
       // Detect Android native errors
       if (msg.includes('java.lang.') || msg.includes('android.runtime') ||
           msg.includes('Native崩溃') || msg.includes('FATAL EXCEPTION')) {
@@ -191,15 +196,16 @@ export function startErrorMonitor(): void {
           stackTrace: args.map(safeString).join('\n'),
           source: 'android.native',
         });
-        return;
+        forwardingNativeCrash = true;
       }
-      originalConsoleError(...args);
+      try { originalConsoleError(...args); } finally { forwardingNativeCrash = forwarding; }
     };
   } else if (os === 'ios') {
     // Intercept iOS crash patterns
     const originalConsoleError = console.error.bind(console);
     console.error = function(...args: any[]) {
       const msg = safeString(args[0] ?? '');
+      const forwarding = forwardingNativeCrash;
       // Detect iOS native errors
       if (msg.includes('*** NSException ***') || msg.includes('__NSCRASH') ||
           msg.includes('Thread <') && msg.includes('crashed')) {
@@ -210,9 +216,9 @@ export function startErrorMonitor(): void {
           stackTrace: args.map(safeString).join('\n'),
           source: 'ios.native',
         });
-        return;
+        forwardingNativeCrash = true;
       }
-      originalConsoleError(...args);
+      try { originalConsoleError(...args); } finally { forwardingNativeCrash = forwarding; }
     };
   }
 }

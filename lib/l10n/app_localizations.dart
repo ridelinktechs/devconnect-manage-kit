@@ -1635,6 +1635,24 @@ abstract class S {
   /// **'Path copied'**
   String get jsonPathCopied;
 
+  /// No description provided for @jsonShowMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show {count} more ({remaining} left)'**
+  String jsonShowMore(int count, int remaining);
+
+  /// No description provided for @jsonLongValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} characters, copy to get all'**
+  String jsonLongValue(int count);
+
+  /// No description provided for @jsonPrettyCut.
+  ///
+  /// In en, this message translates to:
+  /// **'Showing the first {shown} of {total} lines. Copy or save to get all of them.'**
+  String jsonPrettyCut(int shown, int total);
+
   /// No description provided for @jsonTableTruncated.
   ///
   /// In en, this message translates to:
@@ -2934,7 +2952,7 @@ abstract class S {
   /// No description provided for @binaryBodySize.
   ///
   /// In en, this message translates to:
-  /// **'{kb} KB ({bytes} bytes)'**
+  /// **'{kb} ({bytes} bytes)'**
   String binaryBodySize(String kb, int bytes);
 
   /// No description provided for @binaryBodyHint.
@@ -2942,6 +2960,12 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Identify the action via the X-Amz-Target header.'**
   String get binaryBodyHint;
+
+  /// No description provided for @openWithDefaultApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in default app'**
+  String get openWithDefaultApp;
 
   /// No description provided for @tipsAndShortcuts.
   ///

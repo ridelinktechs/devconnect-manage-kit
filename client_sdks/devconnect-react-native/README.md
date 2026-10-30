@@ -136,14 +136,13 @@ const store = configureStore({
 // Zustand
 import { devConnectMiddleware } from "devconnect-manage-kit";
 
+const counterStore = (set) => ({
+  count: 0,
+  increment: () => set((s) => ({ count: s.count + 1 })),
+});
+
 const useStore = create(
-  devConnectMiddleware(
-    (set) => ({
-      count: 0,
-      increment: () => set((s) => ({ count: s.count + 1 })),
-    }),
-    "CounterStore",
-  ),
+  __DEV__ ? devConnectMiddleware(counterStore, "CounterStore") : counterStore,
 );
 ```
 

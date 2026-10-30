@@ -1,4 +1,4 @@
-import { DevConnect } from '../client';
+import { DevConnect, capBody, parseBody } from '../client';
 
 /**
  * Axios interceptor that auto-captures all requests.
@@ -85,7 +85,7 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
         if (config.data) {
           try {
             if (typeof config.data === 'string') {
-              try { requestBody = JSON.parse(config.data); } catch (_) { requestBody = config.data; }
+              requestBody = parseBody(config.data);
             } else if (config.data instanceof FormData) {
               const fields: Record<string, any> = {};
               const files: any[] = [];
@@ -99,7 +99,7 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
               }
               requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
             } else {
-              requestBody = config.data;
+              requestBody = capBody(config.data);
             }
           } catch (_) {
             requestBody = String(config.data);
@@ -164,8 +164,8 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
           duration: Date.now() - startTime,
           requestHeaders: normalizeHeaders(config.headers),
           responseHeaders: resHeaders,
-          requestBody: config.data,
-          responseBody: response.data,
+          requestBody: capBody(config.data),
+          responseBody: capBody(response.data),
         });
       } catch (_) {}
 
@@ -189,7 +189,7 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
           endTime: Date.now(),
           duration: Date.now() - startTime,
           requestHeaders: normalizeHeaders(config.headers),
-          responseBody: error.response?.data,
+          responseBody: capBody(error.response?.data),
           error: error.message ?? String(error),
         });
       } catch (_) {}

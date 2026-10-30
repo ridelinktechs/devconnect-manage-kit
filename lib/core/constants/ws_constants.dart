@@ -43,8 +43,14 @@ class WsMessageTypes {
   static const String serverMockRulesClear = 'server:mock:clear';
   static const String serverMockRuleToggle = 'server:mock:toggle';
 
+  /// Asks for the next [clientChunk] of a message.
+  static const String serverChunkAck = 'server:chunk_ack';
+
   // Client -> Server
   static const String clientHandshake = 'client:handshake';
+
+  /// A piece of a message too big to send whole (the React Native SDK's).
+  static const String clientChunk = 'client:chunk';
   static const String clientPong = 'client:pong';
   static const String clientNetworkRequestStart =
       'client:network:request_start';

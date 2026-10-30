@@ -402,6 +402,10 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
                     body: entry.responseBody,
                     label: 'Response',
                     deviceId: entry.deviceId,
+                    openUrl: entry.method == 'GET' &&
+                            entry.url.startsWith(RegExp('https?://'))
+                        ? entry.url
+                        : null,
                   ),
                 ),
                 LazyTab(

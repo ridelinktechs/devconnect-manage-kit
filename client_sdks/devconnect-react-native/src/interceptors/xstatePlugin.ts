@@ -49,6 +49,11 @@ export function devConnectXStateInspector(
       // XState v4: state.value, state.context, state.event
       // XState v5: state.value, state.context, event passed separately or state.event
       const currentValue = resolveStateValue(state);
+      if (!DevConnect.isListening()) {
+        previousStateValue = currentValue;
+        previousContext = undefined;
+        return;
+      }
       const currentContext = safeSerialize(state.context);
       const eventObj = event ?? state.event ?? state._event?.data;
       const eventType = resolveEventType(eventObj);
@@ -177,10 +182,10 @@ function calculateContextDiff(
   prev: Record<string, any>,
   next: Record<string, any>,
   path = 'context',
+  diffs: Array<Record<string, any>> = [],
+  depth = 0,
 ): Array<Record<string, any>> {
-  const diffs: Array<Record<string, any>> = [];
-
-  if (prev === next || JSON.stringify(prev) === JSON.stringify(next)) return diffs;
+  if (prev === next) return diffs;
 
   if (typeof prev !== 'object' || typeof next !== 'object' || prev === null || next === null) {
     diffs.push({
@@ -194,6 +199,7 @@ function calculateContextDiff(
 
   const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
   for (const key of allKeys) {
+    if (diffs.length >= 50) break;
     const currentPath = `${path}.${key}`;
     const prevVal = prev[key];
     const nextVal = next[key];
@@ -202,15 +208,15 @@ function calculateContextDiff(
       diffs.push({ path: currentPath, operation: 'add', newValue: nextVal });
     } else if (!(key in next)) {
       diffs.push({ path: currentPath, operation: 'remove', oldValue: prevVal });
-    } else if (JSON.stringify(prevVal) !== JSON.stringify(nextVal)) {
+    } else if (prevVal !== nextVal) {
       if (
         typeof prevVal === 'object' &&
         typeof nextVal === 'object' &&
         prevVal !== null &&
         nextVal !== null &&
-        diffs.length < 50
+        depth < 10
       ) {
-        diffs.push(...calculateContextDiff(prevVal, nextVal, currentPath));
+        calculateContextDiff(prevVal, nextVal, currentPath, diffs, depth + 1);
       } else {
         diffs.push({
           path: currentPath,

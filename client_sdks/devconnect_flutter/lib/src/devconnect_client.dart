@@ -22,6 +22,9 @@ class _CachedHost {
   const _CachedHost(this.host, this.machineId);
 }
 
+/// Hands out dart:io's own HttpClient, whatever overrides are installed.
+class _NoHttpOverrides extends HttpOverrides {}
+
 class DevConnectClient {
   static DevConnectClient? _instance;
   static DevConnectClient get instance => _instance!;
@@ -231,14 +234,10 @@ class DevConnectClient {
     String platform = 'flutter',
     bool auto_ = true,
   }) async {
-    final resolvedHost = host == null || host == 'auto'
-        ? await _autoDetectHost(port)
-        : host;
-
     final stableDeviceId = await _getStableDeviceId(appName);
 
-    _instance = DevConnectClient._(
-      host: resolvedHost,
+    final client = _instance = DevConnectClient._(
+      host: host ?? 'auto',
       port: port,
       appName: appName,
       appVersion: appVersion,
@@ -248,8 +247,11 @@ class DevConnectClient {
       platform: platform,
       auto_: auto_,
     );
-    await _instance!.connect();
-    return _instance!;
+    unawaited(() async {
+      if (client._host == 'auto') client._host = await _autoDetectHost(port);
+      await client.connect();
+    }());
+    return client;
   }
 
   static String _defaultDeviceName() {
@@ -266,6 +268,11 @@ class DevConnectClient {
 
   /// UDP discovery port — server broadcasts beacons here.
   static const int _discoveryPort = 41234;
+
+  /// Opens DevConnect's own sockets past any HttpOverrides: through
+  /// `DevConnectHttpOverrides` they would show up as the app's requests.
+  static final _wsHttpClient =
+      HttpOverrides.runWithHttpOverrides(HttpClient.new, _NoHttpOverrides());
 
   /// XOR key for obfuscating cached data.
   static const String _cacheKey = 'DcN3t\$ecR7!';
@@ -346,7 +353,8 @@ class DevConnectClient {
       String host, int port, String expectedMachineId) async {
     WebSocket? probe;
     try {
-      probe = await WebSocket.connect('ws://$host:$port')
+      probe = await WebSocket.connect('ws://$host:$port',
+              customClient: _wsHttpClient)
           .timeout(const Duration(milliseconds: 1500));
 
       final helloCompleter = Completer<String?>();
@@ -571,7 +579,10 @@ class DevConnectClient {
 
   Future<void> connect() async {
     try {
-      _socket = await WebSocket.connect('ws://$_host:$_port');
+      // shortcut: a socket that connects after the timeout is left open.
+      _socket = await WebSocket.connect('ws://$_host:$_port',
+              customClient: _wsHttpClient)
+          .timeout(const Duration(seconds: 5));
       _connected = true;
 
       // Flush pre-init queue (messages from interceptors before init)
@@ -650,9 +661,12 @@ class DevConnectClient {
                   (msg['payload'] as Map?)?.cast<String, dynamic>() ?? {}));
             } else if (type == 'server:layout:capture') {
               final correlationId = msg['correlationId'] as String?;
-              unawaited(captureLayout().then((snapshot) => _send(
-                  'client:layout:snapshot', snapshot,
-                  correlationId: correlationId)));
+              unawaited(captureLayout().then(
+                (snapshot) => _send('client:layout:snapshot', snapshot,
+                    correlationId: correlationId),
+                onError: (Object e) => _send('client:layout:snapshot',
+                    {'error': e.toString()}, correlationId: correlationId),
+              ));
             } else if (type == 'server:database:request_schema') {
               final correlationId = msg['correlationId'] as String?;
               unawaited(_databaseSchemas().then((databases) => _send(
@@ -1384,7 +1398,18 @@ class DevConnectClient {
         throw StateError(
             'No database registered with DevConnect.registerDatabase');
       }
-      final rows = await query(sql);
+      final select =
+          RegExp(r'^\s*(select|with)\b', caseSensitive: false).hasMatch(sql);
+      final inner = sql.replaceFirst(RegExp(r'[\s;]+$'), '');
+      List<Map<String, Object?>> rows;
+      try {
+        rows = await query(select
+            ? 'SELECT * FROM (\n$inner\n) LIMIT ${_maxQueryRows + 1}'
+            : sql);
+      } catch (_) {
+        if (!select) rethrow;
+        rows = await query(sql);
+      }
       result
         ..['columns'] = rows.isEmpty ? <String>[] : rows.first.keys.toList()
         ..['rows'] = [

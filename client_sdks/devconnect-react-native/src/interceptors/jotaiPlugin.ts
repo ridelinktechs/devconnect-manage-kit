@@ -45,6 +45,7 @@ export function devConnectAtomEffect(
 ): any {
   const atomLabel = label ?? targetAtom.debugLabel ?? 'unknown';
   let previousValue: any = undefined;
+  let previousJson = '';
   let initialized = false;
 
   // Create a read-only derived atom that reports when the target atom changes
@@ -52,18 +53,25 @@ export function devConnectAtomEffect(
     read(get: (atom: any) => any) {
       const currentValue = get(targetAtom);
 
+      if (!DevConnect.isListening()) {
+        initialized = false;
+        return currentValue;
+      }
+
       try {
         if (!initialized) {
           initialized = true;
-          previousValue = safeSerialize(currentValue);
+          previousJson = safeJson(currentValue);
+          previousValue = JSON.parse(previousJson);
           DevConnect.reportStateChange({
             stateManager: 'jotai',
             action: `atom:${atomLabel} initialized`,
             nextState: { [atomLabel]: previousValue },
           });
         } else {
-          const serializedCurrent = safeSerialize(currentValue);
-          if (JSON.stringify(previousValue) !== JSON.stringify(serializedCurrent)) {
+          const json = safeJson(currentValue);
+          if (json !== previousJson) {
+            const serializedCurrent = JSON.parse(json);
             DevConnect.reportStateChange({
               stateManager: 'jotai',
               action: `atom:${atomLabel} changed`,
@@ -77,6 +85,7 @@ export function devConnectAtomEffect(
               }],
             });
             previousValue = serializedCurrent;
+            previousJson = json;
           }
         }
       } catch (_) {}
@@ -148,6 +157,10 @@ export function watchAtom(
   let previousValue: any = safeSerialize(store.get(targetAtom));
 
   return store.sub(targetAtom, () => {
+    if (!DevConnect.isListening()) {
+      previousValue = undefined;
+      return;
+    }
     try {
       const currentValue = safeSerialize(store.get(targetAtom));
       DevConnect.reportStateChange({
@@ -168,9 +181,14 @@ export function watchAtom(
 }
 
 function safeSerialize(value: any): any {
+  return JSON.parse(safeJson(value));
+}
+
+/** JSON for `value`, or for an `_error` placeholder when JSON can't encode it. */
+function safeJson(value: any): string {
   try {
-    return JSON.parse(JSON.stringify(value));
-  } catch (_) {
-    return { _error: 'Could not serialize value' };
-  }
+    const json = JSON.stringify(value);
+    if (json !== undefined) return json;
+  } catch (_) {}
+  return '{"_error":"Could not serialize value"}';
 }

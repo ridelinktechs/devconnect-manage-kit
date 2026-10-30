@@ -65,7 +65,15 @@ class JsonNode extends StatefulWidget {
 }
 
 class _JsonNodeState extends State<JsonNode> {
+  /// Children are built a page at a time: a list of thousands would build
+  /// thousands of rows at once.
+  static const _page = 200;
+
+  /// A string value longer than this shows only its start.
+  static const _maxChars = 2000;
+
   late bool _expanded = widget.initiallyExpanded && widget.depth < 2;
+  int _shown = _page;
   List<JsonNode>? _cachedChildren;
   int _generation = 0;
   String _query = '';
@@ -84,6 +92,39 @@ class _JsonNodeState extends State<JsonNode> {
       _query = scope.query;
       if (scope.reveal.contains(widget.path)) _expanded = true;
     }
+    final at = _childOnPath(scope.currentPath);
+    if (at != null && at >= _shown) {
+      _shown = (at ~/ _page + 1) * _page;
+      _cachedChildren = null;
+    }
+  }
+
+  /// Index of the child that [path] (the current search match) is in or
+  /// under, when it's one of this node's.
+  int? _childOnPath(String? path) {
+    final own = widget.path;
+    if (path == null || path.length <= own.length || !path.startsWith(own)) {
+      return null;
+    }
+    final value = widget.value;
+    if (value is List) {
+      final index = RegExp(
+        r'^\[(\d+)\]',
+      ).firstMatch(path.substring(own.length));
+      return index == null ? null : int.parse(index.group(1)!);
+    }
+    if (value is! Map) return null;
+    var i = 0;
+    for (final key in value.keys) {
+      final child = jsonChildPath(own, key);
+      if (path == child ||
+          path.startsWith('$child.') ||
+          path.startsWith('$child[')) {
+        return i;
+      }
+      i++;
+    }
+    return null;
   }
 
   @override
@@ -104,7 +145,7 @@ class _JsonNodeState extends State<JsonNode> {
         ? value.indexed
         : const [];
     return _cachedChildren = [
-      for (final (key, child) in entries)
+      for (final (key, child) in entries.take(_shown))
         JsonNode(
           keyName: key,
           value: child,
@@ -135,11 +176,14 @@ class _JsonNodeState extends State<JsonNode> {
 
     final value = widget.value;
     final container = value is Map || value is List;
+    final cut = value is String && value.length > _maxChars
+        ? value.substring(0, _maxChars)
+        : null;
     final (String text, Color color) = switch (value) {
       Map() => ('{${value.length}}', Colors.grey[500]!),
       List() => ('[${value.length}]', Colors.grey[500]!),
       String() => (
-        '"$value"',
+        cut == null ? '"$value"' : '"$cut…"',
         isDark ? const Color(0xFF98C379) : const Color(0xFF50A14F),
       ),
       num() => (
@@ -160,8 +204,11 @@ class _JsonNodeState extends State<JsonNode> {
       valueText: text,
       valueColor: color,
       valueSamples: value is String
-          ? _colorSamples(value, widget.keyName)
+          ? _colorSamples(cut ?? value, widget.keyName)
           : const [],
+      note: cut == null
+          ? null
+          : S.of(context).jsonLongValue((value as String).length),
       // Containers only match on their key.
       query: query,
       valueSearchable: !container,
@@ -171,9 +218,24 @@ class _JsonNodeState extends State<JsonNode> {
       isDark: isDark,
     );
     if (!container || !_expanded) return row;
+    final more =
+        (value is Map ? value.length : (value as List).length) - _shown;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [row, ..._buildChildren()],
+      children: [
+        row,
+        ..._buildChildren(),
+        if (more > 0)
+          _ShowMore(
+            indent: (widget.depth + 1) * 16.0 + 16,
+            count: more < _page ? more : _page,
+            remaining: more,
+            onTap: () => setState(() {
+              _shown += _page;
+              _cachedChildren = null;
+            }),
+          ),
+      ],
     );
   }
 
@@ -212,6 +274,9 @@ class _JsonRow extends StatefulWidget {
 
   /// Color samples to show in [valueText], at these offsets.
   final List<(int, Color)> valueSamples;
+
+  /// Muted text after the value, such as how long a cut one really is.
+  final String? note;
   final String query;
   final bool valueSearchable;
   final bool current;
@@ -227,6 +292,7 @@ class _JsonRow extends StatefulWidget {
     required this.valueText,
     required this.valueColor,
     required this.valueSamples,
+    this.note,
     required this.query,
     required this.valueSearchable,
     required this.current,
@@ -313,6 +379,11 @@ class _JsonRowState extends State<_JsonRow> {
                             ),
                           )
                         : TextSpan(text: widget.valueText, style: valueStyle),
+                    if (widget.note case final note?)
+                      TextSpan(
+                        text: '  $note',
+                        style: valueStyle.copyWith(color: Colors.grey),
+                      ),
                   ],
                 ),
               ),
@@ -345,6 +416,45 @@ class _JsonRowState extends State<_JsonRow> {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The line after a container's shown children: shows [count] more.
+class _ShowMore extends StatelessWidget {
+  final double indent;
+  final int count;
+  final int remaining;
+  final VoidCallback onTap;
+
+  const _ShowMore({
+    required this.indent,
+    required this.count,
+    required this.remaining,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SelectionContainer.disabled(
+      child: Padding(
+        padding: EdgeInsets.only(left: indent, top: 2, bottom: 2),
+        child: GestureDetector(
+          onTap: onTap,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Text(
+              S.of(context).jsonShowMore(count, remaining),
+              style: chromeMono(
+                context,
+                size: 11,
+                color: ColorTokens.primary,
+                weight: FontWeight.w400,
+              ),
+            ),
+          ),
         ),
       ),
     );

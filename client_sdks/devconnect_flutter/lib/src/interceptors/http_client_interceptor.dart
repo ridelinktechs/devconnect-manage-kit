@@ -172,7 +172,7 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
   final Uri _url;
   final String _requestId;
   final int _startTime;
-  final _body = _BodyCapture();
+  late final _body = _BodyCapture(_inner.headers);
   Future<HttpClientResponse>? _closeFuture;
 
   _DevConnectHttpClientRequest(this._inner, this._method, this._url, Uuid uuid)
@@ -364,7 +364,7 @@ class _DevConnectHttpClientResponse extends Stream<List<int>>
   final Map<String, dynamic> _responseHeaders;
   final dynamic _requestBody;
   bool _reported = false;
-  final _body = _BodyCapture();
+  late final _body = _BodyCapture(_inner.headers);
 
   _DevConnectHttpClientResponse(
     this._inner,
@@ -478,39 +478,75 @@ class _DevConnectHttpClientResponse extends Stream<List<int>>
   Future<Socket> detachSocket() => _inner.detachSocket();
 }
 
-/// Past this many bytes a body is reported by its size alone, so a big
-/// download or a never-ending event stream doesn't pile up in memory.
+/// A body of no stated type, or of one that's neither text nor a known
+/// binary, is kept for the report up to this many bytes, so a big download
+/// doesn't pile up in memory.
 const _maxBodyBytes = 1024 * 1024;
 
-/// A request or response body on its way through, kept for the report up
-/// to [_maxBodyBytes]. The bytes themselves pass through untouched.
+/// Images up to this many bytes are sent for the desktop to show; bigger
+/// ones only by their size.
+const _maxImageBytes = 10 * 1024 * 1024;
+
+/// Text longer than this is sent undecoded: the desktop parses it itself,
+/// off its UI thread.
+const _maxDecodeChars = 1024 * 1024;
+
+/// A request or response body on its way through, kept for the report:
+/// text whole, an image up to [_maxImageBytes], an event stream or other
+/// binary not at all, anything else up to [_maxBodyBytes]. The bytes
+/// themselves pass through untouched.
 class _BodyCapture {
+  _BodyCapture(this._headers);
+
+  final HttpHeaders _headers;
   final _bytes = BytesBuilder();
   var _length = 0;
 
+  /// How many bytes of the body are kept (one past [_maxImageBytes] tells a
+  /// bigger image).
+  late final int _keep = switch (_headers.contentType) {
+    final type? when type.mimeType == 'text/event-stream' => 0,
+    final type? when _isText(type) => 1 << 62,
+    final type? when type.primaryType == 'image' => _maxImageBytes + 1,
+    final type? when _isBinary(type) => 0,
+    _ => _maxBodyBytes,
+  };
+
   void add(List<int> data) {
+    final room = _keep - _bytes.length;
+    if (room > 0) _bytes.add(data.length <= room ? data : data.sublist(0, room));
     _length += data.length;
-    if (_length <= _maxBodyBytes) {
-      _bytes.add(data);
-    } else {
-      _bytes.clear(); // cut: only the size is reported
-    }
   }
 
-  /// The body as JSON or text, or by its size when it was cut, is an event
-  /// stream or is binary (`N bytes`, which the desktop shows as binary).
+  /// The body as JSON or text, an image as a `data:` URL, or by its size
+  /// when it's an event stream or other binary (`N bytes`, which the
+  /// desktop shows as binary). Of anything else, its first [_maxBodyBytes].
   dynamic decode(HttpHeaders headers) {
     if (_length == 0) return null;
-    if (_length > _maxBodyBytes) return '<$_length bytes, cut>';
     try {
       final type = headers.contentType;
       if (type?.mimeType == 'text/event-stream') {
         return '<event stream, $_length bytes>';
       }
-      if (type?.mimeType == 'application/octet-stream' ||
-          const {'image', 'audio', 'video', 'font'}
-              .contains(type?.primaryType)) {
+      if (type != null && _isText(type)) {
+        final text = utf8.decode(_bytes.takeBytes(), allowMalformed: true);
+        if (text.length > _maxDecodeChars) return text;
+        try {
+          return jsonDecode(text);
+        } catch (_) {
+          return text;
+        }
+      }
+      if (type?.primaryType == 'image' && _length <= _maxImageBytes) {
+        return 'data:${type!.mimeType};base64,'
+            '${base64Encode(_bytes.takeBytes())}';
+      }
+      if (type?.primaryType == 'image' || (type != null && _isBinary(type))) {
         return '$_length bytes';
+      }
+      if (_length > _maxBodyBytes) {
+        final head = utf8.decode(_bytes.toBytes(), allowMalformed: true);
+        return '$head…[truncated, $_length bytes]';
       }
       final text = utf8.decode(_bytes.toBytes());
       try {
@@ -523,6 +559,17 @@ class _BodyCapture {
     }
   }
 }
+
+/// Whether a body of [type] is text, which is reported whole.
+bool _isText(ContentType type) =>
+    type.primaryType == 'text' ||
+    const ['json', 'xml', 'javascript', 'x-www-form-urlencoded', 'graphql']
+        .any(type.subType.contains);
+
+/// Whether a body of [type] is binary that's reported by its size alone.
+bool _isBinary(ContentType type) =>
+    type.mimeType == 'application/octet-stream' ||
+    const {'audio', 'video', 'font'}.contains(type.primaryType);
 
 /// A mock rule's canned response, served without the network.
 class _MockHttpClientResponse extends Stream<List<int>>

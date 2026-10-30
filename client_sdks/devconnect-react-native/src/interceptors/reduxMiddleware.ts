@@ -1,5 +1,8 @@
 import { DevConnect } from '../client';
 
+/** The last reported state with its serialized copy, reused as the next action's previous state. */
+let lastReported: { state: any; json: Record<string, any> } | null = null;
+
 /**
  * Redux middleware that auto-reports all dispatched actions and state changes.
  *
@@ -27,17 +30,24 @@ export const devConnectReduxMiddleware = (store: any) => (next: any) => (action:
 
   const result = next(action);
 
+  if (!DevConnect.isListening()) return result;
+
   const nextState = store.getState();
 
   try {
     // Calculate simple diff
     const diff = calculateDiff(previousState, nextState);
+    const serializedPrevious = lastReported && lastReported.state === previousState ? lastReported.json : safeSerialize(previousState);
+    lastReported = {
+      state: nextState,
+      json: nextState === previousState ? serializedPrevious : safeSerialize(nextState),
+    };
 
     DevConnect.reportStateChange({
       stateManager: 'redux',
       action: typeof action === 'object' ? action.type ?? 'unknown' : String(action),
-      previousState: safeSerialize(previousState),
-      nextState: safeSerialize(nextState),
+      previousState: serializedPrevious,
+      nextState: lastReported.json,
       diff,
     });
   } catch (_) {}
@@ -48,10 +58,10 @@ export const devConnectReduxMiddleware = (store: any) => (next: any) => (action:
 function calculateDiff(
   prev: Record<string, any>,
   next: Record<string, any>,
-  path = ''
+  path = '',
+  diffs: Array<Record<string, any>> = [],
+  depth = 0,
 ): Array<Record<string, any>> {
-  const diffs: Array<Record<string, any>> = [];
-
   if (prev === next) return diffs;
 
   if (typeof prev !== 'object' || typeof next !== 'object' || prev === null || next === null) {
@@ -67,6 +77,7 @@ function calculateDiff(
   // Check for additions and changes
   const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
   for (const key of allKeys) {
+    if (diffs.length >= 50) break;
     const currentPath = path ? `${path}.${key}` : key;
     const prevVal = prev[key];
     const nextVal = next[key];
@@ -81,9 +92,9 @@ function calculateDiff(
         typeof nextVal === 'object' &&
         prevVal !== null &&
         nextVal !== null &&
-        diffs.length < 50 // limit recursion
+        depth < 10 // limit recursion
       ) {
-        diffs.push(...calculateDiff(prevVal, nextVal, currentPath));
+        calculateDiff(prevVal, nextVal, currentPath, diffs, depth + 1);
       } else {
         diffs.push({
           path: currentPath,

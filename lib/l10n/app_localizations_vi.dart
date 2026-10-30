@@ -925,6 +925,39 @@ class SVi extends S {
   String get jsonPathCopied => 'Đã copy đường dẫn';
 
   @override
+  String jsonShowMore(int count, int remaining) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+    final intl.NumberFormat remainingNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String remainingString = remainingNumberFormat.format(remaining);
+
+    return 'Hiện thêm $countString (còn $remainingString)';
+  }
+
+  @override
+  String jsonLongValue(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString ký tự, copy để lấy đủ';
+  }
+
+  @override
+  String jsonPrettyCut(int shown, int total) {
+    final intl.NumberFormat shownNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String shownString = shownNumberFormat.format(shown);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    return 'Đang hiện $shownString/$totalString dòng đầu. Copy hoặc lưu file để lấy đầy đủ.';
+  }
+
+  @override
   String jsonTableTruncated(Object count) {
     return 'Chỉ hiện $count dòng đầu.';
   }
@@ -1628,11 +1661,14 @@ class SVi extends S {
 
   @override
   String binaryBodySize(String kb, int bytes) {
-    return '$kb KB ($bytes byte)';
+    return '$kb ($bytes byte)';
   }
 
   @override
   String get binaryBodyHint => 'Xác định action thông qua header X-Amz-Target.';
+
+  @override
+  String get openWithDefaultApp => 'Mở bằng app mặc định';
 
   @override
   String get tipsAndShortcuts => 'Mẹo & Phím tắt';

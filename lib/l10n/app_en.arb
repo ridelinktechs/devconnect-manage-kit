@@ -255,6 +255,26 @@
   "jsonKeyCopied": "Key copied",
   "jsonValueCopied": "Value copied",
   "jsonPathCopied": "Path copied",
+  "jsonShowMore": "Show {count} more ({remaining} left)",
+  "@jsonShowMore": {
+    "placeholders": {
+      "count": { "type": "int", "format": "decimalPattern" },
+      "remaining": { "type": "int", "format": "decimalPattern" }
+    }
+  },
+  "jsonLongValue": "{count} characters, copy to get all",
+  "@jsonLongValue": {
+    "placeholders": {
+      "count": { "type": "int", "format": "decimalPattern" }
+    }
+  },
+  "jsonPrettyCut": "Showing the first {shown} of {total} lines. Copy or save to get all of them.",
+  "@jsonPrettyCut": {
+    "placeholders": {
+      "shown": { "type": "int", "format": "decimalPattern" },
+      "total": { "type": "int", "format": "decimalPattern" }
+    }
+  },
   "jsonTableTruncated": "Showing the first {count} rows.",
   "networkErrors": "Errors",
   "networkSearchBodies": "Also search request & response bodies",
@@ -474,7 +494,7 @@
   "@binaryBody": {
     "placeholders": { "label": { "type": "String" } }
   },
-  "binaryBodySize": "{kb} KB ({bytes} bytes)",
+  "binaryBodySize": "{kb} ({bytes} bytes)",
   "@binaryBodySize": {
     "placeholders": {
       "kb": { "type": "String" },
@@ -482,6 +502,7 @@
     }
   },
   "binaryBodyHint": "Identify the action via the X-Amz-Target header.",
+  "openWithDefaultApp": "Open in default app",
   "tipsAndShortcuts": "Tips & Shortcuts",
   "tipsAndShortcutsDesc": "Quick guides for the most useful workflows. Click any card for details.",
   "tipAllEventsTitle": "All Events feed",

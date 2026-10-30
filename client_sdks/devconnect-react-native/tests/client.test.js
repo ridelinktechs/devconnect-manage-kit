@@ -110,6 +110,18 @@ test('console calls never throw on a null-prototype object', () => {
   assert.doesNotThrow(() => console.error('*** NSException ***', nullLoop));
 });
 
+test('a console.error that looks like a native crash is reported and still reaches the app\'s console', () => {
+  const from = socket.sent.length;
+  printed.length = 0;
+  console.error('java.lang.IllegalStateException: boom');
+  console.error('*** NSException *** boom');
+  assert.deepEqual(printed, [['java.lang.IllegalStateException: boom'], ['*** NSException *** boom']]);
+  const crashes = socket.sent.slice(from).filter((m) => m.type === 'client:error' && m.payload.severity === 'crash');
+  assert.deepEqual(crashes.map((m) => m.payload.source), ['android.native', 'ios.native']);
+  // Reported once, as a crash: not again as a JS console.error.
+  assert.equal(socket.sent.slice(from).filter((m) => m.type === 'client:error' && m.payload.message.includes('NSException')).length, 1);
+});
+
 test('an XHR aborted during the throttle delay is dropped, not a crash', async () => {
   fromDesktop('server:network:throttle', { latencyMs: 20 });
   try {
@@ -141,4 +153,37 @@ test('offline throttle fails the XHR like a dead network instead of throwing', (
   } finally {
     fromDesktop('server:network:throttle', {});
   }
+});
+
+test('a desktop SELECT loads at most 1001 rows from the app\'s database; other statements run as typed', async () => {
+  const issued = [];
+  DevConnect.registerDatabase('app.db', (sql) => {
+    issued.push(sql);
+    if (/^SELECT \* FROM \(.*\bDELETE\b/s.test(sql) || sql.includes('missing')) throw new Error('syntax error');
+    return Array.from({ length: /\bLIMIT 1001$/.test(sql) ? 1001 : 5000 }, (_, id) => ({ id }));
+  });
+  const run = async (sql) => {
+    fromDesktop('server:database:query', { database: 'app.db', sql });
+    await sleep(0);
+    return socket.sent.findLast((m) => m.type === 'client:database:query_result').payload;
+  };
+
+  const result = await run('select id from t -- every row\n; ');
+  assert.equal(issued.at(-1), 'SELECT * FROM (select id from t -- every row\n) LIMIT 1001');
+  assert.equal(result.rows.length, 1000);
+  assert.equal(result.truncated, true);
+  assert.deepEqual(result.columns, ['id']);
+  assert.equal(typeof result.executionTimeMs, 'number');
+
+  await run(' WITH x AS (SELECT 1) SELECT * FROM x;');
+  assert.equal(issued.at(-1), 'SELECT * FROM ( WITH x AS (SELECT 1) SELECT * FROM x\n) LIMIT 1001');
+
+  await run('UPDATE t SET id = 1;');
+  assert.equal(issued.at(-1), 'UPDATE t SET id = 1;');
+
+  const dml = await run('WITH old AS (SELECT 1) DELETE FROM t');
+  assert.equal(issued.at(-1), 'WITH old AS (SELECT 1) DELETE FROM t');
+  assert.equal(dml.error, undefined);
+
+  assert.equal((await run('SELECT * FROM missing')).error, 'syntax error');
 });

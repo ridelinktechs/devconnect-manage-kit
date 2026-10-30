@@ -65,6 +65,54 @@ export function safeString(v: unknown): string {
   try { return String(v); } catch (_) { return '[object Object]'; }
 }
 
+/** Text bodies longer than this are sent unparsed: the desktop parses them off its UI thread. */
+const MAX_PARSE_SIZE = 1_048_576;
+
+/** Response bodies of no stated type bigger than this aren't read: only their size is reported. */
+const MAX_READ_SIZE = 10 * MAX_PARSE_SIZE;
+
+/** Images up to this many bytes are sent for the desktop to show; bigger ones by their size. */
+const MAX_IMAGE_SIZE = 10 * MAX_PARSE_SIZE;
+
+/**
+ * Messages longer than this go out in chunks of this many characters, one
+ * at a time: OkHttp (RN's WebSocket on Android) drops the connection once
+ * 16 MB wait to be sent.
+ */
+const CHUNK_SIZE = 1_000_000;
+
+/** A chunk the desktop hasn't acked after this long gives up the rest of its message. */
+const CHUNK_ACK_TIMEOUT = 15_000;
+
+/** Binary bodies as `<N bytes>`; anything else unchanged. */
+export function capBody(body: any): any {
+  return body instanceof ArrayBuffer || ArrayBuffer.isView(body) ? `<${body.byteLength} bytes>` : body;
+}
+
+/** [text] parsed when it's JSON, unless it's longer than MAX_PARSE_SIZE. */
+export function parseBody(text: string): any {
+  if (text.length > MAX_PARSE_SIZE) return text;
+  try { return JSON.parse(text); } catch (_) { return text; }
+}
+
+/** Whether a body of this (lowercase) content type is text, which is sent whole. */
+function isTextType(type: string): boolean {
+  return /json|xml|javascript|x-www-form-urlencoded|graphql|^text\//.test(type);
+}
+
+/** [blob] as a `data:` URL of type [mime], for the desktop to show. */
+function dataUrl(blob: any, mime: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new (globalThis as any).FileReader();
+    reader.onload = () => {
+      const url = String(reader.result);
+      resolve(`data:${mime};base64,${url.slice(url.indexOf(',') + 1)}`);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 /**
  * Convert a seed string to a UUID v5-like format (deterministic).
  * Uses FNV-1a to produce 128 bits, then formats as UUID with version=5, variant=a.
@@ -534,6 +582,13 @@ export class DevConnect {
   private connected = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private messageQueue: string[] = [];
+  /** Messages longer than CHUNK_SIZE, sent a chunk at a time by [_sendChunk]. */
+  private _bigMessages: string[] = [];
+  /** Characters of `_bigMessages[0]` sent so far, under this id. */
+  private _bigSent = 0;
+  private _bigId = '';
+  /** Set while a chunk waits for the desktop's ack. */
+  private _chunkTimer: ReturnType<typeof setTimeout> | null = null;
   private _reduxStore: any = null;
   private _stateRestoreHandler: ((state: any) => void) | null = null;
   private _customCommandHandlers: Map<string, (args?: any) => any> = new Map();
@@ -723,14 +778,16 @@ export class DevConnect {
       try { this.ws.onclose = null; this.ws.onerror = null; this.ws.close(); } catch (_) {}
       this.ws = null;
     }
+    this._stopChunks();
     try {
       this.ws = new NativeWebSocket(`ws://${this.config.host}:${this.config.port}`);
 
       let handshakeSent = false;
       this.ws.onopen = () => {
         this.connected = true;
-        this.messageQueue.forEach((msg) => this.ws?.send(msg));
+        this.messageQueue.forEach((msg) => this._wsSend(msg));
         this.messageQueue = [];
+        this._sendChunk();
       };
 
       this.ws.onmessage = (event: WebSocketMessageEvent) => {
@@ -746,6 +803,8 @@ export class DevConnect {
               saveHostCache(this.config.host, serverMachineId).catch(() => {});
             }
             this.sendHandshake();
+          } else if (msg.type === 'server:chunk_ack') {
+            if (msg.payload?.id === this._bigId) this._chunkAcked();
           } else if (msg.type === 'server:redux:dispatch') {
             // Desktop dispatching a Redux action into the app
             if (this._reduxStore && msg.payload?.action) {
@@ -831,8 +890,8 @@ export class DevConnect {
         } catch (_) {}
       };
 
-      this.ws.onclose = () => { this.connected = false; this.scheduleReconnect(); };
-      this.ws.onerror = () => { this.connected = false; this.scheduleReconnect(); };
+      this.ws.onclose = () => { this.connected = false; this._stopChunks(); this.scheduleReconnect(); };
+      this.ws.onerror = () => { this.connected = false; this._stopChunks(); this.scheduleReconnect(); };
     } catch (_) {
       this.scheduleReconnect();
     }
@@ -1004,7 +1063,16 @@ export class DevConnect {
     try {
       const query = this._databases.get(database ?? '') ?? this._databases.values().next().value;
       if (!query) throw new Error('No database registered with DevConnect.registerDatabase');
-      const rows = (await query(sql)) ?? [];
+      const limited = /^\s*(select|with)\b/i.test(sql)
+        ? `SELECT * FROM (${sql.replace(/[\s;]+$/, '')}\n) LIMIT ${MAX_QUERY_ROWS + 1}`
+        : sql;
+      let rows: Array<Record<string, any>>;
+      try {
+        rows = (await query(limited)) ?? [];
+      } catch (e) {
+        if (limited === sql) throw e;
+        rows = (await query(sql)) ?? [];
+      }
       result.columns = rows.length > 0 ? Object.keys(rows[0]) : [];
       result.rows = rows.slice(0, MAX_QUERY_ROWS);
       result.truncated = rows.length > MAX_QUERY_ROWS;
@@ -1050,11 +1118,54 @@ export class DevConnect {
     try {
       const json = JSON.stringify(message);
       if (this.connected && this.ws) {
-        this.ws.send(json);
+        this._wsSend(json);
       } else if (this.messageQueue.length < 1000) {
         this.messageQueue.push(json);
       }
     } catch (_) {}
+  }
+
+  /** Sends [json] now, or in chunks by [_sendChunk] when it's longer than CHUNK_SIZE. */
+  private _wsSend(json: string): void {
+    if (json.length <= CHUNK_SIZE) {
+      this.ws?.send(json);
+      return;
+    }
+    this._bigMessages.push(json);
+    this._sendChunk();
+  }
+
+  /** Sends the next chunk of the first big message, unless one still waits for its ack. */
+  private _sendChunk(): void {
+    const json = this._bigMessages[0];
+    if (json === undefined || this._chunkTimer || !this.connected || !this.ws) return;
+    if (this._bigSent === 0) this._bigId = generateId();
+    let end = Math.min(this._bigSent + CHUNK_SIZE, json.length);
+    const code = json.charCodeAt(end - 1);
+    // A surrogate pair stays in one chunk.
+    if (end < json.length && code >= 0xd800 && code < 0xdc00) end--;
+    const data = json.slice(this._bigSent, end);
+    this._bigSent = end;
+    this._chunkTimer = setTimeout(() => this._chunkAcked(true), CHUNK_ACK_TIMEOUT);
+    this.ws.send(JSON.stringify({ type: 'client:chunk', payload: { id: this._bigId, data, last: end === json.length } }));
+  }
+
+  /** The chunk in flight was acked, or [timedOut], which gives up its message: on to the next one. */
+  private _chunkAcked(timedOut = false): void {
+    if (this._chunkTimer) clearTimeout(this._chunkTimer);
+    this._chunkTimer = null;
+    if (timedOut || this._bigSent >= (this._bigMessages[0]?.length ?? 0)) {
+      this._bigMessages.shift();
+      this._bigSent = 0;
+    }
+    this._sendChunk();
+  }
+
+  /** The socket is gone, and the desktop's half of a big message with it: it goes again whole. */
+  private _stopChunks(): void {
+    if (this._chunkTimer) clearTimeout(this._chunkTimer);
+    this._chunkTimer = null;
+    this._bigSent = 0;
   }
 
   // ---- Fetch interceptor ----
@@ -1133,7 +1244,7 @@ export class DevConnect {
           }
           requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
         } else {
-          try { requestBody = JSON.parse(finalBody as string); } catch (_) { requestBody = String(finalBody); }
+          requestBody = parseBody(safeString(capBody(finalBody)));
         }
       }
 
@@ -1184,18 +1295,29 @@ export class DevConnect {
 
       try {
         const response = await responsePromise;
-        const clone = response.clone();
-        let responseBody: any;
-        try { const text = await clone.text(); try { responseBody = JSON.parse(text); } catch (_) { responseBody = text; } } catch (_) {}
         const resHeaders: Record<string, string> = {};
         response.headers.forEach((v, k) => (resHeaders[k] = v));
 
-        dc.send('client:network:request_complete', {
+        const report = (responseBody?: any) => dc.send('client:network:request_complete', {
           requestId, method, url, statusCode: response.status, startTime,
           endTime: Date.now(), duration: Date.now() - startTime,
           requestHeaders: reqHeaders, responseHeaders: resHeaders, requestBody, responseBody, source,
           via: 'fetch',
         });
+        const type = (response.headers.get('content-type') ?? '').toLowerCase();
+        const size = Number(response.headers.get('content-length'));
+        if (type.includes('event-stream')) {
+          report('<stream>');
+        } else if (isTextType(type) || (!type && !(size > MAX_READ_SIZE))) {
+          response.clone().text().then((text) => report(parseBody(text)), () => report());
+        } else if (!type) {
+          report(`<${size} bytes>`);
+        } else {
+          const mime = type.split(';')[0].trim();
+          response.clone().blob().then(async (blob: any) => report(mime.startsWith('image/') && blob.size <= MAX_IMAGE_SIZE
+            ? await dataUrl(blob, mime)
+            : `<${blob.size} bytes>`)).catch(() => report());
+        }
         const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
         if (currentCount <= 1) {
           dc.fetchInFlight.delete(fetchKey);
@@ -1266,7 +1388,8 @@ export class DevConnect {
             }
             requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
           } else {
-            try { requestBody = JSON.parse(body); } catch (_) { requestBody = body; }
+            const data = capBody(body);
+            requestBody = typeof data === 'string' ? parseBody(data) : data;
           }
         }
         // Skip the start report if the fetch interceptor already
@@ -1303,18 +1426,16 @@ export class DevConnect {
         let responseBody: any;
         const rt = xhr.responseType;
         if (!rt || rt === 'text' || (rt as string) === '') {
-          try { responseBody = JSON.parse(xhr.responseText); } catch (_) { responseBody = xhr.responseText; }
+          responseBody = parseBody(xhr.responseText);
         } else if (rt === 'json') {
           responseBody = xhr.response;
         } else {
           // Non-text responseType (blob, arraybuffer, ...). If the
           // server's Content-Type looks like JSON or text, try to read
           // it as text — saves the user from seeing `<blob 2852 bytes>`
-          // when the server actually sent JSON. No size cap: a mis-set
-          // responseType on a JSON API response can be arbitrarily
-          // large, and we trust the Content-Type to tell us when the
-          // body is genuinely binary (image/*, video/*, audio/*,
-          // application/octet-stream, ...).
+          // when the server actually sent JSON. We trust the Content-Type
+          // to tell us when the body is genuinely binary (image/*, video/*,
+          // audio/*, application/octet-stream, ...).
           const ct = (resHeaders['content-type'] ?? '').toLowerCase();
           const isJsonCt = ct.includes('json') || ct.includes('+json');
           const isTextCt = ct.startsWith('text/') || ct === 'application/javascript' || ct === 'application/x-www-form-urlencoded';
@@ -1323,15 +1444,12 @@ export class DevConnect {
           if ((isJsonCt || isTextCt) && blob && typeof blob.text === 'function') {
             try {
               const text = await blob.text();
-              if (isJsonCt) {
-                try { responseBody = JSON.parse(text); }
-                catch (_) { responseBody = text; }
-              } else {
-                responseBody = text;
-              }
+              responseBody = isJsonCt ? parseBody(text) : text;
             } catch (_) {
               responseBody = `<${rt} ${blobSize || '?'} bytes>`;
             }
+          } else if (rt === 'blob' && ct.startsWith('image/') && !ct.includes('svg') && blob && blobSize <= MAX_IMAGE_SIZE) {
+            responseBody = await dataUrl(blob, ct.split(';')[0].trim()).catch(() => `<${rt} ${blobSize} bytes>`);
           } else {
             responseBody = `<${rt} ${blobSize || xhr.response?.byteLength || '?'} bytes>`;
           }
@@ -1532,6 +1650,13 @@ export class DevConnect {
   /** Check if currently connected to DevConnect desktop. */
   static isConnected(): boolean {
     return DevConnect.instance?.connected ?? false;
+  }
+
+  /** Connected, or the first connection attempt is still under way: changes made now are queued, not lost. */
+  static isListening(): boolean {
+    const instance = DevConnect.instance;
+    if (!instance) return typeof __DEV__ !== 'undefined' && __DEV__;
+    return instance.connected || (instance.config.enabled && instance.reconnectTimer === null);
   }
 
   /** Disconnect from DevConnect desktop. */

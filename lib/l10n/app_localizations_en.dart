@@ -927,6 +927,39 @@ class SEn extends S {
   String get jsonPathCopied => 'Path copied';
 
   @override
+  String jsonShowMore(int count, int remaining) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+    final intl.NumberFormat remainingNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String remainingString = remainingNumberFormat.format(remaining);
+
+    return 'Show $countString more ($remainingString left)';
+  }
+
+  @override
+  String jsonLongValue(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString characters, copy to get all';
+  }
+
+  @override
+  String jsonPrettyCut(int shown, int total) {
+    final intl.NumberFormat shownNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String shownString = shownNumberFormat.format(shown);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    return 'Showing the first $shownString of $totalString lines. Copy or save to get all of them.';
+  }
+
+  @override
   String jsonTableTruncated(Object count) {
     return 'Showing the first $count rows.';
   }
@@ -1628,12 +1661,15 @@ class SEn extends S {
 
   @override
   String binaryBodySize(String kb, int bytes) {
-    return '$kb KB ($bytes bytes)';
+    return '$kb ($bytes bytes)';
   }
 
   @override
   String get binaryBodyHint =>
       'Identify the action via the X-Amz-Target header.';
+
+  @override
+  String get openWithDefaultApp => 'Open in default app';
 
   @override
   String get tipsAndShortcuts => 'Tips & Shortcuts';

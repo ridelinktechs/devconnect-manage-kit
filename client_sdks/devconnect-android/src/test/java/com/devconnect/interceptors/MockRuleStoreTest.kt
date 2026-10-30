@@ -316,6 +316,17 @@ class MockRuleStoreTest {
     }
 
     @Test
+    fun `clearDesktopRules drops pushed rules and keeps the app's own`() {
+        MockRuleStore.setRules(listOf(rule(id = "app")))
+        MockRuleStore.clearDesktopRules()
+        assertEquals("app", MockRuleStore.findMatch("GET", "https://x", null)?.id)
+
+        MockRuleStore.loadFromPayload(JSONObject("""{"rules":[{"id":"pushed","match":{"url":".*"}}]}"""))
+        MockRuleStore.clearDesktopRules()
+        assertNull(MockRuleStore.findMatch("GET", "https://x", null))
+    }
+
+    @Test
     fun `loadFromPayload keeps disabled rules out`() {
         MockRuleStore.loadFromPayload(JSONObject("""
             {"rules":[{"id":"off","enabled":false,"match":{"url":".*"},"response":{}}]}

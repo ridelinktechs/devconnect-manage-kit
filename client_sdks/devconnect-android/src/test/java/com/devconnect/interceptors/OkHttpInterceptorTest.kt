@@ -27,6 +27,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.util.Base64
 
 /**
  * [OkHttpInterceptor] only observes: the app gets its bodies untouched.
@@ -63,14 +64,46 @@ class OkHttpInterceptorTest {
     @Test
     fun `binary response over the cap reaches the app byte for byte`() {
         // Not valid UTF-8, bigger than the 1 MB cap, streamed like a network body.
-        val image = ByteArray(2 * 1024 * 1024) { it.toByte() }
-        val body = ByteArrayInputStream(image).source().buffer()
-            .asResponseBody("image/jpeg".toMediaType(), image.size.toLong())
+        val video = ByteArray(2 * 1024 * 1024) { it.toByte() }
+        val body = ByteArrayInputStream(video).source().buffer()
+            .asResponseBody("video/mp4".toMediaType(), video.size.toLong())
 
         val response = call(get()) { respond(it, body) }
 
-        assertArrayEquals(image, response.body.bytes())
+        assertArrayEquals(video, response.body.bytes())
         assertEquals("<binary, 2097152 bytes>", reports().single().getString("responseBody"))
+    }
+
+    @Test
+    fun `an image is sent as a data URL and reaches the app byte for byte`() {
+        val image = ByteArray(2 * 1024 * 1024) { it.toByte() }
+        val body = ByteArrayInputStream(image).source().buffer()
+            .asResponseBody("image/png".toMediaType(), image.size.toLong())
+        val huge = ByteArray(11 * 1024 * 1024)
+
+        val response = call(get()) { respond(it, body) }
+        call(get()) { respond(it, huge.toResponseBody("image/jpeg".toMediaType())) }.close()
+
+        assertArrayEquals(image, response.body.bytes())
+        val (small, big) = reports().map { it.getString("responseBody") }
+        assertTrue(small.startsWith("data:image/png;base64,"))
+        assertArrayEquals(image, Base64.getDecoder().decode(small.substringAfter(',')))
+        assertEquals("<binary, 11534336 bytes>", big)
+    }
+
+    @Test
+    fun `a big json body is reported whole`() {
+        val json = "[" + List(200_000) { "\"0123456789\"" }.joinToString(",") + "]"
+        val type = "application/json".toMediaType()
+
+        val response = call(Request.Builder().url(URL).post(json.toRequestBody(type)).build()) {
+            respond(it, json.toResponseBody(type))
+        }
+
+        assertEquals(json, response.body.string())
+        val report = reports().single()
+        assertEquals(json, report.getString("responseBody"))
+        assertEquals(json, report.getString("requestBody"))
     }
 
     @Test

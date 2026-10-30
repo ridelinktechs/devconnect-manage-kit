@@ -915,6 +915,39 @@ class SJa extends S {
   String get jsonPathCopied => 'パスをコピーしました';
 
   @override
+  String jsonShowMore(int count, int remaining) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+    final intl.NumberFormat remainingNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String remainingString = remainingNumberFormat.format(remaining);
+
+    return 'さらに $countString 件表示（残り $remainingString 件）';
+  }
+
+  @override
+  String jsonLongValue(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString 文字、全文はコピーで取得';
+  }
+
+  @override
+  String jsonPrettyCut(int shown, int total) {
+    final intl.NumberFormat shownNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String shownString = shownNumberFormat.format(shown);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    return '$totalString 行のうち先頭 $shownString 行を表示中。全文はコピーまたは保存で取得できます。';
+  }
+
+  @override
   String jsonTableTruncated(Object count) {
     return '先頭 $count 行のみ表示しています。';
   }
@@ -1602,11 +1635,14 @@ class SJa extends S {
 
   @override
   String binaryBodySize(String kb, int bytes) {
-    return '$kb KB ($bytes バイト)';
+    return '$kb ($bytes バイト)';
   }
 
   @override
   String get binaryBodyHint => 'アクションは X-Amz-Target ヘッダーで識別してください。';
+
+  @override
+  String get openWithDefaultApp => '既定のアプリで開く';
 
   @override
   String get tipsAndShortcuts => 'ヒント＆ショートカット';

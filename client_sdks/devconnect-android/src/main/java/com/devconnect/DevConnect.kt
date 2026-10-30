@@ -469,6 +469,11 @@ object DevConnect {
                 // The handshake just went out: tell the desktop what it can run.
                 announceCommands()
             }
+            ws.onDisconnected = {
+                networkLatencyMs = 0
+                networkOffline = false
+                com.devconnect.interceptors.MockRuleStore.clearDesktopRules()
+            }
             ws.onServerMessage = { type, json ->
                 val payload = json.optJSONObject("payload") ?: JSONObject()
                 when (type) {

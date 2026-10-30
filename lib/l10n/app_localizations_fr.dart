@@ -933,6 +933,39 @@ class SFr extends S {
   String get jsonPathCopied => 'Chemin copié';
 
   @override
+  String jsonShowMore(int count, int remaining) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+    final intl.NumberFormat remainingNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String remainingString = remainingNumberFormat.format(remaining);
+
+    return 'Afficher $countString de plus ($remainingString restants)';
+  }
+
+  @override
+  String jsonLongValue(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '$countString caractères, copiez pour tout avoir';
+  }
+
+  @override
+  String jsonPrettyCut(int shown, int total) {
+    final intl.NumberFormat shownNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String shownString = shownNumberFormat.format(shown);
+    final intl.NumberFormat totalNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String totalString = totalNumberFormat.format(total);
+
+    return 'Affichage des $shownString premières lignes sur $totalString. Copiez ou enregistrez pour tout avoir.';
+  }
+
+  @override
   String jsonTableTruncated(Object count) {
     return 'Seules les $count premières lignes sont affichées.';
   }
@@ -1637,12 +1670,15 @@ class SFr extends S {
 
   @override
   String binaryBodySize(String kb, int bytes) {
-    return '$kb Ko ($bytes octets)';
+    return '$kb ($bytes octets)';
   }
 
   @override
   String get binaryBodyHint =>
       'Identifiez l\'action via l\'en-tête X-Amz-Target.';
+
+  @override
+  String get openWithDefaultApp => 'Ouvrir avec l\'app par défaut';
 
   @override
   String get tipsAndShortcuts => 'Astuces & Raccourcis';

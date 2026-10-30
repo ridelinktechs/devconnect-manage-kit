@@ -193,18 +193,36 @@ class WsServer {
     );
     socket.add(jsonEncode(helloMsg.toJson()));
 
+    /// Messages arriving in chunks, by id: each chunk is acked, and the last
+    /// one hands the joined message on.
+    final chunks = <String, StringBuffer>{};
+    void handle(String data) {
+      final json = jsonDecode(data) as Map<String, dynamic>;
+      if (json['type'] == WsMessageTypes.clientChunk) {
+        final payload = json['payload'] as Map<String, dynamic>;
+        final id = payload['id'] as String;
+        chunks.putIfAbsent(id, StringBuffer.new).write(payload['data']);
+        socket.add(jsonEncode({
+          'type': WsMessageTypes.serverChunkAck,
+          'payload': {'id': id},
+        }));
+        if (payload['last'] == true) handle(chunks.remove(id)!.toString());
+        return;
+      }
+      final message = DCMessage.fromJson(json);
+
+      if (message.type == WsMessageTypes.clientHandshake) {
+        _handleHandshake(socket, message, clientIp);
+      } else {
+        _messageController.add(message);
+      }
+    }
+
     // Listen for messages
     socket.listen(
       (data) {
         try {
-          final json = jsonDecode(data as String) as Map<String, dynamic>;
-          final message = DCMessage.fromJson(json);
-
-          if (message.type == WsMessageTypes.clientHandshake) {
-            _handleHandshake(socket, message, clientIp);
-          } else {
-            _messageController.add(message);
-          }
+          handle(data as String);
         } catch (_) {
           // ignore malformed messages
         }

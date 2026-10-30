@@ -11,6 +11,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/lru_cache.dart';
 import '../../../core/utils/smooth_scroll_controller.dart';
 import '../../../core/utils/toast_utils.dart';
+import '../../../l10n/app_localizations.dart';
 import 'json_mini_button.dart';
 
 /// Per-line highlight result from isolate.
@@ -25,6 +26,11 @@ class _HighlightResult {
 }
 
 /// Runs in isolate — per-line tokenization.
+/// Text past this many characters isn't highlighted or shown: laid out as
+/// one paragraph, megabytes of it would hang the UI. Copy and save still
+/// take all of it.
+const _maxShownChars = 300000;
+
 _HighlightResult _computeHighlight(List<dynamic> args) {
   final rawData = args[0];
   final isDark = args[1] as bool;
@@ -72,7 +78,11 @@ _HighlightResult _computeHighlight(List<dynamic> args) {
 
   final lineTokens = <List<Object>>[];
 
-  for (final line in lines) {
+  var left = _maxShownChars;
+  for (final whole in lines) {
+    if (left <= 0) break;
+    final line = whole.length > left ? whole.substring(0, left) : whole;
+    left -= line.length + 1;
     final tokens = <Object>[];
     int cursor = 0;
 
@@ -237,7 +247,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
       return;
     }
     _lineNumbersText = List.generate(
-      _result!.lineCount,
+      _result!.lineTokens.length,
       (i) => '${i + 1}',
     ).join('\n');
     _cachedSpans = _buildAllSpans(_result!);
@@ -500,6 +510,21 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
                     ),
                   ),
                 ),
+              ),
+            ),
+          if (!_loading &&
+              _result != null &&
+              _result!.lineTokens.length < _result!.lineCount)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+              child: Text(
+                S
+                    .of(context)
+                    .jsonPrettyCut(
+                      _result!.lineTokens.length,
+                      _result!.lineCount,
+                    ),
+                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
               ),
             ),
         ],

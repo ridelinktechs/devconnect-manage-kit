@@ -1,11 +1,15 @@
 package com.devconnect.plugins
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.Snapshot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
+import java.lang.ref.WeakReference
 import java.lang.reflect.Method
 import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
@@ -131,6 +135,56 @@ class ComposeStateObserverTest {
         )
     }
 
+    @Test
+    fun `a big value shows its first items and its size, not all of it`() {
+        val safeStringify = observerClass.getDeclaredMethod("safeStringify", Any::class.java).apply {
+            isAccessible = true
+        }
+
+        val described = safeStringify.invoke(ComposeStateObserver, FakeComposeState(HugeList()))
+        val array = safeStringify.invoke(ComposeStateObserver, FakeComposeState(intArrayOf(1, 2)))
+
+        assertEquals((0 until 100).joinToString(prefix = "[", postfix = ", … 10000 items]"), described)
+        assertEquals("[1, 2]", array)
+    }
+
+    @Test
+    fun `a small value is still reported in full`() {
+        val safeStringify = observerClass.getDeclaredMethod("safeStringify", Any::class.java).apply {
+            isAccessible = true
+        }
+
+        val described = safeStringify.invoke(ComposeStateObserver, FakeComposeState(Pair(1, listOf("a", "b"))))
+
+        assertEquals("(1, [a, b])", described)
+    }
+
+    @Test
+    fun `a state the app dropped can be garbage collected`() {
+        ComposeStateObserver.start()
+        try {
+            val lastValues = observerClass.getDeclaredField("lastValues").apply { isAccessible = true }
+                .get(ComposeStateObserver) as Map<*, *>
+            val dropped = writeAndDrop()
+            assertEquals("the observer saw the write", 1, lastValues.size)
+
+            repeat(50) {
+                if (dropped.get() == null) return
+                System.gc()
+                Thread.sleep(20)
+            }
+            fail("the observer keeps every state it ever saw alive")
+        } finally {
+            ComposeStateObserver.stop()
+        }
+    }
+
+    private fun writeAndDrop(): WeakReference<Any> {
+        val state = mutableStateOf("a")
+        Snapshot.withMutableSnapshot { state.value = "b" }
+        return WeakReference(state)
+    }
+
     /**
      * Mimics Compose's `MutableState<T>` by exposing a no-arg
      * `getValue()` method that returns the underlying value. Reflection
@@ -138,8 +192,15 @@ class ComposeStateObserverTest {
      * Compose itself doesn't initialise `Snapshot` here.
      */
     @Suppress("unused")
-    private class FakeComposeState(private val value: String) {
-        fun getValue(): String = value
+    private class FakeComposeState(private val value: Any?) {
+        fun getValue(): Any? = value
+    }
+
+    /** A list whose full toString() is off limits. */
+    private class HugeList : AbstractList<Int>() {
+        override val size = 10_000
+        override fun get(index: Int) = index
+        override fun toString(): String = throw AssertionError("printed in full")
     }
 
     /** Intentionally lacks a `getValue()` method — exercises the cache's null entry. */

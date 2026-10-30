@@ -98,4 +98,44 @@ void main() {
 
     expect(server.connections.keys, ['ios-launch-2']);
   });
+
+  test('a message sent in chunks arrives whole, each chunk acked', () async {
+    final ws = await WebSocket.connect('ws://127.0.0.1:${server.port}');
+    sockets.add(ws);
+    final acks = <Object?>[];
+    ws.listen((data) {
+      final message = jsonDecode(data as String) as Map<String, dynamic>;
+      if (message['type'] == WsMessageTypes.serverChunkAck) {
+        acks.add((message['payload'] as Map)['id']);
+      }
+    });
+    final text = 'ą' * 2500;
+    final json = jsonEncode({
+      'id': 'm1',
+      'type': 'client:log',
+      'deviceId': 'ios',
+      'timestamp': 0,
+      'payload': {'message': text},
+    });
+    final received = server.onMessage.first;
+
+    for (var at = 0; at < json.length; at += 1000) {
+      final end = at + 1000 < json.length ? at + 1000 : json.length;
+      ws.add(
+        jsonEncode({
+          'type': WsMessageTypes.clientChunk,
+          'payload': {
+            'id': 'c1',
+            'data': json.substring(at, end),
+            'last': end == json.length,
+          },
+        }),
+      );
+    }
+
+    final message = await received.timeout(const Duration(seconds: 5));
+    expect(message.payload['message'], text);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(acks, List.filled((json.length / 1000).ceil(), 'c1'));
+  });
 }

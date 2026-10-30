@@ -15,6 +15,7 @@ import '../../../../core/utils/toast_utils.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../shared/detect_blob_payload.dart';
 import 'blob_info.dart';
+import 'image_body.dart';
 
 /// Tab body viewer for a single network request/response body. Three
 /// modes (`Tree` / `JSON` / `Code`) gated behind the global
@@ -30,11 +31,15 @@ class BodyTab extends ConsumerStatefulWidget {
   final String label;
   final String deviceId;
 
+  /// See [BlobInfo.openUrl].
+  final String? openUrl;
+
   const BodyTab({
     super.key,
     required this.body,
     required this.label,
     required this.deviceId,
+    this.openUrl,
   });
 
   @override
@@ -66,12 +71,16 @@ class _BodyTabState extends ConsumerState<BodyTab> {
       );
     }
 
+    if (widget.body case final String url when url.startsWith('data:image/')) {
+      return ImageBody(dataUrl: url, label: widget.label, isDark: isDark);
+    }
     final blob = detectBlobPayload(widget.body);
     if (blob.$1 != null) {
       return BlobInfo(
         label: widget.label,
         sizeBytes: blob.$2 ?? 0,
         isDark: isDark,
+        openUrl: widget.openUrl,
       );
     }
 

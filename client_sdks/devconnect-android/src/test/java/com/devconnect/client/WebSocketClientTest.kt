@@ -1,8 +1,12 @@
 package com.devconnect.client
 
+import com.devconnect.DevConnect
+import com.devconnect.interceptors.MockRuleStore
+import com.devconnect.plugins.ComposeStateObserver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.DataInputStream
@@ -57,6 +61,68 @@ class WebSocketClientTest {
             client.disconnect()
             server.close()
         }
+    }
+
+    @Test
+    fun `a message of megabytes goes out as one frame`() {
+        val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
+        val client = WebSocketClient("127.0.0.1", server.localPort, "device", "app", "1.0")
+        try {
+            client.connect()
+            server.accept().use { desktop ->
+                val input = DataInputStream(desktop.getInputStream())
+                acceptUpgrade(input, desktop.getOutputStream())
+                waitFor { client.isConnected }
+                val message = "ą".repeat(3 * 1024 * 1024)
+
+                client.send(message)
+
+                desktop.soTimeout = 10_000
+                assertEquals(message, readFrame(input))
+            }
+        } finally {
+            client.disconnect()
+            server.close()
+        }
+    }
+
+    @Test
+    fun `throttle and mock rules end when the desktop goes away`() {
+        val server = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
+        try {
+            DevConnect::class.java.declaredMethods.single { it.name == "connectAfterDiscovery" }
+                .apply { isAccessible = true }
+                .invoke(DevConnect, "127.0.0.1", Any(), "app", "1.0", null, server.localPort,
+                    false, false, false, false, false, false, false)
+            server.accept().use { desktop ->
+                val input = DataInputStream(desktop.getInputStream())
+                acceptUpgrade(input, desktop.getOutputStream())
+                push(desktop.getOutputStream(), """{"type":"server:network:throttle","payload":{"offline":true}}""")
+                push(desktop.getOutputStream(),
+                    """{"type":"server:mock_rules_update","payload":{"rules":[{"id":"r","match":{"url":".*"}}]}}""")
+                waitFor { offline() && mocked() }
+            }
+
+            waitFor { !offline() && !mocked() }
+        } finally {
+            DevConnect.disconnect()
+            ComposeStateObserver.stop()
+            server.close()
+        }
+    }
+
+    private fun offline() = runCatching { DevConnect.applyNetworkConditions() }.isFailure
+
+    private fun mocked() = MockRuleStore.findMatch("GET", "https://example.com", null) != null
+
+    /** Sends [text] as one short unmasked server frame. */
+    private fun push(output: OutputStream, text: String) {
+        val data = text.toByteArray()
+        require(data.size < 126)
+        output.write(0x81)
+        output.write(data.size)
+        output.write(data)
+        output.flush()
     }
 
     /** Answers the client's upgrade request the way the desktop does. */

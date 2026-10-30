@@ -1,7 +1,7 @@
 // DevConnect native crash handler.
 //
 // Installs `sigaction` handlers for SIGSEGV, SIGABRT, SIGBUS, SIGILL,
-// SIGFPE, SIGPIPE, SIGSYS, SIGTRAP. The handler captures raw program
+// SIGFPE, SIGSYS, SIGTRAP. The handler captures raw program
 // counters via `_Unwind_Backtrace()` (<unwind.h> — available on every
 // Android API level, unlike <execinfo.h>'s `backtrace()` which Bionic
 // only exposes from API 33). Only pre-allocated buffers are written,
@@ -11,9 +11,10 @@
 // `nativeTakeCrash()` using `dladdr()` — that thread is not in signal
 // context, so formatting/symbol lookup is safe there.
 //
-// After capturing, the handler restores the default disposition and
-// re-raises so the process still dies normally (tombstone + system
-// crash dialog) instead of hanging in a crash loop.
+// After capturing, the handler chains to the handler installed before
+// it, or restores the default disposition and re-raises when there was
+// none, so the process still dies normally (tombstone + system crash
+// dialog) instead of hanging in a crash loop.
 //
 // A Kotlin coroutine polls the buffer via JNI on a normal thread
 // (`NativeCrashHandler.kt`) and forwards captured crashes to
@@ -29,7 +30,7 @@
 #include <cstdlib>
 
 #define DC_NATIVE_STACK_DEPTH 32
-#define DC_NATIVE_SIGNAL_COUNT 8
+#define DC_NATIVE_SIGNAL_COUNT 7
 
 // Pre-allocated crash record. Volatile + sig_atomic_t = async-signal-safe.
 struct DcCrashRecord {
@@ -42,13 +43,12 @@ struct DcCrashRecord {
 static DcCrashRecord g_crash;
 static struct sigaction g_old_actions[DC_NATIVE_SIGNAL_COUNT];
 static const int g_signals[DC_NATIVE_SIGNAL_COUNT] = {
-    SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE, SIGPIPE, SIGSYS, SIGTRAP
+    SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE, SIGSYS, SIGTRAP
 };
 
 // Re-entry guard. If a second signal fires while the handler is already
-// running (e.g. SIGSEGV inside libunwind), drop the nested event. The
-// default handler will then take over for the original signal anyway
-// because we re-raise at the end.
+// running (e.g. SIGSEGV inside libunwind), drop the nested event and
+// only chain it.
 static volatile sig_atomic_t g_in_handler = 0;
 
 struct DcUnwindState {
@@ -68,8 +68,35 @@ static _Unwind_Reason_Code dc_unwind_callback(
     return _URC_NO_REASON;
 }
 
-static void dc_crash_handler(int sig, siginfo_t * /*info*/, void * /*ucontext*/) {
+// Hands the signal to what was installed before us (debuggerd, Crashlytics, Sentry...).
+static void dc_chain_old_action(int sig, siginfo_t *info, void *ucontext) {
+    for (int i = 0; i < DC_NATIVE_SIGNAL_COUNT; i++) {
+        if (g_signals[i] != sig) continue;
+        const struct sigaction &old = g_old_actions[i];
+        if (old.sa_handler == SIG_IGN || old.sa_handler == SIG_DFL) break;
+        if (old.sa_flags & SA_SIGINFO) {
+            old.sa_sigaction(sig, info, ucontext);
+        } else {
+            old.sa_handler(sig);
+        }
+        break;
+    }
+
+    // Restore default disposition for this signal and re-raise so the
+    // process exits through the normal crash path (which the OS uses
+    // to dump tombstone, surface to the user, etc). If we leave our
+    // handler installed the process would loop forever.
+    struct sigaction dfl;
+    memset(&dfl, 0, sizeof(dfl));
+    dfl.sa_handler = SIG_DFL;
+    sigemptyset(&dfl.sa_mask);
+    sigaction(sig, &dfl, nullptr);
+    raise(sig);
+}
+
+static void dc_crash_handler(int sig, siginfo_t *info, void *ucontext) {
     if (g_in_handler) {
+        dc_chain_old_action(sig, info, ucontext);
         return;
     }
     g_in_handler = 1;
@@ -84,16 +111,7 @@ static void dc_crash_handler(int sig, siginfo_t * /*info*/, void * /*ucontext*/)
     g_crash.frame_count = state.count;
     g_crash.pending = 1;
 
-    // Restore default disposition for this signal and re-raise so the
-    // process exits through the normal crash path (which the OS uses
-    // to dump tombstone, surface to the user, etc). If we leave our
-    // handler installed the process would loop forever.
-    struct sigaction dfl;
-    memset(&dfl, 0, sizeof(dfl));
-    dfl.sa_handler = SIG_DFL;
-    sigemptyset(&dfl.sa_mask);
-    sigaction(sig, &dfl, nullptr);
-    raise(sig);
+    dc_chain_old_action(sig, info, ucontext);
 }
 
 // Format one PC as "<lib> (<symbol>+<off>) [pc 0x...]" or a bare hex

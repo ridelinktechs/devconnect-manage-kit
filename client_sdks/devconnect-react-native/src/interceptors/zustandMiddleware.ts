@@ -29,15 +29,21 @@ export function devConnectMiddleware<T extends object>(
   storeName: string = 'ZustandStore',
 ): (set: any, get: any, api: any) => T {
   return (set: any, get: any, api: any): T => {
+    let lastReported: { state: any; json: Record<string, any> } | null = null;
     const trackedSet = (
       partial: T | Partial<T> | ((state: T) => T | Partial<T>),
       replace?: boolean,
     ) => {
-      const previousState = safeSerialize(get());
+      const rawPrevious = get();
 
       set(partial, replace);
 
-      const nextState = safeSerialize(get());
+      if (!DevConnect.isListening()) return;
+
+      const previousState = lastReported && lastReported.state === rawPrevious ? lastReported.json : safeSerialize(rawPrevious);
+      const rawNext = get();
+      const nextState = safeSerialize(rawNext);
+      lastReported = { state: rawNext, json: nextState };
 
       try {
         const actionName = inferActionName(partial);
@@ -73,9 +79,9 @@ function calculateDiff(
   prev: Record<string, any>,
   next: Record<string, any>,
   path = '',
+  diffs: Array<Record<string, any>> = [],
+  depth = 0,
 ): Array<Record<string, any>> {
-  const diffs: Array<Record<string, any>> = [];
-
   if (prev === next) return diffs;
 
   if (typeof prev !== 'object' || typeof next !== 'object' || prev === null || next === null) {
@@ -90,6 +96,7 @@ function calculateDiff(
 
   const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
   for (const key of allKeys) {
+    if (diffs.length >= 50) break;
     const currentPath = path ? `${path}.${key}` : key;
     const prevVal = prev[key];
     const nextVal = next[key];
@@ -104,9 +111,9 @@ function calculateDiff(
         typeof nextVal === 'object' &&
         prevVal !== null &&
         nextVal !== null &&
-        diffs.length < 50
+        depth < 10
       ) {
-        diffs.push(...calculateDiff(prevVal, nextVal, currentPath));
+        calculateDiff(prevVal, nextVal, currentPath, diffs, depth + 1);
       } else {
         diffs.push({
           path: currentPath,

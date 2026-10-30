@@ -14,7 +14,7 @@ let _initialized = false;
  *
  * ```typescript
  * import { devConnectThunkTracker } from 'devconnect/client_sdks/devconnect-react-native/src/plugins/asyncTracker';
- * const store = createStore(reducer, applyMiddleware(thunk, devConnectThunkTracker));
+ * const store = createStore(reducer, applyMiddleware(devConnectThunkTracker, thunk));
  * ```
  */
 export const devConnectThunkTracker = (store: any) => (next: any) => (action: any) => {
@@ -35,7 +35,7 @@ export const devConnectThunkTracker = (store: any) => (next: any) => (action: an
   });
 
   try {
-    const result = action(store.dispatch, store.getState, undefined);
+    const result = next(action);
 
     // If thunk returns a promise, track resolve/reject
     if (result && typeof result.then === 'function') {

@@ -176,6 +176,7 @@ test('a pushed rule makes fetch return the mock, reported like any other fetch',
   assert.equal(await res.text(), '{"mocked":true}');
   assert.equal(res.headers.get('x-devconnect-mock'), 'pushed');
   assert.equal(networkCalls, 0);
+  await new Promise((resolve) => setTimeout(resolve, 10));
 
   const sent = (type) => socket.sent.find((m) => m.type === type)?.payload;
   const { requestId } = sent('client:network:request_start');
