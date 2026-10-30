@@ -19,7 +19,7 @@ Module._load = function (request, parent, isMain) {
 };
 test.after(() => { Module._load = originalLoad; });
 
-const { captureComponentTree } = require('../dist-test/plugins/layoutInspector.js');
+const { captureComponentTree, withTimeout } = require('../dist-test/plugins/layoutInspector.js');
 
 // Minimal fibers: host views measure asynchronously like the bridge does.
 function link(fiber, children) {
@@ -116,6 +116,26 @@ test('props skip refs and keep long styles whole; state comes along', async () =
   assert.deepEqual(JSON.parse(view.props.style), style); // longer than 200 chars
 });
 
+test('values JSON can\'t hold still read, and long ones come whole', async () => {
+  const loop = { name: 'node' };
+  loop.self = loop;
+  // An Animated.Value: its children point back at it.
+  const animated = { __getValue: () => 0.5, _children: [] };
+  animated._children.push({ _parent: animated });
+  const icon = { $$typeof: Symbol.for('react.transitional.element'), type: function Icon() {}, props: {} };
+  const comp = component('Card', [host('RCTView', [0, 0, 10, 10])]);
+  comp.memoizedProps = { data: loop, icon, big: 10n, failed: new TypeError('nope'), text: 'x'.repeat(1000) };
+  comp.memoizedState = { memoizedState: animated, queue: { dispatch() {} }, next: null };
+  mount(comp);
+  const { roots: [card] } = await captureComponentTree();
+  assert.equal(card.props.data, '{"name":"node","self":"[Circular]"}');
+  assert.equal(card.props.icon, '<Icon />');
+  assert.equal(card.props.big, '10n');
+  assert.equal(card.props.failed, 'TypeError: nope');
+  assert.equal(card.props.text.length, 1000); // was cut at 300
+  assert.deepEqual(card.state, { '#1': 'Animated(0.5)' });
+});
+
 test('skips screens put away and says when the tree was cut', async () => {
   const screen = (activityState, box) => link({
     tag: 5,
@@ -137,4 +157,26 @@ test('skips screens put away and says when the tree was cut', async () => {
 test('says why when there is no DevTools hook', async () => {
   delete globalThis.__REACT_DEVTOOLS_GLOBAL_HOOK__;
   await assert.rejects(captureComponentTree(), /dev builds only/);
+});
+
+test('a screenshot that never comes is given up on', async () => {
+  await assert.rejects(withTimeout(new Promise(() => {}), 10), /timed out/);
+  assert.equal(await withTimeout(Promise.resolve('png'), 10), 'png');
+});
+
+test('a prop reaching a huge object graph doesn\'t freeze the app', async () => {
+  // Shared all the way down: written out whole it's 2^40 objects, like a
+  // ref into the fiber tree (return / child / alternate everywhere).
+  let graph = { leaf: 1 };
+  for (let i = 0; i < 40; i++) graph = { a: graph, b: graph };
+  const ref = { current: { _nativeTag: 12, _children: [], viewConfig: {} } };
+  const comp = component('Screen', [host('RCTView', [0, 0, 10, 10])]);
+  comp.memoizedProps = { graph, listRef: ref };
+  mount(comp);
+  const started = Date.now();
+  const { roots: [screen] } = await captureComponentTree();
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+  assert.ok(screen.props.graph.length <= 4001);
+  assert.ok(screen.props.graph.endsWith('…'));
+  assert.equal(screen.props.listRef, '{"current":"[NativeView]"}');
 });

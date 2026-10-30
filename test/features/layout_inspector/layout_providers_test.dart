@@ -294,6 +294,41 @@ void main() {
       expect(size.height, closeTo(411 * 1920 / 810, 0.01));
     });
 
+    // testWidgets for its fake clock; made in the test's zone so the
+    // answer runs on that clock too.
+    testWidgets('an earlier capture\'s timeout leaves a newer one waiting', (
+      tester,
+    ) async {
+      final server = FakeWsServer();
+      final handler = WsMessageHandler(server: server);
+      final container = ProviderContainer(
+        overrides: [wsMessageHandlerProvider.overrideWithValue(handler)],
+      );
+      addTearDown(container.dispose);
+      addTearDown(handler.dispose);
+      final notifier = container.read(layoutSnapshotsProvider.notifier)
+        ..capture('dev');
+      await tester.pump(const Duration(seconds: 10));
+      server.emit(
+        deviceMessage(WsMessageTypes.clientLayoutSnapshot, {
+          'width': 400,
+          'height': 800,
+          'root': node('screen', 0, 0, 400, 800),
+        }),
+      );
+      await tester.pump();
+      // Closed, then captured again: the first capture's 15 s run out
+      // while the second waits.
+      notifier
+        ..clear('dev')
+        ..capture('dev');
+      await tester.pump(const Duration(seconds: 6));
+      expect(notifier.pending, {'dev'});
+      expect(notifier.unanswered, isEmpty);
+      await tester.pump(LayoutSnapshotsNotifier.timeout);
+      expect(notifier.unanswered, {'dev'}); // its own timeout still counts
+    });
+
     // testWidgets for its fake clock.
     testWidgets('a capture nobody answers stops waiting', (tester) async {
       final notifier = container.read(layoutSnapshotsProvider.notifier)

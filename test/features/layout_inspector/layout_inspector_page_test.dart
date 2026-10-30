@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:devconnect_manage_tool/components/misc/color_sample.dart';
 import 'package:devconnect_manage_tool/core/constants/ws_constants.dart';
 import 'package:devconnect_manage_tool/features/layout_inspector/presentation/layout_inspector_page.dart';
+import 'package:devconnect_manage_tool/features/layout_inspector/presentation/shared/splitter.dart';
 import 'package:devconnect_manage_tool/l10n/app_localizations.dart';
 import 'package:devconnect_manage_tool/models/device_info.dart';
 import 'package:devconnect_manage_tool/server/providers/server_providers.dart';
@@ -16,10 +17,47 @@ import 'package:devconnect_manage_tool/server/ws_message_handler.dart';
 import '../../helpers/fake_ws_server.dart';
 
 void main() {
+  late FakeWsServer server;
+
+  /// The app answering a capture.
+  Future<void> answer(WidgetTester tester) async {
+    server.emit(
+      deviceMessage(WsMessageTypes.clientLayoutSnapshot, {
+        'width': 390,
+        'height': 844,
+        'root': {
+          'id': '1',
+          'name': 'App',
+          'x': 0,
+          'y': 0,
+          'w': 390,
+          'h': 844,
+          'children': [
+            {
+              'id': '2',
+              'name': 'Button',
+              'x': 16,
+              'y': 760,
+              'w': 358,
+              'h': 52,
+              'props': {
+                'color': '#4F46E5',
+                'title': 'Pay',
+                'note': List.filled(300, 'word').join(' '),
+              },
+            },
+          ],
+        },
+      }),
+    );
+    await tester.pump();
+    await tester.pump();
+  }
+
   /// The page showing a 390 × 844 capture with a button at the bottom.
   Future<S> showCapture(WidgetTester tester) async {
     // Made in the test's zone, so its events run on the test's clock.
-    final server = FakeWsServer();
+    server = FakeWsServer();
     final handler = WsMessageHandler(server: server);
     addTearDown(handler.dispose);
     tester.view.physicalSize = const Size(1200, 800);
@@ -46,33 +84,7 @@ void main() {
       ),
     );
     await tester.pump();
-    server.emit(
-      deviceMessage(WsMessageTypes.clientLayoutSnapshot, {
-        'width': 390,
-        'height': 844,
-        'root': {
-          'id': '1',
-          'name': 'App',
-          'x': 0,
-          'y': 0,
-          'w': 390,
-          'h': 844,
-          'children': [
-            {
-              'id': '2',
-              'name': 'Button',
-              'x': 16,
-              'y': 760,
-              'w': 358,
-              'h': 52,
-              'props': {'color': '#4F46E5', 'title': 'Pay'},
-            },
-          ],
-        },
-      }),
-    );
-    await tester.pump();
-    await tester.pump();
+    await answer(tester);
     return S.of(tester.element(find.byType(LayoutInspectorPage)));
   }
 
@@ -131,6 +143,80 @@ void main() {
     await tester.pump();
     final sample = tester.widget<ColorSample>(find.byType(ColorSample));
     expect(sample.color.toARGB32(), 0xFF4F46E5);
+  });
+
+  testWidgets('a long value folds to three lines, with a toggle', (
+    tester,
+  ) async {
+    final loc = await showCapture(tester);
+    await tester.tap(find.text('Button'));
+    await tester.pump();
+    Text note() => tester.widget<Text>(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Text && (w.textSpan?.toPlainText() ?? '').startsWith('word'),
+      ),
+    );
+    final panel = find
+        .descendant(
+          of: find.byType(SelectionArea),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      find.text(loc.showMore),
+      100,
+      scrollable: panel,
+    );
+    await tester.pump();
+    expect(note().maxLines, 3);
+
+    await tester.tap(find.text(loc.showMore));
+    await tester.pump();
+    expect(note().maxLines, isNull);
+
+    await tester.scrollUntilVisible(
+      find.text(loc.collapse),
+      100,
+      scrollable: panel,
+    );
+    await tester.pump();
+    await tester.tap(find.text(loc.collapse));
+    await tester.pump();
+    expect(note().maxLines, 3);
+  });
+
+  testWidgets('capturing again after closing shows the new capture', (
+    tester,
+  ) async {
+    final loc = await showCapture(tester);
+    // Everything one might have done with the first capture.
+    await tester.tap(find.text('Button'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'Bu');
+    await tester.pump();
+    await tester.tap(find.byTooltip(loc.layoutAppOnly));
+    await tester.pump();
+    await shortcut(tester, LogicalKeyboardKey.digit0);
+    await tester.tap(find.byTooltip(loc.layoutClose));
+    await tester.pump();
+    await tester.tap(find.text(loc.layoutCapture));
+    await tester.pump();
+    expect(server.sent.last.type, WsMessageTypes.serverLayoutCapture);
+    await answer(tester);
+    expect(screen, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('prop keys widen with the panel', (tester) async {
+    await showCapture(tester);
+    await tester.tap(find.text('Button'));
+    await tester.pump();
+    final before = tester.getSize(find.text('title')).width;
+    // The divider between the canvas and the panel, dragged left.
+    await tester.drag(find.byType(Splitter).first, const Offset(-200, 0));
+    await tester.pump();
+    expect(tester.getSize(find.text('title')).width, greaterThan(before));
   });
 
   testWidgets('closing the capture goes back to the hint', (tester) async {

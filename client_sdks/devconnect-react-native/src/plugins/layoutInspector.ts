@@ -36,6 +36,17 @@ const SIMPLE_MEMO = 15;
 /** Past this many components the tree is cut short. */
 const MAX_NODES = 4000;
 
+/** A prop or state value is sent up to this many characters… */
+const LONG = 4000;
+/** …until a capture has sent this much of them; past it, values are cut at SHORT. */
+const TEXT_BUDGET = 1_000_000;
+const SHORT = 200;
+
+/** What's left of a capture's TEXT_BUDGET. */
+interface Budget {
+  left: number;
+}
+
 function fiberName(fiber: any): string | null {
   const t = fiber.type;
   switch (fiber.tag) {
@@ -54,35 +65,135 @@ function fiberName(fiber: any): string | null {
   }
 }
 
-/**
- * [value] as short text (functions as `ƒ`, objects as JSON), or undefined
- * when there is nothing to show. Past [limit] it's cut with `…`.
- */
-function short(value: any, limit = 300): string | undefined {
-  let text: string | undefined;
-  try {
-    if (typeof value === 'function') text = 'ƒ';
-    else if (value !== null && typeof value === 'object') text = JSON.stringify(value);
-    else text = String(value);
-  } catch (_) {
-    text = '[object]'; // circular
-  }
-  if (text === undefined) return undefined;
-  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+/** [promise], or a rejection once [ms] pass without it settling. */
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
-/** A fiber's props as short strings, `children` and `ref` left out. */
-function fiberProps(fiber: any): Record<string, string> {
+/** A React element's or component type's name. */
+function reactName(value: any): string {
+  const t = value.type ?? value;
+  if (typeof t === 'string') return t;
+  return t?.displayName ?? t?.name ?? t?.render?.displayName ?? t?.render?.name
+    ?? t?.type?.displayName ?? t?.type?.name ?? 'Component';
+}
+
+/** Text for what JSON can't hold, or undefined for anything else. */
+function special(value: any): string | undefined {
+  if (typeof value === 'bigint') return `${value}n`;
+  if (value instanceof Error) return `${value.name}: ${value.message}`;
+  if (value === null || typeof value !== 'object') return undefined;
+  // An element (`<Icon />`), or a forwardRef / memo component itself.
+  if (value.$$typeof !== undefined) {
+    return value.props !== undefined ? `<${reactName(value)} />` : reactName(value);
+  }
+  // React's own objects, reached through refs: their insides lead to every
+  // fiber of the app.
+  if ('stateNode' in value && 'return' in value && 'memoizedProps' in value) return '[Fiber]';
+  if (value._nativeTag !== undefined || value.__nativeTag !== undefined) return '[NativeView]';
+  if (value._reactInternals !== undefined) return `[${value.constructor?.name ?? 'Component'}]`;
+  // Animated.Value & co: their current value, not their (circular) insides.
+  if (typeof value.__getValue === 'function') {
+    try {
+      return `Animated(${JSON.stringify(value.__getValue())})`;
+    } catch (_) {
+      return 'Animated';
+    }
+  }
+  return undefined;
+}
+
+/** Objects are written this deep at most… */
+const MAX_DEPTH = 8;
+/** …and this many of their values. */
+const MAX_VALUES = 2000;
+
+/**
+ * [value] as text: functions as `ƒ`, objects as JSON — a cycle as
+ * "[Circular]", elements, Animated values, BigInts and errors as
+ * [special] has them. Undefined when there's nothing to show.
+ *
+ * Writing stops once the text passes [limit] (ending it with `…`), past
+ * MAX_DEPTH or MAX_VALUES: an object graph with shared parts is written
+ * out once per path to them, which for some graphs never ends — and the
+ * app's JS thread with it.
+ */
+function toText(value: any, limit: number): string | undefined {
+  if (typeof value === 'function') return 'ƒ';
+  const own = special(value);
+  if (own !== undefined) return own;
+  if (value === null || typeof value !== 'object') return String(value);
+  // The objects on the path to the one being written: one met again on it
+  // is a cycle (json-stringify-safe's way).
+  const path: any[] = [];
+  let size = 0;
+  let values = 0;
+  let cut = false;
+  try {
+    const json = JSON.stringify(value, function (this: any, key: string, v: any) {
+      if (path.length === 0) {
+        path.push(v);
+        return v;
+      }
+      const at = path.indexOf(this);
+      if (at >= 0) path.length = at + 1;
+      else path.push(this);
+      if (size > limit || ++values > MAX_VALUES) {
+        cut = true;
+        return undefined; // left out, and not walked into
+      }
+      size += key.length + 4;
+      if (path.includes(v)) return '[Circular]';
+      const text = special(v);
+      if (text !== undefined) {
+        size += text.length;
+        return text;
+      }
+      if (v !== null && typeof v === 'object') {
+        if (path.length < MAX_DEPTH) return v;
+        size += 3;
+        return Array.isArray(v) ? '[…]' : '{…}';
+      }
+      size += typeof v === 'string' ? v.length : 5;
+      return v;
+    });
+    return cut ? `${json}…` : json;
+  } catch (_) {
+    return `[${value.constructor?.name ?? 'object'}]`; // a getter that throws…
+  }
+}
+
+/** [value] as [toText] has it, cut with `…` past LONG (or SHORT, once the capture's budget is spent). */
+function short(value: any, budget: Budget): string | undefined {
+  const limit = budget.left > 0 ? LONG : SHORT;
+  const text = toText(value, limit);
+  if (text === undefined) return undefined;
+  const out = text.length > limit ? `${text.slice(0, limit)}…` : text;
+  budget.left -= out.length;
+  return out;
+}
+
+/** A fiber's props as text, `children` and `ref` left out. */
+function fiberProps(fiber: any, budget: Budget): Record<string, string> {
   const out: Record<string, string> = {};
   const props = fiber.memoizedProps;
   if (!props || typeof props !== 'object') return out;
   for (const [key, value] of Object.entries(props)) {
     if (key === 'children' || key === 'ref' || value === undefined) continue;
     if (Object.keys(out).length >= 12) break;
-    // A style is shown whole, flattened: cut short it's no longer JSON.
-    const text = key === 'style'
-      ? short(StyleSheet.flatten(value as any), 2000)
-      : short(value);
+    const text = short(key === 'style' ? StyleSheet.flatten(value as any) : value, budget);
     if (text !== undefined) out[key] = text;
   }
   return out;
@@ -93,13 +204,13 @@ function fiberProps(fiber: any): Record<string, string> {
  * function component's useState / useReducer values (`#1`, `#2`…, in
  * call order — hooks have no names at runtime).
  */
-function fiberState(fiber: any): Record<string, string> | undefined {
+function fiberState(fiber: any, budget: Budget): Record<string, string> | undefined {
   const out: Record<string, string> = {};
   if (fiber.tag === CLASS) {
     const state = fiber.stateNode?.state;
     if (state && typeof state === 'object') {
       for (const [key, value] of Object.entries(state).slice(0, 12)) {
-        const text = short(value);
+        const text = short(value, budget);
         if (text !== undefined) out[key] = text;
       }
     }
@@ -108,7 +219,7 @@ function fiberState(fiber: any): Record<string, string> | undefined {
     for (let hook = fiber.memoizedState; hook && n < 12; hook = hook.next) {
       // Only state hooks have an update queue with a dispatcher.
       if (typeof hook.queue?.dispatch !== 'function') continue;
-      out[`#${++n}`] = short(hook.memoizedState) ?? 'undefined';
+      out[`#${++n}`] = short(hook.memoizedState, budget) ?? 'undefined';
     }
   }
   return Object.keys(out).length > 0 ? out : undefined;
@@ -249,6 +360,7 @@ export async function captureComponentTree(): Promise<ComponentTree> {
   // 3. Bottom-up (children come after their parent in `order`): a component
   //    spans its children; one without a box hands its children up.
   let count = 0;
+  const budget: Budget = { left: TEXT_BUDGET };
   const outOf = (kids: Kept[]): LayoutNode[] => {
     const nodes: LayoutNode[] = [];
     for (const kid of kids) for (const node of kid.out ?? []) nodes.push(node);
@@ -272,7 +384,7 @@ export async function captureComponentTree(): Promise<ComponentTree> {
     const only = k.fiber.tag !== HOST && children.length === 1 ? children[0] : null;
     const padding = only ? only.padding : insets(style, 'padding');
     const margin = only ? only.margin : insets(style, 'margin');
-    const state = fiberState(k.fiber);
+    const state = fiberState(k.fiber, budget);
     k.out = [
       {
         id: String(++count),
@@ -284,7 +396,7 @@ export async function captureComponentTree(): Promise<ComponentTree> {
         ...(padding && { padding }),
         ...(margin && { margin }),
         ...(k.fiber.tag === HOST && { host: true }),
-        props: fiberProps(k.fiber),
+        props: fiberProps(k.fiber, budget),
         ...(state && { state }),
         children,
       },

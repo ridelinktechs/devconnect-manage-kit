@@ -8,7 +8,7 @@
  */
 
 import { Platform, NativeModules, Linking, Dimensions } from 'react-native';
-import { captureComponentTree, type LayoutNode } from './plugins/layoutInspector';
+import { captureComponentTree, withTimeout, type LayoutNode } from './plugins/layoutInspector';
 import { SDK_VERSION } from './version';
 
 // Captured before the app can install the WebSocket interceptor: DevConnect's own
@@ -774,8 +774,13 @@ export class DevConnect {
           } else if (typeof msg.type === 'string' && msg.type.startsWith('server:storage:')) {
             this._handleStorageCommand(msg.type, msg.payload ?? {});
           } else if (msg.type === 'server:layout:capture') {
-            this._layoutSnapshot().then((snapshot) =>
-              this.send('client:layout:snapshot', snapshot, msg.correlationId));
+            // Always answered: the desktop waits for it.
+            this._layoutSnapshot().then(
+              (snapshot) => this.send('client:layout:snapshot', snapshot, msg.correlationId),
+              (e: any) => this.send('client:layout:snapshot', {
+                error: String(e?.message ?? e),
+              }, msg.correlationId),
+            );
           } else if (msg.type === 'server:open_url') {
             // Deep link: the app's own Linking handlers route it.
             if (msg.payload?.url) Linking.openURL(msg.payload.url).catch(() => {});
@@ -950,7 +955,10 @@ export class DevConnect {
     let screenshot: string | null = null;
     if (this._screenshot) {
       try {
-        screenshot = String(await this._screenshot()).replace(/^data:image\/\w+;base64,/, '');
+        // A screenshot that never comes (view-shot waits for a UI flush that
+        // may not happen) mustn't hold the tree back.
+        screenshot = String(await withTimeout(this._screenshot(), 5000))
+          .replace(/^data:image\/\w+;base64,/, '');
       } catch (_) {
         // The tree is still useful without a picture.
       }

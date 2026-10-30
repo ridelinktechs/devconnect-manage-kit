@@ -10,6 +10,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../components/feedback/empty_state.dart';
 import '../../../core/theme/chrome_palette.dart';
 import '../../../core/utils/save_file.dart';
+import '../../../core/utils/smooth_scroll_controller.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../server/providers/server_providers.dart';
 import '../provider/layout_providers.dart';
@@ -54,7 +55,8 @@ class _LayoutInspectorPageState extends ConsumerState<LayoutInspectorPage> {
   String? _hoveredId;
   String? _selectedId;
   final _expanded = <String>{};
-  final _treeScroll = ScrollController();
+  final _treeScroll = SmoothScrollController();
+  final _propsScroll = SmoothScrollController();
   final _treeFocus = FocusNode(debugLabel: 'layout tree');
   final _search = TextEditingController();
   LayoutSnapshot? _seen;
@@ -76,6 +78,7 @@ class _LayoutInspectorPageState extends ConsumerState<LayoutInspectorPage> {
   @override
   void dispose() {
     _treeScroll.dispose();
+    _propsScroll.dispose();
     _treeFocus.dispose();
     _search.dispose();
     super.dispose();
@@ -414,7 +417,12 @@ class _LayoutInspectorPageState extends ConsumerState<LayoutInspectorPage> {
                                   .clamp(0.1, 0.9),
                         ),
                       ),
-                      Expanded(child: PropertiesPanel(node: path.lastOrNull)),
+                      Expanded(
+                        child: PropertiesPanel(
+                          node: path.lastOrNull,
+                          scroll: _propsScroll,
+                        ),
+                      ),
                     ],
                   );
                 },

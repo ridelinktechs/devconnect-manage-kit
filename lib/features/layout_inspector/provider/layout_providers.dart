@@ -345,6 +345,10 @@ class LayoutSnapshotsNotifier extends Notifier<Map<String, LayoutSnapshot?>> {
   /// without layout support, or a release build.
   final unanswered = <String>{};
 
+  /// The pending capture's timeout, per device. The answer cancels it, so
+  /// it can't run out on a later capture.
+  final _timeouts = <String, Timer>{};
+
   @override
   Map<String, LayoutSnapshot?> build() {
     final handler = ref.watch(wsMessageHandlerProvider);
@@ -367,6 +371,7 @@ class LayoutSnapshotsNotifier extends Notifier<Map<String, LayoutSnapshot?>> {
       final picture = png == null ? null : pngSize(png);
       pending.remove(deviceId);
       unanswered.remove(deviceId);
+      _timeouts.remove(deviceId)?.cancel();
       state = {
         ...state,
         deviceId: LayoutSnapshot(
@@ -381,7 +386,13 @@ class LayoutSnapshotsNotifier extends Notifier<Map<String, LayoutSnapshot?>> {
         ),
       };
     });
-    ref.onDispose(sub.cancel);
+    ref.onDispose(() {
+      sub.cancel();
+      for (final timer in _timeouts.values) {
+        timer.cancel();
+      }
+      _timeouts.clear();
+    });
     return const {};
   }
 
@@ -396,7 +407,9 @@ class LayoutSnapshotsNotifier extends Notifier<Map<String, LayoutSnapshot?>> {
     unanswered.remove(deviceId);
     ref.read(wsMessageHandlerProvider).captureLayout(deviceId);
     state = {...state}; // show the spinner
-    Timer(timeout, () {
+    _timeouts[deviceId]?.cancel();
+    _timeouts[deviceId] = Timer(timeout, () {
+      _timeouts.remove(deviceId);
       if (ref.mounted && pending.remove(deviceId)) {
         unanswered.add(deviceId);
         state = {...state};
