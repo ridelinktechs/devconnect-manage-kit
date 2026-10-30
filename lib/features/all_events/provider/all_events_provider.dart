@@ -2,9 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
 import '../../../core/providers/tab_visibility_provider.dart';
-import '../../../core/utils/duration_format.dart';
-import '../../../core/utils/log_message_summary.dart';
-import '../../../core/utils/network_url_utils.dart';
+import '../../../core/utils/format/duration_format.dart';
+import '../../../core/utils/format/log_message_summary.dart';
+import '../../../core/utils/network/network_url_utils.dart';
 import '../../../models/display/display_entry.dart';
 import '../../../models/log/error_event.dart';
 import '../../../models/network/network_entry.dart';

@@ -10,7 +10,7 @@ Module._load = function (request, parent, isMain) {
 test.after(() => { Module._load = originalLoad; });
 
 const { DevConnect } = require('../dist-test/client.js');
-const { devConnectThunkTracker } = require('../dist-test/plugins/asyncTracker.js');
+const { devConnectThunkTracker } = require('../dist-test/plugins/state/asyncTracker.js');
 
 /** redux-thunk's `withExtraArgument(extra)`. */
 const thunk = (extra) => ({ dispatch, getState }) => (next) => (action) =>

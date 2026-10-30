@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,15 +11,15 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/text/text_component.dart';
-import '../../../../core/utils/duration_format.dart';
-import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/format/duration_format.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/log/benchmark_entry.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../provider/benchmark_providers.dart';
 
 class BenchmarkPage extends ConsumerStatefulWidget {
@@ -956,4 +956,4 @@ Color _durationColor(double ms) {
   return const Color(0xFFDC2626);
 }
 
-// Use formatDuration from core/utils/duration_format.dart
+// Use formatDuration from core/utils/format/duration_format.dart

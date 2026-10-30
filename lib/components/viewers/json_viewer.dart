@@ -6,10 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme/chrome_palette.dart';
-import '../../core/utils/save_file.dart';
-import '../../core/utils/smooth_scroll_controller.dart';
-import '../../core/utils/toast_utils.dart';
-import '../../l10n/app_localizations.dart';
+import '../../core/utils/files/save_file.dart';
+import '../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../core/utils/ui/toast_utils.dart';
+import '../../l10n/generated/app_localizations.dart';
 import 'json/json_mini_button.dart';
 import 'json/json_table.dart';
 import 'json/json_tree.dart';

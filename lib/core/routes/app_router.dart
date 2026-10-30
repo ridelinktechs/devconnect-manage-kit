@@ -18,7 +18,7 @@ import '../../features/performance/presentation/pages/memory_leaks_page.dart';
 import '../../features/benchmark/presentation/pages/benchmark_page.dart';
 import '../../features/error_inspector/presentation/pages/error_inspector_page.dart';
 import '../../features/storage_viewer/presentation/pages/storage_viewer_page.dart';
-import '../routes/app_shell.dart';
+import 'app_shell.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();

@@ -3,9 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/code_generator.dart';
-import '../../../core/utils/code_highlighter.dart';
-import '../../../core/utils/toast_utils.dart';
+import '../../../core/utils/code/code_generator.dart';
+import '../../../core/utils/code/code_highlighter.dart';
+import '../../../core/utils/ui/toast_utils.dart';
 import 'json_mini_button.dart';
 
 class CodeViewer extends StatelessWidget {

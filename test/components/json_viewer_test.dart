@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:devconnect_manage_tool/components/misc/color_sample.dart';
 import 'package:devconnect_manage_tool/components/viewers/json_viewer.dart';
-import 'package:devconnect_manage_tool/l10n/app_localizations.dart';
+import 'package:devconnect_manage_tool/l10n/generated/app_localizations.dart';
 
 void main() {
   testWidgets('colors get a sample, look-alikes don\'t', (tester) async {

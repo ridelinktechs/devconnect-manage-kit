@@ -1,7 +1,7 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:devconnect_manage_tool/core/utils/color_values.dart';
+import 'package:devconnect_manage_tool/core/utils/format/color_values.dart';
 
 void main() {
   test('reads every way a color is written', () {

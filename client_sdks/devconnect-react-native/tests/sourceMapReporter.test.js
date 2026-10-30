@@ -12,7 +12,7 @@ Module._load = function (request, parent, isMain) {
 
 const clientModule = require('../dist-test/client.js');
 const { DevConnect } = clientModule;
-const sourceMapModule = require('../dist-test/reporters/sourceMapReporter.js');
+const sourceMapModule = require('../dist-test/reporters/errors/sourceMapReporter.js');
 const { uploadSourceMap } = sourceMapModule;
 
 test.after(() => { Module._load = originalLoad; });

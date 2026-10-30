@@ -1,10 +1,16 @@
 package com.devconnect
 
 import com.devconnect.client.WebSocketClient
+import com.devconnect.core.DesktopCommands
+import com.devconnect.core.HostDiscovery
+import com.devconnect.core.Reports
+import com.devconnect.core.Startup
+import com.devconnect.core.buildPayload
+import com.devconnect.core.jsonValue
+import com.devconnect.core.redactSensitiveValue
 import com.devconnect.interceptors.DevConnectKermitWriter
 import com.devconnect.interceptors.DevConnectKtorPlugin
 import com.devconnect.interceptors.DevConnectNapierAntilog
-import com.devconnect.interceptors.DevConnectURLStreamHandlerFactory
 import com.devconnect.interceptors.OkHttpInterceptor
 import com.devconnect.reporters.DataStoreReporter
 import com.devconnect.reporters.LogReporter
@@ -77,7 +83,7 @@ import java.util.UUID
  * all Firebase REST and OAuth2 token calls will be captured automatically.
  */
 object DevConnect {
-    private var client: WebSocketClient? = null
+    internal var client: WebSocketClient? = null
 
     /**
      * Default `false` — opt-in only. The SDK captures network requests,
@@ -92,7 +98,7 @@ object DevConnect {
      *  because [send] is called from any thread (interceptor callbacks,
      *  OkHttp dispatchers, etc.) while [init] drains it on the calling
      *  thread. */
-    private val preInitQueue: MutableList<Pair<String, JSONObject>> =
+    internal val preInitQueue: MutableList<Pair<String, JSONObject>> =
         java.util.Collections.synchronizedList(mutableListOf())
 
     /**
@@ -114,225 +120,15 @@ object DevConnect {
      *
      * Auto-detection tries: 10.0.2.2 (emulator) -> 10.0.3.2 (Genymotion) -> localhost -> 127.0.0.1
      */
-    private var appContext: android.content.Context? = null
+    internal var appContext: android.content.Context? = null
 
     /** Coroutine scope for the asynchronous portion of [init] — host
      *  discovery + WebSocket client construction. Kept as a separate
      *  scope so init() returns quickly and the caller's
      *  `Application.onCreate()` doesn't block. */
-    private val initScope = kotlinx.coroutines.CoroutineScope(
+    internal val initScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
     )
-
-    /**
-     * Tracks the topmost (or last-resumed) Activity in this process. Set
-     * automatically via [android.app.Application.ActivityLifecycleCallbacks]
-     * installed during [init]. Used by the `server:reload` handler to call
-     * [android.app.Activity.recreate] on the current activity.
-     *
-     * Activities are weakly referenced so a recreated activity doesn't
-     * leak through this field after [recreate] runs.
-     */
-    private var trackedActivityRef: java.lang.ref.WeakReference<android.app.Activity>? = null
-    private var lifecycleCallbacks: android.app.Application.ActivityLifecycleCallbacks? = null
-
-    /** Monotonic timestamp of the last server:reload/server:hot_restart
-     *  we dispatched. Used to debounce — a malicious or buggy desktop
-     *  could otherwise recreate the Activity every frame. */
-    @Volatile private var lastReloadDispatchMs = 0L
-    private val reloadDebounceMs = 1_000L
-
-    /**
-     * Installs an [android.app.Application.ActivityLifecycleCallbacks] that
-     * keeps [trackedActivityRef] pointed at the topmost resumed Activity.
-     * The callback is installed once per process — repeat calls are no-ops —
-     * and uninstalled automatically when the tracked activity is destroyed.
-     */
-    private fun installActivityLifecycleTracker(app: android.content.Context) {
-        if (lifecycleCallbacks != null) return
-        val appCtx = app.applicationContext as? android.app.Application ?: return
-
-        val callbacks = object : android.app.Application.ActivityLifecycleCallbacks {
-            override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) {
-                trackedActivityRef = java.lang.ref.WeakReference(a)
-            }
-            override fun onActivityStarted(a: android.app.Activity) {}
-            override fun onActivityResumed(a: android.app.Activity) {
-                trackedActivityRef = java.lang.ref.WeakReference(a)
-            }
-            override fun onActivityPaused(a: android.app.Activity) {}
-            override fun onActivityStopped(a: android.app.Activity) {}
-            override fun onActivitySaveInstanceState(a: android.app.Activity, b: android.os.Bundle) {}
-            override fun onActivityDestroyed(a: android.app.Activity) {
-                val current = trackedActivityRef?.get()
-                if (current === a) trackedActivityRef = null
-            }
-        }
-        lifecycleCallbacks = callbacks
-        appCtx.registerActivityLifecycleCallbacks(callbacks)
-    }
-
-    /**
-     * Dispatch a reload/hot_restart request to the host activity, with a
-     * 1-second debounce so a misbehaving desktop cannot thrash the
-     * activity through onCreate/onDestroy at 10Hz. Shared between
-     * `server:reload` and `server:hot_restart` because they trigger the
-     * same code path on Android (Activity.recreate is the strongest
-     * "reset" Android exposes).
-     *
-     * Main-thread dispatch is required — the WebSocket listener fires on
-     * a background thread and Activity.recreate() MUST run on the UI
-     * thread or ActivityManager throws CalledFromWrongThreadException.
-     */
-    private fun handleReloadRequest(messageType: String) {
-        val now = System.currentTimeMillis()
-        if (now - lastReloadDispatchMs < reloadDebounceMs) {
-            // Drop the request — the previous one is still in flight or
-            // just completed. Log at info level so the dev can see the
-            // desktop is spamming.
-            android.util.Log.i(
-                "DevConnect",
-                "Ignored $messageType (debounced — last dispatch $now - $lastReloadDispatchMs ms ago)"
-            )
-            return
-        }
-        lastReloadDispatchMs = now
-
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            if (reloadHandler != null) {
-                try { reloadHandler?.invoke() } catch (e: Exception) {
-                    android.util.Log.w(
-                        "DevConnect",
-                        "reloadHandler threw: ${e.message}",
-                        e
-                    )
-                }
-            } else {
-                try {
-                    val act = trackedActivityRef?.get()
-                    if (act != null && !act.isFinishing) act.recreate()
-                } catch (e: Exception) {
-                    android.util.Log.w(
-                        "DevConnect",
-                        "Activity.recreate failed: ${e.message}",
-                        e
-                    )
-                }
-            }
-        }
-    }
-
-    private fun getPrefs(): android.content.SharedPreferences? {
-        return appContext?.getSharedPreferences("dc_session", android.content.Context.MODE_PRIVATE)
-    }
-
-    @android.annotation.SuppressLint("HardwareIds")
-    private fun generateStableDeviceId(appName: String): String {
-        // deviceId is only derived from appContext — calling [init] without
-        // a Context is now a programmer error (was previously a silent
-        // privacy leak via Build.FINGERPRINT).
-        val ctx = appContext
-            ?: throw IllegalStateException(
-                "DevConnect.init must be called with a Context before deviceId is used"
-            )
-        val androidId = android.provider.Settings.Secure.getString(
-            ctx.contentResolver,
-            android.provider.Settings.Secure.ANDROID_ID
-        ) ?: ""
-        val seed = "$androidId:${ctx.packageName}"
-        return UUID.nameUUIDFromBytes(seed.toByteArray()).toString()
-    }
-
-    /** Cached host + server's stable machineId for identity verification. */
-    private data class CachedHost(val host: String, val machineId: String)
-
-    /**
-     * Cache the discovered host. Stored as plain JSON in
-     * `dc_session` SharedPreferences (MODE_PRIVATE). The previous
-     * implementation claimed "encryption" via XOR with a hardcoded key —
-     * XOR with a static key is not encryption, and the misleading framing
-     * raised the security review bar without delivering it. The cache
-     * holds dev-only connection metadata (IP + machineId), so plain JSON
-     * is honest and appropriate.
-     */
-    private fun saveHostCache(host: String, port: Int, machineId: String?) {
-        try {
-            val plain = JSONObject().apply {
-                put("h", host)
-                put("p", port)
-                put("t", System.currentTimeMillis())
-                if (machineId != null) put("m", machineId)
-            }.toString()
-            getPrefs()?.edit()?.putString("dc_s", plain)?.apply()
-        } catch (_: Exception) {}
-    }
-
-    /** Invalidate the cached host. Used when verification fails. */
-    private fun clearHostCache() {
-        try {
-            getPrefs()?.edit()?.remove("dc_s")?.apply()
-        } catch (_: Exception) {}
-    }
-
-    private fun readHostCache(port: Int): CachedHost? {
-        try {
-            val plain = getPrefs()?.getString("dc_s", null) ?: return null
-            val json = JSONObject(plain)
-            val cachedTime = json.optLong("t", 0)
-            if (System.currentTimeMillis() - cachedTime > 24 * 60 * 60 * 1000) return null
-            if (json.optInt("p") != port) return null
-            val host = json.optString("h", null) ?: return null
-            val machineId = json.optString("m", null)
-            // Legacy caches without machineId cannot be verified and would
-            // re-trigger the simulator/device-swap bug we are fixing —
-            // treat them as absent.
-            if (machineId.isNullOrEmpty()) return null
-            return CachedHost(host, machineId)
-        } catch (_: Exception) {}
-        return null
-    }
-
-    /**
-     * Probe a host via plain HTTP GET / and check that it returns the
-     * expected `machineId` in the JSON response. Cheap and reliable — no
-     * WebSocket frame parsing required.
-     *
-     * Prevents connecting to the wrong machine when the cached IP now points
-     * at a different device (e.g. switched between iOS Simulator and a real
-     * iPhone, or back, after the desktop's address changed).
-     */
-    private fun verifyCachedHost(host: String, port: Int, expectedId: String): Boolean {
-        var connection: java.net.HttpURLConnection? = null
-        return try {
-            val url = java.net.URL("http://$host:$port/")
-            connection = url.openConnection() as java.net.HttpURLConnection
-            connection.connectTimeout = 1500
-            connection.readTimeout = 1500
-            connection.requestMethod = "GET"
-            connection.doInput = true
-            val code = connection.responseCode
-            if (code !in 200..299) {
-                return false
-            }
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
-            val announced = extractMachineId(body)
-            announced == expectedId
-        } catch (_: Exception) {
-            false
-        } finally {
-            connection?.disconnect()
-        }
-    }
-
-    /** Parse machineId from the server's plain HTTP identify response. */
-    private fun extractMachineId(jsonText: String): String? {
-        return try {
-            val json = JSONObject(jsonText)
-            json.optString("machineId", null)
-        } catch (_: Exception) {
-            null
-        }
-    }
 
     fun init(
         context: Any,
@@ -360,47 +156,10 @@ object DevConnect {
         this.enabled = enabled
         if (!enabled) return
 
-        // Defence-in-depth: warn (not abort) when DevConnect is enabled in
-        // a non-debuggable build. The SDK captures network requests,
-        // headers (incl. Authorization), and request bodies that may
-        // contain OAuth tokens — production releases should pass
-        // `enabled = BuildConfig.DEBUG`.
-        try {
-            // `context` is typed `Any` so cross-platform call sites can
-            // pass a non-Android context. Smart-cast to a real Context
-            // before accessing platform-specific members.
-            val ctx = context as? android.content.Context
-            val app = ctx?.applicationContext as? android.app.Application
-            if (app != null &&
-                (app.getApplicationInfo().flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0
-            ) {
-                android.util.Log.w(
-                    "DevConnect",
-                    "DevConnect.init called with enabled=true in a non-debuggable build. " +
-                        "Captured traffic (incl. Authorization headers) will be sent in cleartext " +
-                        "to the LAN-connected desktop. Pass `enabled = BuildConfig.DEBUG` in release."
-                )
-            }
-        } catch (_: Exception) {}
-
-        // Save context for SharedPreferences. We require a real Context so
-        // deviceId derivation never falls through to the Build.FINGERPRINT
-        // privacy leak (M4).
-        if (context is android.content.Context) {
-            appContext = context.applicationContext
-            // `context` is smart-cast to non-null inside this branch;
-            // pass the applicationContext directly so installActivity-
-            // // LifecycleTracker (which expects a non-null Context) doesn't
-            // receive the nullable `appContext` field.
-            installActivityLifecycleTracker(context.applicationContext)
-        } else {
-            throw IllegalArgumentException(
-                "DevConnect.init requires an android.content.Context as the first argument"
-            )
-        }
+        Startup.attach(context)
 
         // Generate stable deviceId from app + device info (prevents duplicates on reconnect/hot-reload)
-        deviceId = generateStableDeviceId(appName)
+        deviceId = HostDiscovery.generateStableDeviceId(appName)
 
         // Resolve the host off the main thread. The previous implementation
         // called `autoDetectHost()` synchronously inside init(), which is
@@ -412,7 +171,7 @@ object DevConnect {
         initScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val resolvedHost = when {
                 explicitHost != null && explicitHost != "auto" -> explicitHost
-                auto -> autoDetectHost(port)
+                auto -> HostDiscovery.autoDetectHost(port)
                 else -> "10.0.2.2"
             }
             connectAfterDiscovery(
@@ -447,321 +206,10 @@ object DevConnect {
         autoBenchmark: Boolean,
         autoAnrWatchdog: Boolean,
         autoViewModelDiscovery: Boolean,
-    ) {
-        // Disconnect old client to prevent orphaned connections
-        client?.disconnect()
-
-        client = WebSocketClient(
-            host = host,
-            port = port,
-            deviceId = deviceId,
-            appName = appName,
-            appVersion = appVersion,
-            versionCode = versionCode
-        ).also { ws ->
-            // Capture the server's stable machineId so the next launch can
-            // verify the cached host really points at *this* desktop and not
-            // some other device that happened to claim the same IP.
-            ws.onServerHello = { machineId ->
-                if (!machineId.isNullOrEmpty()) {
-                    saveHostCache(host, port, machineId)
-                }
-                // The handshake just went out: tell the desktop what it can run.
-                announceCommands()
-            }
-            ws.onDisconnected = {
-                networkLatencyMs = 0
-                networkOffline = false
-                com.devconnect.interceptors.MockRuleStore.clearDesktopRules()
-            }
-            ws.onServerMessage = { type, json ->
-                val payload = json.optJSONObject("payload") ?: JSONObject()
-                when (type) {
-                    "server:state:restore" -> {
-                        val state = payload.optJSONObject("state")
-                        if (state != null) {
-                            val map = jsonObjectToMap(state)
-                            // Guard the user-supplied lambda — a throw
-                            // here used to escape into the WebSocket
-                            // coroutine scope and silently fail the
-                            // whole restore. Log to the desktop so the
-                            // dev can see which handler broke.
-                            try {
-                                onStateRestore?.invoke(map)
-                            } catch (e: Exception) {
-                                sendLog("error", "onStateRestore threw: ${e.message}", "DevConnect", e.stackTraceToString())
-                            }
-                        }
-                    }
-                    "server:redux:dispatch" -> {
-                        val action = payload.optJSONObject("action")
-                        if (action != null) {
-                            val map = jsonObjectToMap(action)
-                            try {
-                                onReduxDispatch?.invoke(map)
-                            } catch (e: Exception) {
-                                sendLog("error", "onReduxDispatch threw: ${e.message}", "DevConnect", e.stackTraceToString())
-                            }
-                        }
-                    }
-                    "server:custom:command" -> {
-                        val cmd = payload.optString("command", "")
-                        val handler = commandHandlers[cmd]
-                        if (handler != null) {
-                            val args = payload.optJSONObject("args")
-                            val argsMap = if (args != null) jsonObjectToMap(args) else null
-                            try {
-                                val result = handler(argsMap)
-                                send("client:custom:command_result", buildPayload {
-                                    put("command", cmd)
-                                    put("status", "ok")
-                                    if (result != null) put("result", jsonValue(result))
-                                })
-                            } catch (e: Exception) {
-                                // Surface the failure to the desktop so it
-                                // can show the user that the handler
-                                // crashed — the previous "swallow + send
-                                // empty result" payload made every failure
-                                // look like success.
-                                send("client:custom:command_result", buildPayload {
-                                    put("command", cmd)
-                                    put("status", "error")
-                                    put("error", e.message ?: e.javaClass.simpleName)
-                                })
-                            }
-                        }
-                    }
-                    "server:reload" -> handleReloadRequest(json.optString("type"))
-                    "server:hot_restart" -> handleReloadRequest(json.optString("type"))
-                    "server:storage:request_all", "server:storage:write",
-                    "server:storage:delete", "server:storage:clear" ->
-                        initScope.launch { handleStorageCommand(type, payload) }
-                    "server:open_url" -> openUrl(payload.optString("url"))
-                    "server:layout:capture" -> initScope.launch {
-                        val activity = trackedActivityRef?.get() ?: return@launch
-                        val snapshot = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                            com.devconnect.plugins.LayoutInspector.capture(activity)
-                        }
-                        send("client:layout:snapshot", snapshot)
-                    }
-                    "server:network:throttle" -> {
-                        networkLatencyMs = payload.optLong("latencyMs", 0).coerceAtLeast(0)
-                        networkOffline = payload.optBoolean("offline", false)
-                    }
-                    "server:network:replay" -> initScope.launch { replayRequest(payload) }
-                    // Off the socket's reader: a big table can take a while.
-                    "server:database:request_schema" -> initScope.launch {
-                        send("client:database:schema", JSONObject().put("databases", databaseSchemas()))
-                    }
-                    "server:database:query" -> initScope.launch {
-                        send(
-                            "client:database:query_result",
-                            runDatabaseQuery(payload.optString("database"), payload.optString("sql")),
-                        )
-                    }
-                    "server:mock_rules_update" ->
-                        com.devconnect.interceptors.MockRuleStore.loadFromPayload(payload)
-                }
-            }
-        }
-        client?.connect()
-
-        // Auto-intercept System.out (println) if enabled
-        if (autoInterceptLogs) {
-            com.devconnect.interceptors.DevConnectLogInterceptor.interceptSystemOut()
-        }
-
-        if (autoInterceptHttp) {
-            DevConnectURLStreamHandlerFactory.install()
-        }
-
-        // Flush pre-init queue (messages from interceptors before init).
-        // Hold the same lock [send] uses so a late interceptor can't enqueue
-        // between our drain and clear — that race was the source of an
-        // earlier CME.
-        synchronized(preInitQueue) {
-            if (preInitQueue.isNotEmpty()) {
-                for ((type, payload) in preInitQueue) {
-                    send(type, payload)
-                }
-                preInitQueue.clear()
-            }
-        }
-
-        // Auto-start monitoring plugins (run in both dev and production)
-        if (autoPerformance) {
-            com.devconnect.plugins.startPerformanceMonitor(context)
-        }
-        if (autoMemoryLeak) {
-            com.devconnect.plugins.startMemoryLeakDetector(context)
-        }
-        if (autoBenchmark) {
-            com.devconnect.plugins.setupAppBenchmark(context)
-        }
-        // ErrorMonitor covers ANR detection. Native crash capture is
-        // intentionally out of scope (would require JNI + NDK).
-        if (autoAnrWatchdog && context is android.content.Context) {
-            com.devconnect.plugins.ErrorMonitor.start(context)
-        }
-        if (autoViewModelDiscovery) {
-            com.devconnect.plugins.ViewModelAutoDiscoverer.start(context)
-        }
-        // Round 2: Compose state observer (no-op when Compose isn't on the classpath)
-        try {
-            com.devconnect.plugins.ComposeStateObserver.start(context)
-        } catch (_: Exception) {}
-    }
-
-    /** UDP discovery port — server broadcasts beacons here */
-    private const val DISCOVERY_PORT = 41234
-
-    private fun autoDetectHost(port: Int): String {
-        // 0. Try cached host from previous session (instant reconnect).
-        //    Verify the server's machineId matches what we cached — this
-        //    catches the case where the cached IP now points at a different
-        //    device (e.g. iOS Simulator ↔ real iPhone swap on the same network).
-        val cached = readHostCache(port)
-        if (cached != null) {
-            if (verifyCachedHost(cached.host, port, cached.machineId)) {
-                return cached.host
-            }
-            // Stale or wrong machine — invalidate so the next discovery wins.
-            clearHostCache()
-        }
-
-        // 1. Race: UDP beacon + known hosts in parallel
-        //    USB (adb reverse) → localhost/10.0.2.2 responds fast
-        //    WiFi → UDP beacon responds fast
-        val executor = java.util.concurrent.Executors.newFixedThreadPool(6)
-        try {
-            val futures = mutableListOf<java.util.concurrent.Future<String?>>()
-
-            // UDP beacon
-            futures.add(executor.submit(java.util.concurrent.Callable { listenForBeacon(port) }))
-
-            // Known emulator/USB hosts
-            for (candidate in listOf("10.0.2.2", "10.0.3.2", "localhost", "127.0.0.1")) {
-                futures.add(executor.submit(java.util.concurrent.Callable {
-                    if (tryHost(candidate, port, 800)) candidate else null
-                }))
-            }
-
-            // Wait up to 3.5s for first result
-            val deadline = System.currentTimeMillis() + 3500
-            for (future in futures) {
-                try {
-                    val remaining = deadline - System.currentTimeMillis()
-                    if (remaining <= 0) break
-                    val result = future.get(remaining, java.util.concurrent.TimeUnit.MILLISECONDS)
-                    if (result != null) {
-                        saveHostCache(result, port, null)
-                        return result
-                    }
-                } catch (_: Exception) {}
-            }
-        } finally {
-            executor.shutdownNow()
-        }
-
-        // 2. Get device's own subnet and scan it (real device on same WiFi)
-        try {
-            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val iface = interfaces.nextElement()
-                val addrs = iface.inetAddresses
-                while (addrs.hasMoreElements()) {
-                    val addr = addrs.nextElement()
-                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
-                        val parts = addr.hostAddress?.split(".") ?: continue
-                        if (parts.size == 4) {
-                            val subnet = "${parts[0]}.${parts[1]}.${parts[2]}"
-                            val found = scanSubnet(subnet, port)
-                            if (found != null) { saveHostCache(found, port, null); return found }
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-
-        // 4. Scan common subnets as fallback
-        val commonSubnets = listOf("192.168.1", "192.168.0", "192.168.2", "10.0.0", "10.0.1", "172.16.0")
-        for (subnet in commonSubnets) {
-            val found = scanSubnet(subnet, port)
-            if (found != null) { saveHostCache(found, port, null); return found }
-        }
-
-        return "10.0.2.2" // fallback for emulator
-    }
-
-    /**
-     * Listen for UDP beacon from DevConnect server.
-     * Server broadcasts {"type":"devconnect_beacon","port":9090,...}
-     * every 2 seconds. We listen for up to 3 seconds.
-     */
-    private fun listenForBeacon(expectedPort: Int): String? {
-        var socket: java.net.DatagramSocket? = null
-        try {
-            socket = java.net.DatagramSocket(null)
-            socket.reuseAddress = true
-            socket.bind(java.net.InetSocketAddress(DISCOVERY_PORT))
-            socket.soTimeout = 3000 // 3 second timeout
-
-            val buf = ByteArray(1024)
-            val packet = java.net.DatagramPacket(buf, buf.size)
-            socket.receive(packet)
-
-            val data = String(packet.data, 0, packet.length)
-            val json = org.json.JSONObject(data)
-            if (json.optString("type") == "devconnect_beacon" &&
-                json.optInt("port") == expectedPort) {
-                return packet.address.hostAddress
-            }
-        } catch (_: Exception) {
-            // Timeout or error — fall through to other methods
-        } finally {
-            socket?.close()
-        }
-        return null
-    }
-
-    private fun tryHost(host: String, port: Int, timeoutMs: Int): Boolean {
-        return try {
-            val socket = java.net.Socket()
-            socket.connect(java.net.InetSocketAddress(host, port), timeoutMs)
-            socket.close()
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    /**
-     * Scan a subnet (x.x.x.1 through x.x.x.30) in parallel.
-     * Returns first host that responds, or null.
-     */
-    private fun scanSubnet(subnet: String, port: Int): String? {
-        val executor = java.util.concurrent.Executors.newFixedThreadPool(15)
-        val futures = (1..30).map { i ->
-            executor.submit(java.util.concurrent.Callable {
-                val host = "$subnet.$i"
-                if (tryHost(host, port, 400)) host else null
-            })
-        }
-        try {
-            for (future in futures) {
-                try {
-                    val result = future.get(500, java.util.concurrent.TimeUnit.MILLISECONDS)
-                    if (result != null) {
-                        executor.shutdownNow()
-                        return result
-                    }
-                } catch (_: Exception) {}
-            }
-        } finally {
-            executor.shutdownNow()
-        }
-        return null
-    }
+    ) = Startup.connectAfterDiscovery(
+        host, context, appName, appVersion, versionCode, port, autoInterceptLogs, autoInterceptHttp,
+        autoPerformance, autoMemoryLeak, autoBenchmark, autoAnrWatchdog, autoViewModelDiscovery,
+    )
 
     fun isConnected(): Boolean = client?.isConnected == true
 
@@ -794,9 +242,6 @@ object DevConnect {
      * run.
      */
     var onReloadRequest: (() -> Unit)? = null
-
-    private val reloadHandler: (() -> Unit)?
-        get() = onReloadRequest
 
     // ---- OkHttp Interceptor ----
 
@@ -1056,24 +501,6 @@ object DevConnect {
         }
     }
 
-    /** Keys whose values must be redacted before they leave the device.
-     *  Matches `Authorization`, `Cookie`, `password`, `token`, `secret`,
-     *  etc. by substring (case-insensitive) — same heuristic the desktop
-     *  side uses. */
-    private val sensitiveKeyPatterns = listOf(
-        "token", "password", "secret", "apikey", "api_key",
-        "authorization", "cookie", "set-cookie", "credential"
-    )
-
-    private fun redactSensitiveValue(key: String, value: Any?): Any? {
-        if (value == null) return null
-        val lower = key.lowercase()
-        if (sensitiveKeyPatterns.any { lower.contains(it) }) {
-            return "[REDACTED]"
-        }
-        return value
-    }
-
     // ---- Performance Profiling ----
 
     /**
@@ -1118,14 +545,7 @@ object DevConnect {
         value: Double,
         label: String? = null,
         metadata: Map<String, Any>? = null
-    ) {
-        send("client:performance:metric", buildPayload {
-            put("metricType", metricType)
-            put("value", value)
-            label?.let { put("label", it) }
-            metadata?.let { put("metadata", JSONObject(it)) }
-        })
-    }
+    ) = Reports.reportPerformanceMetric(metricType, value, label, metadata)
 
     // ---- Memory Leak Detection ----
 
@@ -1178,17 +598,7 @@ object DevConnect {
         retainedSizeBytes: Long? = null,
         stackTrace: String? = null,
         metadata: Map<String, Any>? = null
-    ) {
-        send("client:memory:leak", buildPayload {
-            put("leakType", leakType)
-            put("severity", severity)
-            put("objectName", objectName)
-            detail?.let { put("detail", it) }
-            retainedSizeBytes?.let { put("retainedSizeBytes", it) }
-            stackTrace?.let { put("stackTrace", it) }
-            metadata?.let { put("metadata", JSONObject(it)) }
-        })
-    }
+    ) = Reports.reportMemoryLeak(leakType, severity, objectName, detail, retainedSizeBytes, stackTrace, metadata)
 
     // ---- Network (internal) ----
 
@@ -1198,18 +608,7 @@ object DevConnect {
         url: String,
         headers: Map<String, Any?>? = null,
         body: Any? = null
-    ) {
-        try {
-            send("client:network:request_start", buildPayload {
-                put("requestId", requestId)
-                put("method", method)
-                put("url", url)
-                put("startTime", System.currentTimeMillis())
-                headers?.let { put("requestHeaders", headersToJson(it)) }
-                body?.let { put("requestBody", jsonValue(it)) }
-            })
-        } catch (_: Exception) {}
-    }
+    ) = Reports.reportNetworkStart(requestId, method, url, headers, body)
 
     fun reportNetworkComplete(
         requestId: String,
@@ -1222,63 +621,22 @@ object DevConnect {
         requestBody: Any? = null,
         responseBody: Any? = null,
         error: String? = null
-    ) {
-        val now = System.currentTimeMillis()
-        try {
-            send("client:network:request_complete", buildPayload {
-                put("requestId", requestId)
-                put("method", method)
-                put("url", url)
-                put("statusCode", statusCode)
-                put("startTime", startTime)
-                put("endTime", now)
-                put("duration", now - startTime)
-                requestHeaders?.let { put("requestHeaders", headersToJson(it)) }
-                responseHeaders?.let { put("responseHeaders", headersToJson(it)) }
-                requestBody?.let { put("requestBody", jsonValue(it)) }
-                responseBody?.let { put("responseBody", jsonValue(it)) }
-                error?.let { put("error", it) }
-            })
-        } catch (_: Exception) {}
-    }
+    ) = Reports.reportNetworkComplete(
+        requestId, method, url, statusCode, startTime,
+        requestHeaders, responseHeaders, requestBody, responseBody, error,
+    )
 
     // ---- Benchmark API ----
 
-    private val benchmarks = java.util.concurrent.ConcurrentHashMap<String, MutableList<Long>>()
+    fun benchmarkStart(title: String) = Reports.benchmarkStart(title)
 
-    fun benchmarkStart(title: String) {
-        benchmarks[title] = mutableListOf(System.currentTimeMillis())
-    }
+    fun benchmarkStep(title: String) = Reports.benchmarkStep(title)
 
-    fun benchmarkStep(title: String) {
-        // Synchronize the inner list — ConcurrentHashMap only guards the
-        // map access, not the underlying list's mutation.
-        synchronized(benchmarks) {
-            benchmarks[title]?.add(System.currentTimeMillis())
-        }
-    }
-
-    fun benchmarkStop(title: String) {
-        val times = benchmarks.remove(title) ?: return
-        val startTime = times.first()
-        val endTime = System.currentTimeMillis()
-
-        send("client:benchmark", buildPayload {
-            put("title", title)
-            put("startTime", startTime)
-            put("endTime", endTime)
-            put("duration", endTime - startTime)
-        })
-    }
+    fun benchmarkStop(title: String) = Reports.benchmarkStop(title)
 
     // ---- State snapshot ----
 
-    fun sendStateSnapshot(stateManager: String, state: Map<String, Any>) {
-        send("client:state:snapshot", buildPayload {
-            put("stateManager", stateManager)
-            put("state", JSONObject(state))
-        })
-    }
+    fun sendStateSnapshot(stateManager: String, state: Map<String, Any>) = Reports.sendStateSnapshot(stateManager, state)
 
     // ---- Custom Display ----
 
@@ -1298,15 +656,7 @@ object DevConnect {
         preview: String? = null,
         image: String? = null,
         metadata: Map<String, Any>? = null
-    ) {
-        send("client:display", buildPayload {
-            put("name", name)
-            value?.let { put("value", jsonValue(it)) }
-            preview?.let { put("preview", it) }
-            image?.let { put("image", it) }
-            metadata?.let { put("metadata", JSONObject(it)) }
-        })
-    }
+    ) = Reports.display(name, value, preview, image, metadata)
 
     // ---- Async Operations (Saga/Task tracking) ----
 
@@ -1350,27 +700,16 @@ object DevConnect {
         error: String? = null,
         result: Any? = null,
         metadata: Map<String, Any>? = null
-    ) {
-        send("client:async:operation", buildPayload {
-            put("operationType", operationType)
-            put("description", description)
-            put("status", status)
-            duration?.let { put("duration", it) }
-            sagaName?.let { put("sagaName", it) }
-            error?.let { put("error", it) }
-            result?.let { put("result", jsonValue(it)) }
-            metadata?.let { put("metadata", JSONObject(it)) }
-        })
-    }
+    ) = Reports.reportAsyncOperation(operationType, description, status, duration, sagaName, error, result, metadata)
 
     // ---- Custom commands ----
 
-    private val commandHandlers = java.util.concurrent.ConcurrentHashMap<String, (Map<String, Any>?) -> Any?>()
+    internal val commandHandlers = java.util.concurrent.ConcurrentHashMap<String, (Map<String, Any>?) -> Any?>()
 
     fun registerCommand(name: String, handler: (Map<String, Any>?) -> Any?) {
         commandHandlers[name] = handler
         // Before connecting, the handshake announces every command so far.
-        if (isConnected()) announceCommands()
+        if (isConnected()) DesktopCommands.announceCommands()
     }
 
     // ---- Storage (desktop Storage tab) ----
@@ -1383,7 +722,7 @@ object DevConnect {
         fun clear()
     }
 
-    private val storages = java.util.concurrent.ConcurrentHashMap<String, StorageAdapter>()
+    internal val storages = java.util.concurrent.ConcurrentHashMap<String, StorageAdapter>()
 
     /**
      * Lets the desktop's Storage tab list, edit, delete and clear a store.
@@ -1393,39 +732,10 @@ object DevConnect {
         storages[storageType] = adapter
     }
 
-    /** Reads / writes / deletes / clears a registered store, then sends its contents. */
-    private fun handleStorageCommand(type: String, p: JSONObject) {
-        val only = p.optString("storageType").ifEmpty { null }
-        val targets = if (only == null) storages.toList()
-        else listOfNotNull(storages[only]?.let { only to it })
-        for ((name, adapter) in targets) {
-            val result = JSONObject().put("storageType", name)
-            try {
-                val key = p.optString("key")
-                when (type) {
-                    "server:storage:write" -> adapter.set(key, fromJson(p.opt("value")))
-                    "server:storage:delete" -> adapter.remove(key)
-                    "server:storage:clear" -> adapter.clear()
-                }
-                result.put("entries", JSONObject(adapter.getAll()))
-            } catch (e: Exception) {
-                result.put("entries", JSONObject()).put("error", e.message ?: e.javaClass.simpleName)
-            }
-            send("client:storage:all_data", result)
-        }
-    }
-
-    private fun fromJson(v: Any?): Any? = when (v) {
-        null, JSONObject.NULL -> null
-        is JSONObject -> jsonObjectToMap(v)
-        is org.json.JSONArray -> List(v.length()) { fromJson(v.opt(it)) }
-        else -> v
-    }
-
     // ---- Network conditions, replay, deep links ----
 
-    @Volatile private var networkLatencyMs = 0L
-    @Volatile private var networkOffline = false
+    @Volatile internal var networkLatencyMs = 0L
+    @Volatile internal var networkOffline = false
 
     /**
      * Applies the desktop-set network conditions to an app request: fails it
@@ -1439,60 +749,9 @@ object DevConnect {
         if (networkLatencyMs > 0) Thread.sleep(networkLatencyMs)
     }
 
-    /**
-     * Sends a captured request again: as a clone of the app's own OkHttp
-     * call when it's remembered (real headers, same interceptors), else over
-     * HttpURLConnection with the captured method, URL, headers and body.
-     */
-    private fun replayRequest(p: JSONObject) {
-        val requestId = p.optString("requestId")
-        val viaOkHttp = try {
-            requestId.isNotEmpty() && com.devconnect.interceptors.OkHttpCalls.replay(requestId)
-        } catch (_: LinkageError) {
-            false // the app doesn't ship OkHttp
-        }
-        if (viaOkHttp) return
-        val url = p.optString("url").ifEmpty { return }
-        val method = p.optString("method", "GET").uppercase()
-        try {
-            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-            conn.requestMethod = method
-            p.optJSONObject("headers")?.let { headers ->
-                for (name in headers.keys()) {
-                    if (!name.equals("content-length", ignoreCase = true)) {
-                        conn.setRequestProperty(name, headers.optString(name))
-                    }
-                }
-            }
-            val body = p.opt("body")
-            if (body != null && body != JSONObject.NULL && method != "GET" && method != "HEAD") {
-                conn.doOutput = true
-                conn.outputStream.use { it.write(body.toString().toByteArray()) }
-            }
-            (if (conn.responseCode >= 400) conn.errorStream else conn.inputStream)?.use { it.readBytes() }
-        } catch (_: Exception) {
-            // Reported like any other failed request.
-        }
-    }
-
-    /** Opens [url] in this app, the way a tap on one of its links does. */
-    private fun openUrl(url: String) {
-        val ctx = appContext ?: return
-        if (url.isEmpty()) return
-        try {
-            ctx.startActivity(
-                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                    .setPackage(ctx.packageName)
-                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        } catch (_: Exception) {
-            sendLog("warn", "No activity of this app handles $url", "DevConnect", null)
-        }
-    }
-
     // ---- Database (desktop Database tab) ----
 
-    private val databases =
+    internal val databases =
         java.util.concurrent.ConcurrentHashMap<String, (String) -> android.database.Cursor>()
 
     /**
@@ -1507,83 +766,6 @@ object DevConnect {
      */
     fun registerDatabase(name: String, query: (String) -> android.database.Cursor) {
         databases[name] = query
-    }
-
-    /** Rows past this are left out of a query result, which says `truncated`. */
-    private const val MAX_QUERY_ROWS = 1000
-
-    private fun databaseSchemas() = org.json.JSONArray().apply {
-        for ((name, query) in databases) {
-            val tables = org.json.JSONArray()
-            try {
-                val names = query(
-                    "SELECT name FROM sqlite_master WHERE type = 'table' " +
-                        "AND name NOT LIKE 'sqlite_%' AND name <> 'android_metadata' ORDER BY name"
-                ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
-                for (table in names) {
-                    val quoted = "\"" + table.replace("\"", "\"\"") + "\""
-                    val columns = query("PRAGMA table_info($quoted)").use { c ->
-                        org.json.JSONArray().apply {
-                            while (c.moveToNext()) put(
-                                JSONObject()
-                                    .put("name", c.getString(c.getColumnIndexOrThrow("name")))
-                                    .put("type", c.getString(c.getColumnIndexOrThrow("type")) ?: "")
-                                    .put("isPrimaryKey", c.getInt(c.getColumnIndexOrThrow("pk")) > 0)
-                                    .put("isNullable", c.getInt(c.getColumnIndexOrThrow("notnull")) == 0)
-                            )
-                        }
-                    }
-                    val rowCount = query("SELECT COUNT(*) FROM $quoted")
-                        .use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
-                    tables.put(
-                        JSONObject().put("name", table).put("columns", columns).put("rowCount", rowCount)
-                    )
-                }
-            } catch (_: Exception) {
-                // Unreadable database: listed without tables.
-            }
-            put(JSONObject().put("name", name).put("tables", tables))
-        }
-    }
-
-    private fun runDatabaseQuery(database: String, sql: String): JSONObject {
-        val start = System.currentTimeMillis()
-        val result = JSONObject().put("database", database)
-        try {
-            val query = databases[database] ?: databases.values.firstOrNull()
-                ?: throw IllegalStateException("No database registered with DevConnect.registerDatabase")
-            query(sql).use { c ->
-                val columns = c.columnNames.toList()
-                val rows = org.json.JSONArray()
-                while (rows.length() < MAX_QUERY_ROWS && c.moveToNext()) {
-                    rows.put(JSONObject().apply {
-                        for (i in columns.indices) put(columns[i], when (c.getType(i)) {
-                            android.database.Cursor.FIELD_TYPE_NULL -> JSONObject.NULL
-                            android.database.Cursor.FIELD_TYPE_INTEGER -> c.getLong(i)
-                            android.database.Cursor.FIELD_TYPE_FLOAT -> c.getDouble(i)
-                            android.database.Cursor.FIELD_TYPE_BLOB -> "<blob ${c.getBlob(i).size} bytes>"
-                            else -> c.getString(i)
-                        })
-                    })
-                }
-                result.put("columns", org.json.JSONArray(columns))
-                    .put("rows", rows)
-                    .put("truncated", c.moveToNext())
-            }
-        } catch (e: Exception) {
-            result.put("columns", org.json.JSONArray())
-                .put("rows", org.json.JSONArray())
-                .put("error", e.message ?: e.javaClass.simpleName)
-        }
-        return result.put("executionTimeMs", System.currentTimeMillis() - start)
-    }
-
-    /** Tells the desktop which custom commands it can run (Commands panel). */
-    private fun announceCommands() {
-        send(
-            "client:custom:commands",
-            JSONObject().put("commands", org.json.JSONArray(commandHandlers.keys.toList())),
-        )
     }
 
     // ---- Log (internal, used by DCLog/Timber/LogInterceptor) ----
@@ -1637,73 +819,6 @@ object DevConnect {
             null
         } ?: return
         c.send(json)
-    }
-
-    private fun buildPayload(block: JSONObject.() -> Unit): JSONObject {
-        return JSONObject().apply(block)
-    }
-
-    /**
-     * [v] as a value [JSONObject.put] writes as JSON. Android's org.json
-     * stores a Kotlin Map/List as-is and writes it with toString()
-     * ("{k=v}"); `wrap` converts it, nested values included. The org.json
-     * jar the JVM unit tests run on converts either way, so they can't see this.
-     */
-    private fun jsonValue(v: Any?): Any = JSONObject.wrap(v) ?: v.toString()
-
-    /**
-     * Recursively convert a `Map<String, Any?>` (and any nested
-     * `List<*>` / `Map<*, *>` values) to a [JSONObject] so the JSON
-     * encoder carries structured header values through to the desktop
-     * inspector — instead of coercing everything via `toString()` and
-     * producing literal `"[object Object]"` once it round-trips back
-     * through WS.
-     *
-     * Non-collection values are passed through to [JSONObject.put]
-     * which already accepts the JSON-encodable primitives.
-     */
-    private fun headersToJson(headers: Map<String, Any?>): JSONObject {
-        val obj = JSONObject()
-        for ((k, v) in headers) {
-            obj.put(k, encodeHeaderValue(v))
-        }
-        return obj
-    }
-
-    private fun encodeHeaderValue(v: Any?): Any = when (v) {
-        null -> JSONObject.NULL
-        is List<*> -> org.json.JSONArray().also { arr ->
-            for (item in v) arr.put(encodeHeaderValue(item))
-        }
-        is Map<*, *> -> {
-            val nested = JSONObject()
-            for ((nk, nv) in v) nested.put(nk.toString(), encodeHeaderValue(nv))
-            nested
-        }
-        is Number, is Boolean, is String -> v
-        else -> v.toString()
-    }
-
-    private fun jsonObjectToMap(json: JSONObject): Map<String, Any> {
-        val map = mutableMapOf<String, Any>()
-        val keys = json.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            val value = json.get(key)
-            map[key] = when (value) {
-                is JSONObject -> jsonObjectToMap(value)
-                is org.json.JSONArray -> {
-                    val list = mutableListOf<Any>()
-                    for (i in 0 until value.length()) {
-                        val item = value.get(i)
-                        list.add(if (item is JSONObject) jsonObjectToMap(item) else item)
-                    }
-                    list
-                }
-                else -> value
-            }
-        }
-        return map
     }
 
     // ---- Round 2: Compose state observer ----
@@ -1819,49 +934,5 @@ object DevConnect {
         port: Int = 9090,
         enabled: Boolean = false,
         versionCode: String? = null,
-    ) {
-        init(
-            context = context,
-            appName = appName,
-            appVersion = appVersion,
-            host = host,
-            port = port,
-            enabled = enabled,
-            versionCode = versionCode,
-            autoInterceptLogs = true,
-            autoInterceptHttp = true,
-            autoPerformance = true,
-            autoMemoryLeak = true,
-            autoBenchmark = true,
-            autoAnrWatchdog = true,
-            autoViewModelDiscovery = true,
-        )
-
-        if (enabled) {
-            val cl = context::class.java.classLoader
-            val hasOkHttp = try {
-                cl.loadClass("okhttp3.OkHttpClient") != null
-            } catch (_: ClassNotFoundException) { false }
-
-            val hasTimber = try {
-                cl.loadClass("timber.log.Timber") != null
-            } catch (_: ClassNotFoundException) { false }
-
-            if (hasOkHttp) {
-                android.util.Log.i(
-                    "DevConnect",
-                    "Detected OkHttp on classpath. To capture network traffic, " +
-                        "add `DevConnect.okHttpInterceptor()` to your OkHttpClient.Builder(). " +
-                        "See README 'Wiring OkHttp / Retrofit'."
-                )
-            }
-            if (hasTimber) {
-                android.util.Log.i(
-                    "DevConnect",
-                    "Detected Timber on classpath. To capture Timber logs, plant a Tree " +
-                        "that calls `DevConnect.sendLog(...)`. See README 'Wiring Timber'."
-                )
-            }
-        }
-    }
+    ) = Startup.installForApp(context, appName, appVersion, host, port, enabled, versionCode)
 }

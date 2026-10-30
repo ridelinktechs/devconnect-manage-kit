@@ -19,7 +19,7 @@ class FakeSocket {
 global.WebSocket = FakeSocket;
 
 const clientModule = require('../dist-test/client.js');
-const interceptor = require('../dist-test/interceptors/mockServerInterceptor.js');
+const interceptor = require('../dist-test/interceptors/network/mockServerInterceptor.js');
 const { DevConnect } = clientModule;
 const { setMockRules, findMockMatch, buildMockResponse, installMockServerInterceptor } = interceptor;
 const realSafeSend = DevConnect.safeSend;

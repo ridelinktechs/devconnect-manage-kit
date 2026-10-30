@@ -9,7 +9,7 @@ import 'package:devconnect_manage_tool/components/misc/color_sample.dart';
 import 'package:devconnect_manage_tool/core/constants/ws_constants.dart';
 import 'package:devconnect_manage_tool/features/layout_inspector/presentation/layout_inspector_page.dart';
 import 'package:devconnect_manage_tool/features/layout_inspector/presentation/shared/splitter.dart';
-import 'package:devconnect_manage_tool/l10n/app_localizations.dart';
+import 'package:devconnect_manage_tool/l10n/generated/app_localizations.dart';
 import 'package:devconnect_manage_tool/models/device_info.dart';
 import 'package:devconnect_manage_tool/server/providers/server_providers.dart';
 import 'package:devconnect_manage_tool/server/ws_message_handler.dart';

@@ -5,10 +5,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/code_generator.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
+import '../../../../core/utils/code/code_generator.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../../../server/providers/server_providers.dart';
-import '../shared/section_label.dart';
+import 'section_label.dart';
 
 /// Tab-style body viewer used by the network detail. Three modes
 /// (`Tree` / `JSON` / `Code`) gated behind the global

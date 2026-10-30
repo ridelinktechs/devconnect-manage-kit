@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/chrome_palette.dart';
 import '../../../core/theme/color_tokens.dart';
-import '../../../core/utils/smooth_scroll_controller.dart';
-import '../../../l10n/app_localizations.dart';
+import '../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../misc/color_sample.dart';
 import '../json_paths.dart';
 import 'json_tree.dart';

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:devconnect_manage_kit/devconnect_manage_kit.dart';
-import 'package:devconnect_manage_kit/src/interceptors/bloc/devconnect_bloc_observer.dart';
+import 'package:devconnect_manage_kit/src/interceptors/state/bloc/devconnect_bloc_observer.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The type the compiler checks [value] against.
@@ -22,7 +22,7 @@ void main() {
       () {
     // Relative: `flutter test` runs from the package root, locally and on CI.
     final src = File(
-      'lib/src/interceptors/bloc/devconnect_bloc_observer.dart',
+      'lib/src/interceptors/state/bloc/devconnect_bloc_observer.dart',
     ).readAsStringSync();
 
     // Find the BlocObserverBase class block. The doc comment sits

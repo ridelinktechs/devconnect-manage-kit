@@ -9,9 +9,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../components/feedback/empty_state.dart';
 import '../../../core/theme/chrome_palette.dart';
-import '../../../core/utils/save_file.dart';
-import '../../../core/utils/smooth_scroll_controller.dart';
-import '../../../l10n/app_localizations.dart';
+import '../../../core/utils/files/save_file.dart';
+import '../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../server/providers/server_providers.dart';
 import '../provider/layout_providers.dart';
 import 'canvas/layout_canvas.dart';

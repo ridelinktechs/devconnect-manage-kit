@@ -8,10 +8,10 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/lru_cache.dart';
-import '../../../core/utils/smooth_scroll_controller.dart';
-import '../../../core/utils/toast_utils.dart';
-import '../../../l10n/app_localizations.dart';
+import '../../../core/utils/collections/lru_cache.dart';
+import '../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../core/utils/ui/toast_utils.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import 'json_mini_button.dart';
 
 /// Per-line highlight result from isolate.

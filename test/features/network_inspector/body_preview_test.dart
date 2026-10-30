@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:devconnect_manage_tool/features/network_inspector/presentation/detail/blob_info.dart';
 import 'package:devconnect_manage_tool/features/network_inspector/presentation/detail/image_body.dart';
 import 'package:devconnect_manage_tool/features/network_inspector/presentation/shared/detect_blob_payload.dart';
-import 'package:devconnect_manage_tool/l10n/app_localizations.dart';
+import 'package:devconnect_manage_tool/l10n/generated/app_localizations.dart';
 
 /// A 1×1 PNG, 70 bytes.
 const _png =

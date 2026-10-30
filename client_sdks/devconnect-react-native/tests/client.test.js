@@ -49,7 +49,7 @@ for (const m of methods) {
 
 global.__DEV__ = true;
 const { DevConnect } = require('../dist-test/client.js');
-const { startErrorMonitor } = require('../dist-test/plugins/errorMonitor.js');
+const { startErrorMonitor } = require('../dist-test/plugins/errors/errorMonitor.js');
 
 // Queued before init(), which flushes it: JSON can't encode a cycle.
 const loop = { name: 'loop' };

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/code_generator.dart';
+import '../../../../core/utils/code/code_generator.dart';
 import '../../../../server/providers/server_providers.dart';
 
 /// 3-mode (Tree / JSON / Code) toggle + viewer for the log metadata

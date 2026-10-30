@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/chrome_palette.dart';
-import '../../core/utils/color_values.dart';
+import '../../core/utils/format/color_values.dart';
 
 /// A color's swatch, over a checkerboard so its transparency shows. Hover
 /// for its hex and rgba().

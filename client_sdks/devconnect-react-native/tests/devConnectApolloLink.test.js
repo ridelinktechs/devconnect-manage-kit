@@ -12,7 +12,7 @@ Module._load = function (request, parent, isMain) {
 
 const clientModule = require('../dist-test/client.js');
 const { DevConnect } = clientModule;
-const linkModule = require('../dist-test/interceptors/apollo/devConnectApolloLink.js');
+const linkModule = require('../dist-test/interceptors/network/apollo/devConnectApolloLink.js');
 const { devConnectApolloLink } = linkModule;
 
 test.after(() => { Module._load = originalLoad; });
@@ -31,14 +31,14 @@ test('devConnectApolloLink throws a clear error when @apollo/client is not insta
     return realLoad.call(this, request, parent, isMain);
   };
   // The require cache may already hold a previous resolution; clear it.
-  delete require.cache[require.resolve('../dist-test/interceptors/apollo/devConnectApolloLink.js')];
+  delete require.cache[require.resolve('../dist-test/interceptors/network/apollo/devConnectApolloLink.js')];
   // Re-require to reset the lazy loader state.
-  const fresh = require('../dist-test/interceptors/apollo/devConnectApolloLink.js');
+  const fresh = require('../dist-test/interceptors/network/apollo/devConnectApolloLink.js');
   try {
     assert.throws(() => fresh.devConnectApolloLink(), /@apollo\/client is not installed/);
   } finally {
     Module._load = realLoad;
-    delete require.cache[require.resolve('../dist-test/interceptors/apollo/devConnectApolloLink.js')];
+    delete require.cache[require.resolve('../dist-test/interceptors/network/apollo/devConnectApolloLink.js')];
   }
 });
 
@@ -56,7 +56,7 @@ test("uses Apollo's Observable, pairs events by operationId, unsubscribes downst
     if (request === '@apollo/client') return { ApolloLink, Observable };
     return realLoad.call(this, request, parent, isMain);
   };
-  const path = require.resolve('../dist-test/interceptors/apollo/devConnectApolloLink.js');
+  const path = require.resolve('../dist-test/interceptors/network/apollo/devConnectApolloLink.js');
   delete require.cache[path];
   try {
     const link = require(path).devConnectApolloLink();

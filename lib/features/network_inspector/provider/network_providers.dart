@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
-import '../../../core/utils/list_retention.dart';
-import '../../../core/utils/retention_capped.dart';
+import '../../../core/utils/collections/list_retention.dart';
+import '../../../core/utils/collections/retention_capped.dart';
 import '../../../models/network/network_entry.dart';
 import '../../../server/providers/server_providers.dart';
 

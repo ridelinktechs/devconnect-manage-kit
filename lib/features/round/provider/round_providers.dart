@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
-import '../../../core/utils/list_retention.dart';
-import '../../../core/utils/retention_capped.dart';
+import '../../../core/utils/collections/list_retention.dart';
+import '../../../core/utils/collections/retention_capped.dart';
 import '../../../models/round/mock_entry.dart';
 import '../../../models/round/protocol_entry.dart';
 import '../../../models/round/state_round_entry.dart';

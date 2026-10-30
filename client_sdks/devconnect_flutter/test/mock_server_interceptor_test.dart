@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:devconnect_manage_kit/devconnect_manage_kit.dart';
-import 'package:devconnect_manage_kit/src/interceptors/mock_server_interceptor.dart';
+import 'package:devconnect_manage_kit/src/interceptors/network/mock_server_interceptor.dart';
 
 /// Payloads of the queued (pre-init) messages of [type].
 List<Map<String, dynamic>> _sent(String type) => [

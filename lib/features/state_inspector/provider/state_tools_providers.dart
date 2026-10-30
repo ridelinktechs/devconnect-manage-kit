@@ -4,8 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/preferences/app_preferences.dart';
-import '../../../core/utils/toast_utils.dart';
-import '../../../l10n/app_localizations.dart';
+import '../../../core/utils/ui/toast_utils.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../models/state/state_change.dart';
 import '../../../server/providers/server_providers.dart';
 import 'state_providers.dart';

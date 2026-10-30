@@ -7,13 +7,20 @@
  * 3. Subnet scanning for real devices on WiFi
  */
 
-import { Platform, NativeModules, Linking, Dimensions } from 'react-native';
-import { captureComponentTree, withTimeout, type LayoutNode } from './plugins/layoutInspector';
-import { SDK_VERSION } from './version';
+import { patchConsole } from './core/consolePatch';
+import { _wsSend, connect } from './core/connection';
+import type { DatabaseQuery, StorageAdapter } from './core/databases';
+import { generateStableDeviceId } from './core/deviceId';
+import { autoDetectHost } from './core/hostDiscovery';
+import { _announceCommands } from './core/serverCommands';
+import { generateId, safeString } from './core/util';
+import { patchFetch } from './network/fetchPatch';
+import { patchXHR } from './network/xhrPatch';
 
-// Captured before the app can install the WebSocket interceptor: DevConnect's own
-// sockets must never be wrapped, or reporting a frame would send (and report) another.
-const NativeWebSocket: typeof WebSocket = (globalThis as any).WebSocket;
+export { generateId, safeString };
+export type { DatabaseQuery, StorageAdapter };
+export { sqliteTables } from './core/databases';
+export { capBody, parseBody } from './network/bodies';
 
 interface DevConnectConfig {
   appName: string;
@@ -52,552 +59,35 @@ interface DCMessage {
   correlationId?: string;
 }
 
-export function generateId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-/** `String(v)` that never throws: a null-prototype object (query-string's `parse` result) has no `toString`. */
-export function safeString(v: unknown): string {
-  try { return String(v); } catch (_) { return '[object Object]'; }
-}
-
-/** Text bodies longer than this are sent unparsed: the desktop parses them off its UI thread. */
-const MAX_PARSE_SIZE = 1_048_576;
-
-/** Response bodies of no stated type bigger than this aren't read: only their size is reported. */
-const MAX_READ_SIZE = 10 * MAX_PARSE_SIZE;
-
-/** Images up to this many bytes are sent for the desktop to show; bigger ones by their size. */
-const MAX_IMAGE_SIZE = 10 * MAX_PARSE_SIZE;
-
-/**
- * Messages longer than this go out in chunks of this many characters, one
- * at a time: OkHttp (RN's WebSocket on Android) drops the connection once
- * 16 MB wait to be sent.
- */
-const CHUNK_SIZE = 1_000_000;
-
-/** A chunk the desktop hasn't acked after this long gives up the rest of its message. */
-const CHUNK_ACK_TIMEOUT = 15_000;
-
-/** Binary bodies as `<N bytes>`; anything else unchanged. */
-export function capBody(body: any): any {
-  return body instanceof ArrayBuffer || ArrayBuffer.isView(body) ? `<${body.byteLength} bytes>` : body;
-}
-
-/** [text] parsed when it's JSON, unless it's longer than MAX_PARSE_SIZE. */
-export function parseBody(text: string): any {
-  if (text.length > MAX_PARSE_SIZE) return text;
-  try { return JSON.parse(text); } catch (_) { return text; }
-}
-
-/** Whether a body of this (lowercase) content type is text, which is sent whole. */
-function isTextType(type: string): boolean {
-  return /json|xml|javascript|x-www-form-urlencoded|graphql|^text\//.test(type);
-}
-
-/** [blob] as a `data:` URL of type [mime], for the desktop to show. */
-function dataUrl(blob: any, mime: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new (globalThis as any).FileReader();
-    reader.onload = () => {
-      const url = String(reader.result);
-      resolve(`data:${mime};base64,${url.slice(url.indexOf(',') + 1)}`);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-
-/**
- * Convert a seed string to a UUID v5-like format (deterministic).
- * Uses FNV-1a to produce 128 bits, then formats as UUID with version=5, variant=a.
- */
-function seedToUUID(seed: string): string {
-  // Generate 4 x 32-bit hashes for 128 bits total
-  const hashes: number[] = [];
-  for (let round = 0; round < 4; round++) {
-    let h = 0x811c9dc5 ^ (round * 0x01000193);
-    for (let i = 0; i < seed.length; i++) {
-      h ^= seed.charCodeAt(i);
-      h = Math.imul(h, 0x01000193);
-    }
-    hashes.push(h >>> 0);
-  }
-  const hex = hashes.map(h => h.toString(16).padStart(8, '0')).join('');
-  // Format as UUID: 8-4-4-4-12, set version=5 and variant=a
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
-}
-
-/**
- * Generate a stable deviceId in UUID format using native platform identifiers.
- * Same app on same device always produces the same UUID.
- */
-function generateStableDeviceId(appName: string): string {
-  const os = Platform.OS;
-  const version = String(Platform.Version);
-  let seed = `${appName}:react_native:${os}:${version}`;
-  try {
-    const constants = (Platform.constants || NativeModules.PlatformConstants) as Record<string, any> | undefined;
-    if (os === 'android' && constants) {
-      const pkg = constants.Package?.packageName || '';
-      const fingerprint = constants.Fingerprint || constants.Serial || '';
-      const model = constants.Model || constants.Brand || '';
-      seed = `${pkg}:${model}:${fingerprint}:${appName}`;
-    } else if (os === 'ios' && constants) {
-      const idiom = constants.interfaceIdiom || '';
-      const systemName = constants.systemName || '';
-      const osVersion = constants.osVersion || version;
-      seed = `${idiom}:${systemName}:${osVersion}:${appName}`;
-    }
-  } catch (_) {}
-  return seedToUUID(seed);
-}
-
-// ---- Encrypted host cache (persists via AsyncStorage if available) ----
-
-const CACHE_KEY = 'DcN3t$ecR7!';
-let _cachedHost: { host: string; machineId: string } | null = null;
-
-function xorCipher(input: string, key: string): string {
-  let out = '';
-  for (let i = 0; i < input.length; i++) {
-    out += String.fromCharCode(input.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-  }
-  return out;
-}
-
-function encryptCache(data: object): string {
-  const plain = JSON.stringify(data);
-  // XOR then base64
-  const xored = xorCipher(plain, CACHE_KEY);
-  // Use btoa-safe encoding (char codes 0-255)
-  try { return btoa(xored); } catch (_) {
-    return Buffer.from(xored, 'binary').toString('base64');
-  }
-}
-
-function decryptCache(encrypted: string): any {
-  try {
-    let decoded: string;
-    try { decoded = atob(encrypted); } catch (_) {
-      decoded = Buffer.from(encrypted, 'base64').toString('binary');
-    }
-    const plain = xorCipher(decoded, CACHE_KEY);
-    return JSON.parse(plain);
-  } catch (_) { return null; }
-}
-
-async function saveHostCache(host: string, machineId?: string): Promise<void> {
-  _cachedHost = machineId ? { host, machineId } : null;
-  // If we have no machineId to associate the host with, write a minimal entry
-  // (preserves in-memory reconnect for the lifetime of this process).
-  try {
-    const AsyncStorage = require('@react-native-async-storage/async-storage')?.default;
-    if (AsyncStorage) {
-      const payload: any = { h: host, t: Date.now() };
-      if (machineId) payload.m = machineId;
-      const encrypted = encryptCache(payload);
-      await AsyncStorage.setItem('__dc_s', encrypted);
-    }
-  } catch (_) {}
-}
-
-async function clearHostCache(): Promise<void> {
-  _cachedHost = null;
-  try {
-    const AsyncStorage = require('@react-native-async-storage/async-storage')?.default;
-    if (AsyncStorage) {
-      await AsyncStorage.removeItem('__dc_s');
-    }
-  } catch (_) {}
-}
-
-/**
- * Probe a WebSocket connection just long enough to read the server's
- * `server:hello` and check that its machineId matches what we cached.
- * Returns true only on a positive identity match.
- *
- * This prevents connecting to the wrong machine when switching between
- * iOS Simulator and a real device on the same network (where the cached
- * IP could now point at a different host that just happens to listen on
- * the same port).
- */
-async function verifyCachedHost(host: string, port: number, expectedId: string): Promise<boolean> {
-  return new Promise<boolean>((resolve) => {
-    let done = false;
-    // Declare timer/ws as mutable null so they're safely accessible from
-    // `finish` even before `setTimeout` / `new WebSocket` complete.
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let ws: WebSocket | null = null;
-    const finish = (ok: boolean) => {
-      if (done) return;
-      done = true;
-      if (timer !== null) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      if (ws) {
-        try { ws.close(); } catch (_) {}
-        ws = null;
-      }
-      resolve(ok);
-    };
-
-    try {
-      ws = new NativeWebSocket(`ws://${host}:${port}`);
-    } catch (_) {
-      return resolve(false);
-    }
-
-    timer = setTimeout(() => finish(false), 1500);
-
-    ws.onopen = () => {
-      // Server should send server:hello immediately on connect
-    };
-    ws.onmessage = (event: WebSocketMessageEvent) => {
-      try {
-        const msg = JSON.parse(event.data as string);
-        if (msg && msg.type === 'server:hello') {
-          const announcedId = msg.payload && msg.payload.machineId;
-          finish(announcedId === expectedId);
-        }
-      } catch (_) {}
-    };
-    ws.onerror = () => finish(false);
-    ws.onclose = () => finish(false);
-  });
-}
-
-async function readHostCache(port: number): Promise<{ host: string; machineId: string } | null> {
-  if (_cachedHost) return _cachedHost;
-  try {
-    const AsyncStorage = require('@react-native-async-storage/async-storage')?.default;
-    if (AsyncStorage) {
-      const encrypted = await AsyncStorage.getItem('__dc_s');
-      if (encrypted) {
-        const data = decryptCache(encrypted);
-        // Legacy caches (no machineId) cannot be verified and would re-trigger
-        // the simulator/device-swap bug we are fixing — treat them as absent.
-        if (data && typeof data.h === 'string' && typeof data.m === 'string' &&
-            Date.now() - data.t < 24 * 60 * 60 * 1000) {
-          _cachedHost = { host: data.h, machineId: data.m };
-          return _cachedHost;
-        }
-      }
-    }
-  } catch (_) {}
-  return null;
-}
-
-// ---- Auto-detect host (supports real device iOS/Android) ----
-
-async function tryConnect(host: string, port: number, timeoutMs: number): Promise<boolean> {
-  try {
-    const ws = new NativeWebSocket(`ws://${host}:${port}`);
-    return await new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => { try { ws.close(); } catch (_) {} resolve(false); }, timeoutMs);
-      ws.onopen = () => { clearTimeout(timer); try { ws.close(); } catch (_) {} resolve(true); };
-      ws.onerror = () => { clearTimeout(timer); resolve(false); };
-    });
-  } catch (_) { return false; }
-}
-
-/**
- * Extract the dev server host from Metro's scriptURL.
- * This is how Reactotron auto-discovers the desktop IP on real devices —
- * the RN runtime already knows the dev machine's IP because Metro serves
- * the JS bundle from it.
- */
-function getDevServerHost(): string | null {
-  try {
-    // React Native exposes the bundle URL via SourceCode native module
-    const scriptURL =
-      NativeModules?.SourceCode?.scriptURL ??
-      NativeModules?.SourceCode?.getConstants?.()?.scriptURL;
-    if (scriptURL && typeof scriptURL === 'string') {
-      // scriptURL looks like "http://192.168.1.5:8081/index.bundle?..."
-      const match = scriptURL.match(/^https?:\/\/([^:\/]+)/);
-      if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
-        return match[1];
-      }
-    }
-  } catch (_) {}
-  return null;
-}
-
-async function autoDetectHost(port: number): Promise<string> {
-  // 0. Try cached host from previous session (instant reconnect).
-  //    Verify the server's stable machineId matches what we cached —
-  //    catches the case where the cached IP now points at a different
-  //    device (e.g. iOS Simulator ↔ real iPhone swap on the same network).
-  const cached = await readHostCache(port);
-  if (cached) {
-    if (await verifyCachedHost(cached.host, port, cached.machineId)) {
-      return cached.host;
-    }
-    // Stale or wrong machine — invalidate so the next discovery wins.
-    await clearHostCache();
-  }
-
-  // 1. Race: Metro scriptURL + known hosts in parallel
-  //    USB (adb reverse) → localhost/10.0.2.2 responds fast
-  //    WiFi debug → Metro host responds fast
-  const raceCandidates: Promise<string | null>[] = [];
-
-  // Metro bundler host (real device gets desktop IP from bundle URL)
-  const devHost = getDevServerHost();
-  if (devHost) {
-    raceCandidates.push(
-      tryConnect(devHost, port, 800).then((ok) => ok ? devHost : null)
-    );
-  }
-
-  // Known emulator/simulator/USB addresses
-  for (const host of ['localhost', '10.0.2.2', '10.0.3.2', '127.0.0.1']) {
-    raceCandidates.push(
-      tryConnect(host, port, 800).then((ok) => ok ? host : null)
-    );
-  }
-
-  // First non-null wins
-  const raceResult = await firstNonNull(raceCandidates);
-  if (raceResult) { await saveHostCache(raceResult); return raceResult; }
-
-  // 2. Scan local subnets for real device (WiFi)
-  const subnets: string[] = [];
-  if (devHost) {
-    const parts = devHost.split('.');
-    if (parts.length === 4) {
-      subnets.push(`${parts[0]}.${parts[1]}.${parts[2]}`);
-    }
-  }
-  for (const s of ['192.168.1', '192.168.0', '192.168.2', '10.0.0', '10.0.1', '172.16.0']) {
-    if (!subnets.includes(s)) subnets.push(s);
-  }
-
-  for (const subnet of subnets) {
-    const batch = Array.from({ length: 30 }, (_, i) => `${subnet}.${i + 1}`);
-    const results = await Promise.allSettled(
-      batch.map((h) => tryConnect(h, port, 400).then((ok) => ok ? h : null))
-    );
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
-        await saveHostCache(r.value);
-        return r.value;
-      }
-    }
-  }
-
-  return 'localhost';
-}
-
-/** Returns the first non-null resolved value from a list of promises. */
-async function firstNonNull(promises: Promise<string | null>[]): Promise<string | null> {
-  return new Promise((resolve) => {
-    let remaining = promises.length;
-    for (const p of promises) {
-      p.then((v) => {
-        if (v != null) resolve(v);
-        else if (--remaining === 0) resolve(null);
-      }).catch(() => {
-        if (--remaining === 0) resolve(null);
-      });
-    }
-  });
-}
-
-// ---- URL classification (app vs library) ----
-
-const libraryDomains = [
-  'firebaseio.com', 'googleapis.com', 'firebase.google.com',
-  'firebaseinstallations.googleapis.com', 'fcmregistrations.googleapis.com',
-  'crashlyticsreports-pa.googleapis.com', 'firebaseremoteconfig.googleapis.com',
-  'google-analytics.com', 'analytics.google.com', 'googletagmanager.com',
-  'app-measurement.com', 'doubleclick.net',
-  'facebook.com', 'graph.facebook.com', 'fbcdn.net',
-  'sentry.io', 'bugsnag.com', 'instabug.com',
-  'segment.io', 'segment.com', 'mixpanel.com', 'amplitude.com',
-  'appsflyer.com', 'adjust.com', 'branch.io',
-  'codepush.appcenter.ms', 'appcenter.ms',
-  'clients3.google.com', 'clients4.google.com',
-  'connectivitycheck', 'generate_204',
-];
-
-function classifyUrl(url: string): string {
-  try {
-    const lower = url.toLowerCase();
-    for (const domain of libraryDomains) {
-      if (lower.includes(domain)) return 'library';
-    }
-    if (lower.includes('/generate_204') || lower.includes('connectivitycheck')) return 'system';
-  } catch (_) {}
-  return 'app';
-}
-
-function wrapFetchInit(
-  init: RequestInit | undefined,
-  tracker: { headers?: any; body?: any },
-): RequestInit | undefined {
-  if (!init) return init;
-
-  const headers = init.headers;
-  if (headers && typeof headers === 'object' && !(headers instanceof Headers)) {
-    const proxy = new Proxy(headers as Record<string, string>, {
-      set(target, key, value) {
-        (target as any)[key] = value;
-        tracker.headers = { ...target };
-        return true;
-      },
-      deleteProperty(target, key) {
-        delete (target as any)[key];
-        tracker.headers = { ...target };
-        return true;
-      },
-    });
-    (init as any).headers = proxy;
-    tracker.headers = { ...(headers as Record<string, string>) };
-  } else if (headers instanceof Headers) {
-    const origAppend = headers.append.bind(headers);
-    const origSet = headers.set.bind(headers);
-    const origDelete = headers.delete.bind(headers);
-    headers.append = function (name: string, value: string) {
-      const r = origAppend(name, value);
-      const snap: Record<string, string> = {};
-      headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
-      tracker.headers = snap;
-      return r;
-    };
-    headers.set = function (name: string, value: string) {
-      const r = origSet(name, value);
-      const snap: Record<string, string> = {};
-      headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
-      tracker.headers = snap;
-      return r;
-    };
-    headers.delete = function (name: string) {
-      const r = origDelete(name);
-      const snap: Record<string, string> = {};
-      headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
-      tracker.headers = snap;
-      return r;
-    };
-    const snap: Record<string, string> = {};
-    headers.forEach((v, k) => (snap[k.toLowerCase()] = v));
-    tracker.headers = snap;
-  } else {
-    tracker.headers = headers;
-  }
-
-  if ('body' in init) tracker.body = init.body;
-  (init as any)['__dcBodyGet'] = () => tracker.body;
-
-  return init;
-}
-
-/**
- * Read the final request headers from a fetch call, returning them as a
- * plain object. Nested Map/List values are preserved verbatim — the
- * desktop inspector JSON-encodes them for display. Calling `String(v)`
- * on a `{ apiKey: 'xxx' }` value would produce the literal
- * `[object Object]`, which is unrecoverable downstream.
- */
-function readFinalHeaders(
-  tracker: { headers?: any },
-  init: RequestInit | undefined,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  const src = tracker.headers ?? init?.headers;
-  if (!src) return out;
-  if (typeof Headers !== 'undefined' && src instanceof Headers) {
-    src.forEach((v, k) => (out[k.toLowerCase()] = v));
-  } else if (Array.isArray(src)) {
-    for (const [k, v] of src) out[String(k).toLowerCase()] = v;
-  } else if (typeof src === 'object') {
-    for (const [k, v] of Object.entries(src)) out[k.toLowerCase()] = v;
-  }
-  return out;
-}
-
 // ---- Main Class ----
-
-/** A key-value store the desktop can read and edit (see `registerStorage`). */
-export interface StorageAdapter {
-  getAll(): Promise<Record<string, any>> | Record<string, any>;
-  set(key: string, value: any): Promise<void> | void;
-  remove(key: string): Promise<void> | void;
-  clear(): Promise<void> | void;
-}
-
-/** Runs one SQL statement against an app database and returns its rows. */
-export type DatabaseQuery = (
-  sql: string,
-) => Promise<Array<Record<string, any>>> | Array<Record<string, any>>;
-
-/** Rows past this are left out of a query result, which says `truncated`. */
-const MAX_QUERY_ROWS = 1000;
-
-/** SQLite tables with their columns and row counts; empty if unreadable. */
-export async function sqliteTables(query: DatabaseQuery): Promise<Array<Record<string, any>>> {
-  try {
-    const names = await query(
-      "SELECT name FROM sqlite_master WHERE type = 'table' " +
-        "AND name NOT LIKE 'sqlite_%' AND name <> 'android_metadata' ORDER BY name",
-    );
-    const tables: Array<Record<string, any>> = [];
-    for (const row of names) {
-      const table = String(row.name);
-      const quoted = `"${table.replace(/"/g, '""')}"`;
-      const columns = await query(`PRAGMA table_info(${quoted})`);
-      const [count] = await query(`SELECT COUNT(*) AS c FROM ${quoted}`);
-      tables.push({
-        name: table,
-        columns: columns.map((c) => ({
-          name: String(c.name),
-          type: String(c.type ?? ''),
-          isPrimaryKey: Number(c.pk) > 0,
-          isNullable: Number(c.notnull) === 0,
-        })),
-        rowCount: Number(count?.c ?? 0),
-      });
-    }
-    return tables;
-  } catch (_) {
-    return [];
-  }
-}
 
 export class DevConnect {
   private static instance: DevConnect | null = null;
-  private ws: WebSocket | null = null;
-  private config: Omit<Required<DevConnectConfig>, 'versionCode'> & { versionCode?: string };
+  /** @internal */ ws: WebSocket | null = null;
+  /** @internal */ config: Omit<Required<DevConnectConfig>, 'versionCode'> & { versionCode?: string };
   /** Pre-init queue: messages sent before init() is called */
   private static preInitQueue: Array<{ type: string; payload: Record<string, any> }> = [];
 
-  private deviceId: string;
-  private connected = false;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private messageQueue: string[] = [];
+  /** @internal */ deviceId: string;
+  /** @internal */ connected = false;
+  /** @internal */ reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** @internal */ messageQueue: string[] = [];
   /** Messages longer than CHUNK_SIZE, sent a chunk at a time by [_sendChunk]. */
-  private _bigMessages: string[] = [];
+  /** @internal */ _bigMessages: string[] = [];
   /** Characters of `_bigMessages[0]` sent so far, under this id. */
-  private _bigSent = 0;
-  private _bigId = '';
+  /** @internal */ _bigSent = 0;
+  /** @internal */ _bigId = '';
   /** Set while a chunk waits for the desktop's ack. */
-  private _chunkTimer: ReturnType<typeof setTimeout> | null = null;
-  private _reduxStore: any = null;
-  private _stateRestoreHandler: ((state: any) => void) | null = null;
-  private _customCommandHandlers: Map<string, (args?: any) => any> = new Map();
-  private _databases: Map<string, DatabaseQuery> = new Map();
-  private _storages: Map<string, StorageAdapter> = new Map();
+  /** @internal */ _chunkTimer: ReturnType<typeof setTimeout> | null = null;
+  /** @internal */ _reduxStore: any = null;
+  /** @internal */ _stateRestoreHandler: ((state: any) => void) | null = null;
+  /** @internal */ _customCommandHandlers: Map<string, (args?: any) => any> = new Map();
+  /** @internal */ _databases: Map<string, DatabaseQuery> = new Map();
+  /** @internal */ _storages: Map<string, StorageAdapter> = new Map();
   /** Screenshot function the app registered for the Layout tab, if any. */
-  private _screenshot: (() => Promise<string>) | null = null;
+  /** @internal */ _screenshot: (() => Promise<string>) | null = null;
   /** Desktop-set network conditions, applied to every XHR (fetch rides on XHR). */
-  private _throttle = { latencyMs: 0, offline: false };
+  /** @internal */ _throttle = { latencyMs: 0, offline: false };
   /**
    * Generic server-message subscribers (used by internal plugins).
    * Each handler receives the full parsed `msg` object and may act or
@@ -605,16 +95,16 @@ export class DevConnect {
    * WS receive loop, so they should be cheap and never throw — wrap
    * your own try/catch.
    */
-  private _serverMessageHandlers: Set<(msg: any) => void> = new Set();
+  /** @internal */ _serverMessageHandlers: Set<(msg: any) => void> = new Set();
   /**
    * Optional app-supplied reload hook. If set, called instead of the default
    * `DevSettings.reload()` so apps can wipe in-memory state first.
    */
-  private _reloadHandler?: () => void;
+  /** @internal */ _reloadHandler?: () => void;
   private _benchmarks: Map<string, { title: string; startTime: number; steps: Array<{ title: string; timestamp: number }> }> = new Map();
-  private originalFetch: typeof global.fetch | null = null;
-  private originalXHR: typeof global.XMLHttpRequest | null = null;
-  private originalConsole: { log: Function; warn: Function; error: Function; debug: Function; info: Function; trace?: Function } | null = null;
+  /** @internal */ originalFetch: typeof globalThis.fetch | null = null;
+  /** @internal */ originalXHR: typeof globalThis.XMLHttpRequest | null = null;
+  /** @internal */ originalConsole: { log: Function; warn: Function; error: Function; debug: Function; info: Function; trace?: Function } | null = null;
   /**
    * Map of `METHOD\0URL` keys currently in flight through the fetch
    * interceptor to the number of active concurrent requests. The XHR
@@ -622,8 +112,8 @@ export class DevConnect {
    * internally for the same call) checks this map and suppresses its
    * own duplicate report if the count is > 0.
    */
-  private fetchInFlight: Map<string, number> = new Map();
-  private fetchStackCount = 0;
+  /** @internal */ fetchInFlight: Map<string, number> = new Map();
+  /** @internal */ fetchStackCount = 0;
 
   private constructor(config: DevConnectConfig & { resolvedHost: string }) {
     this.config = {
@@ -683,9 +173,9 @@ export class DevConnect {
     DevConnect.instance = dc;
 
     // Patch interceptors synchronously so no early network requests or logs are missed
-    if (dc.config.autoInterceptFetch) dc.patchFetch();
-    if (dc.config.autoInterceptXHR) dc.patchXHR();
-    if (dc.config.autoInterceptConsole) dc.patchConsole();
+    if (dc.config.autoInterceptFetch) patchFetch(dc);
+    if (dc.config.autoInterceptXHR) patchXHR(dc);
+    if (dc.config.autoInterceptConsole) patchConsole(dc);
 
     // Resolve real host and connect asynchronously in the background
     const port = config.port ?? 9090;
@@ -694,32 +184,32 @@ export class DevConnect {
     if (shouldAuto) {
       autoDetectHost(port).then((resolvedHost) => {
         dc.config.host = resolvedHost;
-        dc.connect();
+        connect(dc);
       }).catch(() => {
-        dc.connect();
+        connect(dc);
       });
     } else {
       dc.config.host = config.host ?? 'localhost';
-      dc.connect();
+      connect(dc);
     }
 
     // Auto-start monitoring plugins
     // Using dynamic require() to avoid circular dependency at module load time
     try {
       if (dc.config.autoPerformance) {
-        const { startPerformanceMonitor } = require('./plugins/performanceMonitor');
+        const { startPerformanceMonitor } = require('./plugins/performance/performanceMonitor');
         startPerformanceMonitor();
       }
       if (dc.config.autoMemoryLeak) {
-        const { startMemoryLeakDetector } = require('./plugins/memoryLeakDetector');
+        const { startMemoryLeakDetector } = require('./plugins/performance/memoryLeakDetector');
         startMemoryLeakDetector();
       }
       if (dc.config.autoBenchmark) {
-        const { setupAppBenchmark } = require('./plugins/appBenchmark');
+        const { setupAppBenchmark } = require('./plugins/performance/appBenchmark');
         setupAppBenchmark();
       }
       if (dc.config.autoError) {
-        const { startErrorMonitor } = require('./plugins/errorMonitor');
+        const { startErrorMonitor } = require('./plugins/errors/errorMonitor');
         startErrorMonitor();
       }
     } catch (e) {
@@ -772,339 +262,6 @@ export class DevConnect {
 
   // ---- WebSocket ----
 
-  private connect(): void {
-    // Close existing socket before creating a new one to prevent duplicates
-    if (this.ws) {
-      try { this.ws.onclose = null; this.ws.onerror = null; this.ws.close(); } catch (_) {}
-      this.ws = null;
-    }
-    this._stopChunks();
-    try {
-      this.ws = new NativeWebSocket(`ws://${this.config.host}:${this.config.port}`);
-
-      let handshakeSent = false;
-      this.ws.onopen = () => {
-        this.connected = true;
-        this.messageQueue.forEach((msg) => this._wsSend(msg));
-        this.messageQueue = [];
-        this._sendChunk();
-      };
-
-      this.ws.onmessage = (event: WebSocketMessageEvent) => {
-        try {
-          const msg = JSON.parse(event.data as string);
-          if (msg.type === 'server:hello' && !handshakeSent) {
-            handshakeSent = true;
-            // Capture the server's stable machineId so the next launch can
-            // verify the cached host really points at *this* desktop and not
-            // some other device that happened to claim the same IP.
-            const serverMachineId = msg.payload && msg.payload.machineId;
-            if (typeof serverMachineId === 'string' && serverMachineId.length > 0) {
-              saveHostCache(this.config.host, serverMachineId).catch(() => {});
-            }
-            this.sendHandshake();
-          } else if (msg.type === 'server:chunk_ack') {
-            if (msg.payload?.id === this._bigId) this._chunkAcked();
-          } else if (msg.type === 'server:redux:dispatch') {
-            // Desktop dispatching a Redux action into the app
-            if (this._reduxStore && msg.payload?.action) {
-              this._reduxStore.dispatch(msg.payload.action);
-            }
-          } else if (msg.type === 'server:state:restore') {
-            // Desktop restoring a state snapshot
-            if (this._stateRestoreHandler && msg.payload?.state) {
-              this._stateRestoreHandler(msg.payload.state);
-            }
-          } else if (msg.type === 'server:custom:command') {
-            // Desktop sending a custom command
-            const cmd = msg.payload?.command;
-            const handler = this._customCommandHandlers.get(cmd);
-            if (handler) {
-              // Async handlers resolve before the result goes back; a throw
-              // (sync or async) is reported as the error.
-              Promise.resolve()
-                .then(() => handler(msg.payload?.args))
-                .then(
-                  (result) => this.send('client:custom:command_result', {
-                    command: cmd,
-                    result,
-                  }, msg.correlationId),
-                  (cmdErr: any) => this.send('client:custom:command_result', {
-                    command: cmd,
-                    error: cmdErr?.message ?? String(cmdErr),
-                  }, msg.correlationId),
-                );
-            }
-          } else if (typeof msg.type === 'string' && msg.type.startsWith('server:storage:')) {
-            this._handleStorageCommand(msg.type, msg.payload ?? {});
-          } else if (msg.type === 'server:layout:capture') {
-            this._layoutSnapshot().then(
-              (snapshot) => this.send('client:layout:snapshot', snapshot, msg.correlationId),
-              (e: any) => this.send('client:layout:snapshot', {
-                error: String(e?.message ?? e),
-              }, msg.correlationId),
-            );
-          } else if (msg.type === 'server:open_url') {
-            // Deep link: the app's own Linking handlers route it.
-            if (msg.payload?.url) Linking.openURL(msg.payload.url).catch(() => {});
-          } else if (msg.type === 'server:dev_menu') {
-            NativeModules.DevMenu?.show?.();
-          } else if (msg.type === 'server:network:throttle') {
-            this._throttle = {
-              latencyMs: Math.max(0, Number(msg.payload?.latencyMs) || 0),
-              offline: msg.payload?.offline === true,
-            };
-          } else if (msg.type === 'server:network:replay') {
-            this._replayRequest(msg.payload ?? {});
-          } else if (msg.type === 'server:mock_rules_update') {
-            // Always the full rule list (empty clears). Lazy require: that module imports this one.
-            const rules = msg.payload?.rules;
-            if (Array.isArray(rules)) require('./interceptors/mockServerInterceptor').setMockRules(rules);
-          } else if (msg.type === 'server:database:request_schema') {
-            this._databaseSchemas().then((databases) =>
-              this.send('client:database:schema', { databases }, msg.correlationId));
-          } else if (msg.type === 'server:database:query') {
-            this._runDatabaseQuery(msg.payload?.database, msg.payload?.sql ?? '').then((result) =>
-              this.send('client:database:query_result', result, msg.correlationId));
-          } else if (msg.type === 'server:reload') {
-            // Desktop asking the app to reload itself. Triggers Metro reload
-            // via the official DevSettings module (the same path the RN
-            // dev menu's "Reload" option uses). Works in dev builds only.
-            this._reloadApp();
-          } else if (msg.type === 'server:hot_restart') {
-            // Heavier counterpart — same observable effect as `server:reload`
-            // because RN has no lighter-vs-heavier distinction (DevSettings
-            // already tears down the bridge and reloads the bundle from
-            // Metro, which IS the "restart" semantic). We accept the message
-            // anyway so mixed-platform setups (e.g. Flutter + RN) don't
-            // silently drop the hot_restart signal on RN devices.
-            this._reloadApp();
-          }
-
-          // Dispatch to any internal plugin subscribers. Handlers are
-          // invoked in registration order; errors are swallowed so one
-          // bad plugin can't break the receive loop.
-          for (const handler of this._serverMessageHandlers) {
-            try { handler(msg); } catch (e) { /* eslint-disable-next-line no-console */ console.warn('[DevConnect] handler err', e); }
-          }
-        } catch (_) {}
-      };
-
-      this.ws.onclose = () => { this.connected = false; this._stopChunks(); this.scheduleReconnect(); };
-      this.ws.onerror = () => { this.connected = false; this._stopChunks(); this.scheduleReconnect(); };
-    } catch (_) {
-      this.scheduleReconnect();
-    }
-  }
-
-  /**
-   * Default handler for `server:reload`.
-   *
-   * RN offers a public `DevSettings.reload()` (auto-linked from
-   * `react-native`) that's the same path the dev menu's "Reload" option
-   * uses — it tears down the bridge and re-bootstraps the JS bundle from
-   * Metro. Works in dev builds only; release builds no-op.
-   *
-   * Apps can register a custom reload handler via
-   * `DevConnect.registerReloadHandler(() => { ... })` to wipe in-memory
-   * caches before the reload (e.g. Redux/MobX stores).
-   */
-  private _reloadApp(): void {
-    // Try the custom handler first. If it succeeds we're done — the
-    // handler takes full responsibility for the reload. If it throws,
-    // we DO fall through to the default DevSettings.reload() below,
-    // so the user still gets a reload even when their custom code
-    // crashed mid-execution.
-    if (this._reloadHandler) {
-      try {
-        this._reloadHandler();
-        return;
-      } catch (_) {
-        // handler threw — continue to default below
-      }
-    }
-    try {
-      const DevSettings = (NativeModules as any).DevSettings;
-      if (DevSettings && typeof DevSettings.reload === 'function') {
-        // DevSettings.reload() takes no arguments. Older versions of the
-        // native side may still throw "called with 1 arguments but expects
-        // 0" if you pass anything — keep the call empty to stay compatible.
-        DevSettings.reload();
-      }
-    } catch (_) {
-      // DevSettings not available (release build / not yet initialized)
-    }
-  }
-
-  private sendHandshake(): void {
-    const os = Platform.OS; // 'ios' | 'android'
-    const version = Platform.Version; // e.g. '17.4' (iOS) or 34 (Android API level)
-    const osLabel = os === 'ios' ? 'iOS' : os === 'android' ? 'Android' : os;
-
-    // Get actual device model name
-    let deviceModel = `${osLabel} Device`;
-    try {
-      if (os === 'ios') {
-        // iOS: prefer interfaceIdiom (iPhone/iPad/tv) over generic systemName
-        const constants = (NativeModules.PlatformConstants || NativeModules.DeviceInfo) as Record<string, any> | undefined;
-        const iosModel = constants?.interfaceIdiom;
-        const systemName = constants?.systemName;
-        if (iosModel === 'phone') {
-          deviceModel = 'iPhone';
-        } else if (iosModel === 'pad') {
-          deviceModel = 'iPad';
-        } else if (iosModel === 'tv') {
-          deviceModel = 'tvOS Device';
-        } else if (systemName) {
-          deviceModel = `${systemName} Device`;
-        }
-      } else if (os === 'android') {
-        // Android: get model from PlatformConstants
-        const constants = (NativeModules.PlatformConstants || Platform.constants) as Record<string, any> | undefined;
-        const model = constants?.Model || constants?.Brand;
-        if (model) {
-          deviceModel = model;
-        }
-      }
-    } catch (_) {
-      // Fallback to generic name
-    }
-
-    this.send('client:handshake', {
-      deviceInfo: {
-        deviceId: this.deviceId,
-        deviceName: deviceModel,
-        platform: 'react_native',
-        osVersion: `${osLabel} ${version}`,
-        appName: this.config.appName,
-        appVersion: this.config.appVersion,
-        ...(this.config.versionCode ? { versionCode: this.config.versionCode } : {}),
-        sdkVersion: SDK_VERSION,
-      },
-    });
-    this._announceCommands();
-  }
-
-  /** Read / write / delete / clear a registered storage, then send its contents. */
-  private async _handleStorageCommand(type: string, p: Record<string, any>): Promise<void> {
-    const targets: Array<[string, StorageAdapter | undefined]> = p.storageType
-      ? [[p.storageType, this._storages.get(p.storageType)]]
-      : [...this._storages];
-    for (const [storageType, adapter] of targets) {
-      if (!adapter) continue;
-      try {
-        if (type === 'server:storage:write') await adapter.set(p.key, p.value);
-        else if (type === 'server:storage:delete') await adapter.remove(p.key);
-        else if (type === 'server:storage:clear') await adapter.clear();
-        this.send('client:storage:all_data', { storageType, entries: await adapter.getAll() });
-      } catch (e: any) {
-        this.send('client:storage:all_data', { storageType, entries: {}, error: e?.message ?? String(e) });
-      }
-    }
-  }
-
-  /** Screen size, the registered screenshot and the component tree, for the Layout tab. */
-  private async _layoutSnapshot(): Promise<Record<string, any>> {
-    const { width, height } = Dimensions.get('window');
-    // A failure is reported, not swallowed: an empty tree alone says nothing.
-    let roots: LayoutNode[] = [];
-    let truncated = false;
-    let error: string | undefined;
-    try {
-      ({ roots, truncated } = await captureComponentTree());
-    } catch (e: any) {
-      error = String(e?.message ?? e);
-    }
-    let screenshot: string | null = null;
-    if (this._screenshot) {
-      try {
-        screenshot = String(await withTimeout(this._screenshot(), 5000))
-          .replace(/^data:image\/\w+;base64,/, '');
-      } catch (_) {
-        // The tree is still useful without a picture.
-      }
-    }
-    return {
-      width,
-      height,
-      screenshot,
-      root: roots.length === 1
-        ? roots[0]
-        : { id: 'root', name: 'Root', x: 0, y: 0, w: width, h: height, props: {}, children: roots },
-      ...(truncated ? { truncated } : {}),
-      ...(error ? { error } : {}),
-    };
-  }
-
-  /** Sends a captured request again through the app's own (intercepted) fetch. */
-  private _replayRequest(p: Record<string, any>): void {
-    if (typeof p.url !== 'string') return;
-    const method = String(p.method ?? 'GET').toUpperCase();
-    const hasBody = p.body != null && method !== 'GET' && method !== 'HEAD';
-    // The global fetch is the intercepted one, so the replay is captured.
-    fetch(p.url, {
-      method,
-      headers: p.headers ?? {},
-      body: hasBody ? (typeof p.body === 'string' ? p.body : JSON.stringify(p.body)) : undefined,
-    }).catch(() => {}); // the failure is reported like any other request
-  }
-
-  private async _databaseSchemas(): Promise<Array<Record<string, any>>> {
-    const schemas: Array<Record<string, any>> = [];
-    for (const [name, query] of this._databases) {
-      schemas.push({ name, tables: await sqliteTables(query) });
-    }
-    return schemas;
-  }
-
-  private async _runDatabaseQuery(database: string | undefined, sql: string): Promise<Record<string, any>> {
-    const start = Date.now();
-    const result: Record<string, any> = { database };
-    try {
-      const query = this._databases.get(database ?? '') ?? this._databases.values().next().value;
-      if (!query) throw new Error('No database registered with DevConnect.registerDatabase');
-      const limited = /^\s*(select|with)\b/i.test(sql)
-        ? `SELECT * FROM (${sql.replace(/[\s;]+$/, '')}\n) LIMIT ${MAX_QUERY_ROWS + 1}`
-        : sql;
-      let rows: Array<Record<string, any>>;
-      try {
-        rows = (await query(limited)) ?? [];
-      } catch (e) {
-        if (limited === sql) throw e;
-        rows = (await query(sql)) ?? [];
-      }
-      result.columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-      result.rows = rows.slice(0, MAX_QUERY_ROWS);
-      result.truncated = rows.length > MAX_QUERY_ROWS;
-    } catch (e: any) {
-      result.columns = [];
-      result.rows = [];
-      result.error = e?.message ?? String(e);
-    }
-    result.executionTimeMs = Date.now() - start;
-    return result;
-  }
-
-  /** Tells the desktop which custom commands it can run (Commands panel). */
-  private _announceCommands(): void {
-    this.send('client:custom:commands', {
-      commands: [...this._customCommandHandlers.keys()],
-    });
-  }
-
-  private scheduleReconnect(): void {
-    if (!this.config.enabled) return;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = setTimeout(async () => {
-      if (!this.connected) {
-        if (this.config.auto) {
-          this.config.host = await autoDetectHost(this.config.port);
-        }
-        this.connect();
-      }
-    }, 3000);
-  }
-
   send(type: string, payload: Record<string, any>, correlationId?: string): void {
     if (!this.config.enabled) return;
     const message: DCMessage = {
@@ -1118,408 +275,11 @@ export class DevConnect {
     try {
       const json = JSON.stringify(message);
       if (this.connected && this.ws) {
-        this._wsSend(json);
+        _wsSend(this, json);
       } else if (this.messageQueue.length < 1000) {
         this.messageQueue.push(json);
       }
     } catch (_) {}
-  }
-
-  /** Sends [json] now, or in chunks by [_sendChunk] when it's longer than CHUNK_SIZE. */
-  private _wsSend(json: string): void {
-    if (json.length <= CHUNK_SIZE) {
-      this.ws?.send(json);
-      return;
-    }
-    this._bigMessages.push(json);
-    this._sendChunk();
-  }
-
-  /** Sends the next chunk of the first big message, unless one still waits for its ack. */
-  private _sendChunk(): void {
-    const json = this._bigMessages[0];
-    if (json === undefined || this._chunkTimer || !this.connected || !this.ws) return;
-    if (this._bigSent === 0) this._bigId = generateId();
-    let end = Math.min(this._bigSent + CHUNK_SIZE, json.length);
-    const code = json.charCodeAt(end - 1);
-    // A surrogate pair stays in one chunk.
-    if (end < json.length && code >= 0xd800 && code < 0xdc00) end--;
-    const data = json.slice(this._bigSent, end);
-    this._bigSent = end;
-    this._chunkTimer = setTimeout(() => this._chunkAcked(true), CHUNK_ACK_TIMEOUT);
-    this.ws.send(JSON.stringify({ type: 'client:chunk', payload: { id: this._bigId, data, last: end === json.length } }));
-  }
-
-  /** The chunk in flight was acked, or [timedOut], which gives up its message: on to the next one. */
-  private _chunkAcked(timedOut = false): void {
-    if (this._chunkTimer) clearTimeout(this._chunkTimer);
-    this._chunkTimer = null;
-    if (timedOut || this._bigSent >= (this._bigMessages[0]?.length ?? 0)) {
-      this._bigMessages.shift();
-      this._bigSent = 0;
-    }
-    this._sendChunk();
-  }
-
-  /** The socket is gone, and the desktop's half of a big message with it: it goes again whole. */
-  private _stopChunks(): void {
-    if (this._chunkTimer) clearTimeout(this._chunkTimer);
-    this._chunkTimer = null;
-    this._bigSent = 0;
-  }
-
-  // ---- Fetch interceptor ----
-
-  private patchFetch(): void {
-    const originalFetch = global.fetch;
-    this.originalFetch = originalFetch;
-    const dc = this;
-
-    global.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-      const requestId = generateId();
-      const startTime = Date.now();
-
-      let method: string;
-      if (init?.method) {
-        method = init.method.toUpperCase();
-      } else if (typeof Request !== 'undefined' && input instanceof Request) {
-        method = (input as Request).method.toUpperCase();
-      } else {
-        method = 'GET';
-      }
-
-      let url: string;
-      if (typeof input === 'string') {
-        url = input;
-      } else if (input instanceof URL) {
-        url = input.toString();
-      } else if (typeof Request !== 'undefined' && input instanceof Request) {
-        url = input.url;
-      } else {
-        url = (input as any)?.url ?? String(input);
-      }
-
-      // AWS SDK v3 (@aws-sdk/fetch-http-handler) calls `fetch(request)` where
-      // `request` is a fully-built Request object — init is undefined in that
-      // case. All headers (including X-Amz-Date, Authorization added by the
-      // signer middleware) are inside request.headers by the time fetch is
-      // invoked. We must read from request, not init.
-      const isRequestInput =
-        typeof Request !== 'undefined' && input instanceof Request;
-      // `unknown` (not `string`) because user-supplied fetch headers can
-      // be arrays/objects (e.g. `headers: { map: { apiKey: 'x' } }`).
-      // We pass them through verbatim so the desktop inspector can
-      // JSON-render them instead of seeing the literal `[object Object]`.
-      let reqHeaders: Record<string, unknown>;
-      let finalBody: any;
-
-      if (isRequestInput) {
-        const r = input as Request;
-        reqHeaders = {};
-        r.headers.forEach((v, k) => (reqHeaders[k.toLowerCase()] = v));
-        try {
-          finalBody = await r.clone().text();
-        } catch (_) {
-          finalBody = undefined;
-        }
-      } else {
-        const tracker: { headers?: any; body?: any } = {};
-        const trackedInit = wrapFetchInit(init, tracker);
-        (init as any) = trackedInit;
-        reqHeaders = readFinalHeaders(tracker, trackedInit);
-        finalBody = tracker.body !== undefined ? tracker.body : trackedInit?.body;
-      }
-
-      let requestBody: any;
-      if (finalBody) {
-        if (finalBody instanceof FormData) {
-          const fields: Record<string, any> = {};
-          const files: any[] = [];
-          for (const [key, value] of (finalBody as any).entries()) {
-            if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
-              files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
-            } else {
-              fields[key] = value;
-            }
-          }
-          requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
-        } else {
-          requestBody = parseBody(safeString(capBody(finalBody)));
-        }
-      }
-
-      const source = classifyUrl(url);
-      // Track this fetch so the XHR interceptor (which fires on RN's
-      // internal XHR transport for the same call) can dedup against us.
-      const fetchKey = `${method}\0${url}`;
-      dc.fetchInFlight.set(fetchKey, (dc.fetchInFlight.get(fetchKey) ?? 0) + 1);
-      dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source, via: 'fetch' });
-
-      // A desktop mock rule answers instead of the network (lazy require: that module
-      // imports this one). A broken rule must never break the app's request.
-      const mockServer = require('./interceptors/mockServerInterceptor');
-      let mockRule: any = null;
-      try { mockRule = mockServer.findMockMatch(method, url, reqHeaders, { currentDeviceId: dc.deviceId }); } catch (_) {}
-
-      let responsePromise: Promise<Response>;
-      dc.fetchStackCount++;
-      try {
-        responsePromise = mockRule
-          ? mockServer.buildMockResponse(mockRule, requestId, { url, method })
-          : originalFetch(input, init);
-      } catch (err: any) {
-        dc.send('client:network:request_complete', {
-          requestId,
-          method,
-          url,
-          statusCode: 0,
-          startTime,
-          endTime: Date.now(),
-          duration: Date.now() - startTime,
-          requestHeaders: reqHeaders,
-          requestBody,
-          error: err?.message ?? String(err),
-          source,
-          via: 'fetch',
-        });
-        const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
-        if (currentCount <= 1) {
-          dc.fetchInFlight.delete(fetchKey);
-        } else {
-          dc.fetchInFlight.set(fetchKey, currentCount - 1);
-        }
-        throw err;
-      } finally {
-        dc.fetchStackCount--;
-      }
-
-      try {
-        const response = await responsePromise;
-        const resHeaders: Record<string, string> = {};
-        response.headers.forEach((v, k) => (resHeaders[k] = v));
-
-        const report = (responseBody?: any) => dc.send('client:network:request_complete', {
-          requestId, method, url, statusCode: response.status, startTime,
-          endTime: Date.now(), duration: Date.now() - startTime,
-          requestHeaders: reqHeaders, responseHeaders: resHeaders, requestBody, responseBody, source,
-          via: 'fetch',
-        });
-        const type = (response.headers.get('content-type') ?? '').toLowerCase();
-        const size = Number(response.headers.get('content-length'));
-        if (type.includes('event-stream')) {
-          report('<stream>');
-        } else if (isTextType(type) || (!type && !(size > MAX_READ_SIZE))) {
-          response.clone().text().then((text) => report(parseBody(text)), () => report());
-        } else if (!type) {
-          report(`<${size} bytes>`);
-        } else {
-          const mime = type.split(';')[0].trim();
-          response.clone().blob().then(async (blob: any) => report(mime.startsWith('image/') && blob.size <= MAX_IMAGE_SIZE
-            ? await dataUrl(blob, mime)
-            : `<${blob.size} bytes>`)).catch(() => report());
-        }
-        const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
-        if (currentCount <= 1) {
-          dc.fetchInFlight.delete(fetchKey);
-        } else {
-          dc.fetchInFlight.set(fetchKey, currentCount - 1);
-        }
-        return response;
-      } catch (error: any) {
-        dc.send('client:network:request_complete', {
-          requestId, method, url, statusCode: 0, startTime,
-          endTime: Date.now(), duration: Date.now() - startTime,
-          requestHeaders: reqHeaders, requestBody, error: error?.message ?? String(error), source,
-          via: 'fetch',
-        });
-        const currentCount = dc.fetchInFlight.get(fetchKey) ?? 0;
-        if (currentCount <= 1) {
-          dc.fetchInFlight.delete(fetchKey);
-        } else {
-          dc.fetchInFlight.set(fetchKey, currentCount - 1);
-        }
-        throw error;
-      }
-    };
-  }
-
-  // ---- XHR interceptor ----
-
-  private patchXHR(): void {
-    const dc = this;
-    const OriginalXHR = global.XMLHttpRequest;
-    this.originalXHR = OriginalXHR;
-
-    function PatchedXHR(this: any) {
-      const xhr = new OriginalXHR();
-      const isFetchXhr = dc.fetchStackCount > 0;
-      const requestId = generateId();
-      let method = 'GET', url = '', startTime = 0;
-      const reqHeaders: Record<string, string> = {};
-      let requestBody: any;
-
-      const origOpen = xhr.open.bind(xhr);
-      let openedOffline = false;
-      xhr.open = (m: string, u: string | URL, ...args: any[]) => {
-        method = m.toUpperCase();
-        // Coerce URL/Request to a string in case a polyfill accepts them
-        url = typeof u === 'string' ? u : (u as any)?.url ?? String(u);
-        // Offline throttle: refused right away, like a dead network.
-        openedOffline = dc._throttle.offline;
-        return origOpen(m, openedOffline ? 'http://127.0.0.1:9' : u as string, ...args);
-      };
-
-      const origSetHeader = xhr.setRequestHeader.bind(xhr);
-      xhr.setRequestHeader = (n: string, v: string) => { reqHeaders[n] = v; return origSetHeader(n, v); };
-
-      const origSend = xhr.send.bind(xhr);
-      xhr.send = (body?: any) => {
-        startTime = Date.now();
-        if (body) {
-          if (body instanceof FormData) {
-            const fields: Record<string, any> = {};
-            const files: any[] = [];
-            for (const [key, value] of (body as any).entries()) {
-              if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
-                files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
-              } else {
-                fields[key] = value;
-              }
-            }
-            requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
-          } else {
-            const data = capBody(body);
-            requestBody = typeof data === 'string' ? parseBody(data) : data;
-          }
-        }
-        // Skip the start report if the fetch interceptor already
-        // covers this call (see handleLoadEnd for the matching skip).
-        const xhrKey = `${method}\0${url}`;
-        const isFetchRequest = isFetchXhr || (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
-        if (!isFetchRequest) {
-          dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source: classifyUrl(url), via: 'xhr' });
-        }
-        if (openedOffline) return origSend();
-        const { latencyMs } = dc._throttle;
-        if (latencyMs > 0) {
-          // shortcut: a fetch() aborted during the delay stays pending (RN fires no abort event for an unsent XHR).
-          setTimeout(() => { try { if (xhr.readyState === xhr.OPENED) origSend(body); } catch (_) {} }, latencyMs);
-          return;
-        }
-        return origSend(body);
-      };
-
-      const handleLoadEnd = async () => {
-        xhr.removeEventListener('loadend', handleLoadEnd);
-        // Skip if the fetch interceptor already reported this call —
-        // RN 0.85's fetch goes through XHR internally, so without this
-        // every fetch would double-fire (once via fetch path, once via
-        // XHR path) with different requestIds, which the server
-        // cannot merge downstream.
-        const xhrKey = `${method}\0${url}`;
-        const isFetchRequest = isFetchXhr || (dc.fetchInFlight.get(xhrKey) ?? 0) > 0;
-        if (isFetchRequest) {
-          return;
-        }
-        const resHeaders: Record<string, string> = {};
-        try { xhr.getAllResponseHeaders().split('\r\n').forEach((l: string) => { const i = l.indexOf(':'); if (i > 0) resHeaders[l.substring(0, i).trim()] = l.substring(i + 1).trim(); }); } catch (_) {}
-        let responseBody: any;
-        const rt = xhr.responseType;
-        if (!rt || rt === 'text' || (rt as string) === '') {
-          responseBody = parseBody(xhr.responseText);
-        } else if (rt === 'json') {
-          responseBody = xhr.response;
-        } else {
-          // Non-text responseType (blob, arraybuffer, ...). If the
-          // server's Content-Type looks like JSON or text, try to read
-          // it as text — saves the user from seeing `<blob 2852 bytes>`
-          // when the server actually sent JSON. We trust the Content-Type
-          // to tell us when the body is genuinely binary (image/*, video/*,
-          // audio/*, application/octet-stream, ...).
-          const ct = (resHeaders['content-type'] ?? '').toLowerCase();
-          const isJsonCt = ct.includes('json') || ct.includes('+json');
-          const isTextCt = ct.startsWith('text/') || ct === 'application/javascript' || ct === 'application/x-www-form-urlencoded';
-          const blob = xhr.response as any;
-          const blobSize = blob?.size ?? blob?.byteLength ?? 0;
-          if ((isJsonCt || isTextCt) && blob && typeof blob.text === 'function') {
-            try {
-              const text = await blob.text();
-              responseBody = isJsonCt ? parseBody(text) : text;
-            } catch (_) {
-              responseBody = `<${rt} ${blobSize || '?'} bytes>`;
-            }
-          } else if (rt === 'blob' && ct.startsWith('image/') && !ct.includes('svg') && blob && blobSize <= MAX_IMAGE_SIZE) {
-            responseBody = await dataUrl(blob, ct.split(';')[0].trim()).catch(() => `<${rt} ${blobSize} bytes>`);
-          } else {
-            responseBody = `<${rt} ${blobSize || xhr.response?.byteLength || '?'} bytes>`;
-          }
-        }
-        dc.send('client:network:request_complete', {
-          requestId, method, url, statusCode: xhr.status, startTime,
-          endTime: Date.now(), duration: Date.now() - startTime,
-          requestHeaders: reqHeaders, responseHeaders: resHeaders, requestBody, responseBody,
-          source: classifyUrl(url),
-          via: 'xhr',
-          ...(xhr.status === 0 ? { error: 'Network request failed' } : {}),
-        });
-      };
-      xhr.addEventListener('loadend', handleLoadEnd);
-      return xhr;
-    }
-    (global as any).XMLHttpRequest = PatchedXHR;
-  }
-
-  // ---- Console interceptor ----
-
-  private patchConsole(): void {
-    const dc = this;
-    const orig = {
-      log: console.log.bind(console), warn: console.warn.bind(console),
-      error: console.error.bind(console), debug: console.debug.bind(console),
-      info: console.info.bind(console), trace: console.trace?.bind(console),
-    };
-    this.originalConsole = orig;
-
-    const systemPrefixes = [
-      'Running "', 'BUNDLE ', 'nativeRequire ', 'Require cycle:', 'Remote debugger',
-      'Debugger and device', 'Download the React DevTools', 'New NativeEventEmitter',
-      'Sending `', 'ViewManager:', 'Unbalanced calls', 'componentWillReceiveProps',
-      'componentWillMount', 'Each child in a list', 'VirtualizedList:', 'LogBox',
-      'DevConnect', '[DevConnect]',
-    ];
-
-    const isEmptyObj = (args: any[]) => {
-      if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null) {
-        try { if (Object.keys(args[0]).length === 0) return true; } catch (_) {}
-      }
-      return false;
-    };
-
-    const isInternalError = (args: any[]) => {
-      const s = safeString(args[0] ?? '');
-      return s.includes("'responseText'") || s.includes('responseType') || s.includes('DevConnect');
-    };
-
-    const isSys = (args: any[]) => args.length === 0 || isEmptyObj(args) || isInternalError(args) || systemPrefixes.some((p) => safeString(args[0]).startsWith(p));
-    const toStr = (args: any[]) => args.map((a) => typeof a === 'string' ? a : (() => { try { return JSON.stringify(a, null, 2); } catch (_) { return safeString(a); } })()).join(' ');
-    const toMeta = (args: any[]): Record<string, any> | undefined => {
-      if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null) { try { return JSON.parse(JSON.stringify(args[0])); } catch (_) {} }
-      return undefined;
-    };
-
-    const patch = (method: string, level: string, origFn: Function) => (...args: any[]) => {
-      origFn(...args);
-      try {
-        if (!isSys(args)) dc.send('client:log', { level, message: toStr(args), tag: `console.${method}`, ...(toMeta(args) ? { metadata: toMeta(args) } : {}) });
-      } catch (_) {}
-    };
-
-    console.log = patch('log', 'debug', orig.log);
-    console.debug = patch('debug', 'debug', orig.debug);
-    console.info = patch('info', 'info', orig.info);
-    console.warn = patch('warn', 'warn', orig.warn);
-    console.error = patch('error', 'error', orig.error);
-    if (console.trace) console.trace = patch('trace', 'debug', orig.trace!);
   }
 
   // ---- Public API ----
@@ -1676,11 +436,11 @@ export class DevConnect {
 
   private restorePatches(): void {
     if (this.originalFetch) {
-      (global as any).fetch = this.originalFetch;
+      (globalThis as any).fetch = this.originalFetch;
       this.originalFetch = null;
     }
     if (this.originalXHR) {
-      (global as any).XMLHttpRequest = this.originalXHR;
+      (globalThis as any).XMLHttpRequest = this.originalXHR;
       this.originalXHR = null;
     }
     if (this.originalConsole) {
@@ -2037,7 +797,7 @@ export class DevConnect {
     // handshake announces every command registered by then.
     const register = (dc: DevConnect) => {
       dc._customCommandHandlers.set(name, handler);
-      if (dc.connected) dc._announceCommands();
+      if (dc.connected) _announceCommands(dc);
     };
     const instance = DevConnect.getInstanceSafe();
     if (instance) {

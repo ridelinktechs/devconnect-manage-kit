@@ -10,11 +10,11 @@ Module._load = function (request, parent, isMain) {
 test.after(() => { Module._load = originalLoad; });
 
 const { DevConnect } = require('../dist-test/client.js');
-const { devConnectReduxMiddleware } = require('../dist-test/interceptors/reduxMiddleware.js');
-const { devConnectMiddleware } = require('../dist-test/interceptors/zustandMiddleware.js');
-const { watchValtio } = require('../dist-test/interceptors/valtioPlugin.js');
-const { devConnectAtomEffect, watchAtom } = require('../dist-test/interceptors/jotaiPlugin.js');
-const { devConnectXStateInspector } = require('../dist-test/interceptors/xstatePlugin.js');
+const { devConnectReduxMiddleware } = require('../dist-test/interceptors/state/reduxMiddleware.js');
+const { devConnectMiddleware } = require('../dist-test/interceptors/state/zustandMiddleware.js');
+const { watchValtio } = require('../dist-test/interceptors/state/valtioPlugin.js');
+const { devConnectAtomEffect, watchAtom } = require('../dist-test/interceptors/state/jotaiPlugin.js');
+const { devConnectXStateInspector } = require('../dist-test/interceptors/state/xstatePlugin.js');
 
 let connected = true;
 DevConnect.isListening = () => connected;

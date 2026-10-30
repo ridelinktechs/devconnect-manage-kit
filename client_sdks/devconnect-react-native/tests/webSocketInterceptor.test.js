@@ -21,7 +21,7 @@ global.WebSocket = NativeWebSocket;
 
 const clientModule = require('../dist-test/client.js');
 const { DevConnect } = clientModule;
-const wsModule = require('../dist-test/interceptors/webSocketInterceptor.js');
+const wsModule = require('../dist-test/interceptors/network/webSocketInterceptor.js');
 const { installWebSocketInterceptor } = wsModule;
 
 test.after(() => { Module._load = originalLoad; });

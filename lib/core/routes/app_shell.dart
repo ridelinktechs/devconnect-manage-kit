@@ -14,7 +14,7 @@ import '../../components/layout/device_bottom_bar.dart';
 import '../../components/layout/sidebar.dart';
 import '../providers/tab_visibility_provider.dart';
 import '../theme/theme_provider.dart';
-import '../utils/reload_apps.dart';
+import '../utils/app/reload_apps.dart';
 import '../../features/benchmark/provider/benchmark_providers.dart';
 import '../../features/custom_commands/provider/custom_commands_providers.dart';
 import '../../features/performance/provider/performance_providers.dart';

@@ -19,7 +19,7 @@ Module._load = function (request, parent, isMain) {
 };
 test.after(() => { Module._load = originalLoad; });
 
-const { captureComponentTree, withTimeout } = require('../dist-test/plugins/layoutInspector.js');
+const { captureComponentTree, withTimeout } = require('../dist-test/plugins/layout/layoutInspector.js');
 
 // Minimal fibers: host views measure asynchronously like the bridge does.
 function link(fiber, children) {

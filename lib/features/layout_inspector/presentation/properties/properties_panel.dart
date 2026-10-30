@@ -8,8 +8,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/misc/color_sample.dart';
 import '../../../../core/theme/chrome_palette.dart';
-import '../../../../core/utils/toast_utils.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../provider/layout_providers.dart';
 import '../shared/layout_style.dart';
 import '../shared/mini_button.dart';

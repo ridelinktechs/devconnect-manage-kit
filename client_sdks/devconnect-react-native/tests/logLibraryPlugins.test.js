@@ -10,7 +10,7 @@ Module._load = function (request, parent, isMain) {
 test.after(() => { Module._load = originalLoad; });
 
 const { DevConnect } = require('../dist-test/client.js');
-const { patchLoglevel, wrapLogger, devConnectTransport } = require('../dist-test/interceptors/logLibraryPlugins.js');
+const { patchLoglevel, wrapLogger, devConnectTransport } = require('../dist-test/interceptors/logging/logLibraryPlugins.js');
 
 const sent = [];
 DevConnect.safeSend = (type, payload) => sent.push(payload.message);

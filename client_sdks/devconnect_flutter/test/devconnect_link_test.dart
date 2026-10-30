@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:devconnect_manage_kit/devconnect_manage_kit.dart';
-import 'package:devconnect_manage_kit/src/interceptors/graphql/devconnect_link.dart';
+import 'package:devconnect_manage_kit/src/interceptors/network/graphql/devconnect_link.dart';
 
 /// Payloads of the queued (pre-init) messages of [type].
 List<Map<String, dynamic>> _sent(String type) => [

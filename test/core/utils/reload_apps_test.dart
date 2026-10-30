@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:devconnect_manage_tool/core/utils/reload_apps.dart';
-import 'package:devconnect_manage_tool/l10n/app_localizations.dart';
+import 'package:devconnect_manage_tool/core/utils/app/reload_apps.dart';
+import 'package:devconnect_manage_tool/l10n/generated/app_localizations.dart';
 import 'package:devconnect_manage_tool/models/device_info.dart';
 
 void main() {
