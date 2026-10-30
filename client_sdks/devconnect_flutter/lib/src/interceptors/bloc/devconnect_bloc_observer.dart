@@ -6,25 +6,8 @@ import '../../devconnect_client.dart';
 /// `DevConnectRiverpodHelper` — no top-level imports of `flutter_bloc`
 /// itself, so consumers control when (and whether) to wire it.
 ///
-/// Usage:
-/// ```dart
-/// import 'package:flutter_bloc/flutter_bloc.dart';
-/// import 'package:devconnect_flutter/src/interceptors/bloc/devconnect_bloc_observer.dart';
-///
-/// void main() {
-///   Bloc.observer = DevConnectBlocObserver();
-///   runApp(MyApp());
-/// }
-/// ```
-///
-/// Or chain in front of an existing observer:
-/// ```dart
-/// final previous = Bloc.observer;
-/// Bloc.observer = ChainedBlocObserver(
-///   DevConnectBlocObserver(),
-///   previous,
-/// );
-/// ```
+/// It is not a `flutter_bloc` `BlocObserver`, so `Bloc.observer` can't take
+/// it: call `DevConnect.reportBlocChange` from your own `BlocObserver`.
 class DevConnectBlocObserver extends BlocObserverBase {
   /// Optional existing observer to forward events to. Allows chaining
   /// when the consumer already has a custom BlocObserver.

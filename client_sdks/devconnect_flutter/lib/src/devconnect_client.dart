@@ -811,29 +811,44 @@ class DevConnectClient {
     }
   }
 
-  /// Makes [value] JSON-encodable: maps and lists keep their shape at any
-  /// depth, and only the values jsonEncode rejects (a DateTime, a custom
-  /// object) become strings. The depth cap stops on cyclic data.
+  /// Makes [value] JSON-encodable: maps and lists keep their shape, and
+  /// only the values jsonEncode rejects (a DateTime, a custom object)
+  /// become strings. A map or list met again inside itself becomes
+  /// `<cycle>`; past 32 levels or 10,000 values the copy stops with `…`.
   @visibleForTesting
   static dynamic sanitizeForJson(dynamic value, [int depth = 0]) {
-    if (depth < 32 && value is Map) {
-      return <String, dynamic>{
-        for (final e in value.entries) '${e.key}': sanitizeForJson(e.value, depth + 1),
-      };
-    }
-    if (depth < 32 && value is Iterable) {
-      return [for (final v in value) sanitizeForJson(v, depth + 1)];
-    }
-    try {
-      jsonEncode(value);
-      return value;
-    } catch (_) {
+    final path = Set<Object>.identity();
+    var left = 10000;
+    dynamic copy(dynamic value, int depth) {
+      if (left-- <= 0) return '…';
+      if (value is Map || value is Iterable) {
+        if (depth >= 32) return '…';
+        if (!path.add(value)) return '<cycle>';
+        final out = value is Map
+            ? <String, dynamic>{
+                for (final e in value.entries.takeWhile((_) => left >= 0))
+                  '${e.key}': copy(e.value, depth + 1),
+              }
+            : [
+                for (final v in value.takeWhile((_) => left >= 0))
+                  copy(v, depth + 1),
+              ];
+        path.remove(value);
+        return out;
+      }
       try {
-        return value.toString();
+        jsonEncode(value);
+        return value;
       } catch (_) {
-        return '<unserializable>';
+        try {
+          return value.toString();
+        } catch (_) {
+          return '<unserializable>';
+        }
       }
     }
+
+    return copy(value, depth);
   }
 
   // --- Safe static API (for interceptors/reporters that may run before init) ---

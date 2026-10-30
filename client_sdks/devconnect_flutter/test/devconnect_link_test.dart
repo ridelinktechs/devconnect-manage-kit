@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:devconnect_manage_kit/devconnect_manage_kit.dart';
@@ -186,6 +187,38 @@ void main() {
           },
         },
       );
+    });
+
+    test('the sanitizer marks cycles and finishes on a graph with branches',
+        () {
+      final loop = <String, dynamic>{'id': 0};
+      loop['self'] = loop;
+      final shared = {'id': 1};
+      expect(
+        DevConnectClient.sanitizeForJson({
+          'loop': loop,
+          'twice': [shared, shared], // shared, but not inside itself
+        }),
+        {
+          'loop': {'id': 0, 'self': '<cycle>'},
+          'twice': [shared, shared],
+        },
+      );
+
+      // Every node lists every node: copied once per path, that's 10^32.
+      final nodes = [for (var i = 0; i < 10; i++) <String, dynamic>{'id': i}];
+      for (final node in nodes) {
+        node['neighbors'] = [...nodes];
+      }
+      final watch = Stopwatch()..start();
+      final json =
+          jsonEncode(DevConnectClient.sanitizeForJson({'nodes': nodes}));
+      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+      expect(json, allOf(contains('"<cycle>"'), contains('"…"')));
+
+      // The walk stops at the budget instead of padding the rest with `…`.
+      final flat = DevConnectClient.sanitizeForJson(List.filled(1 << 20, 0));
+      expect([flat.length, flat.last], [10000, '…']);
     });
   });
 }

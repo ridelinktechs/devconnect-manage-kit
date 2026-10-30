@@ -9,7 +9,10 @@ import java.net.Socket
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.*
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
@@ -40,6 +43,12 @@ class WebSocketClient(
     private var writer: PrintWriter? = null
     private val messageQueue = ConcurrentLinkedQueue<String>()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    // One writer thread: a write stuck on a hung desktop can't hold the app's IO threads.
+    private val writeExecutor = ThreadPoolExecutor(
+        1, 1, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(1000),
+        { Thread(it, "DevConnect-ws-writer").apply { isDaemon = true } },
+        ThreadPoolExecutor.DiscardOldestPolicy(),
+    )
     private var reconnectJob: Job? = null
     private val reconnectAttempts = AtomicInteger(0)
     private val secureRandom = SecureRandom()
@@ -250,7 +259,7 @@ class WebSocketClient(
 
     fun send(message: String) {
         if (isConnected) {
-            scope.launch { sendRaw(message) }
+            sendRaw(message)
         } else {
             if (messageQueue.size < 1000) {
                 messageQueue.add(message)
@@ -259,14 +268,16 @@ class WebSocketClient(
     }
 
     private fun sendRaw(message: String) {
-        try {
-            val data = message.toByteArray()
-            val frame = buildWebSocketFrame(data)
-            socket?.getOutputStream()?.write(frame)
-            socket?.getOutputStream()?.flush()
-        } catch (e: Exception) {
-            isConnected = false
-            scheduleReconnect()
+        writeExecutor.execute {
+            try {
+                val data = message.toByteArray()
+                val frame = buildWebSocketFrame(data)
+                socket?.getOutputStream()?.write(frame)
+                socket?.getOutputStream()?.flush()
+            } catch (e: Exception) {
+                isConnected = false
+                scheduleReconnect()
+            }
         }
     }
 
@@ -339,6 +350,7 @@ class WebSocketClient(
         reconnectJob?.cancel()
         reconnectJob = null
         scope.coroutineContext.cancelChildren()  // Cancel children, keep scope alive
+        writeExecutor.shutdownNow()
         try { socket?.close() } catch (_: Exception) {}
         socket = null
     }

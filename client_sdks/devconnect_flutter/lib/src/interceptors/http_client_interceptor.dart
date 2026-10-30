@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:uuid/uuid.dart';
 
@@ -171,7 +172,7 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
   final Uri _url;
   final String _requestId;
   final int _startTime;
-  final List<int> _bodyBytes = [];
+  final _body = _BodyCapture();
   Future<HttpClientResponse>? _closeFuture;
 
   _DevConnectHttpClientRequest(this._inner, this._method, this._url, Uuid uuid)
@@ -219,17 +220,7 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
       });
 
       // Try to parse request body
-      dynamic requestBody;
-      if (_bodyBytes.isNotEmpty) {
-        try {
-          final bodyStr = utf8.decode(_bodyBytes);
-          try {
-            requestBody = jsonDecode(bodyStr);
-          } catch (_) {
-            requestBody = bodyStr;
-          }
-        } catch (_) {}
-      }
+      final requestBody = _body.decode(_inner.headers);
 
       // Wrap response to capture body
       return _DevConnectHttpClientResponse(
@@ -276,14 +267,14 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
 
   @override
   void add(List<int> data) {
-    _bodyBytes.addAll(data);
+    _body.add(data);
     if (_mockRule() == null) _inner.add(data);
   }
 
   @override
   void write(Object? object) {
     final str = object?.toString() ?? '';
-    _bodyBytes.addAll(utf8.encode(str));
+    _body.add(utf8.encode(str));
     if (_mockRule() == null) _inner.write(object);
   }
 
@@ -330,29 +321,29 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
       _inner.addError(error, stackTrace);
   @override
   Future addStream(Stream<List<int>> stream) {
-    if (_mockRule() != null) return stream.forEach(_bodyBytes.addAll);
+    if (_mockRule() != null) return stream.forEach(_body.add);
     return _inner.addStream(stream.map((data) {
-      _bodyBytes.addAll(data);
+      _body.add(data);
       return data;
     }));
   }
   @override
   void writeAll(Iterable objects, [String separator = ""]) {
     for (final obj in objects) {
-      _bodyBytes.addAll(utf8.encode(obj.toString()));
-      if (separator.isNotEmpty) _bodyBytes.addAll(utf8.encode(separator));
+      _body.add(utf8.encode(obj.toString()));
+      if (separator.isNotEmpty) _body.add(utf8.encode(separator));
     }
     if (_mockRule() == null) _inner.writeAll(objects, separator);
   }
   @override
   void writeCharCode(int charCode) {
-    _bodyBytes.add(charCode);
+    _body.add(utf8.encode(String.fromCharCode(charCode)));
     if (_mockRule() == null) _inner.writeCharCode(charCode);
   }
   @override
   void writeln([Object? object = ""]) {
     final str = '${object ?? ''}\n';
-    _bodyBytes.addAll(utf8.encode(str));
+    _body.add(utf8.encode(str));
     if (_mockRule() == null) _inner.writeln(object);
   }
   @override
@@ -373,7 +364,7 @@ class _DevConnectHttpClientResponse extends Stream<List<int>>
   final Map<String, dynamic> _responseHeaders;
   final dynamic _requestBody;
   bool _reported = false;
-  final List<int> _bodyBytes = [];
+  final _body = _BodyCapture();
 
   _DevConnectHttpClientResponse(
     this._inner,
@@ -391,19 +382,7 @@ class _DevConnectHttpClientResponse extends Stream<List<int>>
     _reported = true;
 
     try {
-      dynamic responseBody;
-      if (_bodyBytes.isNotEmpty) {
-        try {
-          final bodyStr = utf8.decode(_bodyBytes);
-          try {
-            responseBody = jsonDecode(bodyStr);
-          } catch (e) {
-            responseBody = bodyStr;
-          }
-        } catch (e) {
-          responseBody = '${_bodyBytes.length} bytes';
-        }
-      }
+      final responseBody = _body.decode(_inner.headers);
 
       DevConnectClient.safeReportNetworkComplete(
         requestId: _requestId,
@@ -443,7 +422,7 @@ class _DevConnectHttpClientResponse extends Stream<List<int>>
     // This ensures our body capture cannot be bypassed by onData reassignment
     // while perfectly preserving stream semantics (pause, resume, etc).
     final interceptedStream = _inner.map((data) {
-      _bodyBytes.addAll(data);
+      _body.add(data);
       return data;
     });
 
@@ -497,6 +476,52 @@ class _DevConnectHttpClientResponse extends Stream<List<int>>
       _inner.redirect(method, url, followLoops);
   @override
   Future<Socket> detachSocket() => _inner.detachSocket();
+}
+
+/// Past this many bytes a body is reported by its size alone, so a big
+/// download or a never-ending event stream doesn't pile up in memory.
+const _maxBodyBytes = 1024 * 1024;
+
+/// A request or response body on its way through, kept for the report up
+/// to [_maxBodyBytes]. The bytes themselves pass through untouched.
+class _BodyCapture {
+  final _bytes = BytesBuilder();
+  var _length = 0;
+
+  void add(List<int> data) {
+    _length += data.length;
+    if (_length <= _maxBodyBytes) {
+      _bytes.add(data);
+    } else {
+      _bytes.clear(); // cut: only the size is reported
+    }
+  }
+
+  /// The body as JSON or text, or by its size when it was cut, is an event
+  /// stream or is binary (`N bytes`, which the desktop shows as binary).
+  dynamic decode(HttpHeaders headers) {
+    if (_length == 0) return null;
+    if (_length > _maxBodyBytes) return '<$_length bytes, cut>';
+    try {
+      final type = headers.contentType;
+      if (type?.mimeType == 'text/event-stream') {
+        return '<event stream, $_length bytes>';
+      }
+      if (type?.mimeType == 'application/octet-stream' ||
+          const {'image', 'audio', 'video', 'font'}
+              .contains(type?.primaryType)) {
+        return '$_length bytes';
+      }
+      final text = utf8.decode(_bytes.toBytes());
+      try {
+        return jsonDecode(text);
+      } catch (_) {
+        return text;
+      }
+    } catch (_) {
+      return '$_length bytes'; // not UTF-8
+    }
+  }
 }
 
 /// A mock rule's canned response, served without the network.

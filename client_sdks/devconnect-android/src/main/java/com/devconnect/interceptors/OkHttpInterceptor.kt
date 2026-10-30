@@ -2,8 +2,6 @@ package com.devconnect.interceptors
 
 import com.devconnect.DevConnect
 import okhttp3.Response
-import okhttp3.ResponseBody.Companion.toResponseBody
-import okio.Buffer
 import org.json.JSONObject
 import java.util.UUID
 
@@ -73,10 +71,12 @@ class OkHttpInterceptor : okhttp3.Interceptor {
                                 "length" to part.body.contentLength()
                             ))
                         } else {
-                            val buffer = okio.Buffer()
-                            part.body.writeTo(buffer)
                             // Field name may carry a credential — redact value.
-                            fields[name] = redactValue(name, buffer.readUtf8())
+                            fields[name] = bodySummary(part.body) ?: run {
+                                val buffer = okio.Buffer()
+                                part.body.writeTo(buffer)
+                                redactValue(name, buffer.readUtf8())
+                            }
                         }
                     }
                     val result = mutableMapOf<String, Any?>()
@@ -87,13 +87,15 @@ class OkHttpInterceptor : okhttp3.Interceptor {
                     }
                     requestBody = result
                 } else {
-                    val buffer = okio.Buffer()
-                    body.writeTo(buffer)
-                    val bodyStr = buffer.readUtf8()
-                    requestBody = try {
-                        JSONObject(bodyStr)
-                    } catch (_: Exception) {
-                        bodyStr
+                    requestBody = bodySummary(body) ?: run {
+                        val buffer = okio.Buffer()
+                        body.writeTo(buffer)
+                        val bodyStr = buffer.readUtf8()
+                        try {
+                            JSONObject(bodyStr)
+                        } catch (_: Exception) {
+                            bodyStr
+                        }
                     }
                 }
             }
@@ -134,41 +136,10 @@ class OkHttpInterceptor : okhttp3.Interceptor {
                 resHeaders[name] = redactHeader(name, value)
             }
 
-            // Response body — capture up to MAX_CAPTURED_BODY_BYTES bytes
-            // without consuming the underlying stream. We buffer the
-            // source into a fresh Buffer and re-attach a synthesized
-            // body so the call chain downstream still sees the full
-            // response.
-            //
-            // OkHttp 4.12.0 does not expose `ResponseBody.peekBody` (that
-            // arrived in OkHttp 5.x), so we read via `source().request(N)`
-            // ourselves.
-            var responseBody: Any? = null
-            val originalBody = response.body
-            val responseBodyStr: String? = if (originalBody != null) {
-                try {
-                    val sink = Buffer()
-                    originalBody.source().request(MAX_CAPTURED_BODY_BYTES.toLong())
-                    sink.write(originalBody.source(), originalBody.source().buffer.size)
-                    val bytes = sink.readByteArray()
-                    bytes.toString(Charsets.UTF_8)
-                } catch (e: Exception) {
-                    null
-                }
-            } else null
-            val displayBody = if (responseBodyStr != null &&
-                responseBodyStr.length > MAX_CAPTURED_BODY_BYTES
-            ) {
-                responseBodyStr.substring(0, MAX_CAPTURED_BODY_BYTES) + "…[truncated]"
-            } else {
-                responseBodyStr
-            }
-            displayBody?.let { str ->
-                responseBody = try {
-                    JSONObject(str)
-                } catch (_: Exception) {
-                    str
-                }
+            val responseBody: Any? = try {
+                captureResponseBody(response)
+            } catch (_: Exception) {
+                null
             }
 
             // Report complete
@@ -184,10 +155,7 @@ class OkHttpInterceptor : okhttp3.Interceptor {
                 responseBody = responseBody
             )
 
-            // Rebuild response with body since we consumed it
-            response.newBuilder()
-                .body((responseBodyStr ?: "").toResponseBody(response.body?.contentType()))
-                .build()
+            response
         } catch (e: Exception) {
             DevConnect.reportNetworkComplete(
                 requestId = requestId,
@@ -236,6 +204,54 @@ class OkHttpInterceptor : okhttp3.Interceptor {
             val lower = key.lowercase()
             return if (SENSITIVE_KEY_HINTS.any { lower.contains(it) }) "[REDACTED]" else value
         }
+
+        // Content types decoded as text for the report; others are summarised.
+        val TEXT_TYPE_HINTS = listOf(
+            "text/", "json", "xml", "javascript", "x-www-form-urlencoded", "graphql",
+        )
+
+        /**
+         * What to report instead of reading [body], or null when it's safe to
+         * read: one-shot / duplex bodies would be consumed before the real
+         * send, and unknown-length or large ones (file uploads) buffered whole.
+         */
+        fun bodySummary(body: okhttp3.RequestBody): String? {
+            val length = body.contentLength()
+            return when {
+                body.isOneShot() || body.isDuplex() || length < 0 -> sized("stream", length)
+                length > MAX_CAPTURED_BODY_BYTES -> sized("large", length)
+                else -> null
+            }
+        }
+
+        /** Text bodies via a capped peek; binary bodies and streams as a summary. */
+        fun captureResponseBody(response: Response): Any {
+            val body = response.body
+            val type = body.contentType()?.toString()?.lowercase() ?: ""
+            val length = body.contentLength()
+            return when {
+                length == 0L -> ""
+                type.isNotEmpty() && TEXT_TYPE_HINTS.none { type.contains(it) } -> sized("binary", length)
+                // SSE / NDJSON stay open: peeking them would block the call.
+                type.contains("stream") || type.contains("ndjson") -> "<stream>"
+                else -> {
+                    val bytes = response.peekBody(MAX_CAPTURED_BODY_BYTES + 1L).bytes()
+                    val text = String(bytes, 0, minOf(bytes.size, MAX_CAPTURED_BODY_BYTES), Charsets.UTF_8)
+                    if (bytes.size > MAX_CAPTURED_BODY_BYTES) {
+                        "$text…[truncated]"
+                    } else {
+                        try {
+                            JSONObject(text)
+                        } catch (_: Exception) {
+                            text
+                        }
+                    }
+                }
+            }
+        }
+
+        /** "<kind, N bytes>", or "<kind>" when the length is unknown. */
+        fun sized(kind: String, length: Long) = if (length < 0) "<$kind>" else "<$kind, $length bytes>"
     }
 }
 

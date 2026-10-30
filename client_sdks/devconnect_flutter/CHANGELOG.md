@@ -17,7 +17,17 @@
   `errors` or a transport `error`. Anonymous operations are named
   "anonymous". The README has a `gql_link` adapter (`DevConnectGqlLink`).
 - **Payloads**: a value that can't be JSON-encoded (e.g. a `DateTime` in
-  GraphQL variables) no longer turns its whole map into a string.
+  GraphQL variables) no longer turns its whole map into a string. A map or
+  list inside itself becomes `<cycle>` and the copy stops after 10,000
+  values, so cyclic data with branches no longer freezes the app.
+- **BLoC**: `DevConnect.blocObserver()` is deprecated. It is not a
+  `flutter_bloc` `BlocObserver`, so `Bloc.observer = DevConnect.blocObserver()`
+  threw at startup; it is now typed, so that line fails to compile. Call
+  `DevConnect.reportBlocChange` from your own `BlocObserver` (see its docs).
+- **Network**: bodies past 1 MB are no longer buffered and are reported as
+  `<N bytes, cut>`; event streams as `<event stream, N bytes>`, binary
+  types as `N bytes`. Dio byte data (`ResponseType.bytes`, uploads) is
+  reported as `N bytes` instead of a huge JSON array of ints.
 - Docs: the Dio interceptor is added through `InterceptorsWrapper` (it is
   not a Dio `Interceptor` subclass).
 

@@ -60,69 +60,72 @@ export function setupAxiosInterceptor(axiosInstance: any): void {
   // Request interceptor
   axiosInstance.interceptors.request.use(
     (config: any) => {
-      requestId = generateId();
-      const startTime = Date.now();
+      try {
+        requestId = generateId();
+        const startTime = Date.now();
 
-      // Attach metadata to config
-      config._dcRequestId = requestId;
-      config._dcStartTime = startTime;
+        // Attach metadata to config
+        config._dcRequestId = requestId;
+        config._dcStartTime = startTime;
 
-      // Detect special request types
-      const url = config.url ?? '';
-      const baseURL = config.baseURL ?? '';
-      const fullUrl = url.startsWith('http') ? url : `${baseURL}${url}`;
-      let tag: string | undefined;
+        // Detect special request types
+        const url = config.url ?? '';
+        const baseURL = config.baseURL ?? '';
+        const fullUrl = url.startsWith('http') ? url : `${baseURL}${url}`;
+        let tag: string | undefined;
 
-      if (fullUrl.includes('firebaseio.com') || fullUrl.includes('googleapis.com/identitytoolkit')) {
-        tag = 'Firebase';
-      } else if (fullUrl.includes('/oauth') || fullUrl.includes('/token') || fullUrl.includes('/authorize')) {
-        tag = 'OAuth2';
-      }
-
-      // Parse request body
-      let requestBody: any = undefined;
-      if (config.data) {
-        try {
-          if (typeof config.data === 'string') {
-            try { requestBody = JSON.parse(config.data); } catch (_) { requestBody = config.data; }
-          } else if (config.data instanceof FormData) {
-            const fields: Record<string, any> = {};
-            const files: any[] = [];
-            // @ts-ignore — FormData entries
-            for (const [key, value] of config.data.entries()) {
-              if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
-                files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
-              } else {
-                fields[key] = value;
-              }
-            }
-            requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
-          } else {
-            requestBody = config.data;
-          }
-        } catch (_) {
-          requestBody = String(config.data);
+        if (fullUrl.includes('firebaseio.com') || fullUrl.includes('googleapis.com/identitytoolkit')) {
+          tag = 'Firebase';
+        } else if (fullUrl.includes('/oauth') || fullUrl.includes('/token') || fullUrl.includes('/authorize')) {
+          tag = 'OAuth2';
         }
-      }
 
-      DevConnect.safeSend('client:network:request_start', {
-        requestId,
-        method: (config.method ?? 'GET').toUpperCase(),
-        url: fullUrl,
-        startTime,
-        // Normalize AxiosHeaders to a plain object — without this, the
-        // class instance arrives as a plain object on the WS but its
-        // `.toJSON()` quirks can drop nested values in some axios
-        // versions. Object.fromEntries keeps nested Map/List values
-        // intact for the desktop inspector to JSON-render.
-        requestHeaders: normalizeHeaders(config.headers),
-        requestBody,
-      });
+        // Parse request body
+        let requestBody: any = undefined;
+        if (config.data) {
+          try {
+            if (typeof config.data === 'string') {
+              try { requestBody = JSON.parse(config.data); } catch (_) { requestBody = config.data; }
+            } else if (config.data instanceof FormData) {
+              const fields: Record<string, any> = {};
+              const files: any[] = [];
+              // @ts-ignore — FormData entries
+              for (const [key, value] of config.data.entries()) {
+                if (value instanceof Blob || (value && typeof value === 'object' && value.uri)) {
+                  files.push({ key, filename: value.name ?? value.filename ?? 'unknown', type: value.type ?? value.contentType ?? 'unknown', size: value.size ?? value.length });
+                } else {
+                  fields[key] = value;
+                }
+              }
+              requestBody = { ...fields, ...(files.length ? { _files: files, _contentType: 'multipart/form-data' } : {}) };
+            } else {
+              requestBody = config.data;
+            }
+          } catch (_) {
+            requestBody = String(config.data);
+          }
+        }
 
-      // Also log special requests
-      if (tag) {
-        DevConnect.log(`${tag} request: ${(config.method ?? 'GET').toUpperCase()} ${url}`, tag);
-      }
+        DevConnect.safeSend('client:network:request_start', {
+          requestId,
+          method: (config.method ?? 'GET').toUpperCase(),
+          url: fullUrl,
+          startTime,
+          // Normalize AxiosHeaders to a plain object — without this, the
+          // class instance arrives as a plain object on the WS but its
+          // `.toJSON()` quirks can drop nested values in some axios
+          // versions. Object.fromEntries keeps nested Map/List values
+          // intact for the desktop inspector to JSON-render.
+          requestHeaders: normalizeHeaders(config.headers),
+          requestBody,
+        });
+
+        // Also log special requests
+        if (tag) {
+          DevConnect.log(`${tag} request: ${(config.method ?? 'GET').toUpperCase()} ${url}`, tag);
+        }
+
+      } catch (_) {}
 
       return config;
     },

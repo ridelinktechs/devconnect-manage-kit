@@ -31,7 +31,19 @@ library;
 ///
 /// ## With BLoC:
 /// ```dart
-/// Bloc.observer = DevConnect.blocObserver();
+/// class AppBlocObserver extends BlocObserver {
+///   @override
+///   void onChange(BlocBase bloc, Change change) {
+///     super.onChange(bloc, change);
+///     DevConnect.reportBlocChange(
+///       blocName: bloc.runtimeType.toString(),
+///       fromState: change.currentState.toString(),
+///       toState: change.nextState.toString(),
+///     );
+///   }
+/// }
+///
+/// Bloc.observer = AppBlocObserver();
 /// ```
 
 export 'src/devconnect.dart';

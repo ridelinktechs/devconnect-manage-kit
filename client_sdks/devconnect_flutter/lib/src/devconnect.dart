@@ -914,16 +914,31 @@ class DevConnect {
 
   // ---- Round 2: State auto-discovery (BLoC / Provider) ----
 
-  /// Returns a BLoC observer that reports state changes to the desktop.
-  /// No hard dependency on `flutter_bloc` — call this only when you
-  /// already have `flutter_bloc` on the classpath.
+  /// Not a `flutter_bloc` `BlocObserver` (this package doesn't depend on
+  /// bloc), so `Bloc.observer` can't take it. Use [reportBlocChange].
+  @Deprecated('Not a flutter_bloc BlocObserver. Extend BlocObserver in your '
+      'app and call DevConnect.reportBlocChange from onChange.')
+  static bloc_helper.DevConnectBlocObserver blocObserver() =>
+      bloc_helper.DevConnectBlocObserver();
+
+  /// Reports a single BLoC state change. With `flutter_bloc`, call it from
+  /// your app's own observer:
   ///
   /// ```dart
-  /// Bloc.observer = DevConnect.blocObserver();
+  /// class AppBlocObserver extends BlocObserver {
+  ///   @override
+  ///   void onChange(BlocBase bloc, Change change) {
+  ///     super.onChange(bloc, change);
+  ///     DevConnect.reportBlocChange(
+  ///       blocName: bloc.runtimeType.toString(),
+  ///       fromState: change.currentState.toString(),
+  ///       toState: change.nextState.toString(),
+  ///     );
+  ///   }
+  /// }
+  ///
+  /// Bloc.observer = AppBlocObserver();
   /// ```
-  static dynamic blocObserver() => bloc_helper.DevConnectBlocObserver();
-
-  /// Helper for non-BLoC consumers. Reports a single BLoC state change.
   static void reportBlocChange({
     required String blocName,
     required String? fromState,

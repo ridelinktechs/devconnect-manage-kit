@@ -191,7 +191,9 @@ class DevConnectDioInterceptor {
       dynamic responseBody;
       try {
         final data = response.data;
-        if (data is Map || data is List) {
+        if (data is List<int>) {
+          responseBody = '${data.length} bytes';
+        } else if (data is Map || data is List) {
           responseBody = data;
         } else if (data is String) {
           try {
@@ -229,6 +231,7 @@ class DevConnectDioInterceptor {
   /// Extract request body from various data types including FormData/multipart.
   dynamic _extractBody(dynamic data) {
     if (data == null) return null;
+    if (data is List<int>) return '${data.length} bytes';
     if (data is Map || data is List) return data;
     if (data is String) {
       try { return jsonDecode(data); } catch (_) { return data; }
@@ -297,7 +300,8 @@ class DevConnectDioInterceptor {
 
       dynamic responseBody;
       try {
-        responseBody = error.response?.data;
+        final data = error.response?.data;
+        responseBody = data is List<int> ? '${data.length} bytes' : data;
       } catch (_) {}
 
       DevConnectClient.safeReportNetworkComplete(

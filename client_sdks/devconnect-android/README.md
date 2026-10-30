@@ -59,7 +59,7 @@ with `NoClassDefFoundError: kotlin/reflect/full/KClasses` (the
 
 The fastest way to wire DevConnect is `installForApp()` — one call turns on
 all auto-wiring flags: ANR detection, ViewModel state auto-discovery,
-auto-intercepted logs and HTTP, performance, memory-leak and benchmark monitors.
+auto-intercepted logs, performance, memory-leak and benchmark monitors.
 
 ```kotlin
 class MyApp : Application() {
@@ -164,7 +164,7 @@ DevConnect.init(
     port = 9090,                    // default: 9090
     enabled = BuildConfig.DEBUG,    // false in release
     autoInterceptLogs = true,       // true = auto-capture println()
-    autoInterceptHttp = true,       // true = auto-capture HttpURLConnection
+    autoInterceptHttp = true,       // no-op: HttpURLConnection can't be auto-captured; use okHttpInterceptor()
     autoPerformance = true,         // true = auto-start performance monitor
     autoMemoryLeak = true,          // true = auto-start memory leak detection
     autoBenchmark = true,           // true = auto-start benchmark collector

@@ -60,6 +60,11 @@ export function generateId(): string {
   });
 }
 
+/** `String(v)` that never throws: a null-prototype object (query-string's `parse` result) has no `toString`. */
+export function safeString(v: unknown): string {
+  try { return String(v); } catch (_) { return '[object Object]'; }
+}
+
 /**
  * Convert a seed string to a UUID v5-like format (deterministic).
  * Uses FNV-1a to produce 128 bits, then formats as UUID with version=5, variant=a.
@@ -774,7 +779,6 @@ export class DevConnect {
           } else if (typeof msg.type === 'string' && msg.type.startsWith('server:storage:')) {
             this._handleStorageCommand(msg.type, msg.payload ?? {});
           } else if (msg.type === 'server:layout:capture') {
-            // Always answered: the desktop waits for it.
             this._layoutSnapshot().then(
               (snapshot) => this.send('client:layout:snapshot', snapshot, msg.correlationId),
               (e: any) => this.send('client:layout:snapshot', {
@@ -955,8 +959,6 @@ export class DevConnect {
     let screenshot: string | null = null;
     if (this._screenshot) {
       try {
-        // A screenshot that never comes (view-shot waits for a UI flush that
-        // may not happen) mustn't hold the tree back.
         screenshot = String(await withTimeout(this._screenshot(), 5000))
           .replace(/^data:image\/\w+;base64,/, '');
       } catch (_) {
@@ -1045,12 +1047,14 @@ export class DevConnect {
       payload,
       ...(correlationId ? { correlationId } : {}),
     };
-    const json = JSON.stringify(message);
-    if (this.connected && this.ws) {
-      this.ws.send(json);
-    } else if (this.messageQueue.length < 1000) {
-      this.messageQueue.push(json);
-    }
+    try {
+      const json = JSON.stringify(message);
+      if (this.connected && this.ws) {
+        this.ws.send(json);
+      } else if (this.messageQueue.length < 1000) {
+        this.messageQueue.push(json);
+      }
+    } catch (_) {}
   }
 
   // ---- Fetch interceptor ----
@@ -1233,11 +1237,14 @@ export class DevConnect {
       let requestBody: any;
 
       const origOpen = xhr.open.bind(xhr);
+      let openedOffline = false;
       xhr.open = (m: string, u: string | URL, ...args: any[]) => {
         method = m.toUpperCase();
         // Coerce URL/Request to a string in case a polyfill accepts them
         url = typeof u === 'string' ? u : (u as any)?.url ?? String(u);
-        return origOpen(m, u as string, ...args);
+        // Offline throttle: refused right away, like a dead network.
+        openedOffline = dc._throttle.offline;
+        return origOpen(m, openedOffline ? 'http://127.0.0.1:9' : u as string, ...args);
       };
 
       const origSetHeader = xhr.setRequestHeader.bind(xhr);
@@ -1269,14 +1276,11 @@ export class DevConnect {
         if (!isFetchRequest) {
           dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source: classifyUrl(url), via: 'xhr' });
         }
-        const { latencyMs, offline } = dc._throttle;
-        if (offline) {
-          // Connection refused right away: the error an offline app sees.
-          origOpen(method, 'http://127.0.0.1:9');
-          return origSend();
-        }
+        if (openedOffline) return origSend();
+        const { latencyMs } = dc._throttle;
         if (latencyMs > 0) {
-          setTimeout(() => origSend(body), latencyMs);
+          // shortcut: a fetch() aborted during the delay stays pending (RN fires no abort event for an unsent XHR).
+          setTimeout(() => { try { if (xhr.readyState === xhr.OPENED) origSend(body); } catch (_) {} }, latencyMs);
           return;
         }
         return origSend(body);
@@ -1374,12 +1378,12 @@ export class DevConnect {
     };
 
     const isInternalError = (args: any[]) => {
-      const s = String(args[0] ?? '');
+      const s = safeString(args[0] ?? '');
       return s.includes("'responseText'") || s.includes('responseType') || s.includes('DevConnect');
     };
 
-    const isSys = (args: any[]) => args.length === 0 || isEmptyObj(args) || isInternalError(args) || systemPrefixes.some((p) => String(args[0]).startsWith(p));
-    const toStr = (args: any[]) => args.map((a) => typeof a === 'string' ? a : (() => { try { return JSON.stringify(a, null, 2); } catch (_) { return String(a); } })()).join(' ');
+    const isSys = (args: any[]) => args.length === 0 || isEmptyObj(args) || isInternalError(args) || systemPrefixes.some((p) => safeString(args[0]).startsWith(p));
+    const toStr = (args: any[]) => args.map((a) => typeof a === 'string' ? a : (() => { try { return JSON.stringify(a, null, 2); } catch (_) { return safeString(a); } })()).join(' ');
     const toMeta = (args: any[]): Record<string, any> | undefined => {
       if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null) { try { return JSON.parse(JSON.stringify(args[0])); } catch (_) {} }
       return undefined;
@@ -1387,7 +1391,9 @@ export class DevConnect {
 
     const patch = (method: string, level: string, origFn: Function) => (...args: any[]) => {
       origFn(...args);
-      if (!isSys(args)) dc.send('client:log', { level, message: toStr(args), tag: `console.${method}`, ...(toMeta(args) ? { metadata: toMeta(args) } : {}) });
+      try {
+        if (!isSys(args)) dc.send('client:log', { level, message: toStr(args), tag: `console.${method}`, ...(toMeta(args) ? { metadata: toMeta(args) } : {}) });
+      } catch (_) {}
     };
 
     console.log = patch('log', 'debug', orig.log);
@@ -1403,7 +1409,7 @@ export class DevConnect {
   private static _toStr(msg: any): string {
     if (msg === null || msg === undefined) return String(msg);
     if (typeof msg === 'string') return msg;
-    try { return JSON.stringify(msg, null, 2); } catch (_) { return String(msg); }
+    try { return JSON.stringify(msg, null, 2); } catch (_) { return safeString(msg); }
   }
   static log(message: any, tag?: string, metadata?: Record<string, any>): void {
     DevConnect.safeSend('client:log', { level: 'info', message: DevConnect._toStr(message), ...(tag ? { tag } : {}), ...(metadata ? { metadata } : {}) });

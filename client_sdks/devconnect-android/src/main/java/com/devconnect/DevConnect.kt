@@ -344,7 +344,7 @@ object DevConnect {
         enabled: Boolean = false,
         versionCode: String? = null,
         autoInterceptLogs: Boolean = false,
-        /** Auto-intercept HttpURLConnection (Volley, native HTTP). Default: true */
+        /** Only logs once now: HttpURLConnection can't be auto-captured; use [okHttpInterceptor]. */
         autoInterceptHttp: Boolean = true,
         /** Auto-start performance monitoring (default: true) */
         autoPerformance: Boolean = true,
@@ -566,7 +566,6 @@ object DevConnect {
             com.devconnect.interceptors.DevConnectLogInterceptor.interceptSystemOut()
         }
 
-        // Auto-intercept HttpURLConnection (catches Volley, native HTTP, etc.)
         if (autoInterceptHttp) {
             DevConnectURLStreamHandlerFactory.install()
         }
@@ -1195,14 +1194,16 @@ object DevConnect {
         headers: Map<String, Any?>? = null,
         body: Any? = null
     ) {
-        send("client:network:request_start", buildPayload {
-            put("requestId", requestId)
-            put("method", method)
-            put("url", url)
-            put("startTime", System.currentTimeMillis())
-            headers?.let { put("requestHeaders", headersToJson(it)) }
-            body?.let { put("requestBody", jsonValue(it)) }
-        })
+        try {
+            send("client:network:request_start", buildPayload {
+                put("requestId", requestId)
+                put("method", method)
+                put("url", url)
+                put("startTime", System.currentTimeMillis())
+                headers?.let { put("requestHeaders", headersToJson(it)) }
+                body?.let { put("requestBody", jsonValue(it)) }
+            })
+        } catch (_: Exception) {}
     }
 
     fun reportNetworkComplete(
@@ -1218,20 +1219,22 @@ object DevConnect {
         error: String? = null
     ) {
         val now = System.currentTimeMillis()
-        send("client:network:request_complete", buildPayload {
-            put("requestId", requestId)
-            put("method", method)
-            put("url", url)
-            put("statusCode", statusCode)
-            put("startTime", startTime)
-            put("endTime", now)
-            put("duration", now - startTime)
-            requestHeaders?.let { put("requestHeaders", headersToJson(it)) }
-            responseHeaders?.let { put("responseHeaders", headersToJson(it)) }
-            requestBody?.let { put("requestBody", jsonValue(it)) }
-            responseBody?.let { put("responseBody", jsonValue(it)) }
-            error?.let { put("error", it) }
-        })
+        try {
+            send("client:network:request_complete", buildPayload {
+                put("requestId", requestId)
+                put("method", method)
+                put("url", url)
+                put("statusCode", statusCode)
+                put("startTime", startTime)
+                put("endTime", now)
+                put("duration", now - startTime)
+                requestHeaders?.let { put("requestHeaders", headersToJson(it)) }
+                responseHeaders?.let { put("responseHeaders", headersToJson(it)) }
+                requestBody?.let { put("requestBody", jsonValue(it)) }
+                responseBody?.let { put("responseBody", jsonValue(it)) }
+                error?.let { put("error", it) }
+            })
+        } catch (_: Exception) {}
     }
 
     // ---- Benchmark API ----
@@ -1622,7 +1625,13 @@ object DevConnect {
             put("payload", payload)
         }
 
-        c.send(message.toString())
+        // org.json returns null for a value it can't write (a NaN).
+        val json = try {
+            message.toString()
+        } catch (_: Exception) {
+            null
+        } ?: return
+        c.send(json)
     }
 
     private fun buildPayload(block: JSONObject.() -> Unit): JSONObject {
@@ -1782,7 +1791,7 @@ object DevConnect {
     /**
      * One-call setup. Wraps [init] with all auto-wiring flags enabled,
      * giving you ANR detection, ViewModel state auto-discovery,
-     * auto-intercepted logs and HTTP, plus the existing performance /
+     * auto-intercepted logs, plus the existing performance /
      * memory-leak / benchmark monitors.
      *
      * Consumers who use Retrofit/OkHttp should still add

@@ -7,7 +7,7 @@
  */
 
 import { NativeModules, Platform } from 'react-native';
-import { DevConnect } from '../client';
+import { DevConnect, safeString } from '../client';
 
 function getPlatformTag(): 'android' | 'ios' | 'js' {
   return Platform.OS as 'android' | 'ios';
@@ -59,26 +59,28 @@ export function startJSErrorMonitor(): void {
   console.error = function(...args: any[]) {
     originalError(...args);
 
-    // Skip internal DevConnect errors
-    const msg = String(args[0] ?? '');
-    if (msg.includes('DevConnect') || msg.includes('[DC_')) return;
+    try {
+      // Skip internal DevConnect errors
+      const msg = safeString(args[0] ?? '');
+      if (msg.includes('DevConnect') || msg.includes('[DC_')) return;
 
-    // Parse error from console.error arguments
-    const errorMsg = args.map((a) => {
-      if (a instanceof Error) return a.message;
-      if (typeof a === 'string') return a;
-      try { return JSON.stringify(a); } catch (_) { return String(a); }
-    }).join(' ');
+      // Parse error from console.error arguments
+      const errorMsg = args.map((a) => {
+        if (a instanceof Error) return a.message;
+        if (typeof a === 'string') return a;
+        try { return JSON.stringify(a); } catch (_) { return safeString(a); }
+      }).join(' ');
 
-    const stackTrace = args.find((a) => a instanceof Error)?.stack;
+      const stackTrace = args.find((a) => a instanceof Error)?.stack;
 
-    sendError({
-      platform: 'js',
-      severity: 'error',
-      message: errorMsg,
-      stackTrace,
-      source: 'console.error',
-    });
+      sendError({
+        platform: 'js',
+        severity: 'error',
+        message: errorMsg,
+        stackTrace,
+        source: 'console.error',
+      });
+    } catch (_) {}
   };
 
   // Handle unhandled promise rejections (React Native / browser)
@@ -178,7 +180,7 @@ export function startErrorMonitor(): void {
     // Intercept common Android crash patterns
     const originalConsoleError = console.error.bind(console);
     console.error = function(...args: any[]) {
-      const msg = String(args[0] ?? '');
+      const msg = safeString(args[0] ?? '');
       // Detect Android native errors
       if (msg.includes('java.lang.') || msg.includes('android.runtime') ||
           msg.includes('Native崩溃') || msg.includes('FATAL EXCEPTION')) {
@@ -186,7 +188,7 @@ export function startErrorMonitor(): void {
           platform: 'android',
           severity: 'crash',
           message: msg.split('\n')[0],
-          stackTrace: args.map(String).join('\n'),
+          stackTrace: args.map(safeString).join('\n'),
           source: 'android.native',
         });
         return;
@@ -197,7 +199,7 @@ export function startErrorMonitor(): void {
     // Intercept iOS crash patterns
     const originalConsoleError = console.error.bind(console);
     console.error = function(...args: any[]) {
-      const msg = String(args[0] ?? '');
+      const msg = safeString(args[0] ?? '');
       // Detect iOS native errors
       if (msg.includes('*** NSException ***') || msg.includes('__NSCRASH') ||
           msg.includes('Thread <') && msg.includes('crashed')) {
@@ -205,7 +207,7 @@ export function startErrorMonitor(): void {
           platform: 'ios',
           severity: 'crash',
           message: msg.split('\n')[0],
-          stackTrace: args.map(String).join('\n'),
+          stackTrace: args.map(safeString).join('\n'),
           source: 'ios.native',
         });
         return;

@@ -12,6 +12,8 @@
   },
   "include": [
     "src/client.ts",
+    "src/plugins/errorMonitor.ts",
+    "src/interceptors/axiosInterceptor.ts",
     "src/interceptors/mockServerInterceptor.ts",
     "src/integrations/apollo.ts",
     "src/integrations/reactQuery.ts",
