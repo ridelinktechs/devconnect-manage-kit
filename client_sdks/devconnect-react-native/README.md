@@ -61,6 +61,50 @@ import { setupAxiosInterceptor } from "devconnect-manage-kit";
 setupAxiosInterceptor(axios);
 ```
 
+### WebSocket
+
+```typescript
+import { installWebSocketInterceptor } from "devconnect-manage-kit";
+
+const uninstall = installWebSocketInterceptor(); // once, early
+```
+
+Sockets created after this call show in the desktop's **WebSocket** tab: the
+open, every sent/received frame (binary frames as `<binary N bytes>`) and one
+close per connection, carrying the error if there was one. Every constructor
+argument (including React Native's `headers` option) reaches the real socket.
+DevConnect's own connection is never captured.
+
+### Mock Server
+
+Rules made in the desktop's **Mock** tab are pushed to the app and applied
+right away, with no setup call (`installMockServerInterceptor()` is now a
+no-op kept for older code). A matching `fetch` gets the mocked response
+without touching the network. It still shows in the Network tab, with an
+`x-devconnect-mock: <ruleId>` response header.
+
+> Only `fetch` is mocked. `XMLHttpRequest` requests (axios included) always
+> go to the network.
+
+### GraphQL (Apollo)
+
+```typescript
+import { ApolloClient, ApolloLink, HttpLink, InMemoryCache } from "@apollo/client";
+import { devConnectApolloLink } from "devconnect-manage-kit";
+
+const client = new ApolloClient({
+  cache: new InMemoryCache(),
+  link: ApolloLink.from([
+    devConnectApolloLink(),
+    new HttpLink({ uri: "https://api.example.com/graphql" }),
+  ]),
+});
+```
+
+Each operation shows in the desktop's **GraphQL** tab with its variables,
+latency and outcome: data, GraphQL errors or the transport error. Works with
+Apollo Client 3 and 4.
+
 ### Logs
 
 Auto-captured: console.log, console.debug, console.info, console.warn, console.error, console.trace.

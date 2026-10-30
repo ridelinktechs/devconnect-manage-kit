@@ -85,7 +85,8 @@ object DevConnect {
      * Production builds MUST pass `enabled = BuildConfig.DEBUG` explicitly.
      */
     private var enabled = false
-    @Volatile private var deviceId = ""
+    @Volatile internal var deviceId = ""
+        private set
 
     /** Pre-init queue: messages sent before init() completes. Synchronized
      *  because [send] is called from any thread (interceptor callbacks,
@@ -509,7 +510,7 @@ object DevConnect {
                                 send("client:custom:command_result", buildPayload {
                                     put("command", cmd)
                                     put("status", "ok")
-                                    if (result != null) put("result", result)
+                                    if (result != null) put("result", jsonValue(result))
                                 })
                             } catch (e: Exception) {
                                 // Surface the failure to the desktop so it
@@ -553,11 +554,8 @@ object DevConnect {
                             runDatabaseQuery(payload.optString("database"), payload.optString("sql")),
                         )
                     }
-                    "server:mock_rules_update" -> {
-                        try {
-                            com.devconnect.interceptors.MockRuleStore.loadFromJson(payload.toString())
-                        } catch (_: Exception) {}
-                    }
+                    "server:mock_rules_update" ->
+                        com.devconnect.interceptors.MockRuleStore.loadFromPayload(payload)
                 }
             }
         }
@@ -1012,7 +1010,7 @@ object DevConnect {
         send("client:storage:operation", buildPayload {
             put("storageType", storageType)
             put("key", key)
-            value?.let { put("value", redactSensitiveValue(key, it)) }
+            value?.let { put("value", jsonValue(redactSensitiveValue(key, it))) }
             put("operation", operation)
         })
     }
@@ -1047,13 +1045,7 @@ object DevConnect {
     internal fun safeSend(type: String, payload: Map<String, Any?>) {
         try {
             val json = JSONObject()
-            for ((k, v) in payload) {
-                if (v == null) {
-                    json.put(k, JSONObject.NULL)
-                } else {
-                    json.put(k, v)
-                }
-            }
+            for ((k, v) in payload) json.put(k, jsonValue(v))
             send(type, json)
         } catch (_: Exception) {
             // The process is dying — swallow everything.
@@ -1209,7 +1201,7 @@ object DevConnect {
             put("url", url)
             put("startTime", System.currentTimeMillis())
             headers?.let { put("requestHeaders", headersToJson(it)) }
-            body?.let { put("requestBody", it) }
+            body?.let { put("requestBody", jsonValue(it)) }
         })
     }
 
@@ -1236,8 +1228,8 @@ object DevConnect {
             put("duration", now - startTime)
             requestHeaders?.let { put("requestHeaders", headersToJson(it)) }
             responseHeaders?.let { put("responseHeaders", headersToJson(it)) }
-            requestBody?.let { put("requestBody", it) }
-            responseBody?.let { put("responseBody", it) }
+            requestBody?.let { put("requestBody", jsonValue(it)) }
+            responseBody?.let { put("responseBody", jsonValue(it)) }
             error?.let { put("error", it) }
         })
     }
@@ -1301,7 +1293,7 @@ object DevConnect {
     ) {
         send("client:display", buildPayload {
             put("name", name)
-            value?.let { put("value", it) }
+            value?.let { put("value", jsonValue(it)) }
             preview?.let { put("preview", it) }
             image?.let { put("image", it) }
             metadata?.let { put("metadata", JSONObject(it)) }
@@ -1358,7 +1350,7 @@ object DevConnect {
             duration?.let { put("duration", it) }
             sagaName?.let { put("sagaName", it) }
             error?.let { put("error", it) }
-            result?.let { put("result", it) }
+            result?.let { put("result", jsonValue(it)) }
             metadata?.let { put("metadata", JSONObject(it)) }
         })
     }
@@ -1638,6 +1630,14 @@ object DevConnect {
     }
 
     /**
+     * [v] as a value [JSONObject.put] writes as JSON. Android's org.json
+     * stores a Kotlin Map/List as-is and writes it with toString()
+     * ("{k=v}"); `wrap` converts it, nested values included. The org.json
+     * jar the JVM unit tests run on converts either way, so they can't see this.
+     */
+    private fun jsonValue(v: Any?): Any = JSONObject.wrap(v) ?: v.toString()
+
+    /**
      * Recursively convert a `Map<String, Any?>` (and any nested
      * `List<*>` / `Map<*, *>` values) to a [JSONObject] so the JSON
      * encoder carries structured header values through to the desktop
@@ -1719,9 +1719,9 @@ object DevConnect {
         com.devconnect.interceptors.graphql.DevConnectApolloInterceptor()
 
     /**
-     * Returns an OkHttp `Interceptor` for gRPC-Web that reports each
-     * call start/end. Pair with the existing OkHttp client:
-     * `OkHttpClient.Builder().addInterceptor(DevConnect.grpcClientInterceptor())`.
+     * Returns a gRPC `io.grpc.ClientInterceptor` that reports each call's
+     * start and end. Install it on the channel:
+     * `ManagedChannelBuilder.forAddress(host, port).intercept(DevConnect.grpcClientInterceptor())`.
      */
     fun grpcClientInterceptor(): com.devconnect.interceptors.grpc.DevConnectGrpcClientInterceptor =
         com.devconnect.interceptors.grpc.DevConnectGrpcClientInterceptor()
@@ -1735,25 +1735,45 @@ object DevConnect {
 
     /**
      * Wrap an existing OkHttp `WebSocketListener` so its events are
-     * mirrored to the desktop.
+     * mirrored to the desktop. Frames the app sends aren't seen; use
+     * [newWebSocket] for those.
      */
     fun devConnectWrap(delegate: okhttp3.WebSocketListener): okhttp3.WebSocketListener =
         com.devconnect.interceptors.devConnectWrap(delegate)
+
+    /**
+     * `client.newWebSocket(request, listener)` that mirrors the socket to
+     * the desktop, including the frames the app sends. [listener] gets
+     * the same [okhttp3.WebSocket] this returns.
+     *
+     * ```kotlin
+     * val ws = DevConnect.newWebSocket(client, request, listener)
+     * ws.send("subscribe")
+     * ```
+     */
+    fun newWebSocket(
+        client: okhttp3.OkHttpClient,
+        request: okhttp3.Request,
+        listener: okhttp3.WebSocketListener,
+    ): okhttp3.WebSocket {
+        val tracker = com.devconnect.interceptors.DevConnectWebSocketListener(listener, wrapSocket = true)
+        return tracker.appSocket(client.newWebSocket(request, tracker))
+    }
 
     // ---- Round 4: Mock server ----
 
     /**
      * Returns an OkHttp `Interceptor` that short-circuits requests when
-     * a matching mock rule has been pushed from the desktop. Pair with
-     * the existing OkHttp client:
-     * `OkHttpClient.Builder().addInterceptor(DevConnect.mockServerInterceptor())`.
+     * a matching mock rule has been pushed from the desktop. Add it after
+     * [okHttpInterceptor] so mocked responses still show in the HTTP tab:
+     * `.addInterceptor(DevConnect.okHttpInterceptor()).addInterceptor(DevConnect.mockServerInterceptor())`.
      */
     fun mockServerInterceptor(): com.devconnect.interceptors.MockServerInterceptor =
         com.devconnect.interceptors.MockServerInterceptor()
 
     /**
-     * Replace the in-memory mock rule list. Accepts a JSON list as
-     * received from the `server:mock_rules_update` message.
+     * Replace the in-memory mock rule list with a JSON array of rules
+     * (the `rules` of a `server:mock_rules_update` payload).
      */
     fun installMockRulesFromJson(json: String) {
         com.devconnect.interceptors.installMockRulesFromJson(json)

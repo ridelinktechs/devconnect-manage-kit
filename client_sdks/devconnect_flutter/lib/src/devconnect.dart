@@ -270,6 +270,8 @@ class DevConnect {
       deviceName: Platform.localHostname,
       platform: platform,
     );
+    // Desktop mock rules (`server:mock_rules_update`) apply without app code.
+    mock_helper.installMockServerInterceptor();
 
     // Auto-start monitoring plugins
     if (autoPerformance) perf_monitor.startPerformanceMonitor();
@@ -308,13 +310,16 @@ class DevConnect {
   /// Dio-specific interceptor for granular control.
   ///
   /// Use this if you want to intercept only specific Dio instances
-  /// instead of all HTTP globally.
+  /// instead of all HTTP globally. Pass Dio's `Response.new` as
+  /// [responseFactory] to let desktop mock rules answer requests.
   ///
   /// ```dart
-  /// dio.interceptors.add(DevConnect.dioInterceptor());
+  /// final dc = DevConnect.dioInterceptor(responseFactory: Response.new);
+  /// dio.interceptors.add(InterceptorsWrapper(
+  ///     onRequest: dc.onRequest, onResponse: dc.onResponse, onError: dc.onError));
   /// ```
-  static DevConnectDioInterceptor dioInterceptor() {
-    return DevConnectDioInterceptor();
+  static DevConnectDioInterceptor dioInterceptor({Function? responseFactory}) {
+    return DevConnectDioInterceptor(responseFactory: responseFactory);
   }
 
   // ---- Navigation ----
@@ -951,42 +956,68 @@ class DevConnect {
 
   // ---- Round 3: Protocol inspectors ----
 
-  /// Returns a [gql_link]-compatible link (or stub). Requires
-  /// `gql_link` / `graphql_flutter` on the classpath; otherwise the
-  /// returned object is a `DevConnectLinkBase` you can compose
-  /// yourself via [DevConnectGraphQLHelper].
+  /// Returns a `DevConnectLink`, built on this package's own link types
+  /// (no `gql_link` dependency). For `graphql_flutter` / ferry, use the
+  /// `DevConnectGqlLink` adapter from the README, built on
+  /// [reportGraphQLOperation] and [reportGraphQLResponse].
   static dynamic graphqlLink() => graphql_helper.DevConnectLink();
 
-  /// Helper for non-Link GraphQL transports.
-  static void reportGraphQLOperation({
-    required String operationName,
+  /// Reports a GraphQL operation (null/empty [operationName] = "anonymous")
+  /// and returns its `operationId`. Pass that id to [reportGraphQLResponse]
+  /// when the result arrives, or the operation stays pending on the desktop.
+  static String reportGraphQLOperation({
+    String? operationName,
     required String operationType,
     Map<String, dynamic>? variables,
   }) {
-    graphql_helper.DevConnectGraphQLHelper.reportOperation(
+    return graphql_helper.DevConnectGraphQLHelper.reportOperation(
       operationName: operationName,
       operationType: operationType,
       variables: variables,
     );
   }
 
+  /// Completes an operation from [reportGraphQLOperation]: the server's
+  /// [data] and [errors] (maps or gql `GraphQLError`s), or [error] for a
+  /// transport failure.
+  static void reportGraphQLResponse({
+    required String operationId,
+    String? operation,
+    required int latencyMs,
+    Map<String, dynamic>? data,
+    List<Object?>? errors,
+    String? error,
+  }) {
+    graphql_helper.DevConnectGraphQLHelper.reportResponse(
+      operationId: operationId,
+      operation: operation,
+      latencyMs: latencyMs,
+      data: data,
+      errors: errors,
+      error: error,
+    );
+  }
+
   /// Connect to a WebSocket endpoint with DevConnect frame capture.
-  static Future<dynamic> websocketConnect(String url,
+  static Future<ws_helper.DevConnectWebSocket> websocketConnect(String url,
           {Iterable<String>? protocols, Map<String, dynamic>? headers}) =>
       ws_helper.DevConnectWebSocket.connect(url,
           protocols: protocols, headers: headers);
 
   /// Wrap an already-connected [dart:io] `WebSocket`.
-  static dynamic websocketWrap(Object socket, String url) =>
-      ws_helper.DevConnectWebSocket.wrap(socket as dynamic, url);
+  static ws_helper.DevConnectWebSocket websocketWrap(
+          WebSocket socket, String url) =>
+      ws_helper.DevConnectWebSocket.wrap(socket, url);
 
   /// Push a single WebSocket frame event from a manually-managed socket.
+  /// [connectionId] groups one connection's frames (defaults to [url]).
   static void reportWebSocketFrame({
     required String url,
     required String direction,
     required String opcode,
     dynamic payload,
     int? sizeBytes,
+    String? connectionId,
   }) {
     ws_helper.DevConnectWebSocketHelper.reportFrame(
       url: url,
@@ -994,6 +1025,7 @@ class DevConnect {
       opcode: opcode,
       payload: payload,
       sizeBytes: sizeBytes,
+      connectionId: connectionId,
     );
   }
 

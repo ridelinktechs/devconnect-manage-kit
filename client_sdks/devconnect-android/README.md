@@ -311,12 +311,18 @@ own via `ErrorMonitor.reportNativeCrash(signal, stackTrace)`.
 
 ### WebSocket inspector
 
-Wrap OkHttp WebSockets with the `devConnectWrap` extension to stream
-open / frame / close events (`client:ws_*`) to the desktop:
+Open OkHttp WebSockets through `DevConnect.newWebSocket` to stream
+open / frame / close events (`client:ws_*`) to the desktop, including
+the frames your app sends:
 
 ```kotlin
-val ws = client.newWebSocket(request, devConnectWrap(listener))
+val ws = DevConnect.newWebSocket(client, request, listener)
+ws.send("subscribe") // shows as a sent frame
 ```
+
+Your `listener` gets that same `ws` in its callbacks, so sends made there
+are captured too. `client.newWebSocket(request, devConnectWrap(listener))`
+still works, but only sees incoming frames, open and close.
 
 ### GraphQL / gRPC
 
@@ -332,10 +338,22 @@ channel = ManagedChannelBuilder.forAddress(host, port)
 
 ### Mock server (Round 4)
 
-The desktop pushes mock rules down over the websocket; the SDK's OkHttp
-interceptor matches them (method + URL regex + headers) and returns the
-canned response with optional delay — no app code needed. Push rules
-programmatically with `DevConnect.installMockRulesFromJson(json)`.
+The desktop pushes mock rules down over the websocket. Add the mock
+interceptor to your OkHttp client, **after** DevConnect's own interceptor
+so mocked responses still show in the HTTP tab:
+
+```kotlin
+val client = OkHttpClient.Builder()
+    .addInterceptor(DevConnect.okHttpInterceptor())
+    .addInterceptor(DevConnect.mockServerInterceptor())
+    .build()
+```
+
+A request that matches an enabled rule (method + URL regex + optional
+header regexes, within the rule's device scope and before its
+`expiresAt`) gets the canned response, after the optional delay, instead
+of going to the network. Push rules programmatically with
+`DevConnect.installMockRulesFromJson(json)`.
 
 ### Jetpack Compose
 

@@ -13,17 +13,17 @@ void installMockServerInterceptor() {
   try {
     DevConnectClient.instance.registerServerHandler(
       'server:mock_rules_update',
-      (msg) {
-        try {
-          final rules = msg['rules'];
-          if (rules is List) {
-            setMockRules(parseRules(rules));
-          }
-        } catch (_) {}
-      },
+      applyMockRulesUpdate,
     );
     _serverHandlerRegistered = true;
   } catch (_) {}
+}
+
+/// Handles a `server:mock_rules_update` payload. The desktop always sends
+/// the full list, so it replaces the current rules (empty list = clear).
+void applyMockRulesUpdate(Map<String, dynamic> payload) {
+  final rules = payload['rules'];
+  if (rules is List) setMockRules(parseRules(rules));
 }
 
 /// Mock server rule pushed by the DevConnect desktop.
@@ -33,11 +33,19 @@ class MockRule {
   final MockMatch match;
   final MockResponse response;
 
+  /// `scope.deviceIds`: when non-empty, only these devices are mocked.
+  final List<String> deviceIds;
+
+  /// The rule stops matching from this moment on.
+  final DateTime? expiresAt;
+
   const MockRule({
     required this.id,
     required this.enabled,
     required this.match,
     required this.response,
+    this.deviceIds = const [],
+    this.expiresAt,
   });
 
   factory MockRule.fromJson(Map<String, dynamic> json) => MockRule(
@@ -45,6 +53,13 @@ class MockRule {
         enabled: json['enabled'] as bool? ?? true,
         match: MockMatch.fromJson(json['match'] as Map<String, dynamic>),
         response: MockResponse.fromJson(json['response'] as Map<String, dynamic>),
+        deviceIds: [
+          for (final id in (json['scope'] as Map?)?['deviceIds'] as List? ?? const []) '$id',
+        ],
+        expiresAt: switch (json['expiresAt']) {
+          String iso => DateTime.tryParse(iso),
+          _ => null,
+        },
       );
 }
 
@@ -80,10 +95,14 @@ class MockResponse {
   });
 
   factory MockResponse.fromJson(Map<String, dynamic> json) => MockResponse(
-        status: json['status'] as int? ?? 200,
-        body: json['body'] as String? ?? '',
+        status: (json['status'] as num?)?.toInt() ?? 200,
+        body: switch (json['body']) {
+          null => '',
+          String body => body,
+          final body => jsonEncode(body),
+        },
         headers: (json['headers'] as Map<String, dynamic>?)?.map((k, v) => MapEntry(k, v.toString())),
-        delayMs: json['delayMs'] as int?,
+        delayMs: (json['delayMs'] as num?)?.toInt(),
       );
 }
 
@@ -91,8 +110,6 @@ class _MockRuleStore {
   final List<MockRule> _rules = [];
   final Map<String, RegExp> _regexCache = {};
   // Header regex cache: keyed by `ruleId|headerKey` → compiled RegExp.
-  // Infrastructure is here; the production `findMatch` does not yet
-  // populate it — that is the bug we are about to fix.
   final Map<String, RegExp> _headerRegexCache = {};
 
   /// Number of cached header regexes. Exposed for tests so we can
@@ -107,9 +124,14 @@ class _MockRuleStore {
     _headerRegexCache.clear();
   }
 
-  MockRule? findMatch(String method, String url, Map<String, String>? headers) {
+  MockRule? findMatch(
+      String method, String url, Map<String, String>? headers, String? deviceId) {
+    final now = DateTime.now();
     for (final rule in _rules) {
       if (!rule.enabled) continue;
+      final expiresAt = rule.expiresAt;
+      if (expiresAt != null && !expiresAt.isAfter(now)) continue;
+      if (rule.deviceIds.isNotEmpty && !rule.deviceIds.contains(deviceId)) continue;
       if (rule.match.method.toUpperCase() != method.toUpperCase()) continue;
       final regex = _regexCache[rule.id] ?? (() {
         try {
@@ -121,12 +143,12 @@ class _MockRuleStore {
       if (regex == null) continue;
       _regexCache[rule.id] = regex;
       if (!regex.hasMatch(url)) continue;
-      if (rule.match.headers != null && headers != null) {
+      if (rule.match.headers != null) {
         // Lowercase incoming header keys once so callers can pass either
         // casing — Dart's standard HTTP APIs expose them in their original
         // case (e.g. 'X-Trace-Id') while the rule keys are typically lower.
         final lowerHeaders = <String, String>{
-          for (final e in headers.entries) e.key.toLowerCase(): e.value,
+          for (final e in (headers ?? const {}).entries) e.key.toLowerCase(): e.value,
         };
         bool ok = true;
         for (final entry in rule.match.headers!.entries) {
@@ -145,8 +167,9 @@ class _MockRuleStore {
               break;
             }
           }
-          final actual = lowerHeaders[entry.key.toLowerCase()] ?? '';
-          if (!re.hasMatch(actual)) {
+          // A request without the header never matches, whatever the regex.
+          final actual = lowerHeaders[entry.key.toLowerCase()];
+          if (actual == null || !re.hasMatch(actual)) {
             ok = false;
             break;
           }
@@ -165,29 +188,34 @@ final _store = _MockRuleStore();
 void setMockRules(List<MockRule> rules) => _store.setRules(rules);
 
 /// Look up a matching rule. Returns null when no match — caller falls
-/// through to the real network.
-MockRule? findMockMatch(String method, String url, Map<String, String>? headers) =>
-    _store.findMatch(method, url, headers);
+/// through to the real network. [deviceId] defaults to this device's id
+/// (checked against a rule's `scope.deviceIds`).
+MockRule? findMockMatch(String method, String url, Map<String, String>? headers,
+        {String? deviceId}) =>
+    _store.findMatch(method, url, headers,
+        deviceId ?? DevConnectClient.instanceSafe?.deviceId);
 
 /// Number of cached header regexes across all rules. Exposed for tests
 /// so they can assert that header regexes are compiled once per rule,
 /// not once per request.
 int get mockHeaderRegexCacheSize => _store.headerRegexCacheSize;
 
-/// Build a synthetic HTTP response from a rule. Apply [delayMs] before
-/// returning so the consumer sees realistic latency.
-Future<MockedHttpResponse> buildMockResponse(MockRule rule, String requestId) async {
-  if (rule.response.delayMs != null && rule.response.delayMs! > 0) {
-    await Future.delayed(Duration(milliseconds: rule.response.delayMs!));
+/// Build a synthetic HTTP response from a rule. Waits the rule's delayMs
+/// (realistic latency), then tells the desktop which rule answered the
+/// request (`client:mocked_request`).
+Future<MockedHttpResponse> buildMockResponse(MockRule rule,
+    {required String method, required String url, String? requestId}) async {
+  final delayMs = rule.response.delayMs ?? 0;
+  if (delayMs > 0) {
+    await Future<void>.delayed(Duration(milliseconds: delayMs));
   }
-  try {
-    DevConnectClient.safeSend('client:mocked_request', {
-      'ruleId': rule.id,
-      'status': rule.response.status,
-      'requestId': requestId,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
-  } catch (_) {}
+  DevConnectClient.safeSend('client:mocked_request', {
+    'ruleId': rule.id,
+    'url': url,
+    'method': method,
+    'status': rule.response.status,
+    if (requestId != null) 'requestId': requestId,
+  });
   return MockedHttpResponse(
     status: rule.response.status,
     body: rule.response.body,
@@ -214,6 +242,15 @@ class MockedHttpResponse {
   }
 }
 
-/// Parse rules from a JSON list (e.g. from the desktop).
-List<MockRule> parseRules(List<dynamic> json) =>
-    json.whereType<Map<String, dynamic>>().map(MockRule.fromJson).toList();
+/// Parse rules from a JSON list (e.g. from the desktop). A malformed rule
+/// is skipped rather than failing the whole list (which would leave the
+/// previous rules active).
+List<MockRule> parseRules(List<dynamic> json) {
+  final rules = <MockRule>[];
+  for (final rule in json.whereType<Map<String, dynamic>>()) {
+    try {
+      rules.add(MockRule.fromJson(rule));
+    } catch (_) {}
+  }
+  return rules;
+}

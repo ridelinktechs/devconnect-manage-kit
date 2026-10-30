@@ -118,40 +118,18 @@ class MockRuleStore {
 const store = new MockRuleStore();
 
 /**
- * Replace the entire rule list. Called from `server:mock_rules_update`
- * handlers and from `setupMockServerInterceptor`'s initial sync.
+ * Replace the entire rule list. DevConnect calls this for every
+ * `server:mock_rules_update` (the desktop always sends the full list).
  */
 export function setMockRules(rules: MockRule[]): void {
   store.setRules(rules);
 }
 
-let serverHandlerInstalled = false;
-let installedHandlerRef: any = null;
-
 /**
- * Wire the mock server interceptor to the DevConnect message loop so
- * that `server:mock_rules_update` automatically updates the rule list.
- * Idempotent — repeated calls are no-ops.
+ * Kept for compatibility — a no-op. DevConnect applies the rules the desktop
+ * pushes by itself, and its fetch interceptor answers matching requests.
  */
-export function installMockServerInterceptor(): void {
-  if (serverHandlerInstalled) return;
-  try {
-    const client = require('../client').DevConnect as any;
-    const prev = typeof client.onMessage === 'function' ? client.onMessage.bind(client) : null;
-    installedHandlerRef = (msg: any) => {
-      try {
-        if (msg?.type === 'server:mock_rules_update') {
-          const rules = msg?.payload?.rules ?? msg?.rules;
-          if (Array.isArray(rules)) setMockRules(rules as MockRule[]);
-        }
-      } catch (_) {}
-      if (prev) prev(msg);
-    };
-    client.onMessage = installedHandlerRef;
-    // Only mark installed after the handler was successfully assigned.
-    serverHandlerInstalled = true;
-  } catch (_) {}
-}
+export function installMockServerInterceptor(): void {}
 
 /**
  * Look up a matching rule for a request, given what the fetch
@@ -171,7 +149,11 @@ export function findMockMatch(
  * "short-circuit with the mock response (delay → emit response with
  * synthetic latency)".
  */
-export async function buildMockResponse(rule: MockRule, requestId: string): Promise<Response> {
+export async function buildMockResponse(
+  rule: MockRule,
+  requestId: string,
+  request?: { url: string; method: string },
+): Promise<Response> {
   if (rule.response.delayMs && rule.response.delayMs > 0) {
     await new Promise(resolve => setTimeout(resolve, rule.response.delayMs));
   }
@@ -179,6 +161,8 @@ export async function buildMockResponse(rule: MockRule, requestId: string): Prom
   // Emit `client:mocked_request` so the user knows the response was synthetic.
   DevConnect.safeSend('client:mocked_request', {
     ruleId: rule.id,
+    url: request?.url,
+    method: request?.method,
     status: rule.response.status,
     requestId,
     timestamp: Date.now(),
@@ -191,6 +175,8 @@ export async function buildMockResponse(rule: MockRule, requestId: string): Prom
     if (k.toLowerCase() === 'statustext') continue;
     headers.set(k, v);
   }
+  // Marks the answer as mocked in the Network tab.
+  headers.set('x-devconnect-mock', rule.id);
 
   return new Response(rule.response.body, {
     status: rule.response.status,

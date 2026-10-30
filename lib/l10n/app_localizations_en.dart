@@ -1059,6 +1059,29 @@ class SEn extends S {
   String get networkPresetOffline => 'Offline';
 
   @override
+  String get networkTabHttpHint =>
+      'HTTP requests the app made through fetch, XHR, axios, Dio, OkHttp…';
+
+  @override
+  String get networkTabProtocolsHint =>
+      'Traffic beyond plain HTTP: GraphQL operations, WebSocket messages and gRPC calls';
+
+  @override
+  String get networkTabMockAuditHint =>
+      'Requests the app answered with a Mock Server rule instead of the real network';
+
+  @override
+  String get protocolGraphqlHint =>
+      'Queries and mutations sent through the SDK\'s GraphQL link / interceptor';
+
+  @override
+  String get protocolWebsocketHint =>
+      'WebSocket connections and every frame sent or received';
+
+  @override
+  String get protocolGrpcHint => 'gRPC calls (Android SDK interceptor)';
+
+  @override
   String get layoutTitle => 'Layout';
 
   @override
@@ -1085,6 +1108,9 @@ class SEn extends S {
 
   @override
   String get layoutProperties => 'Properties';
+
+  @override
+  String get layoutTreeError => 'Couldn\'t read the element tree';
 
   @override
   String get networkTitle => 'Network';

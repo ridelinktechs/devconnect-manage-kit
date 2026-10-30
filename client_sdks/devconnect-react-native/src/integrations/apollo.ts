@@ -3,12 +3,13 @@ import { DevConnect } from '../client';
 /**
  * Integrates `@apollo/client` with DevConnect.
  *
- * Two complementary streams:
- *  1. `cache.watch()` — root-level subscription that fires on every
- *     cache write. Emits `client:state:change` per affected key.
- *  2. Optional periodic `cache.extract()` — full snapshot every N ms,
- *     truncated to 1 MB (per spec "Truncate to first 1 MB with
- *     `…` suffix; emit `metadata.truncated = true`").
+ * Emits a `client:state:snapshot` of `cache.extract()` on startup and every
+ * N ms, truncated to 1 MB (per spec "Truncate to first 1 MB with `…` suffix;
+ * emit `metadata.truncated = true`").
+ *
+ * The cache is not watched: Apollo's `cache.watch()` needs a query and a
+ * callback (there is no "watch everything"), and a watch without them makes
+ * every cache write throw.
  *
  * Usage:
  * ```typescript
@@ -90,46 +91,7 @@ export function setupApolloDevConnect(
   const maxSnapshotBytes = options.maxSnapshotBytes ?? 1_048_576;
   const emitInitial = options.emitInitialSnapshot ?? true;
 
-  // 1. Watch the entire cache for writes. Apollo's `cache.watch(opts)`
-  // returns an Observable; we must subscribe to it to actually receive
-  // diffs.
-  let unsubscribe: (() => void) | null = null;
-  try {
-    const observable = cache.watch({});
-    if (observable && typeof observable.subscribe === 'function') {
-      const sub = observable.subscribe({
-        next: (diff: any) => {
-          try {
-            const fieldName: string = diff?.fieldName ?? diff?.incompleteFromListLikeUpdate?.fieldName ?? '<root>';
-            const broadcast = typeof diff?.broadcast === 'function' ? diff.broadcast() : {};
-            const affected = diff?.affected ?? broadcast?.affected ?? {};
-            const queryKeys = Array.isArray(diff?.query?.selectionSet?.selections)
-              ? extractOperationName(diff.query.selectionSet.selections)
-              : null;
-
-            DevConnect.reportStateChange({
-              stateManager: 'Apollo',
-              action: `cache:${fieldName} updated`,
-              nextState: {
-                fieldName,
-                ...(queryKeys ? { operation: queryKeys } : {}),
-                result: safeSerialize(broadcast?.result ?? affected),
-              },
-            });
-          } catch (_) {}
-        },
-        error: (_err: any) => {},
-        complete: () => {},
-      });
-      // Subscription may be a function (Apollo 3) or { unsubscribe() }.
-      if (typeof sub === 'function') unsubscribe = sub;
-      else if (sub && typeof sub.unsubscribe === 'function') unsubscribe = () => sub.unsubscribe();
-    }
-  } catch (_) {
-    // Watch not available — fall through silently.
-  }
-
-  // 2. Periodic `cache.extract()` snapshot.
+  // Periodic `cache.extract()` snapshot.
   let intervalHandle: ReturnType<typeof setInterval> | null = null;
   if (snapshotIntervalMs > 0) {
     intervalHandle = setInterval(() => {
@@ -146,7 +108,7 @@ export function setupApolloDevConnect(
     }, snapshotIntervalMs);
   }
 
-  // 3. Initial snapshot — also capped.
+  // Initial snapshot — also capped.
   if (emitInitial) {
     try {
       const raw = cache.extract?.();
@@ -162,27 +124,11 @@ export function setupApolloDevConnect(
   }
 
   return () => {
-    try { unsubscribe?.(); } catch (_) {}
     if (intervalHandle) {
       clearInterval(intervalHandle);
       intervalHandle = null;
     }
   };
-}
-
-/** Try to find a `name` (`GetUser(...)`) inside Apollo's selection set. */
-function extractOperationName(selections: any[]): string | null {
-  try {
-    for (const sel of selections) {
-      if (!sel) continue;
-      if (sel.name && sel.name.value) return sel.name.value;
-      if (sel.selectionSet?.selections) {
-        const nested = extractOperationName(sel.selectionSet.selections);
-        if (nested) return nested;
-      }
-    }
-  } catch (_) {}
-  return null;
 }
 
 function safeSerialize(value: any): any {

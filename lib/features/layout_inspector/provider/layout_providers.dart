@@ -65,7 +65,72 @@ class LayoutSnapshot {
   final Uint8List? screenshot;
   final LayoutNode? root;
 
-  const LayoutSnapshot(this.size, this.screenshot, this.root);
+  /// Why the SDK couldn't read the element tree, if it couldn't.
+  final String? error;
+  final DateTime? capturedAt;
+
+  const LayoutSnapshot(
+    this.size,
+    this.screenshot,
+    this.root, {
+    this.error,
+    this.capturedAt,
+  });
+}
+
+/// A PNG's pixel size, read from its header; null if [bytes] isn't a PNG.
+Size? pngSize(Uint8List bytes) {
+  const signature = [0x89, 0x50, 0x4E, 0x47];
+  if (bytes.length < 24) return null;
+  for (var i = 0; i < signature.length; i++) {
+    if (bytes[i] != signature[i]) return null;
+  }
+  final header = ByteData.sublistView(bytes);
+  return Size(header.getUint32(16).toDouble(), header.getUint32(20).toDouble());
+}
+
+/// The tree as listed: one row per chain (see [layoutChainOf]) with its
+/// depth; a row's children are listed only when it's [expanded].
+List<(List<LayoutNode>, int)> layoutTreeRows(
+  LayoutNode root,
+  Set<String> expanded,
+) {
+  final rows = <(List<LayoutNode>, int)>[];
+  // Iterative, children pushed last-first: trees run hundreds deep.
+  final stack = <(LayoutNode, int)>[(root, 0)];
+  while (stack.isNotEmpty) {
+    final (node, depth) = stack.removeLast();
+    final chain = layoutChainOf(node);
+    rows.add((chain, depth));
+    if (!expanded.contains(node.id)) continue;
+    final children = chain.last.children;
+    for (var i = children.length - 1; i >= 0; i--) {
+      stack.add((children[i], depth + 1));
+    }
+  }
+  return rows;
+}
+
+/// How many elements [root]'s tree holds.
+int layoutNodeCount(LayoutNode root) {
+  var count = 0;
+  final stack = [root];
+  while (stack.isNotEmpty) {
+    count++;
+    stack.addAll(stack.removeLast().children);
+  }
+  return count;
+}
+
+/// [node] and the nodes under it drawing exactly its box, each the only
+/// child of the one before (`View` → `RCTView`): one row in the tree.
+List<LayoutNode> layoutChainOf(LayoutNode node) {
+  final chain = [node];
+  while (chain.last.children.length == 1 &&
+      chain.last.children.single.rect == node.rect) {
+    chain.add(chain.last.children.single);
+  }
+  return chain;
 }
 
 /// The path from [root] to the element under [point]: at each level the
@@ -135,13 +200,22 @@ class LayoutSnapshotsNotifier extends Notifier<Map<String, LayoutSnapshot?>> {
         }
       }
       double n(Object? v) => v is num ? v.toDouble() : 0;
+      final size = Size(n(m['width']), n(m['height']));
+      // The screenshot sets the canvas shape: the reported window size can
+      // differ from what was captured (system bars, split screen), and a
+      // stretched picture puts every box off.
+      final picture = png == null ? null : pngSize(png);
       pending.remove(deviceId);
       state = {
         ...state,
         deviceId: LayoutSnapshot(
-          Size(n(m['width']), n(m['height'])),
+          picture == null || picture.width == 0
+              ? size
+              : Size(size.width, size.width * picture.height / picture.width),
           png,
           LayoutNode.fromJson(m['root']),
+          error: m['error'] is String ? m['error'] as String : null,
+          capturedAt: DateTime.now(),
         ),
       };
     });

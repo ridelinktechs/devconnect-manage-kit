@@ -43,6 +43,7 @@ export 'src/interceptors/http_client_interceptor.dart';
 export 'src/interceptors/log_interceptor.dart';
 export 'src/interceptors/loggy_interceptor.dart';
 export 'src/interceptors/navigation_observer.dart';
+export 'src/interceptors/websocket/devconnect_websocket.dart';
 export 'src/reporters/drift_reporter.dart';
 export 'src/reporters/isar_reporter.dart';
 export 'src/reporters/log_reporter.dart';

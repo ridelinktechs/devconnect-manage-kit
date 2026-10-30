@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:uuid/uuid.dart';
 
 import '../devconnect_client.dart';
+import 'mock_server_interceptor.dart';
 
 /// Dio-compatible interceptor that auto-captures all HTTP requests.
 ///
@@ -13,11 +15,20 @@ import '../devconnect_client.dart';
 /// ```dart
 /// import 'package:dio/dio.dart';
 ///
-/// final dio = Dio();
-/// dio.interceptors.add(DevConnect.dioInterceptor());
+/// final dc = DevConnect.dioInterceptor(responseFactory: Response.new);
+/// dio.interceptors.add(InterceptorsWrapper(
+///   onRequest: dc.onRequest,
+///   onResponse: dc.onResponse,
+///   onError: dc.onError,
+/// ));
 /// // All requests through this Dio instance are now captured!
 /// ```
 class DevConnectDioInterceptor {
+  /// [responseFactory]: pass Dio's `Response.new` so desktop mock rules
+  /// can answer requests (this package can't import Dio to build one).
+  DevConnectDioInterceptor({this.responseFactory});
+
+  final Function? responseFactory;
   final _uuid = const Uuid();
   final Map<String, int> _startTimes = {};
 
@@ -66,12 +77,62 @@ class DevConnectDioInterceptor {
         headers: headers,
         body: requestBody,
       );
+
+      final rule = responseFactory == null
+          ? null
+          : findMockMatch(
+              method, url, headers.map((k, v) => MapEntry(k, '$v')));
+      if (rule != null) {
+        unawaited(_resolveMock(rule, options, handler, method, url, requestId));
+        return;
+      }
     } catch (_) {}
 
     // Continue the request
     try {
       handler.next(options);
     } catch (_) {}
+  }
+
+  /// Answers the request from a mock rule. `resolve(response, true)` runs
+  /// the response interceptors (this one's onResponse included), so the
+  /// mocked response is reported like a real one.
+  Future<void> _resolveMock(MockRule rule, dynamic options, dynamic handler,
+      String method, String url, String requestId) async {
+    final dynamic response;
+    try {
+      response = Function.apply(responseFactory!, const [], {
+        #requestOptions: options,
+        #statusCode: rule.response.status,
+        #data: _mockData(rule.response.body, options),
+      });
+      rule.response.headers?.forEach((k, v) => response.headers.set(k, v));
+    } catch (_) {
+      // Not Dio's Response.new — let the request hit the network.
+      try {
+        handler.next(options);
+      } catch (_) {}
+      return;
+    }
+    await buildMockResponse(rule, method: method, url: url, requestId: requestId);
+    try {
+      handler.resolve(response, true);
+    } catch (_) {}
+  }
+
+  /// The mock body the way Dio hands it over for the request's responseType.
+  static dynamic _mockData(String body, dynamic options) {
+    var responseType = '';
+    try {
+      responseType = '${options.responseType}';
+    } catch (_) {}
+    if (responseType.endsWith('plain')) return body;
+    if (responseType.endsWith('bytes')) return utf8.encode(body);
+    try {
+      return jsonDecode(body);
+    } catch (_) {
+      return body;
+    }
   }
 
   /// Called when a response is received.

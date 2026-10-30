@@ -8,8 +8,12 @@
  */
 
 import { Platform, NativeModules, Linking, Dimensions } from 'react-native';
-import { captureComponentTree } from './plugins/layoutInspector';
+import { captureComponentTree, type LayoutNode } from './plugins/layoutInspector';
 import { SDK_VERSION } from './version';
+
+// Captured before the app can install the WebSocket interceptor: DevConnect's own
+// sockets must never be wrapped, or reporting a frame would send (and report) another.
+const NativeWebSocket: typeof WebSocket = (globalThis as any).WebSocket;
 
 interface DevConnectConfig {
   appName: string;
@@ -48,7 +52,7 @@ interface DCMessage {
   correlationId?: string;
 }
 
-function generateId(): string {
+export function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -192,7 +196,7 @@ async function verifyCachedHost(host: string, port: number, expectedId: string):
     };
 
     try {
-      ws = new WebSocket(`ws://${host}:${port}`);
+      ws = new NativeWebSocket(`ws://${host}:${port}`);
     } catch (_) {
       return resolve(false);
     }
@@ -241,7 +245,7 @@ async function readHostCache(port: number): Promise<{ host: string; machineId: s
 
 async function tryConnect(host: string, port: number, timeoutMs: number): Promise<boolean> {
   try {
-    const ws = new WebSocket(`ws://${host}:${port}`);
+    const ws = new NativeWebSocket(`ws://${host}:${port}`);
     return await new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => { try { ws.close(); } catch (_) {} resolve(false); }, timeoutMs);
       ws.onopen = () => { clearTimeout(timer); try { ws.close(); } catch (_) {} resolve(true); };
@@ -715,7 +719,7 @@ export class DevConnect {
       this.ws = null;
     }
     try {
-      this.ws = new WebSocket(`ws://${this.config.host}:${this.config.port}`);
+      this.ws = new NativeWebSocket(`ws://${this.config.host}:${this.config.port}`);
 
       let handshakeSent = false;
       this.ws.onopen = () => {
@@ -784,6 +788,10 @@ export class DevConnect {
             };
           } else if (msg.type === 'server:network:replay') {
             this._replayRequest(msg.payload ?? {});
+          } else if (msg.type === 'server:mock_rules_update') {
+            // Always the full rule list (empty clears). Lazy require: that module imports this one.
+            const rules = msg.payload?.rules;
+            if (Array.isArray(rules)) require('./interceptors/mockServerInterceptor').setMockRules(rules);
           } else if (msg.type === 'server:database:request_schema') {
             this._databaseSchemas().then((databases) =>
               this.send('client:database:schema', { databases }, msg.correlationId));
@@ -808,8 +816,6 @@ export class DevConnect {
           // Dispatch to any internal plugin subscribers. Handlers are
           // invoked in registration order; errors are swallowed so one
           // bad plugin can't break the receive loop.
-          // eslint-disable-next-line no-console
-          console.log('[DevConnect] rx', msg.type, 'handlers=', this._serverMessageHandlers.size);
           for (const handler of this._serverMessageHandlers) {
             try { handler(msg); } catch (e) { /* eslint-disable-next-line no-console */ console.warn('[DevConnect] handler err', e); }
           }
@@ -932,7 +938,14 @@ export class DevConnect {
   /** Screen size, the registered screenshot and the component tree, for the Layout tab. */
   private async _layoutSnapshot(): Promise<Record<string, any>> {
     const { width, height } = Dimensions.get('window');
-    const roots = await captureComponentTree().catch(() => []);
+    // A failure is reported, not swallowed: an empty tree alone says nothing.
+    let roots: LayoutNode[] = [];
+    let error: string | undefined;
+    try {
+      roots = await captureComponentTree();
+    } catch (e: any) {
+      error = String(e?.message ?? e);
+    }
     let screenshot: string | null = null;
     if (this._screenshot) {
       try {
@@ -948,6 +961,7 @@ export class DevConnect {
       root: roots.length === 1
         ? roots[0]
         : { id: 'root', name: 'Root', x: 0, y: 0, w: width, h: height, props: {}, children: roots },
+      ...(error ? { error } : {}),
     };
   }
 
@@ -1116,10 +1130,18 @@ export class DevConnect {
       dc.fetchInFlight.set(fetchKey, (dc.fetchInFlight.get(fetchKey) ?? 0) + 1);
       dc.send('client:network:request_start', { requestId, method, url, startTime, requestHeaders: reqHeaders, requestBody, source, via: 'fetch' });
 
+      // A desktop mock rule answers instead of the network (lazy require: that module
+      // imports this one). A broken rule must never break the app's request.
+      const mockServer = require('./interceptors/mockServerInterceptor');
+      let mockRule: any = null;
+      try { mockRule = mockServer.findMockMatch(method, url, reqHeaders, { currentDeviceId: dc.deviceId }); } catch (_) {}
+
       let responsePromise: Promise<Response>;
       dc.fetchStackCount++;
       try {
-        responsePromise = originalFetch(input, init);
+        responsePromise = mockRule
+          ? mockServer.buildMockResponse(mockRule, requestId, { url, method })
+          : originalFetch(input, init);
       } catch (err: any) {
         dc.send('client:network:request_complete', {
           requestId,

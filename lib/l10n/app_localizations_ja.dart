@@ -1044,6 +1044,26 @@ class SJa extends S {
   String get networkPresetOffline => 'オフライン';
 
   @override
+  String get networkTabHttpHint =>
+      'アプリが fetch・XHR・axios・Dio・OkHttp などで送ったHTTPリクエスト';
+
+  @override
+  String get networkTabProtocolsHint =>
+      '通常のHTTP以外の通信：GraphQL操作、WebSocketメッセージ、gRPC呼び出し';
+
+  @override
+  String get networkTabMockAuditHint => '実際のネットワークの代わりにモックサーバーのルールで応答したリクエスト';
+
+  @override
+  String get protocolGraphqlHint => 'SDKのGraphQLリンク/インターセプター経由のクエリとミューテーション';
+
+  @override
+  String get protocolWebsocketHint => 'WebSocket接続と送受信した各フレーム';
+
+  @override
+  String get protocolGrpcHint => 'gRPC呼び出し（Android SDKのインターセプター）';
+
+  @override
   String get layoutTitle => 'レイアウト';
 
   @override
@@ -1069,6 +1089,9 @@ class SJa extends S {
 
   @override
   String get layoutProperties => 'プロパティ';
+
+  @override
+  String get layoutTreeError => '要素ツリーを読み取れませんでした';
 
   @override
   String get networkTitle => 'ネットワーク';

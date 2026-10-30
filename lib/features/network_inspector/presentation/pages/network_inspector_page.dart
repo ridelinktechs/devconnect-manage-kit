@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/layout/segmented_tab_bar.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/theme/theme_provider.dart';
@@ -12,6 +13,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../round/presentation/mock_audit_panel.dart';
 import '../../../round/presentation/protocol_panel.dart';
+import '../../../round/provider/round_providers.dart';
 import '../../provider/network_providers.dart';
 import '../request/request_card.dart';
 import '../request/request_detail_panel.dart';
@@ -302,35 +304,45 @@ class _NetworkInspectorPageState
   }
 }
 
-class _TopTabBar extends StatelessWidget {
+/// HTTP / Protocols / Mock Audit, each with how many items it holds.
+class _TopTabBar extends ConsumerWidget {
   final TabController controller;
   const _TopTabBar({required this.controller});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(
-              color: theme.dividerColor.withValues(alpha: 0.5)),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loc = S.of(context);
+    final http =
+        ref.watch(filteredNetworkEntriesProvider.select((e) => e.length));
+    final graphql =
+        ref.watch(graphqlDisplayProvider.select((d) => d.items.length));
+    final websocket =
+        ref.watch(websocketDisplayProvider.select((d) => d.items.length));
+    final grpc = ref.watch(grpcDisplayProvider.select((d) => d.items.length));
+    final mocked =
+        ref.watch(mockAuditDisplayProvider.select((d) => d.items.length));
+    return SegmentedTabBar(
+      controller: controller,
+      tabs: [
+        SegmentedTab(
+          icon: LucideIcons.globe,
+          label: 'HTTP',
+          count: http,
+          tooltip: loc.networkTabHttpHint,
         ),
-      ),
-      child: TabBar(
-        controller: controller,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        labelColor: theme.colorScheme.primary,
-        unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-        indicatorColor: theme.colorScheme.primary,
-        indicatorWeight: 2,
-        tabs: const [
-          Tab(text: 'HTTP'),
-          Tab(text: 'Protocols'),
-          Tab(text: 'Mock Audit'),
-        ],
-      ),
+        SegmentedTab(
+          icon: LucideIcons.network,
+          label: 'Protocols',
+          count: graphql + websocket + grpc,
+          tooltip: loc.networkTabProtocolsHint,
+        ),
+        SegmentedTab(
+          icon: LucideIcons.scrollText,
+          label: 'Mock Audit',
+          count: mocked,
+          tooltip: loc.networkTabMockAuditHint,
+        ),
+      ],
     );
   }
 }

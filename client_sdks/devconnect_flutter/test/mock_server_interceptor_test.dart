@@ -1,10 +1,57 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:devconnect_manage_kit/devconnect_manage_kit.dart';
 import 'package:devconnect_manage_kit/src/interceptors/mock_server_interceptor.dart';
+
+/// Payloads of the queued (pre-init) messages of [type].
+List<Map<String, dynamic>> _sent(String type) => [
+      for (final m in DevConnectClient.queuedMessages)
+        if (m['type'] == type) m['payload'] as Map<String, dynamic>,
+    ];
+
+/// The bits of Dio's RequestOptions the interceptor reads.
+class _DioOptions {
+  _DioOptions(this.method, String url) : uri = Uri.parse(url);
+  final String method;
+  final Uri uri;
+  final Map<String, dynamic> headers = {};
+  final Object? data = null;
+  final Map<String, dynamic> extra = {};
+}
+
+/// Records how Dio's RequestInterceptorHandler was completed.
+class _DioHandler {
+  final done = Completer<Object>();
+  bool? callFollowing;
+  void next(Object options) => done.complete(options);
+  void resolve(Object response, [bool callFollowingResponseInterceptor = false]) {
+    callFollowing = callFollowingResponseInterceptor;
+    done.complete(response);
+  }
+}
+
+/// Stands in for Dio's `Response.new` (same named parameters).
+class _DioResponse {
+  _DioResponse({required this.requestOptions, this.statusCode, this.data});
+  final Object requestOptions;
+  final int? statusCode;
+  final Object? data;
+  final headers = _DioHeaders();
+}
+
+class _DioHeaders {
+  final map = <String, List<String>>{};
+  void set(String name, dynamic value) => map[name] = ['$value'];
+}
 
 void main() {
   // Reset global rule store between tests so they don't bleed.
   setUp(() {
     setMockRules(const []);
+    DevConnectClient.queuedMessages.clear();
   });
 
   group('MockRule.fromJson', () {
@@ -177,7 +224,7 @@ void main() {
       expect(ok, isNotNull);
       expect(badAuth, isNull);
       expect(badTenant, isNull);
-      // Missing header → empty string default → fails the regex.
+      // A missing header never matches.
       expect(missingHeader, isNull);
     });
 
@@ -308,13 +355,21 @@ void main() {
       });
 
       final sw = Stopwatch()..start();
-      final res = await buildMockResponse(rule, 'req-1');
+      final res = await buildMockResponse(rule,
+          method: 'GET', url: 'https://x/y', requestId: 'req-1');
       sw.stop();
 
       expect(res.status, 200);
       expect(res.body, '{"ok":true}');
       expect(res.headers, isEmpty);
       expect(sw.elapsedMilliseconds, greaterThanOrEqualTo(100));
+      expect(_sent('client:mocked_request').single, {
+        'ruleId': 'delay-1',
+        'url': 'https://x/y',
+        'method': 'GET',
+        'status': 200,
+        'requestId': 'req-1',
+      });
     });
 
     test('returns immediately when delayMs is 0 or null', () async {
@@ -325,7 +380,8 @@ void main() {
       });
 
       final sw = Stopwatch()..start();
-      final res = await buildMockResponse(ruleNoDelay, 'req-2');
+      final res = await buildMockResponse(ruleNoDelay,
+          method: 'GET', url: 'https://x/y', requestId: 'req-2');
       sw.stop();
 
       expect(res.status, 204);
@@ -343,7 +399,8 @@ void main() {
         },
       });
 
-      final res = await buildMockResponse(rule, 'req-3');
+      final res = await buildMockResponse(rule,
+          method: 'GET', url: 'https://x/y', requestId: 'req-3');
       expect(res.headers, {'content-type': 'application/json'});
     });
   });
@@ -455,6 +512,210 @@ void main() {
     test('returns null for empty body', () {
       const res = MockedHttpResponse(status: 200, body: '', headers: {});
       expect(res.bodyJson, isNull);
+    });
+  });
+
+  group('rule lifecycle', () {
+    Map<String, dynamic> rule(String id, String url,
+            [Map<String, dynamic> extra = const {}]) =>
+        {
+          'id': id,
+          'match': {'method': 'GET', 'url': url},
+          'response': <String, dynamic>{},
+          ...extra,
+        };
+
+    test('skips expired rules; a future or unparseable expiresAt still matches',
+        () {
+      final now = DateTime.now();
+      setMockRules(parseRules([
+        rule('old', '/old', {
+          'expiresAt': now.subtract(const Duration(minutes: 1)).toUtc().toIso8601String(),
+        }),
+        rule('new', '/new', {
+          'expiresAt': now.add(const Duration(hours: 1)).toUtc().toIso8601String(),
+        }),
+        rule('garbled', '/garbled', {'expiresAt': 'next tuesday'}),
+      ]));
+
+      expect(findMockMatch('GET', 'https://x/old', null), isNull);
+      expect(findMockMatch('GET', 'https://x/new', null)?.id, 'new');
+      expect(findMockMatch('GET', 'https://x/garbled', null)?.id, 'garbled');
+    });
+
+    test('a rule with header matchers never matches a request without them',
+        () {
+      setMockRules(parseRules([
+        {
+          'id': 'h3',
+          'match': {
+            'method': 'GET',
+            'url': '.*',
+            'headers': {'X-Debug': '.*'},
+          },
+          'response': <String, dynamic>{},
+        },
+      ]));
+
+      expect(findMockMatch('GET', 'https://x/y', null), isNull);
+      expect(findMockMatch('GET', 'https://x/y', {'accept': '*/*'}), isNull);
+      expect(findMockMatch('GET', 'https://x/y', {'x-debug': ''})?.id, 'h3');
+    });
+
+    test('scope.deviceIds limits a rule to the listed devices', () {
+      setMockRules(parseRules([
+        rule('scoped', '/a', {
+          'scope': {'deviceIds': ['dev-a']},
+        }),
+        rule('everyone', '/b', {
+          'scope': {'deviceIds': <String>[]},
+        }),
+      ]));
+
+      expect(findMockMatch('GET', '/a', null, deviceId: 'dev-a')?.id, 'scoped');
+      expect(findMockMatch('GET', '/a', null, deviceId: 'dev-b'), isNull);
+      expect(findMockMatch('GET', '/a', null), isNull,
+          reason: 'device id unknown before init');
+      expect(findMockMatch('GET', '/b', null, deviceId: 'dev-b')?.id, 'everyone');
+    });
+
+    test('each push replaces the whole list; an empty push clears it', () {
+      applyMockRulesUpdate({
+        'rules': [rule('a', '/a'), rule('b', '/b')],
+      });
+      expect(findMockMatch('GET', '/a', null)?.id, 'a');
+
+      // Toggle: the desktop re-sends the full list with `enabled` flags;
+      // a malformed entry is skipped without dropping the update.
+      applyMockRulesUpdate({
+        'rules': [
+          rule('a', '/a', {'enabled': false}),
+          rule('b', '/b'),
+          {'id': 'malformed'},
+        ],
+      });
+      expect(findMockMatch('GET', '/a', null), isNull);
+      expect(findMockMatch('GET', '/b', null)?.id, 'b');
+
+      applyMockRulesUpdate({'rules': <dynamic>[]});
+      expect(findMockMatch('GET', '/b', null), isNull);
+    });
+  });
+
+  group('interceptors', () {
+    test('a pushed rule makes the Dio interceptor resolve a mocked response',
+        () async {
+      applyMockRulesUpdate({
+        'rules': [
+          {
+            'id': 'dio-1',
+            'name': 'User 7',
+            'enabled': true,
+            'match': {'method': 'GET', 'url': r'/users/\d+'},
+            'response': {
+              'status': 201,
+              'body': '{"id":7}',
+              'headers': {'x-mock': 'yes'},
+              'delayMs': 20,
+            },
+          },
+        ],
+      });
+      final options = _DioOptions('GET', 'https://api.x.dev/users/7');
+      final handler = _DioHandler();
+
+      DevConnectDioInterceptor(responseFactory: _DioResponse.new)
+          .onRequest(options, handler);
+      final response = await handler.done.future as _DioResponse;
+
+      expect(response.requestOptions, same(options));
+      expect(response.statusCode, 201);
+      expect(response.data, {'id': 7});
+      expect(response.headers.map, {
+        'x-mock': ['yes'],
+      });
+      expect(handler.callFollowing, isTrue,
+          reason: 'response interceptors must still report the response');
+      expect(_sent('client:mocked_request').single, {
+        'ruleId': 'dio-1',
+        'url': 'https://api.x.dev/users/7',
+        'method': 'GET',
+        'status': 201,
+        'requestId': options.extra['_dc_request_id'],
+      });
+    });
+
+    test('a Dio request without a matching rule goes to the network',
+        () async {
+      setMockRules(parseRules([
+        {
+          'id': 'post-only',
+          'match': {'method': 'POST', 'url': '.*'},
+          'response': <String, dynamic>{},
+        },
+      ]));
+      final options = _DioOptions('GET', 'https://api.x.dev/users/7');
+      final handler = _DioHandler();
+
+      DevConnectDioInterceptor(responseFactory: _DioResponse.new)
+          .onRequest(options, handler);
+
+      expect(await handler.done.future, same(options));
+      expect(_sent('client:mocked_request'), isEmpty);
+    });
+
+    test('HttpOverrides answers a matching request without reaching the server',
+        () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      var hits = 0;
+      server.listen((request) {
+        hits++;
+        request.response.close();
+      });
+      setMockRules(parseRules([
+        {
+          'id': 'io-1',
+          'match': {'method': 'GET', 'url': '/mocked'},
+          'response': {
+            'status': 503,
+            'body': '{"down":true}',
+            'headers': {'Content-Type': 'application/json'},
+          },
+        },
+        {
+          'id': 'io-post',
+          'match': {'method': 'POST', 'url': '/orders'},
+          'response': {'status': 201, 'body': 'created'},
+        },
+      ]));
+
+      await HttpOverrides.runWithHttpOverrides(() async {
+        final client = HttpClient();
+        final base = 'http://127.0.0.1:${server.port}';
+        final mocked =
+            await (await client.getUrl(Uri.parse('$base/mocked'))).close();
+        expect(mocked.statusCode, 503);
+        expect(mocked.headers.contentType?.mimeType, 'application/json');
+        expect(await utf8.decodeStream(mocked), '{"down":true}');
+
+        // A body write sends the headers: the mock must be decided before.
+        final post = await client.postUrl(Uri.parse('$base/orders'));
+        post.write('{"item":1}');
+        await post.flush();
+        final created = await post.close();
+        expect(created.statusCode, 201);
+        expect(await utf8.decodeStream(created), 'created');
+
+        final real = await (await client.getUrl(Uri.parse('$base/real'))).close();
+        expect(real.statusCode, 200);
+        await real.drain<void>();
+        client.close();
+      }, DevConnectHttpOverrides());
+
+      expect(hits, 1, reason: 'only the unmocked request reaches the server');
+      expect(_sent('client:mocked_request').map((p) => p['ruleId']),
+          ['io-1', 'io-post']);
     });
   });
 }

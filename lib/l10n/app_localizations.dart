@@ -1881,6 +1881,42 @@ abstract class S {
   /// **'Offline'**
   String get networkPresetOffline;
 
+  /// No description provided for @networkTabHttpHint.
+  ///
+  /// In en, this message translates to:
+  /// **'HTTP requests the app made through fetch, XHR, axios, Dio, OkHttp…'**
+  String get networkTabHttpHint;
+
+  /// No description provided for @networkTabProtocolsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Traffic beyond plain HTTP: GraphQL operations, WebSocket messages and gRPC calls'**
+  String get networkTabProtocolsHint;
+
+  /// No description provided for @networkTabMockAuditHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Requests the app answered with a Mock Server rule instead of the real network'**
+  String get networkTabMockAuditHint;
+
+  /// No description provided for @protocolGraphqlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Queries and mutations sent through the SDK\'s GraphQL link / interceptor'**
+  String get protocolGraphqlHint;
+
+  /// No description provided for @protocolWebsocketHint.
+  ///
+  /// In en, this message translates to:
+  /// **'WebSocket connections and every frame sent or received'**
+  String get protocolWebsocketHint;
+
+  /// No description provided for @protocolGrpcHint.
+  ///
+  /// In en, this message translates to:
+  /// **'gRPC calls (Android SDK interceptor)'**
+  String get protocolGrpcHint;
+
   /// No description provided for @layoutTitle.
   ///
   /// In en, this message translates to:
@@ -1928,6 +1964,12 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Properties'**
   String get layoutProperties;
+
+  /// No description provided for @layoutTreeError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t read the element tree'**
+  String get layoutTreeError;
 
   /// No description provided for @networkTitle.
   ///

@@ -1066,6 +1066,29 @@ class SFr extends S {
   String get networkPresetOffline => 'Hors ligne';
 
   @override
+  String get networkTabHttpHint =>
+      'Requêtes HTTP envoyées par l\'app via fetch, XHR, axios, Dio, OkHttp…';
+
+  @override
+  String get networkTabProtocolsHint =>
+      'Trafic au-delà du HTTP simple : opérations GraphQL, messages WebSocket et appels gRPC';
+
+  @override
+  String get networkTabMockAuditHint =>
+      'Requêtes auxquelles l\'app a répondu avec une règle du Mock Server au lieu du vrai réseau';
+
+  @override
+  String get protocolGraphqlHint =>
+      'Requêtes et mutations envoyées via le lien / l\'intercepteur GraphQL du SDK';
+
+  @override
+  String get protocolWebsocketHint =>
+      'Connexions WebSocket et chaque trame envoyée ou reçue';
+
+  @override
+  String get protocolGrpcHint => 'Appels gRPC (intercepteur du SDK Android)';
+
+  @override
   String get layoutTitle => 'Mise en page';
 
   @override
@@ -1092,6 +1115,9 @@ class SFr extends S {
 
   @override
   String get layoutProperties => 'Propriétés';
+
+  @override
+  String get layoutTreeError => 'Impossible de lire l\'arbre des éléments';
 
   @override
   String get networkTitle => 'Réseau';

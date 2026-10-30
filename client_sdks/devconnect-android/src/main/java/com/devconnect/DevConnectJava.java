@@ -7,7 +7,9 @@ import com.devconnect.interceptors.DevConnectKermitWriter;
 import com.devconnect.interceptors.DevConnectLogInterceptor;
 import com.devconnect.interceptors.DevConnectNapierAntilog;
 import com.devconnect.interceptors.DevConnectTimberHelper;
+import com.devconnect.interceptors.MockServerInterceptor;
 import com.devconnect.interceptors.OkHttpInterceptor;
+import com.devconnect.interceptors.grpc.DevConnectGrpcClientInterceptor;
 import com.devconnect.reporters.DataStoreReporter;
 import com.devconnect.reporters.DevConnectStateObserver;
 import com.devconnect.reporters.LogReporter;
@@ -130,6 +132,34 @@ public final class DevConnectJava {
      */
     public static OkHttpInterceptor okHttpInterceptor() {
         return DevConnect.INSTANCE.okHttpInterceptor();
+    }
+
+    /**
+     * Returns an OkHttp {@link okhttp3.Interceptor} that answers requests
+     * matching the desktop's mock rules. Add it after
+     * {@link #okHttpInterceptor()} so mocked responses still show in the
+     * HTTP tab.
+     */
+    public static MockServerInterceptor mockServerInterceptor() {
+        return DevConnect.INSTANCE.mockServerInterceptor();
+    }
+
+    /**
+     * Returns a gRPC {@code io.grpc.ClientInterceptor} that reports each
+     * call. Install it with {@code ManagedChannelBuilder.intercept(...)}.
+     */
+    public static DevConnectGrpcClientInterceptor grpcClientInterceptor() {
+        return DevConnect.INSTANCE.grpcClientInterceptor();
+    }
+
+    /**
+     * {@code client.newWebSocket(request, listener)} that mirrors the socket
+     * to the desktop, including the frames the app sends. The listener gets
+     * the same {@link okhttp3.WebSocket} this returns.
+     */
+    public static okhttp3.WebSocket newWebSocket(okhttp3.OkHttpClient client, okhttp3.Request request,
+                                                 okhttp3.WebSocketListener listener) {
+        return DevConnect.INSTANCE.newWebSocket(client, request, listener);
     }
 
     // ───────────────────── Logs ─────────────────────

@@ -1,18 +1,41 @@
+## Unreleased
+
+- **Mock server**: desktop rules now answer requests. `server:mock_rules_update`
+  is handled from `init` (each push replaces the whole list); matching
+  requests are served through `HttpOverrides` (any `dart:io` client) and
+  through the Dio interceptor given `responseFactory: Response.new`, and
+  reported as `client:mocked_request`. Rules honour `expiresAt` and
+  `scope.deviceIds`, and a rule with header matchers no longer matches a
+  request without those headers.
+- **WebSocket**: `DevConnectWebSocket` is exported and is a `Stream`: frames
+  received through `listen()` / `await for` / `frames` are captured, events
+  carry a `connectionId`, and exactly one `client:ws_close` is sent (on
+  `close()` or when the stream ends). `DevConnect.websocketConnect` /
+  `websocketWrap` return it instead of `dynamic`.
+- **GraphQL**: `DevConnect.reportGraphQLOperation` returns an `operationId`;
+  the new `DevConnect.reportGraphQLResponse` completes it with `data`,
+  `errors` or a transport `error`. Anonymous operations are named
+  "anonymous". The README has a `gql_link` adapter (`DevConnectGqlLink`).
+- **Payloads**: a value that can't be JSON-encoded (e.g. a `DateTime` in
+  GraphQL variables) no longer turns its whole map into a string.
+- Docs: the Dio interceptor is added through `InterceptorsWrapper` (it is
+  not a Dio `Interceptor` subclass).
+
 ## 1.0.6
 
 - **WebSocket inspector (Round 3)**: new `DevConnectWebSocket` wrapper
-  (dart:io) and `DevConnectWebSocketHelper` emit `client:ws_open`,
-  `client:ws_frame`, and `client:ws_close` events to the DevConnect
-  desktop, so WebSocket traffic shows up in the protocol inspectors.
-- **GraphQL link (Round 3)**: new `DevConnectLink` for `graphql_flutter`
-  / ferry — emits `client:graphql_operation` and
-  `client:graphql_response` events with operation name, variables,
-  response data, and errors for the desktop GraphQL inspector.
+  (dart:io) and `DevConnectWebSocketHelper` emit `client:ws_open` and
+  `client:ws_frame` events to the DevConnect desktop (`client:ws_close`
+  only through the helper; see Unreleased).
+- **GraphQL link (Round 3)**: new `DevConnectLink`, on the package's own
+  link types (it does not plug into `gql_link`), emits
+  `client:graphql_operation` and `client:graphql_response` events with
+  operation name and variables (data and errors: see Unreleased).
 - **Mock server (Round 4)**: `MockRule`, `setMockRules`, and
-  `findMatch` implement the server→client mock rule push
-  (`server:mock_rules_update`). The HTTP interceptors check the mock
-  store before hitting the network and return the canned response
-  (regex + header matching, optional delay).
+  `findMockMatch` model and match the server→client mock rule push
+  (`server:mock_rules_update`) with regex + header matching and an
+  optional delay; requests were not yet answered from the rules (see
+  Unreleased).
 - **Structured header/query values**: network interceptors now carry
   structured data for headers and query parameters instead of
   stringifying everything.

@@ -72,6 +72,11 @@ class DevConnectClient {
   /// Pre-init message queue: messages sent before init() completes.
   static final List<Map<String, dynamic>> _preInitQueue = [];
 
+  /// Messages waiting for init(), as `{type, payload}`; tests read what
+  /// the SDK sent from here.
+  @visibleForTesting
+  static List<Map<String, dynamic>> get queuedMessages => _preInitQueue;
+
   /// Send a message safely - queues if init() hasn't completed yet.
   /// Use this instead of instance.xxx() in interceptors/reporters.
   static void safeSend(String type, Map<String, dynamic> payload) {
@@ -158,6 +163,7 @@ class DevConnectClient {
   final Map<String, List<int>> _benchmarks = {}; // title -> [startTime, ...stepTimes]
 
   bool get isConnected => _connected;
+  String get deviceId => _deviceId;
   String get host => _host;
   int get port => _port;
 
@@ -791,8 +797,7 @@ class DevConnectClient {
       json = jsonEncode(message);
     } catch (e) {
       // Body contains non-serializable data — sanitize and retry
-      final sanitized = _sanitizePayload(payload);
-      message['payload'] = sanitized;
+      message['payload'] = sanitizeForJson(payload);
       try {
         json = jsonEncode(message);
       } catch (_) {
@@ -806,22 +811,29 @@ class DevConnectClient {
     }
   }
 
-  /// Sanitize payload by converting non-serializable values to strings.
-  static Map<String, dynamic> _sanitizePayload(Map<String, dynamic> payload) {
-    final result = <String, dynamic>{};
-    for (final entry in payload.entries) {
+  /// Makes [value] JSON-encodable: maps and lists keep their shape at any
+  /// depth, and only the values jsonEncode rejects (a DateTime, a custom
+  /// object) become strings. The depth cap stops on cyclic data.
+  @visibleForTesting
+  static dynamic sanitizeForJson(dynamic value, [int depth = 0]) {
+    if (depth < 32 && value is Map) {
+      return <String, dynamic>{
+        for (final e in value.entries) '${e.key}': sanitizeForJson(e.value, depth + 1),
+      };
+    }
+    if (depth < 32 && value is Iterable) {
+      return [for (final v in value) sanitizeForJson(v, depth + 1)];
+    }
+    try {
+      jsonEncode(value);
+      return value;
+    } catch (_) {
       try {
-        jsonEncode(entry.value);
-        result[entry.key] = entry.value;
+        return value.toString();
       } catch (_) {
-        try {
-          result[entry.key] = entry.value.toString();
-        } catch (_) {
-          result[entry.key] = '<unserializable>';
-        }
+        return '<unserializable>';
       }
     }
-    return result;
   }
 
   // --- Safe static API (for interceptors/reporters that may run before init) ---

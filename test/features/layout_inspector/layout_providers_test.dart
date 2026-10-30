@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,6 +74,37 @@ void main() {
     expect(layoutElementAt(root, const Offset(-1, 0)), isNull);
   });
 
+  test('a box drawn by nested elements is one chain', () {
+    final button = layoutPathTo(root, 'button').last;
+    expect(layoutChainOf(button).map((n) => n.id), ['button', 'view']);
+    expect(layoutChainOf(root).map((n) => n.id), ['screen']);
+  });
+
+  test('lists rows by chain, children only under open rows', () {
+    final rows = layoutTreeRows(root, {'screen', 'body'});
+    expect(rows.map((r) => (r.$1.first.id, r.$2)), [
+      ('screen', 0),
+      ('header', 1),
+      ('body', 1),
+      ('card', 2),
+      ('button', 2),
+    ]);
+    expect(rows.last.$1.map((n) => n.id), ['button', 'view']);
+    expect(layoutTreeRows(root, const {}), hasLength(1));
+    expect(layoutNodeCount(root), 6);
+  });
+
+  // A PNG header: signature, IHDR length and type, then 810 × 1920.
+  final pngHeader = Uint8List.fromList([
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, //
+    0x49, 0x48, 0x44, 0x52, 0, 0, 3, 0x2A, 0, 0, 7, 0x80,
+  ]);
+
+  test('reads a PNG\'s size from its header', () {
+    expect(pngSize(pngHeader), const Size(810, 1920));
+    expect(pngSize(Uint8List(30)), isNull);
+  });
+
   test('finds the path to an element', () {
     expect(layoutPathTo(root, 'view').map((n) => n.id), [
       'screen',
@@ -137,6 +169,37 @@ void main() {
       final snap = container.read(layoutSnapshotsProvider)['dev']!;
       expect(snap.screenshot, isNull);
       expect(snap.root?.id, 'screen');
+    });
+
+    test('keeps the SDK\'s reason when it couldn\'t read the tree', () async {
+      container.read(layoutSnapshotsProvider);
+      server.emit(
+        deviceMessage(WsMessageTypes.clientLayoutSnapshot, {
+          'width': 400,
+          'height': 800,
+          'root': node('root', 0, 0, 400, 800),
+          'error': 'React DevTools hook not found (dev builds only)',
+        }),
+      );
+      await Future<void>.delayed(Duration.zero);
+      final snap = container.read(layoutSnapshotsProvider)['dev']!;
+      expect(snap.error, contains('dev builds only'));
+    });
+
+    test('the screenshot sets the canvas shape', () async {
+      container.read(layoutSnapshotsProvider);
+      server.emit(
+        deviceMessage(WsMessageTypes.clientLayoutSnapshot, {
+          'width': 411,
+          'height': 870, // a window smaller than what was captured
+          'screenshot': base64Encode(pngHeader),
+          'root': node('root', 0, 0, 411, 870),
+        }),
+      );
+      await Future<void>.delayed(Duration.zero);
+      final size = container.read(layoutSnapshotsProvider)['dev']!.size;
+      expect(size.width, 411);
+      expect(size.height, closeTo(411 * 1920 / 810, 0.01));
     });
 
     // testWidgets for its fake clock.

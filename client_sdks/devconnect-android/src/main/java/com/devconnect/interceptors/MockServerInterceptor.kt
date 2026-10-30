@@ -20,10 +20,12 @@ import java.util.concurrent.ConcurrentHashMap
  * response (delay → emit response with synthetic latency). Emit
  * `client:mocked_request` so the user knows the response was synthetic."
  *
- * Wire it into your OkHttp client:
+ * Wire it into your OkHttp client, after DevConnect's own interceptor so
+ * mocked responses still show in the HTTP tab:
  * ```kotlin
  * val client = OkHttpClient.Builder()
- *     .addInterceptor(MockServerInterceptor())
+ *     .addInterceptor(DevConnect.okHttpInterceptor())
+ *     .addInterceptor(DevConnect.mockServerInterceptor())
  *     .build()
  * ```
  */
@@ -47,6 +49,10 @@ data class MockRule(
     val enabled: Boolean,
     val match: MockMatch,
     val response: MockResponse,
+    /** Devices the rule applies to (`scope.deviceIds`); null or empty = every device. */
+    val deviceIds: List<String>? = null,
+    /** Epoch ms after which the rule no longer matches; null = never expires. */
+    val expiresAt: Long? = null,
 )
 
 data class MockMatch(
@@ -116,6 +122,9 @@ object MockRuleStore {
                         headers = respHeaders,
                         delayMs = respObj.optInt("delayMs", -1).takeIf { it >= 0 },
                     ),
+                    deviceIds = o.optJSONObject("scope")?.optJSONArray("deviceIds")
+                        ?.let { ids -> List(ids.length()) { ids.optString(it) } },
+                    expiresAt = o.optString("expiresAt").ifEmpty { null }?.let(::parseIsoMillis),
                 )
             }
             setRules(list)
@@ -125,9 +134,29 @@ object MockRuleStore {
         }
     }
 
+    /**
+     * Applies a `server:mock_rules_update` payload, `{"rules":[...]}`. It
+     * always carries the full list, so a missing or empty one clears all rules.
+     */
+    fun loadFromPayload(payload: JSONObject) =
+        loadFromJson(payload.optJSONArray("rules")?.toString() ?: "[]")
+
+    /** Epoch ms of an ISO-8601 time (device-local when it has no offset); null if unparseable. */
+    // shortcut: java.time needs API 26 (or desugaring), so older devices ignore expiresAt; parse by hand if they matter.
+    @android.annotation.SuppressLint("NewApi")
+    private fun parseIsoMillis(iso: String): Long? =
+        runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }
+            .recoverCatching {
+                java.time.LocalDateTime.parse(iso).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            }
+            .getOrNull()
+
     fun findMatch(method: String, url: String, headers: Map<String, String>?): MockRule? {
+        val now = System.currentTimeMillis()
         for (rule in rules) {
             if (!rule.enabled) continue
+            if (rule.expiresAt != null && rule.expiresAt <= now) continue
+            if (!rule.deviceIds.isNullOrEmpty() && DevConnect.deviceId !in rule.deviceIds) continue
             if (rule.match.method.uppercase() != method.uppercase()) continue
             val regex = regexCache.getOrPut(rule.id) {
                 try { Regex(rule.match.url) } catch (_: Throwable) { Regex("(?!)") }
@@ -135,18 +164,13 @@ object MockRuleStore {
                 // so we don't re-parse the bad pattern on every request.
             }
             if (!regex.containsMatchIn(url)) continue
-            rule.match.headers?.let { required ->
-                val req = headers ?: emptyMap()
-                var headerOk = true
-                for ((k, v) in required) {
-                    val actual = req[k.lowercase()] ?: req[k] ?: ""
-                    if (!Regex(v).containsMatchIn(actual)) {
-                        headerOk = false
-                        break
-                    }
-                }
-                if (!headerOk) continue
+            val headersOk = rule.match.headers.orEmpty().all { (name, pattern) ->
+                val actual = headers.orEmpty().entries
+                    .firstOrNull { it.key.equals(name, ignoreCase = true) }?.value.orEmpty()
+                // An invalid pattern is no match, never an exception in the app's OkHttp call.
+                runCatching { Regex(pattern).containsMatchIn(actual) }.getOrDefault(false)
             }
+            if (!headersOk) continue
             return rule
         }
         return null

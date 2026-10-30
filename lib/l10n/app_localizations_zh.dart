@@ -1032,6 +1032,26 @@ class SZh extends S {
   String get networkPresetOffline => '离线';
 
   @override
+  String get networkTabHttpHint =>
+      '应用通过 fetch、XHR、axios、Dio、OkHttp… 发出的 HTTP 请求';
+
+  @override
+  String get networkTabProtocolsHint =>
+      '普通 HTTP 之外的流量：GraphQL 操作、WebSocket 消息和 gRPC 调用';
+
+  @override
+  String get networkTabMockAuditHint => '由 Mock Server 规则代替真实网络响应的请求';
+
+  @override
+  String get protocolGraphqlHint => '通过 SDK 的 GraphQL link / 拦截器发送的查询和变更';
+
+  @override
+  String get protocolWebsocketHint => 'WebSocket 连接及每个收发的帧';
+
+  @override
+  String get protocolGrpcHint => 'gRPC 调用（Android SDK 拦截器）';
+
+  @override
   String get layoutTitle => '布局';
 
   @override
@@ -1055,6 +1075,9 @@ class SZh extends S {
 
   @override
   String get layoutProperties => '属性';
+
+  @override
+  String get layoutTreeError => '无法读取元素树';
 
   @override
   String get networkTitle => '网络';
@@ -2632,6 +2655,26 @@ class SZhCn extends SZh {
   String get networkPresetOffline => '离线';
 
   @override
+  String get networkTabHttpHint =>
+      '应用通过 fetch、XHR、axios、Dio、OkHttp… 发出的 HTTP 请求';
+
+  @override
+  String get networkTabProtocolsHint =>
+      '普通 HTTP 之外的流量：GraphQL 操作、WebSocket 消息和 gRPC 调用';
+
+  @override
+  String get networkTabMockAuditHint => '由 Mock Server 规则代替真实网络响应的请求';
+
+  @override
+  String get protocolGraphqlHint => '通过 SDK 的 GraphQL link / 拦截器发送的查询和变更';
+
+  @override
+  String get protocolWebsocketHint => 'WebSocket 连接及每个收发的帧';
+
+  @override
+  String get protocolGrpcHint => 'gRPC 调用（Android SDK 拦截器）';
+
+  @override
   String get layoutTitle => '布局';
 
   @override
@@ -2655,6 +2698,9 @@ class SZhCn extends SZh {
 
   @override
   String get layoutProperties => '属性';
+
+  @override
+  String get layoutTreeError => '无法读取元素树';
 
   @override
   String get networkTitle => '网络';
@@ -4232,6 +4278,26 @@ class SZhTw extends SZh {
   String get networkPresetOffline => '離線';
 
   @override
+  String get networkTabHttpHint =>
+      '應用程式透過 fetch、XHR、axios、Dio、OkHttp… 發出的 HTTP 請求';
+
+  @override
+  String get networkTabProtocolsHint =>
+      '一般 HTTP 以外的流量：GraphQL 操作、WebSocket 訊息與 gRPC 呼叫';
+
+  @override
+  String get networkTabMockAuditHint => '由 Mock Server 規則代替真實網路回應的請求';
+
+  @override
+  String get protocolGraphqlHint => '透過 SDK 的 GraphQL link / 攔截器送出的查詢與變更';
+
+  @override
+  String get protocolWebsocketHint => 'WebSocket 連線及每個收發的訊框';
+
+  @override
+  String get protocolGrpcHint => 'gRPC 呼叫（Android SDK 攔截器）';
+
+  @override
   String get layoutTitle => '版面配置';
 
   @override
@@ -4255,6 +4321,9 @@ class SZhTw extends SZh {
 
   @override
   String get layoutProperties => '屬性';
+
+  @override
+  String get layoutTreeError => '無法讀取元素樹';
 
   @override
   String get networkTitle => '網路';

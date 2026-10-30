@@ -1057,6 +1057,29 @@ class SVi extends S {
   String get networkPresetOffline => 'Mất mạng';
 
   @override
+  String get networkTabHttpHint =>
+      'Request HTTP app gọi qua fetch, XHR, axios, Dio, OkHttp…';
+
+  @override
+  String get networkTabProtocolsHint =>
+      'Lưu lượng ngoài HTTP thường: GraphQL, tin nhắn WebSocket và lời gọi gRPC';
+
+  @override
+  String get networkTabMockAuditHint =>
+      'Các request được rule của Mock Server trả lời thay cho mạng thật';
+
+  @override
+  String get protocolGraphqlHint =>
+      'Query và mutation gửi qua GraphQL link / interceptor của SDK';
+
+  @override
+  String get protocolWebsocketHint =>
+      'Kết nối WebSocket và từng frame gửi / nhận';
+
+  @override
+  String get protocolGrpcHint => 'Lời gọi gRPC (interceptor của SDK Android)';
+
+  @override
   String get layoutTitle => 'Bố cục';
 
   @override
@@ -1083,6 +1106,9 @@ class SVi extends S {
 
   @override
   String get layoutProperties => 'Thuộc tính';
+
+  @override
+  String get layoutTreeError => 'Không đọc được cây phần tử';
 
   @override
   String get networkTitle => 'Mạng';

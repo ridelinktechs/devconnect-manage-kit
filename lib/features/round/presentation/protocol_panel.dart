@@ -7,9 +7,11 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../components/feedback/empty_state.dart';
+import '../../../components/layout/segmented_tab_bar.dart';
 import '../../../components/viewers/json_viewer.dart';
 import '../../../core/theme/color_tokens.dart';
 import '../../../core/utils/toast_utils.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../models/round/protocol_entry.dart';
 import '../provider/round_providers.dart';
 
@@ -42,33 +44,10 @@ class _ProtocolPanelState extends ConsumerState<ProtocolPanel>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(
-              bottom: BorderSide(
-                  color: theme.dividerColor.withValues(alpha: 0.5)),
-            ),
-          ),
-          child: TabBar(
-            controller: _tab,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            labelColor: ColorTokens.primary,
-            unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-            indicatorColor: ColorTokens.primary,
-            indicatorWeight: 2,
-            tabs: const [
-              Tab(text: 'GraphQL'),
-              Tab(text: 'WebSocket'),
-              Tab(text: 'gRPC'),
-            ],
-          ),
-        ),
+        _ProtocolTabs(controller: _tab),
         Expanded(
           child: TabBarView(
             controller: _tab,
@@ -78,6 +57,44 @@ class _ProtocolPanelState extends ConsumerState<ProtocolPanel>
               _GrpcTab(),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// GraphQL / WebSocket / gRPC, each with how many items it holds.
+class _ProtocolTabs extends ConsumerWidget {
+  final TabController controller;
+  const _ProtocolTabs({required this.controller});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loc = S.of(context);
+    return SegmentedTabBar(
+      controller: controller,
+      secondary: true,
+      tabs: [
+        SegmentedTab(
+          icon: LucideIcons.braces,
+          label: 'GraphQL',
+          count: ref.watch(
+              graphqlDisplayProvider.select((d) => d.items.length)),
+          tooltip: loc.protocolGraphqlHint,
+        ),
+        SegmentedTab(
+          icon: LucideIcons.radio,
+          label: 'WebSocket',
+          count: ref.watch(
+              websocketDisplayProvider.select((d) => d.items.length)),
+          tooltip: loc.protocolWebsocketHint,
+        ),
+        SegmentedTab(
+          icon: LucideIcons.server,
+          label: 'gRPC',
+          count:
+              ref.watch(grpcDisplayProvider.select((d) => d.items.length)),
+          tooltip: loc.protocolGrpcHint,
         ),
       ],
     );
@@ -348,6 +365,10 @@ class _GraphqlDetailState extends State<_GraphqlDetail> {
         if (!e.isComplete) {
           return const Center(child: Text('Awaiting response...'));
         }
+        // A transport failure (no GraphQL result at all).
+        if (e.data == null && e.error != null) {
+          return _CodeBlock(text: e.error!);
+        }
         return e.data == null
             ? const Center(child: Text('No data'))
             : JsonPrettyViewer(data: e.data!);
@@ -448,7 +469,7 @@ class _WebsocketTab extends ConsumerWidget {
         icon: LucideIcons.radio,
         title: 'No WebSocket frames',
         subtitle:
-            'client:websocket_frame events appear here. Sent and received.',
+            'client:ws_open / ws_frame / ws_close events appear here: connections and every frame sent or received.',
       );
     }
 
@@ -617,6 +638,14 @@ class _WsDetail extends StatelessWidget {
                 value: '${entry.sizeBytes} B',
                 color: const Color(0xFF74B9FF),
               ),
+              if (entry.closeCode != null) ...[
+                const SizedBox(width: 6),
+                _MetaChip(
+                  label: 'code',
+                  value: '${entry.closeCode}',
+                  color: const Color(0xFFFDAA5E),
+                ),
+              ],
               const SizedBox(width: 6),
               _MetaChip(
                 label: 'at',
@@ -640,7 +669,10 @@ class _WsDetail extends StatelessWidget {
               ),
               child: SingleChildScrollView(
                 child: SelectableText(
-                  _prettyOrRaw(entry.payload),
+                  // A close shows its reason; a frame, its payload.
+                  _prettyOrRaw(entry.payload.isEmpty
+                      ? entry.closeReason ?? ''
+                      : entry.payload),
                   style: const TextStyle(
                       fontFamily: 'monospace', fontSize: 12),
                 ),
@@ -683,7 +715,7 @@ class _GrpcTab extends ConsumerWidget {
         icon: LucideIcons.server,
         title: 'No gRPC calls',
         subtitle:
-            'Unary and streaming gRPC calls (client:grpc_call) appear here.',
+            'gRPC calls from the Android SDK (client:grpc_call_start / _end) appear here.',
       );
     }
 
@@ -855,6 +887,19 @@ class _GrpcDetailState extends State<_GrpcDetail> {
                       color: e.status == 'ok'
                           ? const Color(0xFF10B981)
                           : const Color(0xFFEF4444)),
+                  // The raw gRPC code and sizes, as Android reports them.
+                  if (e.metadata?['statusCode'] case final String code)
+                    _MetaChip(label: 'code', value: code, color: Colors.grey),
+                  if (e.metadata?['requestBytes'] case final num bytes)
+                    _MetaChip(
+                        label: 'req',
+                        value: '$bytes B',
+                        color: const Color(0xFF00CEC9)),
+                  if (e.metadata?['responseBytes'] case final num bytes)
+                    _MetaChip(
+                        label: 'res',
+                        value: '$bytes B',
+                        color: const Color(0xFF00CEC9)),
                 ],
               ),
             ],
@@ -897,14 +942,26 @@ class _GrpcDetailState extends State<_GrpcDetail> {
     final e = widget.entry;
     switch (_tab) {
       case 0:
-        return _CodeBlock(text: e.request);
+        return _CodeBlock(
+            text: e.request.isNotEmpty ? e.request : _notCaptured('requestBytes'));
       case 1:
-        return _CodeBlock(text: e.response ?? '(no response yet)');
+        return _CodeBlock(
+            text: e.response ??
+                (e.status == null
+                    ? '(no response yet)'
+                    : _notCaptured('responseBytes')));
       case 2:
         return _CodeBlock(text: e.error ?? '(no error)');
     }
     return const SizedBox.shrink();
   }
+
+  /// The SDK reports message sizes, not bodies.
+  String _notCaptured(String bytesKey) =>
+      switch (widget.entry.metadata?[bytesKey]) {
+        final num bytes => '($bytes bytes — message bodies are not captured)',
+        _ => '(not captured)',
+      };
 }
 
 class _CodeBlock extends StatelessWidget {

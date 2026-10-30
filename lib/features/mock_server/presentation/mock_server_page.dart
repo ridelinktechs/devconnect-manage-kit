@@ -40,7 +40,7 @@ class _MockServerPageState extends ConsumerState<MockServerPage> {
     }
     setState(() => _pushing = true);
     try {
-      ref.read(roundActionBridgeProvider).installMockRules(device, rules);
+      ref.read(mockRulesSyncProvider.notifier).push(device);
       showSuccessToast(
         context,
         message: 'Pushed ${rules.length} rule${rules.length == 1 ? '' : 's'}',
@@ -61,7 +61,7 @@ class _MockServerPageState extends ConsumerState<MockServerPage> {
     }
     setState(() => _pushing = true);
     try {
-      ref.read(roundActionBridgeProvider).clearMockRules(device);
+      ref.read(mockRulesSyncProvider.notifier).clear(device);
       showSuccessToast(
         context,
         message: 'Cleared mock rules',
@@ -460,18 +460,16 @@ class _RuleEditorState extends ConsumerState<_RuleEditor> {
       _toast('Select a device first');
       return;
     }
-    final rule = ref
-        .read(mockRulesProvider)
-        .where((r) => r.id == widget.ruleId)
-        .firstOrNull;
+    final rules = ref.read(mockRulesProvider);
+    final rule = rules.where((r) => r.id == widget.ruleId).firstOrNull;
     if (rule == null) return;
     try {
-      ref.read(roundActionBridgeProvider).installMockRules(
-            device,
-            [rule],
-          );
+      // The whole list: every SDK replaces its rules with what it gets.
+      ref.read(mockRulesSyncProvider.notifier).push(device);
       if (!mounted) return;
-      _toast('Pushed "${rule.name}" to $device');
+      _toast(rules.length == 1
+          ? 'Pushed "${rule.name}" to $device'
+          : 'Pushed "${rule.name}" and ${rules.length - 1} other rules to $device');
     } catch (e) {
       if (!mounted) return;
       _toast('Push failed: $e');
@@ -546,7 +544,7 @@ class _RuleEditorState extends ConsumerState<_RuleEditor> {
           trailing: ActionButton(
             icon: LucideIcons.send,
             label: dirty ? 'Save & push' : 'Push this',
-            onTap: dirty ? _commit : _pushThisOne,
+            onTap: _pushThisOne,
             style: ActionStyle.primary,
           ),
         ),
@@ -615,7 +613,8 @@ class _RuleEditorState extends ConsumerState<_RuleEditor> {
                         controller: _url,
                         decoration: const InputDecoration(
                           labelText: 'URL pattern',
-                          hintText: '/api/users/:id',
+                          // A regex, searched anywhere in the URL.
+                          hintText: r'/api/users/\d+',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),

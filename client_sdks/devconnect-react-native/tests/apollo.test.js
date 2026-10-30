@@ -39,20 +39,12 @@ test('setupApolloDevConnect no-ops when no cache.watch', () => {
   assert.equal(typeof stop, 'function');
 });
 
-test('cache.watch is called and the returned Observable is subscribed to', () => {
-  const { cache, watchers } = makeMockCache();
+test('never registers a cache.watch (a watch without query + callback breaks every Apollo cache write)', () => {
+  const { cache } = makeMockCache();
+  let watchCalls = 0;
+  cache.watch = () => { watchCalls++; return () => {}; }; // Apollo's real shape: returns an unsubscribe function
   const stop = setupApolloDevConnect({ cache }, { emitInitialSnapshot: false, snapshotIntervalMs: 0 });
-  assert.equal(watchers.length, 1, 'expected subscribe to be called on watch() result');
-  stop();
-});
-
-test('watch callback is invoked when observer.next is called', () => {
-  const { cache, watchers } = makeMockCache();
-  const stop = setupApolloDevConnect({ cache }, { emitInitialSnapshot: false, snapshotIntervalMs: 0 });
-  const events = [];
-  DevConnect.safeSend = (type, payload) => events.push({ type, payload });
-  watchers[0].observer.next({ fieldName: 'todos', broadcast: () => ({ affected: { id: 1 } }) });
-  assert.ok(events.some(e => e.type === 'client:state:change'));
+  assert.equal(watchCalls, 0);
   stop();
 });
 

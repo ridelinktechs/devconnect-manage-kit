@@ -61,9 +61,110 @@ await DevConnect.initAndRunApp(
 Auto-captured via `HttpOverrides`: http, Dio, Chopper, Retrofit, GraphQL, Firebase, OAuth2, gRPC-web, Image.network.
 
 ```dart
-// Dio (optional, for extra detail)
-dio.interceptors.add(DevConnect.dioInterceptor());
+// Dio (optional, for extra detail). The interceptor mirrors Dio's API
+// without depending on Dio, so hand its callbacks to InterceptorsWrapper:
+final dc = DevConnect.dioInterceptor(responseFactory: Response.new);
+dio.interceptors.add(InterceptorsWrapper(
+  onRequest: dc.onRequest,
+  onResponse: dc.onResponse,
+  onError: dc.onError,
+));
 ```
+
+### Mock Server
+
+Rules from the desktop's **Mock Server** tab reach the app on their own and
+answer matching requests with the rule's status, body, headers and delay;
+the desktop logs each mocked request. A rule matches on method, URL regex
+(found anywhere in the URL), optional header regexes (names
+case-insensitive; a request without the header never matches),
+`scope.deviceIds` and `expiresAt`.
+
+- Through `HttpOverrides` (on by default with `initAndRunApp`), every
+  `dart:io` client is mocked: http, Dio's default adapter, Chopper… The
+  connection is opened, then dropped before the request is sent, so the
+  host must be reachable.
+- Through the Dio interceptor with `responseFactory: Response.new` (above),
+  requests are answered before any connection, whatever Dio's adapter. A
+  mocked 4xx/5xx comes back as a plain `Response` there (Dio runs
+  `validateStatus` only on real responses); via `HttpOverrides` it throws a
+  `DioException` like a real error.
+- WebSocket handshakes are never mocked.
+
+### WebSocket
+
+```dart
+final socket = await DevConnect.websocketConnect('wss://api.example.com/ws');
+// or wrap one you opened: DevConnectWebSocket.wrap(webSocket, url)
+socket.listen((message) => print(message)); // received frames are captured
+socket.add('{"type":"subscribe"}');         // so are sent frames
+await socket.close(1000, 'done');           // one close event per connection
+```
+
+Read messages through the wrapper (`listen`, `await for`, `frames`):
+listening to `socket.inner` directly skips the capture.
+
+### GraphQL
+
+GraphQL requests already show up under Network. For the **GraphQL** tab
+(operation, variables, data, errors), put this link in front of your
+terminating link. It uses `gql_link`, which `graphql_flutter` and ferry
+already depend on:
+
+```dart
+import 'dart:async';
+
+import 'package:devconnect_manage_kit/devconnect_manage_kit.dart';
+import 'package:gql/ast.dart';
+import 'package:gql_exec/gql_exec.dart';
+import 'package:gql_link/gql_link.dart';
+
+/// Reports each operation to DevConnect's GraphQL tab.
+class DevConnectGqlLink extends Link {
+  @override
+  Stream<Response> request(Request request, [NextLink? forward]) {
+    final name = request.operation.operationName;
+    final definition = request.operation.document.definitions
+        .whereType<OperationDefinitionNode>()
+        .where((d) => name == null || d.name?.value == name)
+        .firstOrNull;
+    final operation = name ?? definition?.name?.value; // null → "anonymous"
+    final id = DevConnect.reportGraphQLOperation(
+      operationName: operation,
+      operationType: definition?.type.name ?? 'query',
+      variables: request.variables,
+    );
+    final watch = Stopwatch()..start();
+    void report({Response? response, Object? error}) =>
+        DevConnect.reportGraphQLResponse(
+          operationId: id,
+          operation: operation,
+          latencyMs: watch.elapsedMilliseconds,
+          data: response?.data,
+          errors: response?.errors,
+          error: error?.toString(),
+        );
+    return forward!(request).transform(
+      StreamTransformer<Response, Response>.fromHandlers(
+        handleData: (response, sink) {
+          report(response: response);
+          sink.add(response);
+        },
+        handleError: (error, stackTrace, sink) {
+          report(error: error);
+          sink.addError(error, stackTrace);
+        },
+      ),
+    );
+  }
+}
+
+// final link = Link.from([DevConnectGqlLink(), HttpLink('https://api.example.com/graphql')]);
+```
+
+Not using `gql_link`? `DevConnect.reportGraphQLOperation(...)` returns an
+`operationId`; pass it to `DevConnect.reportGraphQLResponse(...)` with the
+`data` / `errors` (or the transport `error`) when the result arrives.
 
 ### Logs
 

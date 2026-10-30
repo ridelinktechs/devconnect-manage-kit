@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:uuid/uuid.dart';
 
 import '../devconnect_client.dart';
+import 'mock_server_interceptor.dart';
 
 /// HttpOverrides that globally intercepts ALL HttpClient requests.
 ///
@@ -199,7 +200,11 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
 
   Future<HttpClientResponse> _doClose() async {
     try {
-      final response = await _inner.close();
+      final rule = _mockRule();
+      final response = rule == null
+          ? await _inner.close()
+          : _MockHttpClientResponse(await buildMockResponse(rule,
+              method: _method, url: _url.toString(), requestId: _requestId));
 
       // Capture response — dart:io headers are always String→List<String>,
       // so we don't need to defend against nested objects here.
@@ -250,17 +255,36 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
     }
   }
 
+  bool _mockChecked = false;
+  MockRule? _mock;
+
+  /// The desktop mock rule answering this request, if any. Decided once the
+  /// headers are final — first body write, flush or close — and a match
+  /// aborts the real request before anything is sent (openUrl has already
+  /// connected, so the host must still be reachable).
+  MockRule? _mockRule() {
+    if (_mockChecked) return _mock;
+    _mockChecked = true;
+    final headers = <String, String>{};
+    _inner.headers.forEach((name, values) => headers[name] = values.join(', '));
+    // A WebSocket handshake needs a real socket.
+    if (headers.containsKey('upgrade')) return null;
+    _mock = findMockMatch(_method, _url.toString(), headers);
+    if (_mock != null) _inner.abort();
+    return _mock;
+  }
+
   @override
   void add(List<int> data) {
     _bodyBytes.addAll(data);
-    _inner.add(data);
+    if (_mockRule() == null) _inner.add(data);
   }
 
   @override
   void write(Object? object) {
     final str = object?.toString() ?? '';
     _bodyBytes.addAll(utf8.encode(str));
-    _inner.write(object);
+    if (_mockRule() == null) _inner.write(object);
   }
 
   // Delegate everything else
@@ -306,6 +330,7 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
       _inner.addError(error, stackTrace);
   @override
   Future addStream(Stream<List<int>> stream) {
+    if (_mockRule() != null) return stream.forEach(_bodyBytes.addAll);
     return _inner.addStream(stream.map((data) {
       _bodyBytes.addAll(data);
       return data;
@@ -317,21 +342,21 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
       _bodyBytes.addAll(utf8.encode(obj.toString()));
       if (separator.isNotEmpty) _bodyBytes.addAll(utf8.encode(separator));
     }
-    _inner.writeAll(objects, separator);
+    if (_mockRule() == null) _inner.writeAll(objects, separator);
   }
   @override
   void writeCharCode(int charCode) {
     _bodyBytes.add(charCode);
-    _inner.writeCharCode(charCode);
+    if (_mockRule() == null) _inner.writeCharCode(charCode);
   }
   @override
   void writeln([Object? object = ""]) {
     final str = '${object ?? ''}\n';
     _bodyBytes.addAll(utf8.encode(str));
-    _inner.writeln(object);
+    if (_mockRule() == null) _inner.writeln(object);
   }
   @override
-  Future flush() => _inner.flush();
+  Future flush() => _mockRule() == null ? _inner.flush() : Future.value();
   @override
   void abort([Object? exception, StackTrace? stackTrace]) =>
       _inner.abort(exception, stackTrace);
@@ -472,4 +497,98 @@ class _DevConnectHttpClientResponse extends Stream<List<int>>
       _inner.redirect(method, url, followLoops);
   @override
   Future<Socket> detachSocket() => _inner.detachSocket();
+}
+
+/// A mock rule's canned response, served without the network.
+class _MockHttpClientResponse extends Stream<List<int>>
+    implements HttpClientResponse {
+  _MockHttpClientResponse(MockedHttpResponse mock)
+      : statusCode = mock.status,
+        headers = _MockHttpHeaders(mock.headers),
+        _body = utf8.encode(mock.body);
+
+  final List<int> _body;
+  @override
+  final int statusCode;
+  @override
+  final HttpHeaders headers;
+
+  @override
+  StreamSubscription<List<int>> listen(void Function(List<int> event)? onData,
+          {Function? onError, void Function()? onDone, bool? cancelOnError}) =>
+      Stream.value(_body).listen(onData,
+          onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+
+  @override
+  int get contentLength => _body.length;
+  @override
+  String get reasonPhrase => '';
+  @override
+  bool get isRedirect => false;
+  @override
+  List<RedirectInfo> get redirects => const [];
+  @override
+  bool get persistentConnection => false;
+  @override
+  HttpClientResponseCompressionState get compressionState =>
+      HttpClientResponseCompressionState.notCompressed;
+  @override
+  List<Cookie> get cookies => const [];
+  @override
+  X509Certificate? get certificate => null;
+  @override
+  HttpConnectionInfo? get connectionInfo => null;
+  @override
+  Future<HttpClientResponse> redirect(
+          [String? method, Uri? url, bool? followLoops]) =>
+      Future.error(UnsupportedError('A mocked response cannot redirect'));
+  @override
+  Future<Socket> detachSocket() =>
+      Future.error(UnsupportedError('A mocked response has no socket'));
+}
+
+/// Headers of a mocked response, names lower-cased like dart:io's.
+class _MockHttpHeaders implements HttpHeaders {
+  _MockHttpHeaders(Map<String, String> headers) {
+    headers.forEach(set);
+    final type = value(HttpHeaders.contentTypeHeader);
+    if (type != null) contentType = ContentType.parse(type);
+  }
+
+  final _values = <String, List<String>>{};
+
+  @override
+  DateTime? date, expires, ifModifiedSince;
+  @override
+  String? host;
+  @override
+  int? port;
+  @override
+  ContentType? contentType;
+  @override
+  int contentLength = -1;
+  @override
+  bool persistentConnection = false, chunkedTransferEncoding = false;
+
+  @override
+  List<String>? operator [](String name) => _values[name.toLowerCase()];
+  @override
+  String? value(String name) => this[name]?.join(', ');
+  @override
+  void add(String name, Object value, {bool preserveHeaderCase = false}) =>
+      (_values[name.toLowerCase()] ??= []).add('$value');
+  @override
+  void set(String name, Object value, {bool preserveHeaderCase = false}) =>
+      _values[name.toLowerCase()] = ['$value'];
+  @override
+  void remove(String name, Object value) => this[name]?.remove('$value');
+  @override
+  void removeAll(String name) => _values.remove(name.toLowerCase());
+  @override
+  void forEach(void Function(String name, List<String> values) action) =>
+      _values.forEach(action);
+  @override
+  void noFolding(String name) {}
+  @override
+  void clear() => _values.clear();
 }

@@ -1,53 +1,37 @@
 import 'dart:async';
-import 'dart:convert';
+
+import 'package:uuid/uuid.dart';
 
 import '../../devconnect_client.dart';
 
-/// `gql_link`-compatible [Link] that intercepts every GraphQL operation
-/// and emits `client:graphql_*` events to the desktop.
+/// Link that reports every GraphQL operation it forwards as
+/// `client:graphql_operation` / `client:graphql_response` events.
 ///
-/// The consumer wires this in front of their existing link:
-/// ```dart
-/// final link = Link.from([
-///   DevConnectLink(),
-///   HttpLink('https://api.example.com/graphql'),
-/// ]);
-/// final client = GraphQLClient(link: link, cache: GraphQLCache());
-/// ```
-///
-/// Implementation strategy: we don't import `gql_exec` directly (to keep
-/// `devconnect_flutter` dep-free). Instead we duck-type the `Request`
-/// object via dynamic dispatch: any object exposing `operation.operationName`
-/// or `operation.toKey()` is treated as a GraphQL request.
-///
-/// This file works with `graphql_flutter` ≥ 5, `ferry`, or any other
-/// `gql_link`-compatible client.
+/// It is built on this package's own [DevConnectLinkBase] types (no
+/// `gql_link` dependency), so it does not plug into a `gql_link` chain
+/// itself. For `graphql_flutter` / ferry, paste the `DevConnectGqlLink`
+/// adapter from the README: it reports through the same API,
+/// `DevConnect.reportGraphQLOperation` / `DevConnect.reportGraphQLResponse`.
 class DevConnectLink implements DevConnectLinkBase {
   @override
   Stream<DevConnectResponse> request(DevConnectRequest request, [DevConnectLinkBase? next]) async* {
-    final startTime = DateTime.now().millisecondsSinceEpoch;
-    final operationName = _safeName(request);
-    final operationType = _safeType(request);
-    final variables = _safeVariables(request);
-
-    try {
-      DevConnectClient.safeSend('client:graphql_operation', {
-        'operation': operationName,
-        'type': operationType,
-        'variables': variables,
-      });
-    } catch (_) {}
+    final operation = request.operationName;
+    final operationId = DevConnectGraphQLHelper.reportOperation(
+      operationName: operation,
+      operationType: request.operationType,
+      variables: request.variables,
+    );
+    final watch = Stopwatch()..start();
 
     if (next == null) {
       // Without a downstream link we can't actually execute the request.
       // Emit a synthetic error so the desktop knows something went wrong.
-      try {
-        DevConnectClient.safeSend('client:graphql_response', {
-          'operation': operationName,
-          'type': operationType,
-          'error': 'DevConnectLink has no inner link — chain a real Link after it',
-        });
-      } catch (_) {}
+      DevConnectGraphQLHelper.reportResponse(
+        operationId: operationId,
+        operation: operation,
+        latencyMs: 0,
+        error: 'DevConnectLink has no inner link — chain a real Link after it',
+      );
       yield* Stream.error(StateError('No downstream Link'));
       return;
     }
@@ -59,26 +43,23 @@ class DevConnectLink implements DevConnectLinkBase {
       // with > 1 link. With no forwarder, the inner Link terminates the
       // chain (or invokes its own internal forwarder, the way HttpLink
       // does for real HTTP).
-      yield* next.request(request);
-      final endTime = DateTime.now().millisecondsSinceEpoch;
-      try {
-        DevConnectClient.safeSend('client:graphql_response', {
-          'operation': operationName,
-          'type': operationType,
-          'latencyMs': endTime - startTime,
-        });
-      } catch (_) {}
-    } catch (e, st) {
-      final endTime = DateTime.now().millisecondsSinceEpoch;
-      try {
-        DevConnectClient.safeSend('client:graphql_response', {
-          'operation': operationName,
-          'type': operationType,
-          'latencyMs': endTime - startTime,
-          'error': e.toString(),
-          'stack': st.toString(),
-        });
-      } catch (_) {}
+      await for (final response in next.request(request)) {
+        DevConnectGraphQLHelper.reportResponse(
+          operationId: operationId,
+          operation: operation,
+          latencyMs: watch.elapsedMilliseconds,
+          data: response.data,
+          errors: response.errors,
+        );
+        yield response;
+      }
+    } catch (e) {
+      DevConnectGraphQLHelper.reportResponse(
+        operationId: operationId,
+        operation: operation,
+        latencyMs: watch.elapsedMilliseconds,
+        error: e.toString(),
+      );
       rethrow;
     }
   }
@@ -90,52 +71,28 @@ abstract class DevConnectLinkBase {
   Stream<DevConnectResponse> request(DevConnectRequest request, [DevConnectLinkBase? next]);
 }
 
+/// A GraphQL operation, as [DevConnectLink] reports it.
 abstract class DevConnectRequest {
-  Map<String, dynamic> get context;
-  String get operationName;
+  /// Null or empty for an anonymous operation.
+  String? get operationName;
+
+  /// 'query' | 'mutation' | 'subscription'.
+  String get operationType;
+
+  Map<String, dynamic> get variables;
 }
 
 class DevConnectResponse {
-  final Map<String, dynamic> data;
+  final Map<String, dynamic>? data;
   final List<Map<String, dynamic>>? errors;
   final Map<String, dynamic> context;
   final Map<String, dynamic>? extensions;
   const DevConnectResponse({
-    required this.data,
+    this.data,
     this.errors,
-    required this.context,
+    this.context = const {},
     this.extensions,
   });
-}
-
-// ---- Helpers ----
-
-String _safeName(DevConnectRequest req) {
-  try {
-    if (req.operationName.isNotEmpty) return req.operationName;
-    // Hash the variables as a fallback when there's no operation name.
-    return 'anonymous-${req.context['hash'] ?? '?'}';
-  } catch (_) {
-    return 'unknown';
-  }
-}
-
-String _safeType(DevConnectRequest req) {
-  try {
-    final contextType = req.context['operationType'];
-    if (contextType is String) return contextType;
-  } catch (_) {}
-  return 'query';
-}
-
-Map<String, dynamic> _safeVariables(DevConnectRequest req) {
-  try {
-    final variables = req.context['variables'];
-    if (variables is Map) {
-      return Map<String, dynamic>.from(variables);
-    }
-  } catch (_) {}
-  return {};
 }
 
 // ---- Helper bridge for consumers who don't use a Link chain ----
@@ -145,63 +102,68 @@ Map<String, dynamic> _safeVariables(DevConnectRequest req) {
 class DevConnectGraphQLHelper {
   DevConnectGraphQLHelper._();
 
-  static void reportOperation({
-    required String operationName,
+  /// Reports an operation and returns its `operationId`; pass it to
+  /// [reportResponse] when the result arrives.
+  static String reportOperation({
+    String? operationName,
     required String operationType, // 'query' | 'mutation' | 'subscription'
     Map<String, dynamic>? variables,
   }) {
-    try {
-      DevConnectClient.safeSend('client:graphql_operation', {
-        'operation': operationName,
-        'type': operationType,
-        if (variables != null) 'variables': variables,
-      });
-    } catch (_) {}
+    final operationId = const Uuid().v4();
+    DevConnectClient.safeSend('client:graphql_operation', {
+      'operationId': operationId,
+      'operation': _operationName(operationName),
+      'type': operationType,
+      'variables': variables ?? const <String, dynamic>{},
+    });
+    return operationId;
   }
 
+  /// Reports the result of a [reportOperation] operation: the server's
+  /// [data] / [errors], or [error] when the request itself failed.
   static void reportResponse({
-    required String operationName,
-    required String operationType,
+    required String operationId,
+    String? operation,
     required int latencyMs,
     Map<String, dynamic>? data,
-    List<dynamic>? errors,
-    bool cacheHit = false,
+    List<Object?>? errors,
+    String? error,
   }) {
-    try {
-      DevConnectClient.safeSend('client:graphql_response', {
-        'operation': operationName,
-        'type': operationType,
-        'latencyMs': latencyMs,
-        if (data != null) 'data': _truncate(data, 4096),
-        if (errors != null) 'errors': errors,
-        'cacheHit': cacheHit,
-      });
-    } catch (_) {}
+    DevConnectClient.safeSend('client:graphql_response', {
+      'operationId': operationId,
+      'operation': _operationName(operation),
+      'latencyMs': latencyMs,
+      if (data != null) 'data': data,
+      if (errors != null) 'errors': [for (final e in errors) _graphQLError(e)],
+      if (error != null) 'error': error,
+    });
   }
+}
 
-  static void reportError({
-    required String operationName,
-    required String operationType,
-    required int latencyMs,
-    required Object error,
-  }) {
-    try {
-      DevConnectClient.safeSend('client:graphql_response', {
-        'operation': operationName,
-        'type': operationType,
-        'latencyMs': latencyMs,
-        'error': error.toString(),
-      });
-    } catch (_) {}
-  }
+String _operationName(String? name) =>
+    name == null || name.isEmpty ? 'anonymous' : name;
 
-  static dynamic _truncate(dynamic value, int maxBytes) {
+/// `{message, path?, locations?}` from a map or a gql `GraphQLError`.
+Map<String, dynamic> _graphQLError(Object? error) {
+  if (error is Map) return {for (final e in error.entries) '${e.key}': e.value};
+  dynamic read(dynamic Function() field) {
     try {
-      final str = jsonEncode(value);
-      if (str.length <= maxBytes) return value;
-      return {'_truncated': true, 'preview': str.substring(0, maxBytes)};
+      return field();
     } catch (_) {
-      return value;
+      return null;
     }
   }
+
+  final dynamic e = error;
+  final path = read(() => e.path);
+  final locations = read(() => e.locations);
+  return {
+    'message': '${read(() => e.message) ?? error}',
+    if (path is List) 'path': path,
+    if (locations is List)
+      'locations': [
+        for (final l in locations)
+          read(() => {'line': l.line, 'column': l.column}) ?? '$l',
+      ],
+  };
 }

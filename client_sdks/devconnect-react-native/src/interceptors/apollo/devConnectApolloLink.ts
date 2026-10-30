@@ -1,13 +1,14 @@
-import { DevConnect } from '../../client';
+import { DevConnect, generateId } from '../../client';
 
 /**
- * Apollo Client `ApolloLink` middleware that emits `client:graphql_*`
- * events to the DevConnect desktop on every operation.
+ * Apollo Client `ApolloLink` middleware that emits `client:graphql_operation`
+ * and `client:graphql_response` (paired by `operationId`) to the DevConnect
+ * desktop on every operation.
  *
  * Wire it in front of the HTTP link:
  * ```typescript
  * import { ApolloClient, InMemoryCache, ApolloLink } from '@apollo/client';
- * import { devConnectApolloLink } from 'devconnect-react-native';
+ * import { devConnectApolloLink } from 'devconnect-manage-kit';
  *
  * const httpLink = new HttpLink({ uri: 'https://api.example.com/graphql' });
  * const client = new ApolloClient({
@@ -17,9 +18,12 @@ import { DevConnect } from '../../client';
  * ```
  */
 export function devConnectApolloLink() {
-  const ApolloLink = getApolloLinkClass();
+  // Apollo's own Observable (zen-observable in v3, RxJS in v4): Apollo calls
+  // `unsubscribe()` on what a link returns.
+  const { ApolloLink, Observable } = getApollo();
   return new ApolloLink((operation: any, forward: any) => {
     const startTime = Date.now();
+    const operationId = generateId();
     const operationName: string =
       operation.operationName ||
       (operation.query?.definitions?.find((d: any) => d.kind === 'OperationDefinition')?.name?.value ?? 'anonymous');
@@ -29,54 +33,49 @@ export function devConnectApolloLink() {
 
     try {
       DevConnect.safeSend('client:graphql_operation', {
+        operationId,
         operation: operationName,
         type: operationType,
         variables,
       });
     } catch (_) {}
 
-    if (!forward) {
+    const respond = (result: Record<string, any>) => {
       try {
         DevConnect.safeSend('client:graphql_response', {
+          operationId,
           operation: operationName,
           type: operationType,
-          error: 'devConnectApolloLink: missing forward (downstream link)',
+          latencyMs: Date.now() - startTime,
+          ...result,
         });
       } catch (_) {}
-      return new Observable((sub: any) => sub.error(new Error('No downstream link')));
+    };
+
+    if (!forward) {
+      respond({ error: 'devConnectApolloLink: missing forward (downstream link)' });
+      return new Observable((observer: any) => observer.error(new Error('No downstream link')));
     }
 
     return new Observable((observer: any) => {
       const subscription = forward(operation).subscribe({
         next: (response: any) => {
           try {
-            const latencyMs = Date.now() - startTime;
             const errors = response?.errors?.map((e: any) => ({
               message: e?.message ?? '',
               locations: e?.locations ?? [],
             })) ?? [];
-            const cacheHit = Boolean(response?.extensions?.persistedQuery);
-
-            DevConnect.safeSend('client:graphql_response', {
-              operation: operationName,
-              type: operationType,
-              latencyMs,
-              cacheHit,
-              data: safeSerialize(response?.data),
+            respond({
+              cacheHit: Boolean(response?.extensions?.persistedQuery),
+              // An errors-only response has no data.
+              ...(response?.data !== undefined ? { data: safeSerialize(response.data) } : {}),
               ...(errors.length ? { errors } : {}),
             });
           } catch (_) {}
           observer.next(response);
         },
         error: (err: any) => {
-          try {
-            DevConnect.safeSend('client:graphql_response', {
-              operation: operationName,
-              type: operationType,
-              error: err?.message ?? String(err),
-              stack: err?.stack,
-            });
-          } catch (_) {}
+          respond({ error: err?.message ?? String(err) });
           observer.error(err);
         },
         complete: () => observer.complete(),
@@ -84,22 +83,6 @@ export function devConnectApolloLink() {
       return () => subscription?.unsubscribe?.();
     });
   });
-}
-
-/**
- * Minimal Observable interface — we don't import `zen-observable-ts`
- * directly so this file works in any RN setup. Apollo Client itself
- * always provides a compatible Observable, so users normally don't see
- * this class — it's here for graceful fallback when `forward` is missing.
- */
-class Observable {
-  private _subscribe: (observer: any) => () => void;
-  constructor(subscribe: (observer: any) => () => void) {
-    this._subscribe = subscribe;
-  }
-  subscribe(observer: any) {
-    try { return this._subscribe(observer); } catch (_) { return { unsubscribe() {} }; }
-  }
 }
 
 function safeSerialize(value: any): any {
@@ -110,14 +93,13 @@ function safeSerialize(value: any): any {
   }
 }
 
-// Lazy-require ApolloLink so this file doesn't fail to load when
-// `@apollo/client` isn't installed — the helper would still be callable
-// from user code that imports it directly, just not actually patching Apollo.
-let _ApolloLink: any;
-function getApolloLinkClass() {
-  if (!_ApolloLink) {
+// Lazy-require `@apollo/client` so this file doesn't fail to load when it
+// isn't installed — only calling devConnectApolloLink() needs it.
+let _apollo: any;
+function getApollo() {
+  if (!_apollo) {
     try {
-      _ApolloLink = require('@apollo/client').ApolloLink;
+      _apollo = require('@apollo/client');
     } catch (_) {
       throw new Error(
         'devConnectApolloLink: @apollo/client is not installed. ' +
@@ -125,5 +107,5 @@ function getApolloLinkClass() {
       );
     }
   }
-  return _ApolloLink;
+  return _apollo;
 }
