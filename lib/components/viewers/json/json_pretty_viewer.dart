@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -13,28 +14,45 @@ import '../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../../core/utils/ui/toast_utils.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import 'json_mini_button.dart';
+import 'json_search_field.dart';
+import 'text_search.dart';
 
-/// Per-line highlight result from isolate.
-class _HighlightResult {
-  final String formatted;
-  final int lineCount;
+/// A document laid out for display: its text and where each line starts.
+class _Formatted {
+  final String text;
+  final Int32List lineStarts;
 
-  /// Per-line tokens: lineTokens[i] = [text, colorInt, bold, text, colorInt, bold, ...]
-  final List<List<Object>> lineTokens;
+  /// The line with the most characters, which sizes the horizontal scroll.
+  final int longestLine;
 
-  _HighlightResult(this.formatted, this.lineCount, this.lineTokens);
+  _Formatted(this.text, this.lineStarts, this.longestLine);
+
+  int get lineCount => lineStarts.length;
+
+  String line(int i) => text.substring(
+    lineStarts[i],
+    i + 1 < lineStarts.length ? lineStarts[i + 1] - 1 : text.length,
+  );
+
+  /// The line holding character [offset].
+  int lineOf(int offset) {
+    var lo = 0;
+    var hi = lineStarts.length - 1;
+    while (lo < hi) {
+      final mid = (lo + hi + 1) >> 1;
+      if (lineStarts[mid] <= offset) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return lo;
+  }
 }
 
-/// Runs in isolate — per-line tokenization.
-/// Text past this many characters isn't highlighted or shown: laid out as
-/// one paragraph, megabytes of it would hang the UI. Copy and save still
-/// take all of it.
-const _maxShownChars = 300000;
-
-_HighlightResult _computeHighlight(List<dynamic> args) {
-  final rawData = args[0];
-  final isDark = args[1] as bool;
-
+/// Runs in an isolate: [rawData] as indented JSON (or as its text), with
+/// where each line starts.
+_Formatted _format(dynamic rawData) {
   dynamic data = rawData;
   if (rawData is String) {
     try {
@@ -55,78 +73,84 @@ _HighlightResult _computeHighlight(List<dynamic> args) {
     formatted = data?.toString() ?? 'null';
   }
 
-  final lines = formatted.split('\n');
-
-  final dKey = isDark ? 0xFF9CDCFE : 0xFF0451A5;
-  final dString = isDark ? 0xFFCE9178 : 0xFFA31515;
-  final dNumber = isDark ? 0xFFB5CEA8 : 0xFF098658;
-  final dBool = isDark ? 0xFF569CD6 : 0xFF0000FF;
-  final dNull = isDark ? 0xFF569CD6 : 0xFF0000FF;
-  final dBracket = isDark ? 0xFFFFD700 : 0xFF000000;
-  final dPunct = isDark ? 0xFFD4D4D4 : 0xFF000000;
-  final dPlain = isDark ? 0xFFD4D4D4 : 0xFF1F2328;
-
-  final tokenPattern = RegExp(
-    r'("(?:[^"\\]|\\.)*")\s*:'
-    r'|("(?:[^"\\]|\\.)*")'
-    r'|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)'
-    r'|(true|false)'
-    r'|(null)'
-    r'|([{}\[\]])'
-    r'|([,:])',
-  );
-
-  final lineTokens = <List<Object>>[];
-
-  var left = _maxShownChars;
-  for (final whole in lines) {
-    if (left <= 0) break;
-    final line = whole.length > left ? whole.substring(0, left) : whole;
-    left -= line.length + 1;
-    final tokens = <Object>[];
-    int cursor = 0;
-
-    for (final m in tokenPattern.allMatches(line)) {
-      if (m.start > cursor) {
-        tokens.addAll([line.substring(cursor, m.start), dPlain, 0]);
-      }
-      int color;
-      int bold = 0;
-      if (m.group(1) != null) {
-        color = dKey;
-        bold = 1;
-      } else if (m.group(2) != null) {
-        color = dString;
-      } else if (m.group(3) != null) {
-        color = dNumber;
-      } else if (m.group(4) != null) {
-        color = dBool;
-      } else if (m.group(5) != null) {
-        color = dNull;
-      } else if (m.group(6) != null) {
-        color = dBracket;
-      } else {
-        color = dPunct;
-      }
-      tokens.addAll([m.group(0)!, color, bold]);
-      cursor = m.end;
+  final starts = <int>[0];
+  var longest = 0;
+  var longestLength = 0;
+  for (
+    var at = formatted.indexOf('\n');
+    ;
+    at = formatted.indexOf('\n', at + 1)
+  ) {
+    final length = (at < 0 ? formatted.length : at) - starts.last;
+    if (length > longestLength) {
+      longestLength = length;
+      longest = starts.length - 1;
     }
-    if (cursor < line.length) {
-      tokens.addAll([line.substring(cursor), dPlain, 0]);
-    }
-    lineTokens.add(tokens);
+    if (at < 0) break;
+    starts.add(at + 1);
   }
-
-  return _HighlightResult(formatted, lines.length, lineTokens);
+  return _Formatted(formatted, Int32List.fromList(starts), longest);
 }
 
-/// Global cache keyed by data identity. Bounded to ~10 MB — old entries
+final _tokenPattern = RegExp(
+  r'("(?:[^"\\]|\\.)*")\s*:'
+  r'|("(?:[^"\\]|\\.)*")'
+  r'|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)'
+  r'|(true|false)'
+  r'|(null)'
+  r'|([{}\[\]])'
+  r'|([,:])',
+);
+
+/// [line] as syntax-coloured spans.
+List<TextSpan> _lineSpans(String line, bool isDark) {
+  final key = Color(isDark ? 0xFF9CDCFE : 0xFF0451A5);
+  final string = Color(isDark ? 0xFFCE9178 : 0xFFA31515);
+  final number = Color(isDark ? 0xFFB5CEA8 : 0xFF098658);
+  final literal = Color(isDark ? 0xFF569CD6 : 0xFF0000FF);
+  final bracket = Color(isDark ? 0xFFFFD700 : 0xFF000000);
+  final punct = Color(isDark ? 0xFFD4D4D4 : 0xFF000000);
+  final plain = TextStyle(color: Color(isDark ? 0xFFD4D4D4 : 0xFF1F2328));
+
+  final spans = <TextSpan>[];
+  var cursor = 0;
+  for (final m in _tokenPattern.allMatches(line)) {
+    if (m.start > cursor) {
+      spans.add(TextSpan(text: line.substring(cursor, m.start), style: plain));
+    }
+    final color = m.group(1) != null
+        ? key
+        : m.group(2) != null
+        ? string
+        : m.group(3) != null
+        ? number
+        : m.group(4) != null || m.group(5) != null
+        ? literal
+        : m.group(6) != null
+        ? bracket
+        : punct;
+    spans.add(
+      TextSpan(
+        text: m.group(0),
+        style: TextStyle(
+          color: color,
+          fontWeight: m.group(1) != null ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+    );
+    cursor = m.end;
+  }
+  if (cursor < line.length) {
+    spans.add(TextSpan(text: line.substring(cursor), style: plain));
+  }
+  return spans;
+}
+
+/// Global cache keyed by data identity. Bounded to ~32 MB — old entries
 /// are evicted in LRU order once the budget is exceeded.
-final _highlightCache = LruCache<int, _HighlightResult>(
-  maxBytes: 10 * 1024 * 1024,
-  weightOf: (r) =>
-      r.formatted.length * 2 + // string chars ~2 bytes UTF-16
-      r.lineTokens.length * 48, // per-line List overhead estimate
+final _highlightCache = LruCache<int, _Formatted>(
+  maxBytes: 32 * 1024 * 1024,
+  weightOf: (f) => f.text.length * 2 + f.lineStarts.lengthInBytes,
 );
 
 /// Background-time tracker. When the app is paused/hidden for longer than
@@ -178,6 +202,23 @@ class HighlightCacheLifecycleObserver with WidgetsBindingObserver {
   }
 }
 
+/// Every line has this height: rows are laid out lazily, at fixed offsets.
+const _lineHeight = 18.0;
+
+/// A line longer than this shows only its start: one line can't be drawn
+/// lazily. Copy and save still take all of it.
+const _maxLineChars = 20000;
+
+/// Without a bounded height (in a caller's scroll view, a screenshot) every
+/// line is laid out at once, so lines are shown up to this many characters.
+const _maxUnboundedChars = 300000;
+
+/// The search stops counting here.
+const _maxMatches = 100000;
+
+/// JSON (or any text) syntax-highlighted line by line, with line numbers,
+/// copy, save and search (⌘F). Only the lines in view are built, so a
+/// document of any size shows whole.
 class JsonPrettyViewer extends StatefulWidget {
   final dynamic data;
 
@@ -188,13 +229,27 @@ class JsonPrettyViewer extends StatefulWidget {
 }
 
 class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
-  _HighlightResult? _result;
-  List<TextSpan>? _cachedSpans;
-  String? _lineNumbersText;
+  _Formatted? _formatted;
   bool _loading = true;
   bool _saving = false;
-  bool? _lastIsDark;
   final _scrollController = SmoothScrollController();
+  final _horizontalController = ScrollController();
+  final _search = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  /// The document lowercased, for the search.
+  String? _lower;
+
+  /// Width of the longest shown line, which the horizontal scroll spans.
+  double? _longestWidth;
+
+  /// The style and scaler the lines were last built with.
+  TextStyle _textStyle = const TextStyle();
+  TextScaler _textScaler = TextScaler.noScaling;
+
+  /// Where the search query shows up in the text.
+  List<(int, int)> _matches = const [];
+  int _current = 0;
 
   /// The cache key for the entry currently displayed. Pinned so a cache
   /// pressure from other pages can't evict the value the user is looking at.
@@ -206,6 +261,9 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
       _highlightCache.unpin(_pinnedKey!);
     }
     _scrollController.dispose();
+    _horizontalController.dispose();
+    _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -227,62 +285,17 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
       }
       _pinnedKey = _cacheKey;
       _highlightCache.pin(_pinnedKey!);
-      _result = null;
-      _cachedSpans = null;
-      _lineNumbersText = null;
+      _show(null);
       _startCompute();
-    } else {
-      // Same data — recompute if theme changed (handled in build) but
-      // never show the spinner for an unchanged payload.
-      _loading = _result == null;
     }
   }
 
   int get _cacheKey => identityHashCode(widget.data);
 
-  void _updateSpans() {
-    if (_result == null) {
-      _cachedSpans = null;
-      _lineNumbersText = null;
-      return;
-    }
-    _lineNumbersText = List.generate(
-      _result!.lineTokens.length,
-      (i) => '${i + 1}',
-    ).join('\n');
-    _cachedSpans = _buildAllSpans(_result!);
-  }
-
-  List<TextSpan> _buildAllSpans(_HighlightResult result) {
-    final spans = <TextSpan>[];
-    for (int lineIdx = 0; lineIdx < result.lineTokens.length; lineIdx++) {
-      final tokens = result.lineTokens[lineIdx];
-      for (int i = 0; i < tokens.length; i += 3) {
-        spans.add(
-          TextSpan(
-            text: tokens[i] as String,
-            style: TextStyle(
-              color: Color(tokens[i + 1] as int),
-              fontWeight: (tokens[i + 2] as int) == 1
-                  ? FontWeight.w600
-                  : FontWeight.normal,
-            ),
-          ),
-        );
-      }
-      if (lineIdx < result.lineTokens.length - 1) {
-        spans.add(const TextSpan(text: '\n'));
-      }
-    }
-    return spans;
-  }
-
   void _startCompute() {
     final cached = _highlightCache.get(_cacheKey);
     if (cached != null) {
-      _result = cached;
-      _updateSpans();
-      _loading = false;
+      _show(cached);
       // Mark the build dirty so the cached result is rendered without
       // sitting in the loading state for a frame.
       if (mounted) setState(() {});
@@ -290,24 +303,282 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     }
 
     _loading = true;
-    final isDark =
-        WidgetsBinding.instance.platformDispatcher.platformBrightness ==
-        Brightness.dark;
-
-    compute(_computeHighlight, [widget.data, isDark])
-        .then((result) {
+    compute(_format, widget.data)
+        .then((formatted) {
           if (!mounted) return;
-          _highlightCache.put(_cacheKey, result);
-          setState(() {
-            _result = result;
-            _updateSpans();
-            _loading = false;
-          });
+          _highlightCache.put(_cacheKey, formatted);
+          setState(() => _show(formatted));
         })
         .catchError((e) {
           if (!mounted) return;
           setState(() => _loading = false);
         });
+  }
+
+  /// Shows [formatted] (none while it's being computed).
+  void _show(_Formatted? formatted) {
+    _formatted = formatted;
+    _loading = formatted == null;
+    _lower = null;
+    _longestWidth = null;
+    _applySearch();
+  }
+
+  void _applySearch() {
+    final formatted = _formatted;
+    if (formatted == null) {
+      _matches = const [];
+      return;
+    }
+    if (_search.text.trim().isNotEmpty && _lower == null) {
+      final lower = formatted.text.toLowerCase();
+      // A few characters change length when lowercased; then match case.
+      _lower = lower.length == formatted.text.length ? lower : formatted.text;
+    }
+    _matches = findMatches(
+      formatted.text,
+      _search.text,
+      lower: _lower,
+      limit: _maxMatches,
+    );
+    if (_current >= _matches.length) _current = 0;
+  }
+
+  void _onQuery(String query) {
+    setState(() {
+      _current = 0;
+      _applySearch();
+    });
+    _reveal();
+  }
+
+  void _step(int delta) {
+    final n = _matches.length;
+    if (n == 0) return;
+    setState(() => _current = ((_current + delta) % n + n) % n);
+    _reveal();
+  }
+
+  double get _gutterWidth =>
+      '${_formatted?.lineCount ?? 0}'.length * 8.0 + 16.0;
+
+  /// Width of [text] as the lines draw it.
+  double _widthOf(String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: _textStyle),
+      textDirection: TextDirection.ltr,
+      textScaler: _textScaler,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
+  }
+
+  /// Scrolls the current match into view.
+  void _reveal() {
+    final formatted = _formatted;
+    if (formatted == null || _matches.isEmpty) return;
+    final start = _matches[_current].$1;
+    final line = formatted.lineOf(start);
+    final column = math.min(start - formatted.lineStarts[line], _maxLineChars);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scrollController.hasClients) {
+        final v = _scrollController.position;
+        final y = 8 + line * _lineHeight;
+        if (y < v.pixels || y + _lineHeight > v.pixels + v.viewportDimension) {
+          v.jumpTo((y - v.viewportDimension * 0.3).clamp(0, v.maxScrollExtent));
+        }
+      }
+      if (_horizontalController.hasClients) {
+        final h = _horizontalController.position;
+        final x =
+            _gutterWidth +
+            8 +
+            _widthOf(formatted.line(line).substring(0, column));
+        if (x < h.pixels + 24 || x > h.pixels + h.viewportDimension - 48) {
+          h.jumpTo((x - 48).clamp(0, h.maxScrollExtent));
+        }
+      }
+    });
+  }
+
+  /// Index of the first match at or after character [offset].
+  int _firstMatchFrom(int offset) {
+    var lo = 0;
+    var hi = _matches.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (_matches[mid].$1 < offset) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  }
+
+  /// Line [index] as highlighted spans, with the search matches marked
+  /// and, when it's too long to show whole, how long it is.
+  List<TextSpan> _lineContent(int index, bool isDark) {
+    final formatted = _formatted!;
+    final start = formatted.lineStarts[index];
+    final whole = formatted.line(index);
+    final cut = whole.length > _maxLineChars;
+    final text = cut ? whole.substring(0, _maxLineChars) : whole;
+    var spans = _lineSpans(text, isDark);
+    final first = _firstMatchFrom(start);
+    final hits = <(int, int)>[];
+    for (
+      var i = first;
+      i < _matches.length && _matches[i].$1 < start + text.length;
+      i++
+    ) {
+      hits.add((_matches[i].$1 - start, _matches[i].$2 - start));
+    }
+    if (hits.isNotEmpty) spans = markMatches(spans, hits, _current - first);
+    return [
+      ...spans,
+      if (cut)
+        TextSpan(
+          text: '  ${S.of(context).jsonLongValue(whole.length)}',
+          style: TextStyle(color: Colors.grey[500]),
+        ),
+    ];
+  }
+
+  /// The line-number gutter, showing [numbers].
+  Widget _gutter(String numbers, double width, bool isDark) =>
+      // Line number gutter is excluded from selection
+      // so dragging across multiple lines doesn't pull
+      // the numbers into the copied text.
+      SelectionContainer.disabled(
+        child: Container(
+          width: width,
+          padding: const EdgeInsets.only(right: 8),
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            border: Border(
+              right: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.06),
+              ),
+            ),
+          ),
+          alignment: Alignment.topRight,
+          child: Text(
+            numbers,
+            textAlign: TextAlign.right,
+            style: _textStyle.copyWith(
+              color: isDark ? Colors.grey[600] : Colors.grey[500],
+            ),
+          ),
+        ),
+      );
+
+  /// The lines, scrolled lazily when the height is bounded.
+  Widget _lines(BoxConstraints constraints, bool isDark) {
+    final formatted = _formatted!;
+    final gutterWidth = _gutterWidth;
+    if (!constraints.hasBoundedHeight) {
+      var shown = 0;
+      var chars = 0;
+      while (shown < formatted.lineCount && chars < _maxUnboundedChars) {
+        chars += formatted.line(shown).length + 1;
+        shown++;
+      }
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(0, 8, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _gutter(
+                  [for (var i = 1; i <= shown; i++) i].join('\n'),
+                  gutterWidth,
+                  isDark,
+                ),
+                Text.rich(
+                  TextSpan(
+                    style: _textStyle,
+                    children: [
+                      for (var i = 0; i < shown; i++) ...[
+                        if (i > 0) const TextSpan(text: '\n'),
+                        ..._lineContent(i, isDark),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (shown < formatted.lineCount)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  S.of(context).jsonPrettyCut(shown, formatted.lineCount),
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+    final longest = _longestWidth ??= _widthOf(
+      formatted
+          .line(formatted.longestLine)
+          .substring(
+            0,
+            math.min(
+              formatted.line(formatted.longestLine).length,
+              _maxLineChars,
+            ),
+          ),
+    );
+    final width = math.max(
+      gutterWidth + 8 + longest + 160,
+      constraints.maxWidth,
+    );
+    return Scrollbar(
+      controller: _scrollController,
+      notificationPredicate: (n) => n.depth == 1,
+      child: SingleChildScrollView(
+        controller: _horizontalController,
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: width,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemExtent: _lineHeight,
+              itemCount: formatted.lineCount,
+              itemBuilder: (_, i) => Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _gutter('${i + 1}', gutterWidth, isDark),
+                  Text.rich(
+                    TextSpan(
+                      style: _textStyle,
+                      children: _lineContent(i, isDark),
+                    ),
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _saveJsonFile(String content) async {
@@ -335,199 +606,164 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (_lastIsDark != null && _lastIsDark != isDark) {
-      _cachedSpans = null;
-      _lineNumbersText = null;
-      _result = null;
-      _highlightCache.remove(_cacheKey);
-      _startCompute();
-    }
-    _lastIsDark = isDark;
-
-    final lineCount = _result?.lineCount ?? 0;
-    final gutterWidth = '$lineCount'.length * 8.0 + 16.0;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFFAFAFA),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.08),
-        ),
+    final style = DefaultTextStyle.of(context).style.merge(
+      const TextStyle(
+        fontFamily: AppConstants.monoFontFamily,
+        fontSize: 12,
+        height: 1.5,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Toolbar
-          Container(
-            height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF252526) : const Color(0xFFF0F0F0),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8),
-              ),
-              border: Border(
-                bottom: BorderSide(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.06),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  LucideIcons.braces,
-                  size: 12,
-                  color: isDark
-                      ? const Color(0xFFFFD700)
-                      : const Color(0xFF0451A5),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'JSON',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: AppConstants.monoFontFamily,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
-                  ),
-                ),
-                if (!_loading) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    '$lineCount lines',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontFamily: AppConstants.monoFontFamily,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
-                const Spacer(),
-                if (!_loading) ...[
-                  JsonMiniButton(
-                    icon: LucideIcons.copy,
-                    tooltip: 'Copy JSON',
-                    isDark: isDark,
-                    onTap: () {
-                      Clipboard.setData(
-                        ClipboardData(text: _result!.formatted),
-                      );
-                      showCopiedToast(context, label: 'JSON copied');
-                    },
-                  ),
-                  const SizedBox(width: 4),
-                  JsonMiniButton(
-                    icon: LucideIcons.download,
-                    tooltip: 'Save as file',
-                    isDark: isDark,
-                    loading: _saving,
-                    onTap: _saving
-                        ? () {}
-                        : () => _saveJsonFile(_result!.formatted),
-                  ),
-                ],
-              ],
+    );
+    final scaler = MediaQuery.textScalerOf(context);
+    if (style != _textStyle || scaler != _textScaler) {
+      _textStyle = style;
+      _textScaler = scaler;
+      _longestWidth = null;
+    }
+    final lineCount = _formatted?.lineCount ?? 0;
+
+    return CallbackShortcuts(
+      bindings: {
+        SingleActivator(
+          LogicalKeyboardKey.keyF,
+          meta: Platform.isMacOS,
+          control: !Platform.isMacOS,
+        ): () =>
+            _searchFocus.requestFocus(),
+      },
+      child: Focus(
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFFAFAFA),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.08),
             ),
           ),
-          // Content — unified smooth scrollable view
-          if (_loading)
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Center(
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: isDark ? Colors.grey[600] : Colors.grey[400],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Toolbar
+              Container(
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF252526)
+                      : const Color(0xFFF0F0F0),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(8),
                   ),
-                ),
-              ),
-            )
-          else
-            Flexible(
-              child: SelectionArea(
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.only(right: 16),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Line number gutter is excluded from selection
-                        // so dragging across multiple lines doesn't pull
-                        // the numbers into the copied text.
-                        SelectionContainer.disabled(
-                          child: Container(
-                            width: gutterWidth,
-                            padding: const EdgeInsets.only(right: 8),
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                right: BorderSide(
-                                  color: isDark
-                                      ? Colors.white.withValues(alpha: 0.06)
-                                      : Colors.black.withValues(alpha: 0.06),
-                                ),
-                              ),
-                            ),
-                            alignment: Alignment.topRight,
-                            child: Text(
-                              _lineNumbersText ?? '',
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                fontFamily: AppConstants.monoFontFamily,
-                                fontSize: 12,
-                                height: 1.5,
-                                color: isDark
-                                    ? Colors.grey[600]
-                                    : Colors.grey[500],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Text.rich(
-                          TextSpan(
-                            style: const TextStyle(
-                              fontFamily: AppConstants.monoFontFamily,
-                              fontSize: 12,
-                              height: 1.5,
-                            ),
-                            children: _cachedSpans ?? const [],
-                          ),
-                        ),
-                      ],
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : Colors.black.withValues(alpha: 0.06),
                     ),
                   ),
                 ),
-              ),
-            ),
-          if (!_loading &&
-              _result != null &&
-              _result!.lineTokens.length < _result!.lineCount)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-              child: Text(
-                S
-                    .of(context)
-                    .jsonPrettyCut(
-                      _result!.lineTokens.length,
-                      _result!.lineCount,
+                child: Row(
+                  children: [
+                    Icon(
+                      LucideIcons.braces,
+                      size: 12,
+                      color: isDark
+                          ? const Color(0xFFFFD700)
+                          : const Color(0xFF0451A5),
                     ),
-                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                    const SizedBox(width: 6),
+                    Text(
+                      'JSON',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: AppConstants.monoFontFamily,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                    if (!_loading) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '$lineCount lines',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontFamily: AppConstants.monoFontFamily,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      JsonSearchField(
+                        search: _search,
+                        searchFocus: _searchFocus,
+                        onQuery: _onQuery,
+                        matchCount: _matches.length,
+                        current: _current,
+                        onStep: _step,
+                        capped: _matches.length >= _maxMatches,
+                        isDark: isDark,
+                      ),
+                    ] else
+                      const Spacer(),
+                    if (!_loading && _formatted != null) ...[
+                      JsonMiniButton(
+                        icon: LucideIcons.copy,
+                        tooltip: 'Copy JSON',
+                        isDark: isDark,
+                        onTap: () {
+                          Clipboard.setData(
+                            ClipboardData(text: _formatted!.text),
+                          );
+                          showCopiedToast(context, label: 'JSON copied');
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                      JsonMiniButton(
+                        icon: LucideIcons.download,
+                        tooltip: 'Save as file',
+                        isDark: isDark,
+                        loading: _saving,
+                        onTap: _saving
+                            ? () {}
+                            : () => _saveJsonFile(_formatted!.text),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-        ],
+              // Content — unified smooth scrollable view
+              if (_loading || _formatted == null)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: _loading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: isDark
+                                  ? Colors.grey[600]
+                                  : Colors.grey[400],
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                )
+              else
+                Flexible(
+                  child: SelectionArea(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) =>
+                          _lines(constraints, isDark),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

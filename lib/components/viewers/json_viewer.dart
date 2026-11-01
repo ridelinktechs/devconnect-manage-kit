@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/theme/chrome_palette.dart';
 import '../../core/utils/files/save_file.dart';
 import '../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../core/utils/ui/toast_utils.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'json/json_mini_button.dart';
+import 'json/json_search_field.dart';
 import 'json/json_table.dart';
 import 'json/json_tree.dart';
 import 'json_paths.dart';
@@ -279,7 +279,6 @@ class _JsonViewerToolbar extends StatelessWidget {
         ),
       ),
     );
-    final hasQuery = search.text.trim().isNotEmpty;
     return Container(
       height: 32,
       padding: const EdgeInsets.only(left: 8, right: 6),
@@ -310,72 +309,16 @@ class _JsonViewerToolbar extends StatelessWidget {
             ),
           ],
           const SizedBox(width: 8),
-          Flexible(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 200),
-              child: CallbackShortcuts(
-                bindings: {
-                  const SingleActivator(
-                    LogicalKeyboardKey.enter,
-                    shift: true,
-                  ): () =>
-                      onStep(-1),
-                  const SingleActivator(LogicalKeyboardKey.escape): () {
-                    search.clear();
-                    onQuery('');
-                  },
-                },
-                child: TextField(
-                  controller: search,
-                  focusNode: searchFocus,
-                  onChanged: onQuery,
-                  onSubmitted: (_) {
-                    onStep(1);
-                    searchFocus.requestFocus();
-                  },
-                  style: chromeMono(
-                    context,
-                    size: 11,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: loc.jsonSearchHint,
-                    hintStyle: TextStyle(fontSize: 11, color: muted),
-                    prefixIcon: Icon(
-                      LucideIcons.search,
-                      size: 12,
-                      color: muted,
-                    ),
-                    prefixIconConstraints: const BoxConstraints(minWidth: 24),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                  ),
-                ),
-              ),
-            ),
+          JsonSearchField(
+            search: search,
+            searchFocus: searchFocus,
+            onQuery: onQuery,
+            matchCount: matchCount,
+            current: current,
+            onStep: onStep,
+            summary: table ? tableCount ?? '' : null,
+            isDark: isDark,
           ),
-          if (hasQuery && table)
-            Text(tableCount ?? '', style: TextStyle(fontSize: 10, color: muted))
-          else if (hasQuery) ...[
-            Text(
-              matchCount == 0 ? '0' : '${current + 1}/$matchCount',
-              style: TextStyle(fontSize: 10, color: muted),
-            ),
-            JsonMiniButton(
-              icon: LucideIcons.chevronUp,
-              tooltip: '${loc.jsonPrevMatch} (⇧↵)',
-              isDark: isDark,
-              onTap: () => onStep(-1),
-            ),
-            JsonMiniButton(
-              icon: LucideIcons.chevronDown,
-              tooltip: '${loc.jsonNextMatch} (↵)',
-              isDark: isDark,
-              onTap: () => onStep(1),
-            ),
-          ],
-          const Spacer(),
           if (!table) ...[
             JsonMiniButton(
               icon: LucideIcons.chevronsUpDown,

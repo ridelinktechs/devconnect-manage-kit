@@ -208,12 +208,10 @@ class _BodyTabState extends ConsumerState<BodyTab> {
             return JsonPrettyViewer(data: widget.body);
           case BodyViewMode.code:
             final generated = CodeGenerator.generate(parsedBody, codeLang);
-            return SingleChildScrollView(
-              child: CodeViewer(
-                generated: generated,
-                lang: codeLang,
-                languageLabel: CodeGenerator.labelFor(codeLang),
-              ),
+            return CodeViewer(
+              generated: generated,
+              lang: codeLang,
+              languageLabel: CodeGenerator.labelFor(codeLang),
             );
         }
       },

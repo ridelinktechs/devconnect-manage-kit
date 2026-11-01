@@ -488,6 +488,15 @@ class _RowAction extends StatelessWidget {
   }
 }
 
+/// [style] for a search match, stronger for the [current] one.
+TextStyle queryMarkStyle(TextStyle style, {bool current = false}) =>
+    style.copyWith(
+      color: current ? const Color(0xFF1F2328) : null,
+      backgroundColor: current
+          ? const Color(0xFFFBBF24)
+          : const Color(0x59FBBF24),
+    );
+
 /// [text] with every occurrence of the lowercased [query] marked, strongly
 /// for the [current] search match.
 InlineSpan markQuery(
@@ -497,12 +506,7 @@ InlineSpan markQuery(
   bool current = false,
 }) {
   if (query.isEmpty) return TextSpan(text: text, style: style);
-  final mark = style.copyWith(
-    color: current ? const Color(0xFF1F2328) : null,
-    backgroundColor: current
-        ? const Color(0xFFFBBF24)
-        : const Color(0x59FBBF24),
-  );
+  final mark = queryMarkStyle(style, current: current);
   final spans = <TextSpan>[];
   final lower = text.toLowerCase();
   var start = 0;
