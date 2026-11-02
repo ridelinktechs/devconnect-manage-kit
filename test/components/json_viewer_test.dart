@@ -275,7 +275,159 @@ void main() {
 
     expect(find.text('1/2'), findsOneWidget);
   });
+
+  testWidgets('the JSON view wraps long values, and search still lands on '
+      'lines after them', (tester) async {
+    tester.view.physicalSize = const Size(700, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      _app(
+        JsonPrettyViewer(
+          data: {
+            'long': 'word ' * 3000,
+            for (var i = 0; i < 300; i++) 'k$i': i == 250 ? 'needle' : 'hay',
+          },
+        ),
+      ),
+    );
+    await _waitForLines(tester);
+
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+      ),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('word word', findRichText: true),
+      findsAtLeastNWidgets(10),
+    );
+
+    await tester.enterText(find.byType(TextField), 'needle');
+    await tester.pump();
+    await tester.pump();
+    final number = find.text('253');
+    expect(number, findsOneWidget);
+    expect(tester.getTopLeft(number).dy, inInclusiveRange(0, 500));
+  });
+
+  testWidgets('the JSON view keeps one scroll length while a wrapped line '
+      'scrolls past', (tester) async {
+    tester.view.physicalSize = const Size(700, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      _app(
+        JsonPrettyViewer(
+          data: {
+            for (var i = 0; i < 300; i++) 'a$i': 'hay',
+            'long': 'word ' * 3000,
+            for (var i = 0; i < 300; i++) 'b$i': 'hay',
+          },
+        ),
+      ),
+    );
+    await _waitForLines(tester);
+    final position = tester.state<ScrollableState>(_downScrollable()).position;
+
+    final lengths = <double>[];
+    for (final y in [0.0, 5000.0, 9000.0, 14000.0]) {
+      position.jumpTo(y);
+      await tester.pump();
+      lengths.add(position.maxScrollExtent);
+    }
+    expect(lengths.toSet(), hasLength(1));
+  });
+
+  testWidgets('deep in a huge document below a wrapped line, every line '
+      'sits where it should', (tester) async {
+    tester.view.physicalSize = const Size(700, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      _app(
+        JsonPrettyViewer(
+          data: ['word ' * 400, for (var i = 0; i < 100000; i++) i],
+        ),
+      ),
+    );
+    await _waitForLines(tester);
+    final viewport = _downScrollable();
+    final position = tester.state<ScrollableState>(viewport).position;
+    // Between 8px paddings: "[", the wrapped string, 100000 numbers and "]".
+    final wrapped =
+        position.maxScrollExtent +
+        position.viewportDimension -
+        16 -
+        18 * 100002;
+    expect(wrapped, greaterThan(18 * 10));
+
+    // Line 1 is "[", line 2 the wrapped string, then number k on line k + 3.
+    for (final k in [50000, 80000, 99990]) {
+      position.jumpTo(8 + 18 + wrapped + k * 18);
+      await tester.pump();
+      expect(
+        tester.getTopLeft(find.text('${k + 3}')).dy,
+        closeTo(tester.getTopLeft(viewport).dy, 0.5),
+      );
+    }
+  });
+
+  testWidgets('the JSON view draws a wrapped line row by row, every '
+      'character once and each row within the width', (tester) async {
+    tester.view.physicalSize = const Size(700, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final value = [
+      for (var i = 0; i < 120; i++) i.isEven ? 'w$i' : 'שלום$i',
+    ].join(' ');
+    await tester.pumpWidget(_app(JsonPrettyViewer(data: {'long': value})));
+    await _waitForLines(tester);
+
+    final rows = tester.widgetList<RichText>(_wrappedRows()).toList();
+    expect(rows.length, greaterThan(5));
+    expect(
+      rows.map((r) => r.text.toPlainText()).join(),
+      '  "long": ${jsonEncode(value)}',
+    );
+    for (final row in rows) {
+      final painter = TextPainter(
+        text: row.text,
+        textDirection: TextDirection.ltr,
+        textScaler: row.textScaler,
+      )..layout(maxWidth: tester.getSize(find.byWidget(row)).width);
+      expect(painter.computeLineMetrics(), hasLength(1));
+      painter.dispose();
+    }
+  });
+
+  testWidgets('a value cut short in the JSON view stays one string', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(700, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      _app(JsonPrettyViewer(data: {'token': 'a1b2c3' * 5000})),
+    );
+    await _waitForLines(tester);
+
+    final colors = <Color?>{};
+    tester.widgetList<RichText>(_wrappedRows()).elementAt(1).text.visitChildren(
+      (span) {
+        colors.add(span.style?.color);
+        return true;
+      },
+    );
+    expect(colors, hasLength(1));
+  });
 }
+
+/// The rows of the JSON view's wrapped lines, top to bottom.
+Finder _wrappedRows() =>
+    find.byWidgetPredicate((w) => w is RichText && !w.softWrap);
 
 /// Pumps until the JSON view has laid out its document.
 Future<void> _waitForLines(WidgetTester tester) => tester.runAsync(() async {

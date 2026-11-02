@@ -22,10 +22,11 @@ class _Formatted {
   final String text;
   final Int32List lineStarts;
 
-  /// The line with the most characters, which sizes the horizontal scroll.
-  final int longestLine;
+  /// Per line, a generous count of the columns it fills: its length, plus
+  /// one per non-ASCII unit and seven per tab.
+  final Int32List cells;
 
-  _Formatted(this.text, this.lineStarts, this.longestLine);
+  _Formatted(this.text, this.lineStarts, this.cells);
 
   int get lineCount => lineStarts.length;
 
@@ -74,27 +75,36 @@ _Formatted _format(dynamic rawData) {
   }
 
   final starts = <int>[0];
-  var longest = 0;
-  var longestLength = 0;
+  final cells = <int>[];
   for (
     var at = formatted.indexOf('\n');
     ;
     at = formatted.indexOf('\n', at + 1)
   ) {
-    final length = (at < 0 ? formatted.length : at) - starts.last;
-    if (length > longestLength) {
-      longestLength = length;
-      longest = starts.length - 1;
+    final end = at < 0 ? formatted.length : at;
+    var count = end - starts.last;
+    for (var k = starts.last; k < end; k++) {
+      final unit = formatted.codeUnitAt(k);
+      if (unit > 0x7F) {
+        count++;
+      } else if (unit == 0x09) {
+        count += 7;
+      }
     }
+    cells.add(count);
     if (at < 0) break;
     starts.add(at + 1);
   }
-  return _Formatted(formatted, Int32List.fromList(starts), longest);
+  return _Formatted(
+    formatted,
+    Int32List.fromList(starts),
+    Int32List.fromList(cells),
+  );
 }
 
 final _tokenPattern = RegExp(
   r'("(?:[^"\\]|\\.)*")\s*:'
-  r'|("(?:[^"\\]|\\.)*")'
+  r'|("(?:[^"\\]|\\.)*(?:"|$))'
   r'|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)'
   r'|(true|false)'
   r'|(null)'
@@ -202,11 +212,11 @@ class HighlightCacheLifecycleObserver with WidgetsBindingObserver {
   }
 }
 
-/// Every line has this height: rows are laid out lazily, at fixed offsets.
+/// Height of one row of text; a long line wraps onto several.
 const _lineHeight = 18.0;
 
-/// A line longer than this shows only its start: one line can't be drawn
-/// lazily. Copy and save still take all of it.
+/// A line longer than this shows only its start: finding where it wraps
+/// lays all of it out. Copy and save still take all of it.
 const _maxLineChars = 20000;
 
 /// Without a bounded height (in a caller's scroll view, a screenshot) every
@@ -216,9 +226,60 @@ const _maxUnboundedChars = 300000;
 /// The search stops counting here.
 const _maxMatches = 100000;
 
+/// The rows a document's lines take once wrapped. Each row is drawn on its
+/// own, so a long line scrolling into view costs no more than a short one.
+class _Rows {
+  /// `first[i]` is line `i`'s first row; the last entry is the row count.
+  final Int32List first;
+
+  /// For each line that wraps, where in it each of its rows starts.
+  final Map<int, Int32List> breaks;
+
+  _Rows(this.first, this.breaks);
+
+  int get count => first.last;
+
+  /// The line row [row] belongs to.
+  int lineOf(int row) {
+    var lo = 0;
+    var hi = first.length - 2;
+    while (lo < hi) {
+      final mid = (lo + hi + 1) >> 1;
+      if (first[mid] <= row) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return lo;
+  }
+}
+
+/// The part of [spans] (plain text, no children) from character [from] up
+/// to [to], or to the end.
+List<TextSpan> _slice(List<TextSpan> spans, int from, int? to) {
+  final out = <TextSpan>[];
+  var offset = 0;
+  for (final span in spans) {
+    final text = span.text ?? '';
+    final end = offset + text.length;
+    if (end > from && (to == null || offset < to)) {
+      final a = math.max(from, offset) - offset;
+      final b = (to == null ? end : math.min(to, end)) - offset;
+      out.add(
+        a == 0 && b == text.length
+            ? span
+            : TextSpan(text: text.substring(a, b), style: span.style),
+      );
+    }
+    offset = end;
+  }
+  return out;
+}
+
 /// JSON (or any text) syntax-highlighted line by line, with line numbers,
-/// copy, save and search (⌘F). Only the lines in view are built, so a
-/// document of any size shows whole.
+/// copy, save and search (⌘F). Long lines wrap. Only the lines in view are
+/// built, so a document of any size shows whole.
 class JsonPrettyViewer extends StatefulWidget {
   final dynamic data;
 
@@ -233,15 +294,21 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   bool _loading = true;
   bool _saving = false;
   final _scrollController = SmoothScrollController();
-  final _horizontalController = ScrollController();
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
 
   /// The document lowercased, for the search.
   String? _lower;
 
-  /// Width of the longest shown line, which the horizontal scroll spans.
-  double? _longestWidth;
+  /// The rows the lines take once wrapped to [_rowsWidth].
+  _Rows? _rows;
+  double _rowsWidth = 0;
+
+  /// The lines last built and what they were built from. A rebuild with the
+  /// same inputs — the page redrawing for a new request, say — reuses them,
+  /// so the visible lines aren't built again mid-scroll.
+  Widget? _linesWidget;
+  Object? _linesInputs;
 
   /// The style and scaler the lines were last built with.
   TextStyle _textStyle = const TextStyle();
@@ -261,7 +328,6 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
       _highlightCache.unpin(_pinnedKey!);
     }
     _scrollController.dispose();
-    _horizontalController.dispose();
     _search.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -320,7 +386,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     _formatted = formatted;
     _loading = formatted == null;
     _lower = null;
-    _longestWidth = null;
+    _rows = null;
     _applySearch();
   }
 
@@ -362,17 +428,63 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   double get _gutterWidth =>
       '${_formatted?.lineCount ?? 0}'.length * 8.0 + 16.0;
 
-  /// Width of [text] as the lines draw it.
-  double _widthOf(String text) {
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: _textStyle),
-      textDirection: TextDirection.ltr,
-      textScaler: _textScaler,
-      maxLines: 1,
-    )..layout();
-    final width = painter.width;
-    painter.dispose();
-    return width;
+  /// The widest ASCII glyph as the lines draw it, in the keys' weight.
+  double _cellWidth() {
+    var widest = 0.0;
+    for (final glyph in const ['W', 'M', '@', '%', 'm', 'w']) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: glyph,
+          style: _textStyle.copyWith(fontWeight: FontWeight.w600),
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: _textScaler,
+      )..layout();
+      widest = math.max(widest, painter.width);
+      painter.dispose();
+    }
+    return widest;
+  }
+
+  /// Line [index] laid out [width] wide, as the lines draw it.
+  TextPainter _layoutLine(int index, double width, bool isDark) => TextPainter(
+    text: TextSpan(style: _textStyle, children: _lineContent(index, isDark)),
+    textDirection: TextDirection.ltr,
+    textScaler: _textScaler,
+  )..layout(maxWidth: width);
+
+  /// [_rows] for text [width] wide: a line that surely fits takes one row;
+  /// a longer one is laid out to find where it wraps.
+  _Rows _rowsFor(double width, bool isDark) {
+    final cached = _rows;
+    if (cached != null && _rowsWidth == width) return cached;
+    final formatted = _formatted!;
+    final oneRow = width / _cellWidth();
+    final first = Int32List(formatted.lineCount + 1);
+    final breaks = <int, Int32List>{};
+    for (var i = 0; i < formatted.lineCount; i++) {
+      var rows = 1;
+      if (formatted.cells[i] > oneRow) {
+        final painter = _layoutLine(i, width, isDark);
+        final starts = <int>[];
+        for (final metrics in painter.computeLineMetrics()) {
+          final start = painter
+              .getLineBoundary(
+                painter.getPositionForOffset(Offset(0, metrics.baseline)),
+              )
+              .start;
+          if (starts.isEmpty || start > starts.last) starts.add(start);
+        }
+        painter.dispose();
+        if (starts.length > 1) {
+          breaks[i] = Int32List.fromList(starts);
+          rows = starts.length;
+        }
+      }
+      first[i + 1] = first[i] + rows;
+    }
+    _rowsWidth = width;
+    return _rows = _Rows(first, breaks);
   }
 
   /// Scrolls the current match into view.
@@ -383,23 +495,20 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     final line = formatted.lineOf(start);
     final column = math.min(start - formatted.lineStarts[line], _maxLineChars);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_scrollController.hasClients) {
-        final v = _scrollController.position;
-        final y = 8 + line * _lineHeight;
-        if (y < v.pixels || y + _lineHeight > v.pixels + v.viewportDimension) {
-          v.jumpTo((y - v.viewportDimension * 0.3).clamp(0, v.maxScrollExtent));
-        }
+      final rows = _rows;
+      if (!mounted || rows == null || !_scrollController.hasClients) {
+        return;
       }
-      if (_horizontalController.hasClients) {
-        final h = _horizontalController.position;
-        final x =
-            _gutterWidth +
-            8 +
-            _widthOf(formatted.line(line).substring(0, column));
-        if (x < h.pixels + 24 || x > h.pixels + h.viewportDimension - 48) {
-          h.jumpTo((x - 48).clamp(0, h.maxScrollExtent));
-        }
+      var row = rows.first[line];
+      final breaks = rows.breaks[line];
+      for (var r = 1; breaks != null && r < breaks.length; r++) {
+        if (breaks[r] > column) break;
+        row++;
+      }
+      final y = 8 + row * _lineHeight;
+      final v = _scrollController.position;
+      if (y < v.pixels || y + _lineHeight > v.pixels + v.viewportDimension) {
+        v.jumpTo((y - v.viewportDimension * 0.3).clamp(0, v.maxScrollExtent));
       }
     });
   }
@@ -478,10 +587,57 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
         ),
       );
 
-  /// The lines, scrolled lazily when the height is bounded.
+  /// Lines [from] to [to] (exclusive), wrapped, beside their numbers.
+  Widget _block(int from, int to, double gutterWidth, bool isDark) => Row(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _gutter(
+        [for (var i = from + 1; i <= to; i++) i].join('\n'),
+        gutterWidth,
+        isDark,
+      ),
+      Expanded(
+        child: Text.rich(
+          TextSpan(
+            style: _textStyle,
+            children: [
+              for (var i = from; i < to; i++) ...[
+                if (i > from) const TextSpan(text: '\n'),
+                ..._lineContent(i, isDark),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+
+  /// [_buildLines], reused while nothing it reads has changed.
   Widget _lines(BoxConstraints constraints, bool isDark) {
+    final inputs = (
+      _formatted,
+      constraints,
+      isDark,
+      _matches,
+      _current,
+      _textStyle,
+      _textScaler,
+      Localizations.localeOf(context),
+    );
+    final cached = _linesWidget;
+    if (cached != null && inputs == _linesInputs) return cached;
+    _linesInputs = inputs;
+    return _linesWidget = _buildLines(constraints, isDark);
+  }
+
+  /// The lines, scrolled lazily when the height is bounded.
+  Widget _buildLines(BoxConstraints constraints, bool isDark) {
     final formatted = _formatted!;
     final gutterWidth = _gutterWidth;
+    final textWidth = math.max(
+      1.0,
+      constraints.maxWidth - gutterWidth - 8 - 16,
+    );
     if (!constraints.hasBoundedHeight) {
       var shown = 0;
       var chars = 0;
@@ -489,33 +645,26 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
         chars += formatted.line(shown).length + 1;
         shown++;
       }
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+      final oneRow = textWidth / _cellWidth();
+      final blocks = <Widget>[];
+      var run = 0;
+      for (var i = 0; i <= shown; i++) {
+        if (i < shown && formatted.cells[i] <= oneRow) continue;
+        for (final (from, to) in [(run, i), if (i < shown) (i, i + 1)]) {
+          if (to > from) {
+            blocks.add(
+              IntrinsicHeight(child: _block(from, to, gutterWidth, isDark)),
+            );
+          }
+        }
+        run = i + 1;
+      }
+      return Padding(
         padding: const EdgeInsets.fromLTRB(0, 8, 16, 8),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _gutter(
-                  [for (var i = 1; i <= shown; i++) i].join('\n'),
-                  gutterWidth,
-                  isDark,
-                ),
-                Text.rich(
-                  TextSpan(
-                    style: _textStyle,
-                    children: [
-                      for (var i = 0; i < shown; i++) ...[
-                        if (i > 0) const TextSpan(text: '\n'),
-                        ..._lineContent(i, isDark),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            ...blocks,
             if (shown < formatted.lineCount)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
@@ -528,54 +677,56 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
         ),
       );
     }
-    final longest = _longestWidth ??= _widthOf(
-      formatted
-          .line(formatted.longestLine)
-          .substring(
-            0,
-            math.min(
-              formatted.line(formatted.longestLine).length,
-              _maxLineChars,
-            ),
-          ),
-    );
-    final width = math.max(
-      gutterWidth + 8 + longest + 160,
-      constraints.maxWidth,
-    );
+    final rows = _rowsFor(textWidth, isDark);
+    final wrapped = <int, List<TextSpan>>{};
     return Scrollbar(
       controller: _scrollController,
-      notificationPredicate: (n) => n.depth == 1,
-      child: SingleChildScrollView(
-        controller: _horizontalController,
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: width,
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(
-              context,
-            ).copyWith(scrollbars: false),
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemExtent: _lineHeight,
-              itemCount: formatted.lineCount,
-              itemBuilder: (_, i) => Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _gutter('${i + 1}', gutterWidth, isDark),
-                  Text.rich(
-                    TextSpan(
-                      style: _textStyle,
-                      children: _lineContent(i, isDark),
-                    ),
-                    maxLines: 1,
-                    softWrap: false,
-                  ),
-                ],
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(0, 8, 16, 8),
+              sliver: SliverFixedExtentList(
+                itemExtent: _lineHeight,
+                delegate: SliverChildBuilderDelegate((_, r) {
+                  final line = rows.lineOf(r);
+                  final breaks = rows.breaks[line];
+                  if (breaks == null) {
+                    return _block(line, line + 1, gutterWidth, isDark);
+                  }
+                  final row = r - rows.first[line];
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _gutter(
+                        row == 0 ? '${line + 1}' : '',
+                        gutterWidth,
+                        isDark,
+                      ),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            style: _textStyle,
+                            children: _slice(
+                              wrapped.putIfAbsent(
+                                line,
+                                () => _lineContent(line, isDark),
+                              ),
+                              breaks[row],
+                              row + 1 < breaks.length ? breaks[row + 1] : null,
+                            ),
+                          ),
+                          softWrap: false,
+                        ),
+                      ),
+                    ],
+                  );
+                }, childCount: rows.count),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -617,7 +768,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     if (style != _textStyle || scaler != _textScaler) {
       _textStyle = style;
       _textScaler = scaler;
-      _longestWidth = null;
+      _rows = null;
     }
     final lineCount = _formatted?.lineCount ?? 0;
 

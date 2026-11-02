@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/code/code_generator.dart';
 import '../../../core/utils/code/code_highlighter.dart';
+import '../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../../core/utils/ui/toast_utils.dart';
 import 'json_mini_button.dart';
 import 'json_search_field.dart';
@@ -33,6 +34,7 @@ class CodeViewer extends StatefulWidget {
 class _CodeViewerState extends State<CodeViewer> {
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
+  final _scroll = SmoothScrollController();
   final _typesKey = GlobalKey();
   final _codeKey = GlobalKey();
 
@@ -53,6 +55,7 @@ class _CodeViewerState extends State<CodeViewer> {
   void dispose() {
     _search.dispose();
     _searchFocus.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -173,7 +176,12 @@ class _CodeViewerState extends State<CodeViewer> {
               searchBar,
               const SizedBox(height: 6),
               if (constraints.hasBoundedHeight)
-                Flexible(child: SingleChildScrollView(child: panels))
+                Flexible(
+                  child: SingleChildScrollView(
+                    controller: _scroll,
+                    child: panels,
+                  ),
+                )
               else
                 panels,
             ],
