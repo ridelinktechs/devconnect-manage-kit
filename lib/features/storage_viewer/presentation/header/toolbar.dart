@@ -9,6 +9,7 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/storage/storage_entry.dart';
 import '../../../../core/providers/retention_provider.dart';
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import '../../provider/storage_providers.dart';
 import '../shared/storage_tokens.dart';
 import 'icon_btn.dart';
@@ -61,6 +62,7 @@ class Toolbar extends ConsumerWidget {
           Icon(LucideIcons.database, size: 16, color: ColorTokens.primary),
           const SizedBox(width: 8),
           Text('Storage', style: theme.textTheme.titleMedium),
+          const PageGuideButton(route: '/storage'),
           const SizedBox(width: 8),
           ValueListenableBuilder<int>(
             valueListenable: totalCount,

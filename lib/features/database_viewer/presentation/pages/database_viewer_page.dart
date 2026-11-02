@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/utils/format/duration_format.dart';
@@ -11,6 +12,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/device_info.dart';
 import '../../../../models/storage/storage_entry.dart';
 import '../../../../server/providers/server_providers.dart';
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import '../../provider/database_providers.dart';
 
 /// Browses and queries the SQLite databases an app registered with
@@ -113,6 +115,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                   color: isDark ? Colors.white : Colors.black87,
                 ),
               ),
+              const PageGuideButton(route: '/database'),
               const SizedBox(width: 10),
               Expanded(
                 child: target == null
@@ -141,7 +144,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
         ),
         Expanded(
           child: target == null
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.hardDrive,
                   title: loc.database,
                   subtitle: devices.isEmpty

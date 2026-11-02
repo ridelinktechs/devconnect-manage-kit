@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/app/reload_apps.dart';
@@ -381,7 +381,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
             // ── Content ──
             Expanded(
               child: _events.isEmpty
-                  ? EmptyState(
+                  ? EmptyStateWithPulse(
                       icon: LucideIcons.layoutDashboard,
                       title: devices.isEmpty
                           ? S.of(context).noDevicesConnected

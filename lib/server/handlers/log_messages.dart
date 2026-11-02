@@ -41,7 +41,11 @@ extension _LogMessages on WsMessageHandler {
       stackTrace: p['stackTrace'] as String?,
       source: p['source'] as String?,
       deviceInfo: p['deviceInfo'] as String?,
-      metadata: p['metadata'] as Map<String, dynamic>?,
+      metadata: switch (p['metadata']) {
+        final Map m => m.cast<String, dynamic>(),
+        final String s when s.isNotEmpty => {'metadata': s},
+        _ => null,
+      },
     );
     _errorController.add(entry);
   }

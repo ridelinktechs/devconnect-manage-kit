@@ -7,7 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../../../core/utils/ui/toast_utils.dart';
@@ -83,7 +83,7 @@ class _PerformancePageState extends ConsumerState<PerformancePage> {
     final entries = ref.watch(filteredPerformanceEntriesProvider);
 
     if (entries.isEmpty) {
-      return EmptyState(
+      return EmptyStateWithPulse(
         icon: LucideIcons.gauge,
         title: S.of(context).noPerformanceData,
         subtitle: S.of(context).connectAppToProfile,

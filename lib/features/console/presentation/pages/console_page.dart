@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
 import '../../../../core/theme/color_tokens.dart';
@@ -195,7 +195,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
         const Divider(height: 1),
         Expanded(
           child: _entries.isEmpty
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.terminal,
                   title: S.of(context).noLogsYet,
                   subtitle:

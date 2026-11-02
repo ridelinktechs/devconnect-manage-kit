@@ -8,6 +8,7 @@ import '../../../../core/providers/retention_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import '../../provider/state_providers.dart';
 import 'icon_btn.dart';
 
@@ -47,6 +48,7 @@ class Toolbar extends ConsumerWidget {
           Icon(LucideIcons.layers, size: 16, color: ColorTokens.primary),
           const SizedBox(width: 8),
           Text('State Inspector', style: theme.textTheme.titleMedium),
+          const PageGuideButton(route: '/state'),
           const SizedBox(width: 8),
           ValueListenableBuilder<int>(
             valueListenable: totalCount,

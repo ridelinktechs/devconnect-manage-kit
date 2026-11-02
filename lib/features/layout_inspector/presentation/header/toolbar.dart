@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import '../shared/mini_button.dart';
 
 class Toolbar extends StatelessWidget {
@@ -71,6 +72,7 @@ class Toolbar extends StatelessWidget {
               color: palette.text,
             ),
           ),
+          const PageGuideButton(route: '/layout'),
           if (device case (final platform, final label)) ...[
             const SizedBox(width: 12),
             Icon(

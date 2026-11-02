@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/theme/color_tokens.dart';
+import '../../../settings/presentation/tips/page_guide_button.dart';
 
 class Toolbar extends StatelessWidget {
   final int sessionCount;
@@ -34,6 +35,7 @@ class Toolbar extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+          const PageGuideButton(route: '/history'),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

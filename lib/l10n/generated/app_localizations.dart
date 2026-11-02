@@ -978,7 +978,7 @@ abstract class S {
   /// No description provided for @wifiAutoConnect.
   ///
   /// In en, this message translates to:
-  /// **'WiFi auto-connects if same network. USB: install iproxy.'**
+  /// **'An iPhone connects over Wi‑Fi: put it on the same network as this Mac. A USB cable alone can\'t connect it.'**
   String get wifiAutoConnect;
 
   /// No description provided for @quickStart.
@@ -986,12 +986,6 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Quick Start'**
   String get quickStart;
-
-  /// No description provided for @quickStartDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Three steps to wire up your app. Click any platform tab to see the snippet for that SDK.'**
-  String get quickStartDesc;
 
   /// No description provided for @installSdk.
   ///
@@ -1146,7 +1140,7 @@ abstract class S {
   /// No description provided for @sdkTipsPill.
   ///
   /// In en, this message translates to:
-  /// **'Tips'**
+  /// **'Tips lib'**
   String get sdkTipsPill;
 
   /// No description provided for @sdkTipsHeader.
@@ -2988,80 +2982,164 @@ abstract class S {
   /// No description provided for @tipAllEventsBody.
   ///
   /// In en, this message translates to:
-  /// **'Unified stream of every event from your app. Use the search box to filter by tag or text. Click any row for the full detail panel. Hold Cmd/Ctrl and click to multi-select, then right-click for batch actions.'**
+  /// **'One live timeline of your app\'s logs, network requests, state changes, storage operations and errors, plus display and async-operation events.'**
   String get tipAllEventsBody;
+
+  /// No description provided for @tipAllEventsSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Type in \"Search events...\" to match messages, URL paths, actions, storage keys or tags\nToggle the \"LOG\", \"API\", \"STATE\" and \"STORE\" chips; \"ERRORS\" keeps errors and failed requests\nClick a row for details; \"Full\" or \"Tab\" saves them as an image\nPick a device, or \"All\", in the bottom bar to choose whose events show\nUse \"Oldest first\"/\"Newest first\" to flip the order and \"Auto-scroll\" to follow new events'**
+  String get tipAllEventsSteps;
+
+  /// No description provided for @tipAllEventsTip.
+  ///
+  /// In en, this message translates to:
+  /// **'\"Clear all\" here empties every page\'s list — Console, Network, State, Storage, Errors and the rest — not just this feed.'**
+  String get tipAllEventsTip;
 
   /// No description provided for @tipNetworkTitle.
   ///
   /// In en, this message translates to:
-  /// **'Inspect HTTP & WebSocket'**
+  /// **'Inspect network traffic'**
   String get tipNetworkTitle;
 
   /// No description provided for @tipNetworkBody.
   ///
   /// In en, this message translates to:
-  /// **'Click any request to inspect headers, body, and timing waterfall. Right-click a request and choose \"Copy as cURL\" to replay in a terminal. Use the URL filter box to focus on one endpoint or domain.'**
+  /// **'HTTP requests your app makes, with headers, bodies, status and duration, plus GraphQL, WebSocket and gRPC traffic and requests answered by mock rules. gRPC comes from the Android SDK only.'**
   String get tipNetworkBody;
+
+  /// No description provided for @tipNetworkSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Click a request for its \"Headers\", \"Request\", \"Response\" and \"Timing\" tabs\nFilter by method, \"2xx\"/\"3xx\"/\"Errors\", or type part of a URL in \"Filter URLs...\"\nTurn on \"Also search request & response bodies\" to search inside payloads too\nPress \"Copy cURL\" in the panel for a curl command; right-click a row for \"Replay request\"\nOpen \"Protocols\" for GraphQL, WebSocket and gRPC, or \"Mock Audit\" for mocked requests'**
+  String get tipNetworkSteps;
+
+  /// No description provided for @tipNetworkTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Connectivity checks such as generate_204 and captive.apple.com stay hidden until your search matches them.'**
+  String get tipNetworkTip;
 
   /// No description provided for @tipConsoleTitle.
   ///
   /// In en, this message translates to:
-  /// **'Live log stream'**
+  /// **'Console logs'**
   String get tipConsoleTitle;
 
   /// No description provided for @tipConsoleBody.
   ///
   /// In en, this message translates to:
-  /// **'Every print/log/Timber line shows up here in real-time. Filter by tag or text, then click a row for the full stack trace. Toggle \"Newest first\" in the toolbar to control sort order.'**
+  /// **'Your app\'s log lines as they arrive, with level, tag and time — console calls on React Native, print and debugPrint on Flutter, println on Android.'**
   String get tipConsoleBody;
+
+  /// No description provided for @tipConsoleSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle \"DEBUG\", \"INFO\", \"WARN\" and \"ERROR\" to show or hide each level\nType in \"Search logs...\" to match message text or tag\nClick a row for its tag, message, metadata and stack trace, when present\nKeep \"Group repeated logs\" on to fold identical back-to-back lines into one counted row\nUse \"Export logs\" to save the filtered list as \"Text (.txt)\" or \"JSON (.json)\"'**
+  String get tipConsoleSteps;
+
+  /// No description provided for @tipConsoleTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain console.log, print and println lines arrive as DEBUG — switch \"DEBUG\" off to keep only info, warnings and errors.'**
+  String get tipConsoleTip;
 
   /// No description provided for @tipStateTitle.
   ///
   /// In en, this message translates to:
-  /// **'State diff viewer'**
+  /// **'State inspector'**
   String get tipStateTitle;
 
   /// No description provided for @tipStateBody.
   ///
   /// In en, this message translates to:
-  /// **'Each row is one state change. Click to see Before/After JSON diff side by side. Use the action filter to focus on a specific reducer/store. Toggle \"Newest at top\" vs bottom to match your debugging flow.'**
+  /// **'Every state change your app reports, with its action and the state before and after — Redux, Zustand, MobX and more on React Native, BLoC, Riverpod and Provider on Flutter, ViewModels on Android.'**
   String get tipStateBody;
+
+  /// No description provided for @tipStateSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the \"Redux\" tab — it lists changes from every state library, not only Redux\nType in \"Filter actions...\" to match an action or store name\nClick a change, then switch between \"Diff\", \"Before\" and \"After\"\nUse \"Restore the app\'s state to this point\" (needs DevConnect.onStateRestore) or \"Save as snapshot\"\nOpen \"Controls\" to pin state paths, take snapshots and dispatch Redux actions'**
+  String get tipStateSteps;
+
+  /// No description provided for @tipStateTip.
+  ///
+  /// In en, this message translates to:
+  /// **'\"Diff\" fills only when the SDK sends one — Redux, Zustand and MobX do; Flutter and Android don\'t, so compare \"Before\" and \"After\".'**
+  String get tipStateTip;
 
   /// No description provided for @tipStorageTitle.
   ///
   /// In en, this message translates to:
-  /// **'Key-value storage'**
+  /// **'App storage'**
   String get tipStorageTitle;
 
   /// No description provided for @tipStorageBody.
   ///
   /// In en, this message translates to:
-  /// **'SharedPreferences, AsyncStorage, Hive — all in one place. Toggle READ/WRITE filters at the top. Click a key to see its full change history with timestamps.'**
+  /// **'Every read, write and delete on stores you wrap with the SDK — AsyncStorage, MMKV, SharedPreferences, Hive and more — plus the current keys of supported stores, editable here.'**
   String get tipStorageBody;
+
+  /// No description provided for @tipStorageSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'In \"History\", pick \"READ\", \"WRITE\" or \"DELETE\", and toggle store chips like \"AS\" or \"SP\"\nType a key in \"Filter keys...\" to see every operation on it; values match too\nClick a row to see that operation\'s value, size, store and time\nOpen \"Key-Value\" for a store\'s current keys, then \"Add key\", \"Edit value\" or \"Delete key\"\nPress \"Reload\" to fetch the latest contents from the app'**
+  String get tipStorageSteps;
+
+  /// No description provided for @tipStorageTip.
+  ///
+  /// In en, this message translates to:
+  /// **'\"Clear all\" in \"History\" only empties this log; \"Clear all\" in \"Key-Value\" deletes every key from the app\'s store.'**
+  String get tipStorageTip;
 
   /// No description provided for @tipDatabaseTitle.
   ///
   /// In en, this message translates to:
-  /// **'SQLite viewer'**
+  /// **'SQLite databases'**
   String get tipDatabaseTitle;
 
   /// No description provided for @tipDatabaseBody.
   ///
   /// In en, this message translates to:
-  /// **'Click any table to browse rows in the detail panel. Sort by tapping a column header. Use the refresh button to re-query after the device app writes new rows.'**
+  /// **'Browse and query the SQLite databases your app registers with DevConnect.registerDatabase: tables with row counts, a SQL box and a results grid.'**
   String get tipDatabaseBody;
+
+  /// No description provided for @tipDatabaseSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Register the database in the app with DevConnect.registerDatabase\nClick a table to preview its first 50 rows\nEdit the SQL and press \"Run\" to run your own query\nPress \"Run\" again to re-query — results don\'t refresh on their own\nPress \"Reload tables\" to refresh the table list and row counts'**
+  String get tipDatabaseSteps;
+
+  /// No description provided for @tipDatabaseTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort by adding ORDER BY to the query — the column headers don\'t sort.'**
+  String get tipDatabaseTip;
 
   /// No description provided for @tipPerformanceTitle.
   ///
   /// In en, this message translates to:
-  /// **'Live system status'**
+  /// **'Performance profiler'**
   String get tipPerformanceTitle;
 
   /// No description provided for @tipPerformanceBody.
   ///
   /// In en, this message translates to:
-  /// **'CPU, RAM, battery drain, FPS, and thermal state stream in real-time. Click \"Start Recording\" to capture a session, then analyze slow frames and jank in the detail panel.'**
+  /// **'Live charts of your app\'s FPS, CPU, memory and network activity, plus frame times, threads, battery, thermal state, disk I/O, startup time and ANRs when the SDK reports them.'**
   String get tipPerformanceBody;
+
+  /// No description provided for @tipPerformanceSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Select one device in the bottom bar — with \"All\" selected, charts mix every app\'s samples\nRead the live \"FPS\", \"MEM\", \"CPU\" and \"SLOW\" pills in the toolbar\nHover a chart to read the exact value and how long ago it arrived\nCheck \"System Status\" for startup time, battery drain, thermal state, disk I/O and ANRs\nUse \"Capture as image\" to save the charts as a PNG, and \"Clear\" to start over'**
+  String get tipPerformanceSteps;
+
+  /// No description provided for @tipPerformanceTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Hover the red badge in the FPS row for average and worst slow-frame times, plus the last five slow frames.'**
+  String get tipPerformanceTip;
 
   /// No description provided for @tipLeaksTitle.
   ///
@@ -3072,56 +3150,908 @@ abstract class S {
   /// No description provided for @tipLeaksBody.
   ///
   /// In en, this message translates to:
-  /// **'Detects undisposed controllers/streams/timers, growing collections, and widget leaks automatically. Each row shows the source location and retained size — fix it, then reconnect to verify the cleanup.'**
+  /// **'Leak warnings from your app: steady memory growth caught automatically by all three SDKs, more than 50 active timers on React Native, and anything you send with DevConnect.reportMemoryLeak.'**
   String get tipLeaksBody;
+
+  /// No description provided for @tipLeaksSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Read the red, amber and blue counts in the toolbar: critical, warning and info\nClick a row for its \"Detail\", \"Retained Size\", \"Stack Trace\" and \"Metadata\", when reported\nCheck \"Metadata\" on memory-growth rows for each sample and the total growth in MB\nReport your own finds with DevConnect.reportMemoryLeak, such as undisposed controllers or streams\nPress \"Clear\", repeat the suspect flow and watch for new warnings'**
+  String get tipLeaksSteps;
+
+  /// No description provided for @tipLeaksTip.
+  ///
+  /// In en, this message translates to:
+  /// **'By default memory is sampled every 10 seconds; a warning needs steady growth above 20 MB, and above 40 MB it turns critical.'**
+  String get tipLeaksTip;
 
   /// No description provided for @tipBenchmarkTitle.
   ///
   /// In en, this message translates to:
-  /// **'Custom timings'**
+  /// **'Benchmarks'**
   String get tipBenchmarkTitle;
 
   /// No description provided for @tipBenchmarkBody.
   ///
   /// In en, this message translates to:
-  /// **'Wrap any code in benchmarkStart/Step/Stop from the SDK to record timings. Each benchmark shows min/max/avg/p50/p95. Steps let you drill into specific phases.'**
+  /// **'Times the code you wrap with the SDK\'s benchmark calls, plus the App Startup and App Background runs every SDK records on its own.'**
   String get tipBenchmarkBody;
+
+  /// No description provided for @tipBenchmarkSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Wrap code in DevConnect.benchmarkStart and benchmarkStop — React Native starts with benchmark\nMark phases with benchmarkStep (Flutter, React Native); Android runs have no steps\nClick a run to see its \"Start\", \"End\", \"Duration\" and a waterfall of its steps\nType in \"Search benchmarks...\" to filter the list and the stats bar\nPress \"Capture as image\" to save a run\'s panel as a PNG'**
+  String get tipBenchmarkSteps;
+
+  /// No description provided for @tipBenchmarkTip.
+  ///
+  /// In en, this message translates to:
+  /// **'The stats bar covers every listed run — search one title to get \"Min\", \"Avg\" and \"P50\" for that benchmark alone.'**
+  String get tipBenchmarkTip;
 
   /// No description provided for @tipErrorsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Errors & crashes'**
+  /// **'Errors'**
   String get tipErrorsTitle;
 
   /// No description provided for @tipErrorsBody.
   ///
   /// In en, this message translates to:
-  /// **'Captures every exception and native crash. Click for the full stack trace. Native Android crashes include a C++ backtrace from the sigaction handler, so you can see the failure past the JNI boundary.'**
+  /// **'Lists the errors your app reports: React Native JavaScript errors and console.error calls, Flutter framework and Dart errors, and Android exceptions.'**
   String get tipErrorsBody;
+
+  /// No description provided for @tipErrorsSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter: start the app with DevConnect.initAndRunApp — plain init installs no error hooks\nClick the \"JS\", \"Native\", \"Android\" and \"iOS\" chips to show or hide a platform\nType in \"Search errors...\" to match the message, source or stack trace\nClick an error to open its \"Message\", \"Stack Trace\" and \"Details\" tabs\nOn a React Native stack, press \"Symbolicate\" to map frames to your source through Metro'**
+  String get tipErrorsSteps;
+
+  /// No description provided for @tipErrorsTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter errors carry the Android or iOS tag of the device they ran on — there\'s no separate Flutter chip.'**
+  String get tipErrorsTip;
 
   /// No description provided for @tipMockTitle.
   ///
   /// In en, this message translates to:
-  /// **'Mock network responses'**
+  /// **'Mock Server'**
   String get tipMockTitle;
 
   /// No description provided for @tipMockBody.
   ///
   /// In en, this message translates to:
-  /// **'Add a rule with method + URL pattern + status + body, then click \"Push All\" to install it on the device. Triggering a matching request returns your fake response — no server roundtrip. The audit log shows every hit.'**
+  /// **'Keeps fake API responses — method, URL regex, status, headers, body and an optional delay — and installs them on the selected device, so matching requests never reach the network.'**
   String get tipMockBody;
+
+  /// No description provided for @tipMockSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Android: add DevConnect.mockServerInterceptor() to your OkHttpClient first\nSelect one device, press \"Add rule\", fill in the fields and press \"Save changes\"\nPress \"Push all\" — later edits, switches and deletes then reach the device on their own\nFlip a rule\'s switch to pause it, or delete it with the trash icon\nPress \"Clear device\" to remove every rule from the device and stop syncing'**
+  String get tipMockSteps;
+
+  /// No description provided for @tipMockTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Rules live only in DevConnect\'s memory — quitting loses them, but a synced device gets them back when it reconnects.'**
+  String get tipMockTip;
 
   /// No description provided for @tipHistoryTitle.
   ///
   /// In en, this message translates to:
-  /// **'Recent devices'**
+  /// **'History'**
   String get tipHistoryTitle;
 
   /// No description provided for @tipHistoryBody.
   ///
   /// In en, this message translates to:
-  /// **'Quickly reopen a previous device\'s session to inspect past events without reconnecting. The list persists across app restarts and stores the last connected timestamp per device.'**
+  /// **'When a device disconnects and stays away 15 seconds, its logs, network calls, state changes and storage operations stay here as a read-only session until it reconnects or DevConnect quits.'**
   String get tipHistoryBody;
+
+  /// No description provided for @tipHistorySteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Click a session to open its \"All\", \"Logs\", \"Network\", \"State\" and \"Storage\" tabs\nRead each tile\'s disconnect time and its event counts\nPress × on a tile to remove that session\nPress \"Clear All\" to empty the list'**
+  String get tipHistorySteps;
+
+  /// No description provided for @tipHistoryTip.
+  ///
+  /// In en, this message translates to:
+  /// **'A session disappears as soon as the same device — or any app on the same IP — reconnects, so check it before relaunching.'**
+  String get tipHistoryTip;
+
+  /// No description provided for @tipDisplayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Display'**
+  String get tipDisplayTitle;
+
+  /// No description provided for @tipDisplayBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Shows what your app sends with DevConnect.display() — a name, optional preview text, a JSON value and metadata. All three SDKs have it.'**
+  String get tipDisplayBody;
+
+  /// No description provided for @tipDisplaySteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Call DevConnect.display with a name and an optional value, preview and metadata\nScan the rows, newest first: each shows the name, preview and time\nClick a row to see its \"Preview\", \"Value\" as JSON and \"Metadata\"\nPress \"Clear all\" to empty the list'**
+  String get tipDisplaySteps;
+
+  /// No description provided for @tipDisplayTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Each call adds a new row rather than replacing the last one — reuse a name to build a timeline.'**
+  String get tipDisplayTip;
+
+  /// No description provided for @tipAsyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Async operations'**
+  String get tipAsyncTitle;
+
+  /// No description provided for @tipAsyncBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Lists the async steps your app reports with DevConnect.reportAsyncOperation() — saga effects, tasks, background jobs — with status, duration and result or error. Nothing is tracked automatically.'**
+  String get tipAsyncBody;
+
+  /// No description provided for @tipAsyncSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Call reportAsyncOperation with a type, a description and the status start, resolve or reject\nOn React Native, wrap a promise in trackAsync to report it from start to finish\nRead the badge color: orange started, green resolved, red rejected\nClick a row for its details, \"Result\" and \"Metadata\"\nPress \"Clear all\" to empty the list'**
+  String get tipAsyncSteps;
+
+  /// No description provided for @tipAsyncTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Give related calls the same sagaName — selecting any of them lists the whole group under \"Saga timeline\".'**
+  String get tipAsyncTip;
+
+  /// No description provided for @tipLayoutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Layout inspector'**
+  String get tipLayoutTitle;
+
+  /// No description provided for @tipLayoutBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Captures the app\'s current screen with its element tree — Flutter widgets, React Native components or Android views — and shows each element\'s position, size, padding, margin and props.'**
+  String get tipLayoutBody;
+
+  /// No description provided for @tipLayoutSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Select the device and press \"Capture\" to grab its screen and element tree\nHover the screenshot to highlight an element; click to select it\nOr pick it in the \"Element tree\", or search with \"Find by name or value\"\nTurn on \"App elements only\" to hide library widgets (Flutter, React Native)\nRead \"Properties\" — box model, position, size and props — or press \"Copy as JSON\"'**
+  String get tipLayoutSteps;
+
+  /// No description provided for @tipLayoutTip.
+  ///
+  /// In en, this message translates to:
+  /// **'React Native sends a screenshot only after you call DevConnect.registerScreenshot() — without it you get outlines only.'**
+  String get tipLayoutTip;
+
+  /// No description provided for @settingsGroupConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get settingsGroupConnection;
+
+  /// No description provided for @settingsGroupConnectionDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Server, network addresses and USB.'**
+  String get settingsGroupConnectionDesc;
+
+  /// No description provided for @settingsGroupDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices'**
+  String get settingsGroupDevices;
+
+  /// No description provided for @settingsGroupDevicesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Apps connected now and the ones seen before.'**
+  String get settingsGroupDevicesDesc;
+
+  /// No description provided for @settingsGroupAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get settingsGroupAppearance;
+
+  /// No description provided for @settingsGroupAppearanceDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme, language and the tabs that show.'**
+  String get settingsGroupAppearanceDesc;
+
+  /// No description provided for @settingsGroupData.
+  ///
+  /// In en, this message translates to:
+  /// **'Display & data'**
+  String get settingsGroupData;
+
+  /// No description provided for @settingsGroupDataDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'How details show, and how much history is kept.'**
+  String get settingsGroupDataDesc;
+
+  /// No description provided for @settingsGroupGuides.
+  ///
+  /// In en, this message translates to:
+  /// **'Guides'**
+  String get settingsGroupGuides;
+
+  /// No description provided for @settingsGroupGuidesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Get started, shortcuts and tips.'**
+  String get settingsGroupGuidesDesc;
+
+  /// No description provided for @settingsGroupSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Support'**
+  String get settingsGroupSupport;
+
+  /// No description provided for @settingsGroupSupportDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Help keep DevConnect going.'**
+  String get settingsGroupSupportDesc;
+
+  /// No description provided for @tipsTabFeatures.
+  ///
+  /// In en, this message translates to:
+  /// **'Features'**
+  String get tipsTabFeatures;
+
+  /// No description provided for @tipsTabShortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'Shortcuts'**
+  String get tipsTabShortcuts;
+
+  /// No description provided for @tipsTabConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect a device'**
+  String get tipsTabConnect;
+
+  /// No description provided for @tipsTabSdk.
+  ///
+  /// In en, this message translates to:
+  /// **'SDK setup'**
+  String get tipsTabSdk;
+
+  /// No description provided for @tipsTabAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get tipsTabAdvanced;
+
+  /// No description provided for @tipsSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Steps'**
+  String get tipsSteps;
+
+  /// No description provided for @tipsKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'Keys'**
+  String get tipsKeys;
+
+  /// No description provided for @tipsProTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro tip'**
+  String get tipsProTip;
+
+  /// No description provided for @tipsPrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous'**
+  String get tipsPrevious;
+
+  /// No description provided for @tipsNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get tipsNext;
+
+  /// No description provided for @tipsDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get tipsDone;
+
+  /// No description provided for @tipsOpenPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Open page'**
+  String get tipsOpenPage;
+
+  /// No description provided for @tipsCopyCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get tipsCopyCode;
+
+  /// No description provided for @tipsCodeCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Code copied'**
+  String get tipsCodeCopied;
+
+  /// No description provided for @tipsClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get tipsClose;
+
+  /// No description provided for @pageGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'How to use this page'**
+  String get pageGuide;
+
+  /// No description provided for @guideReloadTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload the app'**
+  String get guideReloadTitle;
+
+  /// No description provided for @guideReloadSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload the inspected app from any DevConnect page, even while typing: Flutter rebuilds its widgets, React Native reloads from Metro, Android recreates the current activity.'**
+  String get guideReloadSummary;
+
+  /// No description provided for @guideReloadSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'[⌘ R] Reload the selected app, or every connected app when none is selected\n[⇧ ⌘ R] Hot restart: runs a Flutter app\'s onHotRestartRequest, otherwise reloads like ⌘ R\nOr click the reload buttons in the bottom bar — their tooltips show the shortcut'**
+  String get guideReloadSteps;
+
+  /// No description provided for @guideReloadTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter\'s ⌘ R rebuilds the widget tree and keeps state, but doesn\'t load code edits — use your IDE\'s hot reload for that.'**
+  String get guideReloadTip;
+
+  /// No description provided for @guideJsonSearchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Search inside a body'**
+  String get guideJsonSearchTitle;
+
+  /// No description provided for @guideJsonSearchSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Tree, JSON and the code view (TypeScript, Dart or Kotlin) each have their own search: it ignores case, highlights every match and scrolls to the current one.'**
+  String get guideJsonSearchSummary;
+
+  /// No description provided for @guideJsonSearchSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'[⌘ F] Jump to the view\'s search box — click inside the body first\n[↵] Go to the next match\n[⇧ ↵] Go to the previous match\n[Esc] Clear the search'**
+  String get guideJsonSearchSteps;
+
+  /// No description provided for @guideJsonSearchTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Tree search unfolds nodes and loads later pages to show up to 500 matches; JSON counts up to 100,000.'**
+  String get guideJsonSearchTip;
+
+  /// No description provided for @guideLayoutZoomTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom a layout capture'**
+  String get guideLayoutZoomTitle;
+
+  /// No description provided for @guideLayoutZoomSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom and frame a capture on the Layout page from the keyboard — the keys work as soon as a capture is shown.'**
+  String get guideLayoutZoomSummary;
+
+  /// No description provided for @guideLayoutZoomSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'[⌘ +] Zoom in, 1.25× per press\n[⌘ −] Zoom out\n[⌘ 0] Actual size: 100% is the app\'s own screen size\n[⌘ 1] Fit the whole screen in the panel\n[⌘ 2] Zoom to the selected element'**
+  String get guideLayoutZoomSteps;
+
+  /// No description provided for @guideLayoutZoomTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Click the zoom percentage for 50, 100, 200 or 400%; pinch to zoom and drag to pan.'**
+  String get guideLayoutZoomTip;
+
+  /// No description provided for @guideLayoutMeasureTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Measure spacing'**
+  String get guideLayoutMeasureTitle;
+
+  /// No description provided for @guideLayoutMeasureSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold Option to see the distances between the selected element and the one under the pointer, as design tools do.'**
+  String get guideLayoutMeasureSummary;
+
+  /// No description provided for @guideLayoutMeasureSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Select an element: click it on the capture or pick it in the tree\n[⌥] Hold Option and point at another element\nRead the gaps between separate elements, or the insets when one holds the other\nRelease Option to see the hovered element\'s box model again'**
+  String get guideLayoutMeasureSteps;
+
+  /// No description provided for @guideLayoutMeasureTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Overlapping elements show no distance — measuring needs one element inside the other, or a gap between them.'**
+  String get guideLayoutMeasureTip;
+
+  /// No description provided for @guideLayoutTreeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Walk the element tree'**
+  String get guideLayoutTreeTitle;
+
+  /// No description provided for @guideLayoutTreeSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Move through the captured element tree with the arrow keys once it has focus — click a row or an element on the capture.'**
+  String get guideLayoutTreeSummary;
+
+  /// No description provided for @guideLayoutTreeSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'[↑ ↓] Move to the row above or below\n[→] Open the row; press again to step into its first child\n[←] Close the row; press again to step out to its parent\n[Esc] Clear the selection'**
+  String get guideLayoutTreeSteps;
+
+  /// No description provided for @guideLayoutTreeTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Type in \"Find by name or value\" to search names, props and state; ↵ and ⇧ ↵ step through the matches.'**
+  String get guideLayoutTreeTip;
+
+  /// No description provided for @guideAndroidEmulatorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Android emulator'**
+  String get guideAndroidEmulatorTitle;
+
+  /// No description provided for @guideAndroidEmulatorSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Apps in the Android emulator reach this Mac at 10.0.2.2 (Genymotion: 10.0.3.2), so there\'s nothing to set up.'**
+  String get guideAndroidEmulatorSummary;
+
+  /// No description provided for @guideAndroidEmulatorSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Check that Settings › \"Connection\" › \"Server\" shows \"Server Running\"\nNative Android: pass enabled = BuildConfig.DEBUG to installForApp — it\'s off by default\nRun a debug build in the emulator; adb reverse isn\'t needed\nFind the app in the device bar at the bottom of the window'**
+  String get guideAndroidEmulatorSteps;
+
+  /// No description provided for @guideAndroidEmulatorTip.
+  ///
+  /// In en, this message translates to:
+  /// **'DevConnect starts on port 9090 at every launch; a port changed under \"Server\" lasts until you quit, and the SDK\'s port must match.'**
+  String get guideAndroidEmulatorTip;
+
+  /// No description provided for @guideAndroidUsbTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Android phone over USB'**
+  String get guideAndroidUsbTitle;
+
+  /// No description provided for @guideAndroidUsbSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'adb reverse points the phone\'s localhost at this Mac over the cable, so the app connects without Wi‑Fi.'**
+  String get guideAndroidUsbSummary;
+
+  /// No description provided for @guideAndroidUsbSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on USB debugging, plug in the phone and allow this Mac when asked\nPress \"Run ADB Reverse\" in Settings › \"Connection\" › \"USB Connection\", or run the command below\nStart the app — restart a native Android app that was already running\nNot connecting? Press \"Devices\" there to check that adb sees the phone'**
+  String get guideAndroidUsbSteps;
+
+  /// No description provided for @guideAndroidUsbTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Run it again after replugging, restarting adb or rebooting; with several devices plugged in, run adb -s with the phone\'s serial in Terminal.'**
+  String get guideAndroidUsbTip;
+
+  /// No description provided for @guideIosSimulatorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'iOS simulator'**
+  String get guideIosSimulatorTitle;
+
+  /// No description provided for @guideIosSimulatorSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'The simulator shares the Mac\'s network, so a debug build reaches DevConnect at localhost with no setup.'**
+  String get guideIosSimulatorSummary;
+
+  /// No description provided for @guideIosSimulatorSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Check that Settings › \"Connection\" › \"Server\" shows \"Server Running\"\nRun a debug build of the app in the simulator\nFind it in the device bar at the bottom of the window'**
+  String get guideIosSimulatorSteps;
+
+  /// No description provided for @guideIosSimulatorTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Start order doesn\'t matter: React Native and Flutter apps keep retrying, so they join a few seconds after DevConnect starts.'**
+  String get guideIosSimulatorTip;
+
+  /// No description provided for @guideIphoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'iPhone'**
+  String get guideIphoneTitle;
+
+  /// No description provided for @guideIphoneSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'On the same Wi‑Fi as the Mac, a debug build usually finds DevConnect by itself; if it doesn\'t, set the Mac\'s address as host.'**
+  String get guideIphoneSummary;
+
+  /// No description provided for @guideIphoneSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Put the iPhone and the Mac on the same Wi‑Fi — guest networks often block this\nRun the debug build and allow local network access when iOS asks\nWait a few seconds: React Native finds the Mac through Metro, Flutter through a broadcast\nNot listed? Copy the Mac\'s address from Settings › \"Connection\" › \"Network\"\nSet it as host in the SDK\'s init (code below), then restart the app'**
+  String get guideIphoneSteps;
+
+  /// No description provided for @guideIphoneTip.
+  ///
+  /// In en, this message translates to:
+  /// **'A USB cable alone can\'t connect an iPhone app — the phone has to reach the Mac over the network.'**
+  String get guideIphoneTip;
+
+  /// No description provided for @guideTroubleshootTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'App won\'t connect'**
+  String get guideTroubleshootTitle;
+
+  /// No description provided for @guideTroubleshootSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Most connection problems come down to a few causes — check them in this order.'**
+  String get guideTroubleshootSummary;
+
+  /// No description provided for @guideTroubleshootSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings › \"Connection\" › \"Server\" shows \"Server Running\" and no port error\nThe app is a debug build; native Android also needs enabled = BuildConfig.DEBUG\nThe SDK\'s port matches the server\'s — both start at 9090\nPhones share the Mac\'s Wi‑Fi, or Android\'s port is forwarded with adb reverse\nOn Wi‑Fi, macOS lets DevConnect accept incoming connections (System Settings › Network › Firewall)'**
+  String get guideTroubleshootSteps;
+
+  /// No description provided for @guideTroubleshootTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Still stuck? Set host to an address from Settings › \"Connection\" › \"Network\" and pass auto: false (Flutter: auto_: false) so reconnects keep it.'**
+  String get guideTroubleshootTip;
+
+  /// No description provided for @guideSdkReactNativeSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Install the package and call init once at startup — fetch and XHR (so axios too), console logs, errors and performance are captured from then on.'**
+  String get guideSdkReactNativeSummary;
+
+  /// No description provided for @guideSdkReactNativeSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Add devconnect-manage-kit with yarn or npm (commands below)\nCall DevConnect.init once at startup, before the first request\nFor state, add devConnectReduxMiddleware (Redux), devConnectMiddleware (Zustand) or setupMobxSpy (MobX)\nRun a debug build — init does nothing in release unless you pass enabled: true'**
+  String get guideSdkReactNativeSteps;
+
+  /// No description provided for @guideSdkReactNativeTip.
+  ///
+  /// In en, this message translates to:
+  /// **'init runs once per app start, so after changing host or port do a full reload — Fast Refresh keeps the old settings.'**
+  String get guideSdkReactNativeTip;
+
+  /// No description provided for @guideSdkFlutterSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Start the app through initAndRunApp: dart:io HTTP (http, Dio, Chopper…), print and debugPrint, errors and performance are captured with no extra code.'**
+  String get guideSdkFlutterSummary;
+
+  /// No description provided for @guideSdkFlutterSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Run flutter pub add devconnect_manage_kit\nStart the app with DevConnect.initAndRunApp in main(), passing an async runApp callback\nFor Riverpod or BLoC, call DevConnect.reportStateChange or reportBlocChange from your observer\nRun a debug build — profile and release builds stay off'**
+  String get guideSdkFlutterSteps;
+
+  /// No description provided for @guideSdkFlutterTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Put Firebase and other startup code inside the runApp callback — calling ensureInitialized() before initAndRunApp causes a zone mismatch.'**
+  String get guideSdkFlutterTip;
+
+  /// No description provided for @guideSdkAndroidSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Add the Maven Central dependency and call installForApp in Application.onCreate: println output, crashes, ANRs, performance and ViewModel state are captured; HTTP needs the OkHttp interceptor.'**
+  String get guideSdkAndroidSummary;
+
+  /// No description provided for @guideSdkAndroidSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Add io.github.buivietphi:devconnect-android:1.1.0 to app/build.gradle.kts\nCall DevConnect.installForApp in Application.onCreate with enabled = BuildConfig.DEBUG — it\'s off by default\nAdd DevConnect.okHttpInterceptor() to every OkHttpClient, Retrofit\'s included\nLog with DCLog instead of android.util.Log; for Timber, plant a Tree that calls DevConnectTimberHelper.log\nMake sure the app\'s manifest requests the INTERNET permission'**
+  String get guideSdkAndroidSteps;
+
+  /// No description provided for @guideSdkAndroidTip.
+  ///
+  /// In en, this message translates to:
+  /// **'The SDK looks for DevConnect once, at launch — start DevConnect (and adb reverse) first, or restart the app.'**
+  String get guideSdkAndroidTip;
+
+  /// No description provided for @guideMockApiTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Mock an API'**
+  String get guideMockApiTitle;
+
+  /// No description provided for @guideMockApiSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer matching requests with your own status, headers and body, optionally delayed, without touching the server or the app.'**
+  String get guideMockApiSummary;
+
+  /// No description provided for @guideMockApiSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a device in the bottom bar, open \"Mock Server\" and press \"Add rule\"\nSet \"Method\", \"Status\", \"URL pattern\" (a regex matched anywhere in the URL) and the body\nPress \"Save & push\" or \"Push all\" — both send the whole rule list\nCheck Network › \"Mock Audit\" for the requests a rule answered\nUse a rule\'s switch to pause it, or \"Clear device\" to remove every rule'**
+  String get guideMockApiSteps;
+
+  /// No description provided for @guideMockApiTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Android needs DevConnect.mockServerInterceptor() on OkHttp; React Native mocks fetch calls only, not axios or XMLHttpRequest.'**
+  String get guideMockApiTip;
+
+  /// No description provided for @guideNetworkConditionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Slow or offline network'**
+  String get guideNetworkConditionsTitle;
+
+  /// No description provided for @guideNetworkConditionsSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Delay the apps\' HTTP requests or make them fail, without touching device settings — DevConnect\'s own connection keeps working.'**
+  String get guideNetworkConditionsSummary;
+
+  /// No description provided for @guideNetworkConditionsSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'In Network, open the gauge menu \"Network conditions\" in the toolbar\nPick \"Slow (+500 ms)\" or \"Slow 3G (~2 s)\" to delay every request\nPick \"Offline\" to make requests fail at once, like a dead network\nPick \"Normal\" when you\'re done — the icon stays highlighted until then\nOn Android only OkHttp traffic slows down, through DevConnect.okHttpInterceptor()'**
+  String get guideNetworkConditionsSteps;
+
+  /// No description provided for @guideNetworkConditionsTip.
+  ///
+  /// In en, this message translates to:
+  /// **'It applies to every connected app, and to apps that connect later, until you pick \"Normal\".'**
+  String get guideNetworkConditionsTip;
+
+  /// No description provided for @guideReplayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replay a request'**
+  String get guideReplayTitle;
+
+  /// No description provided for @guideReplaySummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Have the app send a captured request again — same method, URL, headers and body — without tapping through its screens.'**
+  String get guideReplaySummary;
+
+  /// No description provided for @guideReplaySteps.
+  ///
+  /// In en, this message translates to:
+  /// **'In Network, right-click a request and choose \"Replay request\"\nOr open the request and click the repeat icon in its header\nThe replay shows up as a new row in the list'**
+  String get guideReplaySteps;
+
+  /// No description provided for @guideReplayTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Android reruns recent OkHttp calls through the app\'s own client and interceptors; Flutter and React Native resend the captured headers as they are.'**
+  String get guideReplayTip;
+
+  /// No description provided for @guideHarExportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export to HAR'**
+  String get guideHarExportTitle;
+
+  /// No description provided for @guideHarExportSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Save the requests Network lists as a standard HAR 1.2 file — headers, bodies, status and timing included — to open in other tools.'**
+  String get guideHarExportSummary;
+
+  /// No description provided for @guideHarExportSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Narrow the \"HTTP\" list with the device, method, status and URL filters\nClick the download icon \"Export the listed requests as HAR\" in the toolbar\nChoose where to save the .har file\nOpen it in Chrome DevTools or Charles, or share it with your team'**
+  String get guideHarExportSteps;
+
+  /// No description provided for @guideHarExportTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Only what the HTTP list shows is saved, so your filters decide what\'s in the file; \"Protocols\" entries aren\'t included.'**
+  String get guideHarExportTip;
+
+  /// No description provided for @guideDatabaseQueryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Query the app\'s database'**
+  String get guideDatabaseQueryTitle;
+
+  /// No description provided for @guideDatabaseQuerySummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse the tables of a SQLite database inside the app and run SQL on it, right from DevConnect.'**
+  String get guideDatabaseQuerySummary;
+
+  /// No description provided for @guideDatabaseQuerySteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Register the database in the app with DevConnect.registerDatabase (snippets below)\nOpen Database and click a table to preview its first 50 rows\nEdit the SQL and press \"Run\" — results stop at 1,000 rows\nClick \"Reload tables\" after the app changes its tables'**
+  String get guideDatabaseQuerySteps;
+
+  /// No description provided for @guideDatabaseQueryTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Queries run on the database of the last table you clicked, otherwise on the first one registered.'**
+  String get guideDatabaseQueryTip;
+
+  /// No description provided for @guideBigJsonTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Large bodies'**
+  String get guideBigJsonTitle;
+
+  /// No description provided for @guideBigJsonSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Big bodies open without freezing DevConnect: they\'re parsed in the background, and Tree and JSON build only what\'s on screen.'**
+  String get guideBigJsonSummary;
+
+  /// No description provided for @guideBigJsonSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Click \"Show … more\" under a long Tree list to load the next 200 items\nUse \"Copy value\" on long Tree strings — Tree shows their first 2,000 characters\nSwitch to JSON to scroll and search the whole document\nUse \"Copy JSON\" or \"Save as file\" there — both take the full body\nJSON lines over 20,000 characters show only their start; copy or save to get all of it'**
+  String get guideBigJsonSteps;
+
+  /// No description provided for @guideBigJsonTip.
+  ///
+  /// In en, this message translates to:
+  /// **'When the body is a list of objects, Tree offers \"Table\": it shows 500 rows, but \"Download table as CSV\" saves every matching row.'**
+  String get guideBigJsonTip;
+
+  /// No description provided for @guideCustomCommandsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom commands'**
+  String get guideCustomCommandsTitle;
+
+  /// No description provided for @guideCustomCommandsSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Run code inside the app from DevConnect — clear a cache, log out, seed test data — and see what it returns.'**
+  String get guideCustomCommandsSummary;
+
+  /// No description provided for @guideCustomCommandsSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Register a handler in the app with DevConnect.registerCommand (snippets below)\nOpen \"Custom commands\" and click a command the app listed, or type its name\nAdd arguments as a JSON object if the command needs any\nPress \"Run\", or ↵ in the \"Command\" field, and read the result below'**
+  String get guideCustomCommandsSteps;
+
+  /// No description provided for @guideCustomCommandsTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter and React Native handlers can be async; a thrown error shows as the result, and no answer times out after 10 seconds.'**
+  String get guideCustomCommandsTip;
+
+  /// No description provided for @restart.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart'**
+  String get restart;
+
+  /// No description provided for @serverAddressHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Apps connect to this address.'**
+  String get serverAddressHint;
+
+  /// No description provided for @serverStoppedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Start the server so apps can connect.'**
+  String get serverStoppedHint;
+
+  /// No description provided for @tabBenchmark.
+  ///
+  /// In en, this message translates to:
+  /// **'Benchmark'**
+  String get tabBenchmark;
+
+  /// No description provided for @tabDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Display'**
+  String get tabDisplay;
+
+  /// No description provided for @tabAsync.
+  ///
+  /// In en, this message translates to:
+  /// **'Async operations'**
+  String get tabAsync;
+
+  /// No description provided for @tabLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Layout inspector'**
+  String get tabLayout;
+
+  /// No description provided for @tabCommands.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom commands'**
+  String get tabCommands;
+
+  /// No description provided for @tabMockServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Mock server'**
+  String get tabMockServer;
+
+  /// No description provided for @tabsAlwaysShown.
+  ///
+  /// In en, this message translates to:
+  /// **'All Events and Settings are always shown.'**
+  String get tabsAlwaysShown;
+
+  /// No description provided for @quickStartDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Install the SDK, start it in your app, then connect.'**
+  String get quickStartDesc;
+
+  /// No description provided for @quickStartNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next — start it in your app'**
+  String get quickStartNext;
+
+  /// No description provided for @quickStartEmulator.
+  ///
+  /// In en, this message translates to:
+  /// **'Emulators connect on their own'**
+  String get quickStartEmulator;
+
+  /// No description provided for @quickStartWifi.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone on Wi‑Fi'**
+  String get quickStartWifi;
+
+  /// No description provided for @quickStartUsb.
+  ///
+  /// In en, this message translates to:
+  /// **'Android over USB'**
+  String get quickStartUsb;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

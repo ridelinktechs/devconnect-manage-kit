@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../provider/last_connected_providers.dart';
 import '../detail/session_detail_panel.dart';
 import '../header/toolbar.dart';
@@ -83,7 +83,7 @@ class _LastConnectedPageState extends ConsumerState<LastConnectedPage> {
         const Divider(height: 1),
         Expanded(
           child: sessions.isEmpty
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.history,
                   title: 'No history',
                   subtitle:

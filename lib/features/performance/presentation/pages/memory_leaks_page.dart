@@ -1,3 +1,4 @@
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -15,7 +16,7 @@ import '../../../../components/text/text_component.dart';
 import '../../../../core/utils/ui/toast_utils.dart';
 import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/performance/performance_entry.dart';
 import '../../provider/performance_providers.dart';
@@ -56,7 +57,7 @@ class _MemoryLeaksPageState extends ConsumerState<MemoryLeaksPage> {
         // Content
         Expanded(
           child: entries.isEmpty
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.bug,
                   title: S.of(context).noMemoryLeaksDetected,
                   subtitle:
@@ -142,6 +143,7 @@ class _Toolbar extends StatelessWidget {
               color: isDark ? Colors.white : Colors.black87,
             ),
           ),
+          const PageGuideButton(route: '/memory-leaks'),
           const SizedBox(width: 12),
           _SeverityBadge(
             label: S.of(context).critical,

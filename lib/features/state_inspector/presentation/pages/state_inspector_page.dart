@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../models/state/state_change.dart';
 import '../../../../components/lists/stable_list_view.dart';
@@ -201,7 +201,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
         const Divider(height: 1),
         Expanded(
           child: _entries.isEmpty
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.layers,
                   title: S.of(context).noStateChanges,
                   subtitle:

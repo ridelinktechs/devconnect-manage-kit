@@ -1,3 +1,4 @@
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -73,6 +74,7 @@ class Toolbar extends ConsumerWidget {
           Icon(LucideIcons.globe, size: 16, color: ColorTokens.primary),
           const SizedBox(width: 8),
           Text('Network', style: theme.textTheme.titleMedium),
+          const PageGuideButton(route: '/network'),
           const SizedBox(width: 8),
           ValueListenableBuilder<int>(
             valueListenable: count,

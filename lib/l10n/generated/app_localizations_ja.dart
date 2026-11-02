@@ -539,14 +539,11 @@ class SJa extends S {
   String get adbDevices => 'ADBデバイス';
 
   @override
-  String get wifiAutoConnect => '同一ネットワークでWiFi自動接続。USB：iproxyをインストール。';
+  String get wifiAutoConnect =>
+      'iPhone は Wi‑Fi 経由で接続します。この Mac と同じネットワークに接続してください。USB ケーブルだけでは接続できません。';
 
   @override
   String get quickStart => 'クイックスタート';
-
-  @override
-  String get quickStartDesc =>
-      'アプリを接続する 3 ステップ。プラットフォームのタブをクリックして、各 SDK のコードを表示します。';
 
   @override
   String get installSdk => 'SDKをインストール';
@@ -633,7 +630,7 @@ class SJa extends S {
   }
 
   @override
-  String get sdkTipsPill => 'ヒント';
+  String get sdkTipsPill => 'Tips lib';
 
   @override
   String get sdkTipsHeader => 'ライブラリの互換性';
@@ -1655,82 +1652,643 @@ class SJa extends S {
 
   @override
   String get tipAllEventsBody =>
-      'アプリからのすべてのイベントを統合したストリーム。検索ボックスでタグやテキストで絞り込み。行をクリックして詳細パネルを開く。Cmd/Ctrl を押しながらクリックで複数選択。';
+      'アプリのログ、ネットワークリクエスト、state の変更、ストレージ操作、エラーを 1 つのライブタイムラインにまとめて表示します。display と async 処理のイベントも含まれます。';
 
   @override
-  String get tipNetworkTitle => 'HTTP & WebSocket の検査';
+  String get tipAllEventsSteps =>
+      '\"イベントを検索...\"に入力して、メッセージ、URL パス、アクション、ストレージのキー、タグで絞り込み\n\"LOG\"、\"API\"、\"STATE\"、\"STORE\"のチップで種類を切り替え。\"ERRORS\"はエラーと失敗したリクエストのみ表示\n行をクリックして詳細を表示。\"全体\"または\"Tab\"で詳細を画像として保存\n下部のバーでデバイス、または\"すべて\"を選び、表示するイベントの対象を決める\n\"古い順\"/\"新しい順\"で並び順を切り替え、\"自動スクロール\"で新しいイベントに追従';
+
+  @override
+  String get tipAllEventsTip =>
+      'ここでの\"すべてクリア\"は、このフィードだけでなく、Console、Network、State、Storage、Errors など、すべてのページの一覧を空にします。';
+
+  @override
+  String get tipNetworkTitle => 'ネットワーク通信を検査';
 
   @override
   String get tipNetworkBody =>
-      'リクエストをクリックしてヘッダー、本体、タイミングウォーターフォールを検査。右クリックして「cURL としてコピー」でターミナルで再現。URL フィルターでエンドポイントを絞り込む。';
+      'アプリが送信する HTTP リクエストを、ヘッダー、本文、ステータス、所要時間とともに表示します。GraphQL、WebSocket、gRPC の通信や、モックルールが応答したリクエストも含まれます。gRPC は Android SDK からのみ届きます。';
 
   @override
-  String get tipConsoleTitle => 'ライブログストリーム';
+  String get tipNetworkSteps =>
+      'リクエストをクリックして、\"Headers\"、\"Request\"、\"Response\"、\"Timing\"のタブを表示\nメソッドや\"2xx\"/\"3xx\"/\"エラー\"で絞り込むか、\"URLをフィルター...\"に URL の一部を入力\n\"リクエスト/レスポンスのボディも検索\"をオンにすると、ペイロードの中も検索\nパネルの\"cURLをコピー\"で curl コマンドを取得。行を右クリックして\"リクエストを再送\"も選べる\n\"Protocols\"で GraphQL、WebSocket、gRPC を、\"Mock Audit\"でモックされたリクエストを表示';
+
+  @override
+  String get tipNetworkTip =>
+      'generate_204 や captive.apple.com などの接続確認リクエストは、検索が一致するまで非表示のままです。';
+
+  @override
+  String get tipConsoleTitle => 'Console のログ';
 
   @override
   String get tipConsoleBody =>
-      'すべての print/log/Timber 行がリアルタイムでここに表示。タグやテキストで絞り込み、行をクリックして完全なスタックトレースを表示。ツールバーで「最新順」を切り替え。';
+      'アプリのログ行を、レベル、タグ、時刻とともに届いた順に表示します。React Native の console 呼び出し、Flutter の print と debugPrint、Android の println が対象です。';
 
   @override
-  String get tipStateTitle => 'State 差分ビューア';
+  String get tipConsoleSteps =>
+      '\"DEBUG\"、\"INFO\"、\"WARN\"、\"ERROR\"を切り替えて、レベルごとに表示/非表示\n\"ログを検索...\"に入力して、メッセージ本文やタグで絞り込み\n行をクリックして、タグ、メッセージ、メタデータ、スタックトレース（ある場合）を表示\n\"繰り返しログをまとめる\"をオンにすると、同じ内容が連続する行を件数付きの 1 行にまとめる\n\"ログを書き出す\"で、絞り込んだ一覧を\"テキスト (.txt)\"または\"JSON (.json)\"として保存';
+
+  @override
+  String get tipConsoleTip =>
+      '通常の console.log、print、println の行は DEBUG として届きます。\"DEBUG\"をオフにすると、info、警告、エラーだけが残ります。';
+
+  @override
+  String get tipStateTitle => 'State インスペクター';
 
   @override
   String get tipStateBody =>
-      '各行は 1 つの state 変更。クリックして JSON 差分 (前後) を並べて表示。アクションフィルターで特定の reducer/store に絞り込み。';
+      'アプリが報告するすべての state 変更を、アクションと変更前後の state とともに表示します。React Native は Redux、Zustand、MobX など、Flutter は BLoC、Riverpod、Provider、Android は ViewModel が対象です。';
 
   @override
-  String get tipStorageTitle => 'キーバリューストレージ';
+  String get tipStateSteps =>
+      '\"Redux\"タブを開く（Redux だけでなく、すべての state ライブラリの変更が表示される）\n\"アクションをフィルター...\"に入力して、アクション名や store 名で絞り込み\n変更をクリックして、\"差分\"、\"変更前\"、\"変更後\"を切り替え\n\"アプリの状態をこの時点に復元\"（DevConnect.onStateRestore が必要）または\"スナップショットとして保存\"を使う\n\"コントロール\"を開いて、state パスの固定、スナップショットの取得、Redux アクションの dispatch を行う';
+
+  @override
+  String get tipStateTip =>
+      '\"差分\"は SDK が差分を送ったときだけ表示されます。Redux、Zustand、MobX は送りますが、Flutter と Android は送らないため、\"変更前\"と\"変更後\"を見比べてください。';
+
+  @override
+  String get tipStorageTitle => 'アプリのストレージ';
 
   @override
   String get tipStorageBody =>
-      'SharedPreferences、AsyncStorage、Hive — すべてを一カ所に。上の READ/WRITE フィルターを切り替え。キーをクリックして変更履歴をタイムスタンプ付きで表示。';
+      'SDK でラップしたストア（AsyncStorage、MMKV、SharedPreferences、Hive など）への読み取り、書き込み、削除をすべて表示します。対応ストアの現在のキーも表示され、ここで編集できます。';
 
   @override
-  String get tipDatabaseTitle => 'SQLite ビューア';
+  String get tipStorageSteps =>
+      '\"履歴\"で\"読み取り\"、\"書き込み\"、\"削除\"を選び、\"AS\"や\"SP\"などのストアのチップを切り替え\n\"キーをフィルター...\"にキーを入力すると、そのキーに対するすべての操作を表示（値も検索対象）\n行をクリックして、その操作の値、サイズ、ストア、時刻を表示\n\"Key-Value\"を開いてストアの現在のキーを表示し、\"キーを追加\"、\"値を編集\"、\"キーを削除\"を使う\n\"再読み込み\"を押して、アプリから最新の内容を取得';
+
+  @override
+  String get tipStorageTip =>
+      '\"履歴\"の\"すべてクリア\"はこのログを空にするだけですが、\"Key-Value\"の\"すべてクリア\"はアプリのストアからすべてのキーを削除します。';
+
+  @override
+  String get tipDatabaseTitle => 'SQLite データベース';
 
   @override
   String get tipDatabaseBody =>
-      'テーブルをクリックして詳細パネルで行を閲覧。列ヘッダーをタップしてソート。更新ボタンでデバイスアプリが新しい行を書いた後に再クエリ。';
+      'アプリが DevConnect.registerDatabase で登録した SQLite データベースを閲覧・照会できます。行数付きのテーブル一覧、SQL 入力欄、結果グリッドがあります。';
 
   @override
-  String get tipPerformanceTitle => 'ライブシステム状態';
+  String get tipDatabaseSteps =>
+      'アプリで DevConnect.registerDatabase を使ってデータベースを登録\nテーブルをクリックして、先頭 50 行をプレビュー\nSQL を編集して\"実行\"を押すと、独自のクエリを実行\nもう一度\"実行\"を押すと再照会（結果は自動では更新されない）\n\"テーブルを再読み込み\"を押して、テーブル一覧と行数を更新';
+
+  @override
+  String get tipDatabaseTip =>
+      '並べ替えるにはクエリに ORDER BY を追加してください。列ヘッダーをクリックしても並べ替えはできません。';
+
+  @override
+  String get tipPerformanceTitle => 'パフォーマンスプロファイラー';
 
   @override
   String get tipPerformanceBody =>
-      'CPU、RAM、バッテリー消費、FPS、温度状態がリアルタイムでストリーム。「録画開始」をクリックしてセッションをキャプチャし、遅いフレームを分析。';
+      'アプリの FPS、CPU、メモリ、ネットワーク通信のライブチャートを表示します。SDK が報告する場合は、フレーム時間、スレッド、バッテリー、熱状態、ディスク I/O、起動時間、ANR も表示されます。';
+
+  @override
+  String get tipPerformanceSteps =>
+      '下部のバーでデバイスを 1 つ選ぶ。\"すべて\"を選ぶと、チャートにはすべてのアプリのサンプルが混ざる\nツールバーにある\"FPS\"、\"MEM\"、\"CPU\"、\"SLOW\"のライブ値を確認\nチャートにカーソルを合わせると、正確な値と、受信からの経過時間を確認できる\n\"システム状態\"で、起動時間、バッテリー消費、熱状態、ディスク I/O、ANR を確認\n\"画像としてキャプチャ\"でチャートを PNG として保存し、\"クリア\"でやり直し';
+
+  @override
+  String get tipPerformanceTip =>
+      'FPS 行の赤いバッジにカーソルを合わせると、低速フレームの平均時間と最悪時間、直近 5 件の低速フレームを確認できます。';
 
   @override
   String get tipLeaksTitle => 'メモリリーク検出';
 
   @override
   String get tipLeaksBody =>
-      '未解放の controller/stream/timer、成長するコレクション、widget leak を自動検出。各行はソース場所と保持サイズを表示。修正後、再接続してクリーンアップを確認。';
+      'アプリからのリーク警告を表示します。3 つの SDK すべてが自動検出するメモリの継続的な増加、React Native で 50 個を超えるアクティブなタイマー、DevConnect.reportMemoryLeak で送信した内容が対象です。';
 
   @override
-  String get tipBenchmarkTitle => 'カスタムタイミング';
+  String get tipLeaksSteps =>
+      'ツールバーの赤、黄、青の件数を確認：重大、警告、情報\n行をクリックして、\"詳細\"、\"保持サイズ\"、\"スタックトレース\"、\"メタデータ\"（報告されている場合）を表示\nメモリ増加の行の\"メタデータ\"で、各サンプルと増加量の合計（MB）を確認\nDevConnect.reportMemoryLeak で、解放されていない controller や stream など、自分で見つけたリークを報告\n\"クリア\"を押して、疑わしい操作を繰り返し、新しい警告が出ないか確認';
+
+  @override
+  String get tipLeaksTip =>
+      '既定ではメモリを 10 秒ごとにサンプリングします。警告は継続的に 20 MB を超えて増加した場合に出て、40 MB を超えると重大になります。';
+
+  @override
+  String get tipBenchmarkTitle => 'ベンチマーク';
 
   @override
   String get tipBenchmarkBody =>
-      'SDK の benchmarkStart/Step/Stop で任意のコードを囲んでタイミングを記録。各ベンチマークは min/max/avg/p50/p95 を表示。ステップで各フェーズをドリルダウン。';
+      'SDK の benchmark 呼び出しで囲んだコードの所要時間を計測します。各 SDK が自動で記録する App Startup と App Background の実行も表示されます。';
 
   @override
-  String get tipErrorsTitle => 'エラー＆クラッシュ';
+  String get tipBenchmarkSteps =>
+      'DevConnect.benchmarkStart と benchmarkStop でコードを囲む（React Native は benchmark で開始）\nbenchmarkStep でフェーズに印を付ける（Flutter、React Native）。Android の実行にはステップがない\n実行をクリックして、\"開始\"、\"終了\"、\"期間\"と、ステップのウォーターフォールを表示\n\"ベンチマークを検索...\"に入力して、一覧と統計バーを絞り込み\n\"画像としてキャプチャ\"を押して、実行のパネルを PNG として保存';
+
+  @override
+  String get tipBenchmarkTip =>
+      '統計バーは一覧にあるすべての実行が対象です。1 つのタイトルで検索すると、そのベンチマークだけの\"最小\"、\"平均\"、\"P50\"が表示されます。';
+
+  @override
+  String get tipErrorsTitle => 'エラー';
 
   @override
   String get tipErrorsBody =>
-      'すべての例外とネイティブクラッシュをキャプチャ。クリックで完全なスタックトレース。Android のネイティブクラッシュには sigaction ハンドラーからの C++ バックトレースが含まれます。';
+      'アプリが報告するエラーを一覧表示します。React Native の JavaScript エラーと console.error 呼び出し、Flutter のフレームワークエラーと Dart エラー、Android の例外が対象です。';
 
   @override
-  String get tipMockTitle => 'ネットワークレスポンスをモック';
+  String get tipErrorsSteps =>
+      'Flutter：DevConnect.initAndRunApp でアプリを起動（通常の init ではエラーフックは入らない）\n\"JS\"、\"Native\"、\"Android\"、\"iOS\"のチップをクリックして、プラットフォームの表示/非表示を切り替え\n\"エラーを検索...\"に入力して、メッセージ、ソース、スタックトレースで絞り込み\nエラーをクリックして、\"Message\"、\"Stack Trace\"、\"Details\"のタブを開く\nReact Native のスタックでは\"シンボル化\"を押すと、Metro 経由でフレームをソースに対応付け';
+
+  @override
+  String get tipErrorsTip =>
+      'Flutter のエラーには、実行されたデバイスの Android または iOS のタグが付きます。Flutter 専用のチップはありません。';
+
+  @override
+  String get tipMockTitle => 'Mock Server';
 
   @override
   String get tipMockBody =>
-      'メソッド + URL パターン + status + body でルールを追加し、「Push All」をクリックしてデバイスにインストール。一致するリクエストはフェイクレスポンスを返します。';
+      '偽の API レスポンス（メソッド、URL の正規表現、ステータス、ヘッダー、ボディ、任意の遅延）を保持し、選択したデバイスにインストールします。一致するリクエストはネットワークに出ません。';
 
   @override
-  String get tipHistoryTitle => '最近のデバイス';
+  String get tipMockSteps =>
+      'Android：まず OkHttpClient に DevConnect.mockServerInterceptor() を追加\nデバイスを 1 つ選び、\"Add rule\"を押して項目を入力し、\"Save changes\"を押す\n\"Push all\"を押す。以降の編集、スイッチの切り替え、削除は自動でデバイスに反映される\nルールのスイッチを切り替えて一時停止、またはゴミ箱アイコンで削除\n\"Clear device\"を押すと、デバイスからすべてのルールを削除して同期を停止';
+
+  @override
+  String get tipMockTip =>
+      'ルールは DevConnect のメモリ上にだけあり、終了すると失われます。ただし、同期済みのデバイスは再接続時にルールを取り戻します。';
+
+  @override
+  String get tipHistoryTitle => 'セッション履歴';
 
   @override
   String get tipHistoryBody =>
-      '再接続せずに以前のセッションをすばやく再開して過去のイベントを検査。リストはアプリの再起動をまたいで永続化されます。';
+      'デバイスが切断されて 15 秒戻らないと、そのログ、ネットワーク呼び出し、state 変更、ストレージ操作が、読み取り専用のセッションとしてここに残ります。再接続するか DevConnect を終了するまで保持されます。';
+
+  @override
+  String get tipHistorySteps =>
+      'セッションをクリックして、\"All\"、\"Logs\"、\"Network\"、\"State\"、\"Storage\"のタブを開く\n各タイルの切断時刻とイベント数を確認\nタイルの × を押すと、そのセッションを削除\n\"Clear All\"を押して一覧を空にする';
+
+  @override
+  String get tipHistoryTip =>
+      '同じデバイス（または同じ IP のどのアプリ）が再接続すると、セッションはすぐに消えます。アプリを起動し直す前に確認してください。';
+
+  @override
+  String get tipDisplayTitle => 'Display';
+
+  @override
+  String get tipDisplayBody =>
+      'アプリが DevConnect.display() で送信した内容（名前、任意のプレビューテキスト、JSON の値、メタデータ）を表示します。3 つの SDK すべてで使えます。';
+
+  @override
+  String get tipDisplaySteps =>
+      '名前と、任意の value、preview、metadata を指定して DevConnect.display を呼ぶ\n新しい順に並ぶ行を確認：各行に名前、プレビュー、時刻が表示される\n行をクリックして、\"Preview\"、JSON 形式の\"Value\"、\"Metadata\"を表示\n\"Clear all\"を押して一覧を空にする';
+
+  @override
+  String get tipDisplayTip =>
+      '呼び出すたびに前の行を置き換えず、新しい行が追加されます。同じ名前を使い回すと、タイムラインを作れます。';
+
+  @override
+  String get tipAsyncTitle => '非同期処理';
+
+  @override
+  String get tipAsyncBody =>
+      'アプリが DevConnect.reportAsyncOperation() で報告した非同期処理（saga の effect、タスク、バックグラウンドジョブなど）を、ステータス、所要時間、結果またはエラーとともに一覧表示します。自動で追跡されるものはありません。';
+
+  @override
+  String get tipAsyncSteps =>
+      '種類、説明、ステータス（start、resolve、reject）を指定して reportAsyncOperation を呼ぶ\nReact Native では、promise を trackAsync で包むと、開始から完了までを報告できる\nバッジの色を確認：オレンジは開始、緑は resolve、赤は reject\n行をクリックして、詳細、\"Result\"、\"Metadata\"を表示\n\"Clear all\"を押して一覧を空にする';
+
+  @override
+  String get tipAsyncTip =>
+      '関連する呼び出しには同じ sagaName を付けてください。そのうち 1 つを選ぶと、グループ全体が\"Saga timeline\"に表示されます。';
+
+  @override
+  String get tipLayoutTitle => 'Layout インスペクター';
+
+  @override
+  String get tipLayoutBody =>
+      'アプリの現在の画面を要素ツリーとともにキャプチャし（Flutter の widget、React Native の component、Android の view）、各要素の位置、サイズ、padding、margin、props を表示します。';
+
+  @override
+  String get tipLayoutSteps =>
+      'デバイスを選んで\"キャプチャ\"を押すと、画面と要素ツリーを取得\nスクリーンショットにカーソルを合わせると要素がハイライトされ、クリックで選択\nまたは\"要素ツリー\"で選ぶか、\"名前や値で検索\"で探す\n\"アプリの要素のみ\"をオンにすると、ライブラリの widget を非表示（Flutter、React Native）\n\"プロパティ\"でボックスモデル、位置、サイズ、props を確認、または\"JSONでコピー\"を押す';
+
+  @override
+  String get tipLayoutTip =>
+      'React Native は DevConnect.registerScreenshot() を呼んだ後にだけスクリーンショットを送ります。呼ばないと、輪郭だけが表示されます。';
+
+  @override
+  String get settingsGroupConnection => '接続';
+
+  @override
+  String get settingsGroupConnectionDesc => 'サーバー、ネットワークアドレス、USB。';
+
+  @override
+  String get settingsGroupDevices => 'デバイス';
+
+  @override
+  String get settingsGroupDevicesDesc => '接続中のアプリと過去に接続したデバイス。';
+
+  @override
+  String get settingsGroupAppearance => '外観';
+
+  @override
+  String get settingsGroupAppearanceDesc => 'テーマ、言語、表示するタブ。';
+
+  @override
+  String get settingsGroupData => '表示とデータ';
+
+  @override
+  String get settingsGroupDataDesc => '詳細の表示方法と保持する履歴の量。';
+
+  @override
+  String get settingsGroupGuides => 'ガイド';
+
+  @override
+  String get settingsGroupGuidesDesc => 'クイックスタート、ショートカット、ヒント。';
+
+  @override
+  String get settingsGroupSupport => 'サポート';
+
+  @override
+  String get settingsGroupSupportDesc => 'DevConnect の開発を支援する。';
+
+  @override
+  String get tipsTabFeatures => '機能';
+
+  @override
+  String get tipsTabShortcuts => 'ショートカット';
+
+  @override
+  String get tipsTabConnect => 'デバイス接続';
+
+  @override
+  String get tipsTabSdk => 'SDK 導入';
+
+  @override
+  String get tipsTabAdvanced => '上級';
+
+  @override
+  String get tipsSteps => '手順';
+
+  @override
+  String get tipsKeys => 'キー';
+
+  @override
+  String get tipsProTip => 'ヒント';
+
+  @override
+  String get tipsPrevious => '前へ';
+
+  @override
+  String get tipsNext => '次へ';
+
+  @override
+  String get tipsDone => '完了';
+
+  @override
+  String get tipsOpenPage => 'ページを開く';
+
+  @override
+  String get tipsCopyCode => 'コピー';
+
+  @override
+  String get tipsCodeCopied => 'コードをコピーしました';
+
+  @override
+  String get tipsClose => '閉じる';
+
+  @override
+  String get pageGuide => 'このページの使い方';
+
+  @override
+  String get guideReloadTitle => 'アプリを再読み込み';
+
+  @override
+  String get guideReloadSummary =>
+      'DevConnect のどのページからでも、入力中でも、調査中のアプリを再読み込みできます。Flutter は widget を再構築し、React Native は Metro から再読み込みし、Android は現在の activity を再作成します。';
+
+  @override
+  String get guideReloadSteps =>
+      '[⌘ R] 選択中のアプリを再読み込み（未選択なら接続中のすべてのアプリ）\n[⇧ ⌘ R] ホットリスタート：Flutter アプリの onHotRestartRequest を実行し、それ以外は ⌘ R と同様に再読み込み\nまたは下部のバーの再読み込みボタンをクリック（ツールチップにショートカットが表示される）';
+
+  @override
+  String get guideReloadTip =>
+      'Flutter での ⌘ R は widget ツリーを再構築して state を保持しますが、コードの変更は読み込みません。変更を反映するには IDE のホットリロードを使ってください。';
+
+  @override
+  String get guideJsonSearchTitle => '本文内を検索';
+
+  @override
+  String get guideJsonSearchSummary =>
+      'Tree、JSON、コード表示（TypeScript、Dart、Kotlin）にはそれぞれ専用の検索があり、大文字と小文字を区別せず、一致箇所をすべて強調して、現在の一致位置までスクロールします。';
+
+  @override
+  String get guideJsonSearchSteps =>
+      '[⌘ F] この表示の検索ボックスへ移動（先に本文の中をクリック）\n[↵] 次の一致へ移動\n[⇧ ↵] 前の一致へ移動\n[Esc] 検索をクリア';
+
+  @override
+  String get guideJsonSearchTip =>
+      'Tree の検索はノードを展開し、後続のページも読み込んで最大 500 件まで表示します。JSON は最大 100,000 件までカウントします。';
+
+  @override
+  String get guideLayoutZoomTitle => 'レイアウトキャプチャを拡大';
+
+  @override
+  String get guideLayoutZoomSummary =>
+      'Layout ページのキャプチャを、キーボードで拡大・縮小して見やすい位置に合わせられます。キャプチャが表示されていれば、すぐにキーが使えます。';
+
+  @override
+  String get guideLayoutZoomSteps =>
+      '[⌘ +] 拡大（1 回押すごとに 1.25×）\n[⌘ −] 縮小\n[⌘ 0] 実寸：100% がアプリ自体の画面サイズ\n[⌘ 1] 画面全体をパネルに合わせる\n[⌘ 2] 選択中の要素にズーム';
+
+  @override
+  String get guideLayoutZoomTip =>
+      'ズームの割合をクリックすると、50、100、200、400% を選べます。ピンチでズーム、ドラッグで移動できます。';
+
+  @override
+  String get guideLayoutMeasureTitle => '間隔を測る';
+
+  @override
+  String get guideLayoutMeasureSummary =>
+      'Option を押し続けると、選択中の要素とポインターの下にある要素との距離が、デザインツールのように表示されます。';
+
+  @override
+  String get guideLayoutMeasureSteps =>
+      '要素を選択：キャプチャ上でクリックするか、ツリーで選ぶ\n[⌥] Option を押したまま、別の要素にポインターを合わせる\n離れた要素どうしなら間隔、一方がもう一方を含むなら内側の余白（インセット）を確認\nOption を離すと、ホバー中の要素のボックスモデルが再び表示される';
+
+  @override
+  String get guideLayoutMeasureTip =>
+      '重なっている要素には距離が表示されません。計測できるのは、一方がもう一方の内側にある場合か、間に隙間がある場合です。';
+
+  @override
+  String get guideLayoutTreeTitle => '要素ツリーを移動';
+
+  @override
+  String get guideLayoutTreeSummary =>
+      'キャプチャした要素ツリーにフォーカスがあるときは、矢印キーで移動できます。行、またはキャプチャ上の要素をクリックしてください。';
+
+  @override
+  String get guideLayoutTreeSteps =>
+      '[↑ ↓] 上または下の行へ移動\n[→] 行を開く。もう一度押すと最初の子に入る\n[←] 行を閉じる。もう一度押すと親に戻る\n[Esc] 選択を解除';
+
+  @override
+  String get guideLayoutTreeTip =>
+      '\"名前や値で検索\"に入力すると、名前、props、state を検索できます。↵ と ⇧ ↵ で一致箇所を順に移動します。';
+
+  @override
+  String get guideAndroidEmulatorTitle => 'Android エミュレーター';
+
+  @override
+  String get guideAndroidEmulatorSummary =>
+      'Android エミュレーター上のアプリは、10.0.2.2（Genymotion は 10.0.3.2）でこの Mac に接続できるため、設定は不要です。';
+
+  @override
+  String get guideAndroidEmulatorSteps =>
+      '設定 › \"接続\" › \"サーバー\"に\"サーバー実行中\"と表示されていることを確認\nネイティブ Android：installForApp に enabled = BuildConfig.DEBUG を渡す（既定ではオフ）\nエミュレーターでデバッグビルドを実行（adb reverse は不要）\nウィンドウ下部のデバイスバーでアプリを探す';
+
+  @override
+  String get guideAndroidEmulatorTip =>
+      'DevConnect は起動のたびにポート 9090 で始まります。\"サーバー\"で変更したポートは DevConnect を終了するまで有効で、SDK のポートも合わせる必要があります。';
+
+  @override
+  String get guideAndroidUsbTitle => 'USB 接続の Android 端末';
+
+  @override
+  String get guideAndroidUsbSummary =>
+      'adb reverse は、端末の localhost をケーブル経由でこの Mac に向けるため、Wi‑Fi なしでアプリが接続できます。';
+
+  @override
+  String get guideAndroidUsbSteps =>
+      'USB デバッグをオンにして端末を接続し、確認が出たらこの Mac を許可\n設定 › \"接続\" › \"USB接続\"の\"ADB Reverseを実行\"を押すか、下のコマンドを実行\nアプリを起動（すでに起動していたネイティブ Android アプリは再起動）\n接続できない場合は、そこで\"デバイス\"を押して、adb が端末を認識しているか確認';
+
+  @override
+  String get guideAndroidUsbTip =>
+      'ケーブルを挿し直したとき、adb を再起動したとき、端末や Mac を再起動したときは、もう一度実行してください。複数のデバイスをつないでいる場合は、ターミナルで adb -s に端末のシリアル番号を付けて実行します。';
+
+  @override
+  String get guideIosSimulatorTitle => 'iOS シミュレーター';
+
+  @override
+  String get guideIosSimulatorSummary =>
+      'シミュレーターは Mac とネットワークを共有するため、デバッグビルドは設定なしで localhost 経由で DevConnect に接続できます。';
+
+  @override
+  String get guideIosSimulatorSteps =>
+      '設定 › \"接続\" › \"サーバー\"に\"サーバー実行中\"と表示されていることを確認\nシミュレーターでアプリのデバッグビルドを実行\nウィンドウ下部のデバイスバーでアプリを探す';
+
+  @override
+  String get guideIosSimulatorTip =>
+      '起動順は関係ありません。React Native と Flutter のアプリは再試行を続けるため、DevConnect の起動から数秒後に接続されます。';
+
+  @override
+  String get guideIphoneTitle => 'iPhone';
+
+  @override
+  String get guideIphoneSummary =>
+      'Mac と同じ Wi‑Fi にあれば、デバッグビルドは通常、自動で DevConnect を見つけます。見つからない場合は、Mac のアドレスを host に設定してください。';
+
+  @override
+  String get guideIphoneSteps =>
+      'iPhone と Mac を同じ Wi‑Fi に接続（ゲストネットワークでは遮断されることが多い）\nデバッグビルドを実行し、iOS から確認されたらローカルネットワークへのアクセスを許可\n数秒待つ：React Native は Metro 経由で、Flutter はブロードキャストで Mac を見つける\n一覧に表示されない場合は、設定 › \"接続\" › \"ネットワーク\"から Mac のアドレスをコピー\nSDK の init の host にそのアドレスを設定し（コードは下記）、アプリを再起動';
+
+  @override
+  String get guideIphoneTip =>
+      'USB ケーブルだけでは iPhone アプリを接続できません。iPhone はネットワーク経由で Mac に届く必要があります。';
+
+  @override
+  String get guideTroubleshootTitle => 'アプリが接続しないとき';
+
+  @override
+  String get guideTroubleshootSummary =>
+      '接続の問題の多くは、いくつかの原因に絞られます。次の順に確認してください。';
+
+  @override
+  String get guideTroubleshootSteps =>
+      '設定 › \"接続\" › \"サーバー\"に\"サーバー実行中\"と表示され、ポートのエラーがない\nアプリがデバッグビルドである（ネイティブ Android では enabled = BuildConfig.DEBUG も必要）\nSDK のポートがサーバーのポートと一致している（どちらも 9090 から始まる）\n端末が Mac と同じ Wi‑Fi にいるか、Android のポートが adb reverse で転送されている\nWi‑Fi 利用時は、macOS が DevConnect の受信接続を許可している（システム設定 › ネットワーク › ファイアウォール）';
+
+  @override
+  String get guideTroubleshootTip =>
+      'それでも解決しない場合は、設定 › \"接続\" › \"ネットワーク\"にあるアドレスを host に設定し、auto: false（Flutter は auto_: false）を渡してください。再接続してもその設定が保たれます。';
+
+  @override
+  String get guideSdkReactNativeSummary =>
+      'パッケージをインストールして起動時に init を一度呼ぶと、それ以降は fetch と XHR（axios も含む）、console ログ、エラー、パフォーマンスが記録されます。';
+
+  @override
+  String get guideSdkReactNativeSteps =>
+      'yarn または npm で devconnect-manage-kit を追加（コマンドは下記）\n起動時、最初のリクエストより前に DevConnect.init を一度呼ぶ\nstate を扱うには、devConnectReduxMiddleware（Redux）、devConnectMiddleware（Zustand）、setupMobxSpy（MobX）を追加\nデバッグビルドを実行（リリースでは enabled: true を渡さない限り init は何もしない）';
+
+  @override
+  String get guideSdkReactNativeTip =>
+      'init はアプリの起動ごとに一度だけ実行されます。host や port を変更したら、フルリロードしてください。Fast Refresh では古い設定が残ります。';
+
+  @override
+  String get guideSdkFlutterSummary =>
+      'initAndRunApp 経由でアプリを起動すると、dart:io の HTTP（http、Dio、Chopper など）、print と debugPrint、エラー、パフォーマンスが、追加のコードなしで記録されます。';
+
+  @override
+  String get guideSdkFlutterSteps =>
+      'flutter pub add devconnect_manage_kit を実行\nmain() で DevConnect.initAndRunApp を使ってアプリを起動し、async の runApp コールバックを渡す\nRiverpod や BLoC では、observer から DevConnect.reportStateChange または reportBlocChange を呼ぶ\nデバッグビルドを実行（profile と release のビルドではオフのまま）';
+
+  @override
+  String get guideSdkFlutterTip =>
+      'Firebase などの起動時のコードは runApp コールバックの中に置いてください。initAndRunApp の前に ensureInitialized() を呼ぶと、zone mismatch が起きます。';
+
+  @override
+  String get guideSdkAndroidSummary =>
+      'Maven Central の依存関係を追加し、Application.onCreate で installForApp を呼ぶと、println の出力、クラッシュ、ANR、パフォーマンス、ViewModel の state が記録されます。HTTP には OkHttp インターセプターが必要です。';
+
+  @override
+  String get guideSdkAndroidSteps =>
+      'app/build.gradle.kts に io.github.buivietphi:devconnect-android:1.1.0 を追加\nApplication.onCreate で enabled = BuildConfig.DEBUG を指定して DevConnect.installForApp を呼ぶ（既定ではオフ）\nRetrofit のものも含め、すべての OkHttpClient に DevConnect.okHttpInterceptor() を追加\nandroid.util.Log の代わりに DCLog でログを出力。Timber では DevConnectTimberHelper.log を呼ぶ Tree を plant する\nアプリのマニフェストに INTERNET 権限があることを確認';
+
+  @override
+  String get guideSdkAndroidTip =>
+      'SDK が DevConnect を探すのは起動時の一度だけです。先に DevConnect を起動する（必要なら adb reverse も実行）か、アプリを再起動してください。';
+
+  @override
+  String get guideMockApiTitle => 'API をモックする';
+
+  @override
+  String get guideMockApiSummary =>
+      '一致するリクエストに、独自のステータス、ヘッダー、ボディで応答します。遅延も付けられ、サーバーもアプリも変更する必要はありません。';
+
+  @override
+  String get guideMockApiSteps =>
+      '下部のバーでデバイスを選び、\"Mock Server\"を開いて\"Add rule\"を押す\n\"Method\"、\"Status\"、\"URL pattern\"（URL のどこかに一致する正規表現）、ボディを設定\n\"Save & push\"または\"Push all\"を押す（どちらもルール一覧全体を送信）\nNetwork › \"Mock Audit\"で、ルールが応答したリクエストを確認\nルールのスイッチで一時停止、または\"Clear device\"ですべてのルールを削除';
+
+  @override
+  String get guideMockApiTip =>
+      'Android では OkHttp に DevConnect.mockServerInterceptor() が必要です。React Native でモックされるのは fetch 呼び出しだけで、axios や XMLHttpRequest は対象外です。';
+
+  @override
+  String get guideNetworkConditionsTitle => '低速・オフラインのネットワーク';
+
+  @override
+  String get guideNetworkConditionsSummary =>
+      'デバイスの設定を変えずに、アプリの HTTP リクエストを遅延させたり失敗させたりできます。DevConnect 自身の接続は影響を受けません。';
+
+  @override
+  String get guideNetworkConditionsSteps =>
+      'Network で、ツールバーのゲージアイコンのメニュー\"ネットワーク条件\"を開く\n\"低速 (+500 ms)\"または\"低速 3G (~2 秒)\"を選ぶと、すべてのリクエストが遅延\n\"オフライン\"を選ぶと、回線が切れたときのように、リクエストがすぐ失敗\n終わったら\"通常\"を選ぶ（それまでアイコンは強調表示のまま）\nAndroid では、DevConnect.okHttpInterceptor() を通る OkHttp の通信だけが遅くなる';
+
+  @override
+  String get guideNetworkConditionsTip =>
+      '接続中のすべてのアプリと、後から接続するアプリにも、\"通常\"を選ぶまで適用されます。';
+
+  @override
+  String get guideReplayTitle => 'リクエストを再送';
+
+  @override
+  String get guideReplaySummary =>
+      '記録したリクエストを、同じメソッド、URL、ヘッダー、ボディで、アプリに再送させます。画面を操作し直す必要はありません。';
+
+  @override
+  String get guideReplaySteps =>
+      'Network でリクエストを右クリックし、\"リクエストを再送\"を選ぶ\nまたはリクエストを開き、ヘッダーの繰り返しアイコンをクリック\n再送されたリクエストは一覧に新しい行として表示される';
+
+  @override
+  String get guideReplayTip =>
+      'Android は最近の OkHttp 呼び出しを、アプリ自身のクライアントとインターセプターを通して再実行します。Flutter と React Native は、記録したヘッダーをそのまま再送します。';
+
+  @override
+  String get guideHarExportTitle => 'HAR に書き出す';
+
+  @override
+  String get guideHarExportSummary =>
+      'Network に一覧表示されているリクエストを、標準の HAR 1.2 ファイルとして保存できます。ヘッダー、ボディ、ステータス、タイミングも含まれ、他のツールで開けます。';
+
+  @override
+  String get guideHarExportSteps =>
+      'デバイス、メソッド、ステータス、URL のフィルターで\"HTTP\"の一覧を絞り込む\nツールバーのダウンロードアイコン\"表示中のリクエストを HAR で書き出す\"をクリック\n.har ファイルの保存先を選ぶ\nChrome DevTools や Charles で開く、またはチームと共有';
+
+  @override
+  String get guideHarExportTip =>
+      '保存されるのは HTTP の一覧に表示されているものだけなので、フィルターがファイルの内容を決めます。\"Protocols\"のエントリは含まれません。';
+
+  @override
+  String get guideDatabaseQueryTitle => 'アプリのデータベースを照会';
+
+  @override
+  String get guideDatabaseQuerySummary =>
+      'アプリ内の SQLite データベースのテーブルを閲覧し、DevConnect からそのまま SQL を実行できます。';
+
+  @override
+  String get guideDatabaseQuerySteps =>
+      'アプリで DevConnect.registerDatabase を使ってデータベースを登録（スニペットは下記）\nDatabase を開き、テーブルをクリックして先頭 50 行をプレビュー\nSQL を編集して\"実行\"を押す（結果は 1,000 行まで）\nアプリがテーブルを変更したら\"テーブルを再読み込み\"をクリック';
+
+  @override
+  String get guideDatabaseQueryTip =>
+      'クエリは、最後にクリックしたテーブルのデータベースに対して実行されます。まだクリックしていなければ、最初に登録されたデータベースが対象です。';
+
+  @override
+  String get guideBigJsonTitle => '大きな本文';
+
+  @override
+  String get guideBigJsonSummary =>
+      '大きな本文でも DevConnect が固まることなく開けます。バックグラウンドで解析され、Tree と JSON は画面に表示されている部分だけを構築します。';
+
+  @override
+  String get guideBigJsonSteps =>
+      '長い Tree リストの下にある\"さらに … 件表示\"をクリックすると、次の 200 件を読み込む\nTree の長い文字列では\"値をコピー\"を使う（Tree には先頭 2,000 文字しか表示されない）\nJSON に切り替えると、文書全体をスクロール・検索できる\nそこで\"Copy JSON\"または\"Save as file\"を使う（どちらも本文全体が対象）\n20,000 文字を超える JSON の行は先頭だけ表示される。全体はコピーまたは保存で取得';
+
+  @override
+  String get guideBigJsonTip =>
+      '本文がオブジェクトのリストの場合、Tree に\"テーブル\"が表示されます。表示は 500 行までですが、\"表をCSVでダウンロード\"は一致するすべての行を保存します。';
+
+  @override
+  String get guideCustomCommandsTitle => 'カスタムコマンド';
+
+  @override
+  String get guideCustomCommandsSummary =>
+      'DevConnect からアプリ内のコードを実行できます。キャッシュの削除、ログアウト、テストデータの作成などを行い、戻り値を確認します。';
+
+  @override
+  String get guideCustomCommandsSteps =>
+      'アプリで DevConnect.registerCommand を使ってハンドラーを登録（スニペットは下記）\n\"カスタムコマンド\"を開き、アプリが一覧に出したコマンドをクリックするか、名前を入力\nコマンドが必要とする場合は、引数を JSON オブジェクトで追加\n\"実行\"を押すか、\"コマンド\"欄で ↵ を押して、下に表示される結果を確認';
+
+  @override
+  String get guideCustomCommandsTip =>
+      'Flutter と React Native のハンドラーは async にできます。スローされたエラーは結果として表示され、応答がない場合は 10 秒でタイムアウトします。';
+
+  @override
+  String get restart => '再起動';
+
+  @override
+  String get serverAddressHint => 'アプリはこのアドレスに接続します。';
+
+  @override
+  String get serverStoppedHint => 'アプリが接続できるようにサーバーを起動してください。';
+
+  @override
+  String get tabBenchmark => 'ベンチマーク';
+
+  @override
+  String get tabDisplay => '表示';
+
+  @override
+  String get tabAsync => '非同期処理';
+
+  @override
+  String get tabLayout => 'レイアウト検査';
+
+  @override
+  String get tabCommands => 'カスタムコマンド';
+
+  @override
+  String get tabMockServer => 'モックサーバー';
+
+  @override
+  String get tabsAlwaysShown => 'すべてのイベントと設定は常に表示されます。';
+
+  @override
+  String get quickStartDesc => 'SDK を入れてアプリで起動し、接続します。';
+
+  @override
+  String get quickStartNext => '次に — アプリで起動';
+
+  @override
+  String get quickStartEmulator => 'エミュレーターは自動接続';
+
+  @override
+  String get quickStartWifi => 'Wi‑Fi の実機';
+
+  @override
+  String get quickStartUsb => 'USB の Android';
 }

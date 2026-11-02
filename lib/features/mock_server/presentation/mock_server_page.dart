@@ -1,3 +1,4 @@
+import '../../settings/presentation/tips/page_guide_button.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../components/feedback/empty_state.dart';
+import '../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../core/theme/color_tokens.dart';
 import '../../../core/utils/ui/toast_utils.dart';
 import '../../../models/round/mock_entry.dart';
@@ -105,6 +107,7 @@ class _MockServerPageState extends ConsumerState<MockServerPage> {
         PageBar(
           icon: LucideIcons.server,
           title: 'Mock Server',
+          afterTitle: const PageGuideButton(route: '/mock-server'),
           count: rules.length,
           countLabel: 'rule',
           actions: [
@@ -150,7 +153,7 @@ class _MockServerPageState extends ConsumerState<MockServerPage> {
                     ),
                     Expanded(
                       child: rules.isEmpty
-                          ? EmptyState(
+                          ? EmptyStateWithPulse(
                               icon: LucideIcons.scrollText,
                               title: 'No rules',
                               subtitle:

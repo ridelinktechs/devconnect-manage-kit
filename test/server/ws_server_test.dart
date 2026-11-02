@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:devconnect_manage_tool/core/constants/ws_constants.dart';
+import 'package:devconnect_manage_tool/core/providers/app_version_provider.dart';
 import 'package:devconnect_manage_tool/models/device_info.dart';
+import 'package:devconnect_manage_tool/server/providers/server_providers.dart';
 import 'package:devconnect_manage_tool/server/ws_server.dart';
 
 void main() {
@@ -56,6 +59,32 @@ void main() {
 
   Future<List<DeviceInfo>> handshakes(int n) =>
       server.onConnection.take(n).toList().timeout(const Duration(seconds: 5));
+
+  test('server:hello and the HTTP reply carry the app version', () async {
+    server.version = '9.9.9';
+    final ws = await WebSocket.connect('ws://127.0.0.1:${server.port}');
+    sockets.add(ws);
+    final hello = jsonDecode(await ws.first as String) as Map<String, dynamic>;
+    expect(hello['type'], WsMessageTypes.serverHello);
+    expect((hello['payload'] as Map)['version'], '9.9.9');
+
+    final client = HttpClient();
+    addTearDown(client.close);
+    final res = await (await client.get('127.0.0.1', server.port, '/')).close();
+    final info = jsonDecode(await res.transform(utf8.decoder).join()) as Map;
+    expect(info['version'], '9.9.9');
+  });
+
+  test('the server takes the version of the running app', () async {
+    final container = ProviderContainer(
+      overrides: [appVersionProvider.overrideWith((_) async => '9.9.9')],
+    );
+    addTearDown(container.dispose);
+    final s = container.read(wsServerProvider);
+    await container.read(appVersionProvider.future);
+    await Future<void>.delayed(Duration.zero);
+    expect(s.version, '9.9.9');
+  });
 
   test('two devices of one app on this machine both stay connected', () async {
     final connected = handshakes(2);

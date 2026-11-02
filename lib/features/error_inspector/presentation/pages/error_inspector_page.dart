@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/scroll/position_retained_scroll_physics.dart';
 import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
@@ -13,7 +16,6 @@ import '../../provider/error_providers.dart';
 import '../detail/error_detail_panel.dart';
 import '../event_row/error_list_item.dart';
 import '../header/toolbar.dart';
-import '../shared/empty_state_with_pulse.dart';
 
 /// Top-level Error Inspector page. Composes:
 ///
@@ -205,6 +207,8 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
         Expanded(
           child: _entries.isEmpty
               ? const EmptyStateWithPulse(
+                  icon: LucideIcons.shieldCheck,
+                  color: ColorTokens.logError,
                   title: 'No errors recorded',
                   subtitle:
                       "When the connected app reports an error, it'll show up here.",

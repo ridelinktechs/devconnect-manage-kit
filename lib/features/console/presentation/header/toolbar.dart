@@ -1,3 +1,4 @@
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -57,6 +58,7 @@ class Toolbar extends ConsumerWidget {
           Icon(LucideIcons.terminal, size: 16, color: ColorTokens.primary),
           const SizedBox(width: 8),
           Text('Console', style: theme.textTheme.titleMedium),
+          const PageGuideButton(route: '/console'),
           const SizedBox(width: 8),
           ValueListenableBuilder<int>(
             valueListenable: entryCount,

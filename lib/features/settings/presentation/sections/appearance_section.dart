@@ -3,15 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/providers/locale_provider.dart';
-import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../controls/bubble_slider.dart';
+import '../controls/segmented_picker.dart';
+import '../controls/settings_row.dart';
+import '../controls/stretch_switch.dart';
 import '../header/section_title.dart';
 import 'language_dropdown.dart';
 
-/// Appearance card — theme (Dark / Light), scroll direction
-/// (Top / Bottom), Language (popup), Smooth Scrolling (switch +
-/// duration slider).
+/// Appearance card — theme (Dark / Light), Language (popup), scroll
+/// direction (Top / Bottom), Smooth Scrolling (switch + duration slider).
 class AppearanceSection extends ConsumerWidget {
   const AppearanceSection({super.key});
 
@@ -19,202 +21,101 @@ class AppearanceSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final scrollDir = ref.watch(scrollDirectionProvider);
+    final smooth = ref.watch(smoothScrollEnabledProvider);
+    final smoothMs = ref.watch(smoothScrollDurationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = S.of(context);
+    final durationRow = SettingsRow(
+      title: s.smoothScrollingDuration,
+      description: s.smoothScrollingDurationDesc,
+      control: BubbleSlider(
+        value: smoothMs,
+        min: 100,
+        max: 1000,
+        step: 50,
+        ticks: const [100, 400, 700, 1000],
+        format: (v) => '${v}ms',
+        label: s.smoothScrollingDuration,
+        onChanged: (v) =>
+            ref.read(smoothScrollDurationProvider.notifier).set(v),
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionTitle(icon: LucideIcons.palette, title: S.of(context).appearance),
-        // Theme
-        Row(
-          children: [
-            SizedBox(
-              width: 100,
-              child: Text(S.of(context).theme,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-            ),
-            Expanded(
-              child: SegmentedButton<ThemeMode>(
-                segments: [
-                  ButtonSegment(
-                    value: ThemeMode.dark,
-                    icon: Icon(LucideIcons.moon, size: 14),
-                    label: Text(S.of(context).dark),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.light,
-                    icon: Icon(LucideIcons.sun, size: 14),
-                    label: Text(S.of(context).light),
-                  ),
-                ],
-                selected: {themeMode},
-                onSelectionChanged: (value) {
-                  final mode = value.first;
-                  if (mode == ThemeMode.dark) {
-                    ref.read(themeModeProvider.notifier).setDark();
-                  } else {
-                    ref.read(themeModeProvider.notifier).setLight();
-                  }
-                },
-                style: ButtonStyle(
-                  textStyle: WidgetStateProperty.all(
-                    const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        SectionTitle(icon: LucideIcons.palette, title: s.appearance),
+        SettingsRow(
+          first: true,
+          title: s.theme,
+          control: SegmentedPicker<ThemeMode>(
+            segments: [
+              (value: ThemeMode.dark, label: s.dark, icon: LucideIcons.moon),
+              (value: ThemeMode.light, label: s.light, icon: LucideIcons.sun),
+            ],
+            value: themeMode,
+            onChanged: (mode) {
+              if (mode == ThemeMode.dark) {
+                ref.read(themeModeProvider.notifier).setDark();
+              } else {
+                ref.read(themeModeProvider.notifier).setLight();
+              }
+            },
+          ),
         ),
-        const SizedBox(height: 12),
-        // Scroll direction
-        Row(
-          children: [
-            SizedBox(
-              width: 100,
-              child: Text(S.of(context).autoScroll,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-            ),
-            Expanded(
-              child: SegmentedButton<ScrollDirection>(
-                segments: [
-                  ButtonSegment(
-                    value: ScrollDirection.bottom,
-                    icon: Icon(LucideIcons.arrowDownToLine, size: 14),
-                    label: Text(S.of(context).bottom),
-                  ),
-                  ButtonSegment(
-                    value: ScrollDirection.top,
-                    icon: Icon(LucideIcons.arrowUpToLine, size: 14),
-                    label: Text(S.of(context).top),
-                  ),
-                ],
-                selected: {scrollDir},
-                onSelectionChanged: (value) {
-                  ref.read(scrollDirectionProvider.notifier).set(value.first);
-                },
-                style: ButtonStyle(
-                  textStyle: WidgetStateProperty.all(
-                    const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        SettingsRow(
+          title: s.language,
+          control: LanguageDropdown(
+            selected: ref.watch(localeProvider),
+            isDark: isDark,
+            onSelect: (locale) {
+              ref.read(localeProvider.notifier).setLocale(locale);
+            },
+          ),
         ),
-        const SizedBox(height: 12),
-        // Language
-        Row(
-          children: [
-            SizedBox(
-              width: 100,
-              child: Text(S.of(context).language,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-            ),
-            Expanded(
-              child: LanguageDropdown(
-                selected: ref.watch(localeProvider),
-                isDark: isDark,
-                onSelect: (locale) {
-                  ref.read(localeProvider.notifier).setLocale(locale);
-                },
+        SettingsRow(
+          title: s.autoScroll,
+          control: SegmentedPicker<ScrollDirection>(
+            segments: [
+              (
+                value: ScrollDirection.bottom,
+                label: s.bottom,
+                icon: LucideIcons.arrowDownToLine,
               ),
-            ),
-          ],
+              (
+                value: ScrollDirection.top,
+                label: s.top,
+                icon: LucideIcons.arrowUpToLine,
+              ),
+            ],
+            value: scrollDir,
+            onChanged: (v) => ref.read(scrollDirectionProvider.notifier).set(v),
+          ),
         ),
-        const SizedBox(height: 12),
-        // Smooth scroll
-        Row(
-          children: [
-            SizedBox(
-              width: 100,
-              child: Text(
-                S.of(context).smoothScrolling,
-                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-              ),
-            ),
-            Switch.adaptive(
-              value: ref.watch(smoothScrollEnabledProvider),
+        SettingsRow(
+          title: s.smoothScrolling,
+          description: s.smoothScrollingDesc,
+          control: Align(
+            alignment: Alignment.centerRight,
+            child: StretchSwitch(
+              value: smooth,
+              label: s.smoothScrolling,
               onChanged: (v) =>
                   ref.read(smoothScrollEnabledProvider.notifier).set(v),
             ),
-            const SizedBox(width: 8),
-            Text(
-              ref.watch(smoothScrollEnabledProvider)
-                  ? S.of(context).on
-                  : S.of(context).off,
-              style: TextStyle(
-                fontSize: 12,
-                color: ref.watch(smoothScrollEnabledProvider)
-                    ? ColorTokens.primary
-                    : Colors.grey[500],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.only(left: 100),
-          child: Text(
-            S.of(context).smoothScrollingDesc,
-            style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
           ),
         ),
-        if (ref.watch(smoothScrollEnabledProvider)) ...[
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  S.of(context).smoothScrollingDuration,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                ),
-              ),
-              Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 2,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                  ),
-                  child: Slider(
-                    value: ref.watch(smoothScrollDurationProvider).toDouble(),
-                    min: 100,
-                    max: 1000,
-                    divisions: 18,
-                    label: '${ref.watch(smoothScrollDurationProvider)}ms',
-                    activeColor: ColorTokens.primary,
-                    inactiveColor: isDark ? Colors.white12 : Colors.black12,
-                    onChanged: (v) => ref
-                        .read(smoothScrollDurationProvider.notifier)
-                        .set(v.round()),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 50,
-                child: Text(
-                  '${ref.watch(smoothScrollDurationProvider)}ms',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: ColorTokens.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+        if (MediaQuery.disableAnimationsOf(context))
+          smooth ? durationRow : const SizedBox.shrink()
+        else
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: const Cubic(0.2, 0.8, 0.2, 1),
+            alignment: Alignment.topCenter,
+            child: smooth
+                ? durationRow
+                : const SizedBox(width: double.infinity),
           ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.only(left: 100),
-            child: Text(
-              S.of(context).smoothScrollingDurationDesc,
-              style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
-            ),
-          ),
-        ],
       ],
     );
   }

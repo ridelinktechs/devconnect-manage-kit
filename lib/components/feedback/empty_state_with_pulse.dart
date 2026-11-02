@@ -1,22 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../core/theme/color_tokens.dart';
+import '../../core/theme/color_tokens.dart';
 
-/// Rich empty state with a breathing shield icon and a one-shot
+/// Rich empty state with a breathing [icon] and a one-shot
 /// fade+slide entrance for the title.
 ///
 /// Replaces the bland `EmptyState(icon: checkCircle, …)` from
 /// `lib/components/feedback/empty_state.dart` with a layout that has
-/// actual motion: a stacked shield with two concentric breathing rings
-/// that perpetually expand + fade, plus a title that fades + slides in
-/// when the widget mounts.
+/// actual motion: the icon on a tinted disc with two concentric breathing
+/// rings that perpetually expand + fade, plus a title that fades + slides
+/// in when the widget mounts. It holds still when animations are off.
 class EmptyStateWithPulse extends StatefulWidget {
+  final IconData icon;
+
+  /// Tint of the rings, the disc and the icon.
+  final Color color;
   final String title;
   final String subtitle;
 
   const EmptyStateWithPulse({
     super.key,
+    required this.icon,
+    this.color = ColorTokens.primary,
     required this.title,
     required this.subtitle,
   });
@@ -39,7 +44,7 @@ class _EmptyStateWithPulseState extends State<EmptyStateWithPulse>
     _breathCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3200),
-    )..repeat(reverse: true);
+    );
     // One-shot entrance animation for the title + icon
     _entryCtrl = AnimationController(
       vsync: this,
@@ -56,7 +61,18 @@ class _EmptyStateWithPulseState extends State<EmptyStateWithPulse>
       parent: _entryCtrl,
       curve: Curves.easeOutCubic,
     ));
-    _entryCtrl.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _breathCtrl.stop();
+      _entryCtrl.value = 1;
+    } else if (!_breathCtrl.isAnimating) {
+      _breathCtrl.repeat(reverse: true);
+      _entryCtrl.forward();
+    }
   }
 
   @override
@@ -77,7 +93,7 @@ class _EmptyStateWithPulseState extends State<EmptyStateWithPulse>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Animated shield with breathing rings (perpetual motion)
+              // Animated icon with breathing rings (perpetual motion)
               SizedBox(
                 width: 120,
                 height: 120,
@@ -96,7 +112,7 @@ class _EmptyStateWithPulseState extends State<EmptyStateWithPulse>
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: ColorTokens.logError
+                                color: widget.color
                                     .withValues(alpha: 0.12 + 0.08 * _breathCtrl.value),
                                 width: 1.5,
                               ),
@@ -112,29 +128,29 @@ class _EmptyStateWithPulseState extends State<EmptyStateWithPulse>
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: ColorTokens.logError
+                                color: widget.color
                                     .withValues(alpha: 0.20 + 0.10 * (1 - _breathCtrl.value)),
                                 width: 1.5,
                               ),
                             ),
                           ),
                         ),
-                        // Shield icon
+                        // Icon
                         Container(
                           width: 56,
                           height: 56,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: ColorTokens.logError.withValues(alpha: 0.10),
+                            color: widget.color.withValues(alpha: 0.10),
                             border: Border.all(
-                              color: ColorTokens.logError.withValues(alpha: 0.30),
+                              color: widget.color.withValues(alpha: 0.30),
                               width: 1,
                             ),
                           ),
                           child: Icon(
-                            LucideIcons.shieldCheck,
+                            widget.icon,
                             size: 28,
-                            color: ColorTokens.logError,
+                            color: widget.color,
                           ),
                         ),
                       ],

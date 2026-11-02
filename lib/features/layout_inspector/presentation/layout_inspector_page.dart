@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../components/feedback/empty_state.dart';
+import '../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../core/theme/chrome_palette.dart';
 import '../../../core/utils/files/save_file.dart';
 import '../../../core/utils/scroll/smooth_scroll_controller.dart';
@@ -308,13 +308,13 @@ class _LayoutInspectorPageState extends ConsumerState<LayoutInspectorPage> {
         ),
         Expanded(
           child: target == null
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.scanSearch,
                   title: loc.layoutTitle,
                   subtitle: loc.layoutNoDevice,
                 )
               : snapshot == null || shown == null
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.scanSearch,
                   title: loc.layoutTitle,
                   subtitle: unanswered

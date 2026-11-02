@@ -1,3 +1,4 @@
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -15,7 +16,7 @@ import '../../../../core/utils/format/duration_format.dart';
 import '../../../../core/utils/ui/toast_utils.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/log/benchmark_entry.dart';
@@ -73,7 +74,7 @@ class _BenchmarkPageState extends ConsumerState<BenchmarkPage> {
         // Content
         Expanded(
           child: entries.isEmpty
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.timer,
                   title: S.of(context).noBenchmarks,
                   subtitle:
@@ -172,6 +173,7 @@ class _Toolbar extends ConsumerWidget {
               color: isDark ? Colors.white : Colors.black87,
             ),
           ),
+          const PageGuideButton(route: '/benchmark'),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

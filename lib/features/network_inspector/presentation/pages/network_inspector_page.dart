@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/layout/segmented_tab_bar.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
@@ -201,7 +201,7 @@ class _NetworkInspectorPageState
     final scrollDir = ref.watch(scrollDirectionProvider);
     final isReversed = scrollDir == ScrollDirection.top;
     return _entries.isEmpty
-        ? EmptyState(
+        ? EmptyStateWithPulse(
             icon: LucideIcons.globe,
             title: S.of(context).noNetworkRequests,
             subtitle: S.of(context).apiCallsAppearHere,

@@ -1,3 +1,4 @@
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/utils/format/duration_format.dart';
@@ -99,7 +101,7 @@ class _CustomCommandsPageState extends ConsumerState<CustomCommandsPage> {
         ),
         Expanded(
           child: devices.isEmpty
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.squareTerminal,
                   title: loc.commandsTitle,
                   subtitle: loc.commandsNoDevice,
@@ -192,6 +194,7 @@ class _Toolbar extends StatelessWidget {
               color: isDark ? Colors.white : Colors.black87,
             ),
           ),
+          const PageGuideButton(route: '/commands'),
           const Spacer(),
           IconButton(
             icon: const Icon(LucideIcons.trash2, size: 14),

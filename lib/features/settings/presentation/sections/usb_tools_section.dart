@@ -12,7 +12,7 @@ import '../shared/code_block.dart';
 import '../usb/adb_resolver.dart';
 
 /// USB Tools card — adb reverse for Android (uses [resolveAdbPath] to
-/// locate the binary, falls back to a SnackBar if missing), iProxy
+/// locate the binary, falls back to a SnackBar if missing), a Wi‑Fi
 /// hint for iOS, plus copy-able code blocks for the terminal commands.
 class UsbToolsSection extends StatelessWidget {
   final int port;
@@ -170,18 +170,6 @@ class UsbToolsSection extends StatelessWidget {
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 6),
-        CodeBlock(
-          code: 'brew install libimobiledevice',
-          bg: codeBg,
-          onCopy: onCopy,
-        ),
-        const SizedBox(height: 4),
-        CodeBlock(
-          code: 'iproxy $port $port',
-          bg: codeBg,
-          onCopy: onCopy,
         ),
       ],
     );

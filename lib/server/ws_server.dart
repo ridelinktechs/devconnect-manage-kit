@@ -27,6 +27,10 @@ class WsServer {
   // and a real iPhone on the same network).
   String? _machineId;
 
+  /// The desktop app's version, sent in the beacon, the HTTP reply and
+  /// `server:hello`.
+  String version = '';
+
   final _messageController = StreamController<DCMessage>.broadcast();
   final _connectionController = StreamController<DeviceInfo>.broadcast();
   final _disconnectionController = StreamController<String>.broadcast();
@@ -91,15 +95,14 @@ class WsServer {
       );
       _udpSocket!.broadcastEnabled = true;
 
-      final beacon = utf8.encode(jsonEncode({
-        'type': 'devconnect_beacon',
-        'port': wsPort,
-        'machineId': machineId,
-        'app': AppConstants.appName,
-        'version': AppConstants.appVersion,
-      }));
-
       _beaconTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+        final beacon = utf8.encode(jsonEncode({
+          'type': 'devconnect_beacon',
+          'port': wsPort,
+          'machineId': machineId,
+          'app': AppConstants.appName,
+          'version': version,
+        }));
         try {
           // Broadcast to 255.255.255.255 (limited broadcast)
           _udpSocket?.send(
@@ -174,7 +177,7 @@ class WsServer {
         ..headers.contentType = ContentType.json
         ..write(jsonEncode({
           'app': AppConstants.appName,
-          'version': AppConstants.appVersion,
+          'version': version,
           'machineId': machineId,
           'connections': _connections.length,
         }));
@@ -189,7 +192,7 @@ class WsServer {
       type: WsMessageTypes.serverHello,
       deviceId: 'server',
       timestamp: DateTime.now().millisecondsSinceEpoch,
-      payload: {'version': AppConstants.appVersion, 'machineId': machineId},
+      payload: {'version': version, 'machineId': machineId},
     );
     socket.add(jsonEncode(helloMsg.toJson()));
 

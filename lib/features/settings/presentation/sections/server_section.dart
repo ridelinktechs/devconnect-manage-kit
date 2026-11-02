@@ -2,67 +2,189 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../core/constants/app_constants.dart';
+import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../header/section_title.dart';
 import '../shared/action_button.dart';
+import '../shared/status_chip.dart';
 
-/// Server & Connection card — port input + start/stop button + error
-/// banner. Owns no state of its own; the parent passes the controller
-/// + server snapshot and reacts to [onStartStop].
+/// Server & Connection card — status, the address apps connect to, port
+/// input, Start / Stop / Restart buttons and the start error banner. Owns
+/// no state of its own; the parent passes the controller + server snapshot
+/// and reacts to [onStartStop] and [onRestart].
 class ServerSection extends ConsumerWidget {
   final TextEditingController portController;
   final dynamic server;
+  final String address;
+  final bool restarting;
   final VoidCallback onStartStop;
+  final VoidCallback onRestart;
+  final void Function(String, [String?]) onCopy;
 
   const ServerSection({
     super.key,
     required this.portController,
     required this.server,
+    required this.address,
+    required this.restarting,
     required this.onStartStop,
+    required this.onRestart,
+    required this.onCopy,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final startError = ref.watch(serverStartErrorProvider);
+    final s = S.of(context);
+    final p = ChromePalette.of(context);
+    final running = server.isRunning == true;
+    final accent = p.isDark ? ColorTokens.primaryLight : ColorTokens.primary;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionTitle(icon: LucideIcons.server, title: S.of(context).server),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: SectionTitle(icon: LucideIcons.server, title: s.server),
+            ),
+            StatusChip(
+              color: running ? ColorTokens.success : ColorTokens.error,
+              label: running ? s.serverRunning : s.serverStopped,
+              pulse: running,
+            ),
+          ],
+        ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+          decoration: BoxDecoration(
+            color: p.codeBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: running
+                  ? ColorTokens.success.withValues(alpha: 0.35)
+                  : p.border,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                running ? LucideIcons.radioTower : LucideIcons.radio,
+                size: 16,
+                color: running ? ColorTokens.success : p.textMuted,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: running && address.isNotEmpty
+                    ? Text(
+                        address,
+                        style: chromeMono(
+                          context,
+                          size: 13.5,
+                          color: p.text,
+                          weight: FontWeight.w600,
+                        ),
+                      )
+                    : Text(
+                        s.serverStoppedHint,
+                        style: TextStyle(fontSize: 12.5, color: p.textMuted),
+                      ),
+              ),
+              if (running && address.isNotEmpty)
+                Tooltip(
+                  message: s.copy,
+                  child: IconButton(
+                    onPressed: () => onCopy(address),
+                    icon: Icon(LucideIcons.copy, size: 15, color: p.textMuted),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (running) ...[
+          const SizedBox(height: 6),
+          Text(
+            s.serverAddressHint,
+            style: TextStyle(fontSize: 12, color: p.textMuted),
+          ),
+        ],
+        const SizedBox(height: 16),
         Row(
           children: [
-            Text(S.of(context).port, style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-            const SizedBox(width: 12),
+            Text(s.port, style: TextStyle(fontSize: 13, color: p.textMuted)),
+            const SizedBox(width: 10),
             SizedBox(
-              width: 90,
-              height: 34,
+              width: 96,
+              height: 36,
               child: TextField(
                 controller: portController,
-                enabled: !server.isRunning,
-                style: TextStyle(
-                  fontFamily: AppConstants.monoFontFamily,
-                  fontSize: 13,
-                  color: server.isRunning ? Colors.grey : null,
+                enabled: !running,
+                textAlign: TextAlign.center,
+                style: chromeMono(
+                  context,
+                  size: 13.5,
+                  color: running ? p.textMuted : p.text,
+                  weight: FontWeight.w600,
                 ),
                 decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                  isDense: true,
+                  filled: true,
+                  fillColor: p.codeBg,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: p.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: p.border),
+                  ),
+                  disabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(
+                      color: p.border.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: accent, width: 1.5),
                   ),
                 ),
                 keyboardType: TextInputType.number,
               ),
             ),
-            const SizedBox(width: 12),
-            ActionButton(
-              label: server.isRunning ? S.of(context).stop : S.of(context).start,
-              icon: server.isRunning ? LucideIcons.square : LucideIcons.play,
-              color: server.isRunning ? ColorTokens.error : ColorTokens.success,
-              onTap: onStartStop,
-            ),
+            const Spacer(),
+            if (running) ...[
+              ActionButton(
+                label: restarting ? s.restarting : s.restart,
+                icon: LucideIcons.rotateCw,
+                color: accent,
+                busy: restarting,
+                onTap: onRestart,
+              ),
+              const SizedBox(width: 8),
+              ActionButton(
+                label: s.stop,
+                icon: LucideIcons.square,
+                color: ColorTokens.error,
+                onTap: restarting ? null : onStartStop,
+              ),
+            ] else
+              ActionButton(
+                label: s.start,
+                icon: LucideIcons.play,
+                color: ColorTokens.success,
+                filled: true,
+                onTap: restarting ? null : onStartStop,
+              ),
           ],
         ),
         if (startError != null) ...[

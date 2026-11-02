@@ -25,14 +25,15 @@ class PresetDropdown extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(8),
+        color: isDark ? const Color(0xFF0D1117) : const Color(0xFFEEF1F4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0x9930363D) : const Color(0x99D1D9E0),
+        ),
       ),
       child: PopupMenuButton<RetentionPreset>(
         onSelected: onSelected,
-        offset: const Offset(0, 40),
+        offset: const Offset(0, 46),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(
@@ -70,7 +71,7 @@ class PresetDropdown extends StatelessWidget {
           );
         }).toList(),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               const Icon(LucideIcons.layers, size: 15, color: Color(0xFF6B7280)),
