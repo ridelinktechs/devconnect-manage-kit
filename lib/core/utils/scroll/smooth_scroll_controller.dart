@@ -30,25 +30,34 @@ class SmoothScrollPosition extends ScrollPositionWithSingleContext {
 
     final isSmoothEnabled =
         AppPreferences().get<bool>('smoothScrollEnabled', false) ?? false;
-    if (!isSmoothEnabled) {
-      super.pointerScroll(delta);
-      return;
-    }
 
     final current = activity;
-    final base = current is _WheelScrollActivity ? current.target : pixels;
-    final target = (base + delta * 2.2).clamp(minScrollExtent, maxScrollExtent);
+    final reversing =
+        current is _WheelScrollActivity &&
+        delta * (current.target - pixels) < 0;
+    // Changing direction cancels the queued distance and spring velocity;
+    // otherwise a small reverse tick can still carry several lines forward.
+    if (reversing) goIdle();
+    final base = current is _WheelScrollActivity && !reversing
+        ? current.target
+        : pixels;
+    final gain = isSmoothEnabled ? 2.2 : 1.0;
+    final target = (base + delta * gain).clamp(
+      minScrollExtent,
+      maxScrollExtent,
+    );
     updateUserScrollDirection(
       -delta > 0.0 ? ScrollDirection.forward : ScrollDirection.reverse,
     );
-    if (current is _WheelScrollActivity) {
+    if (current is _WheelScrollActivity && !reversing) {
       current.target = target;
       return;
     }
     if (target == pixels) return;
 
-    final durationMs =
-        AppPreferences().get<int>('smoothScrollDuration', 250) ?? 250;
+    final durationMs = isSmoothEnabled
+        ? AppPreferences().get<int>('smoothScrollDuration', 250) ?? 250
+        : _plainWheelMs;
     beginActivity(
       _WheelScrollActivity(
         this,
@@ -60,6 +69,11 @@ class SmoothScrollPosition extends ScrollPositionWithSingleContext {
     );
   }
 }
+
+/// With smooth scrolling off, a wheel tick still eases in over this many
+/// milliseconds, by exactly its own distance, so the view doesn't freeze
+/// between ticks and then jump.
+const _plainWheelMs = 60;
 
 /// Carries the offset to [target] on a critically damped spring. A new wheel
 /// tick only moves [target], so the speed changes smoothly instead of

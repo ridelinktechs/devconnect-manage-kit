@@ -426,8 +426,12 @@ void main() {
 }
 
 /// The rows of the JSON view's wrapped lines, top to bottom.
-Finder _wrappedRows() =>
-    find.byWidgetPredicate((w) => w is RichText && !w.softWrap);
+Finder _wrappedRows() => find.descendant(
+  of: find.byWidgetPredicate(
+    (w) => w is Text && w.textSpan != null && w.softWrap == false,
+  ),
+  matching: find.byType(RichText),
+);
 
 /// Pumps until the JSON view has laid out its document.
 Future<void> _waitForLines(WidgetTester tester) => tester.runAsync(() async {

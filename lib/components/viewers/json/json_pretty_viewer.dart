@@ -212,9 +212,6 @@ class HighlightCacheLifecycleObserver with WidgetsBindingObserver {
   }
 }
 
-/// Height of one row of text; a long line wraps onto several.
-const _lineHeight = 18.0;
-
 /// A line longer than this shows only its start: finding where it wraps
 /// lays all of it out. Copy and save still take all of it.
 const _maxLineChars = 20000;
@@ -313,6 +310,9 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
   /// The style and scaler the lines were last built with.
   TextStyle _textStyle = const TextStyle();
   TextScaler _textScaler = TextScaler.noScaling;
+
+  /// Measured with the same font and scale as the text in each virtual row.
+  double _lineHeight = 18.0;
 
   /// Where the search query shows up in the text.
   List<(int, int)> _matches = const [];
@@ -425,8 +425,25 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     _reveal();
   }
 
-  double get _gutterWidth =>
-      '${_formatted?.lineCount ?? 0}'.length * 8.0 + 16.0;
+  double get _gutterWidth {
+    final digits = '${_formatted?.lineCount ?? 0}'.length;
+    var digitWidth = 0.0;
+    for (final digit in '0123456789'.split('')) {
+      digitWidth = math.max(digitWidth, _measureText(digit).width);
+    }
+    return (digits * digitWidth).ceilToDouble() + 16.0;
+  }
+
+  Size _measureText(String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: _textStyle),
+      textDirection: TextDirection.ltr,
+      textScaler: _textScaler,
+    )..layout();
+    final size = painter.size;
+    painter.dispose();
+    return size;
+  }
 
   /// The widest ASCII glyph as the lines draw it, in the keys' weight.
   double _cellWidth() {
@@ -579,6 +596,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
           alignment: Alignment.topRight,
           child: Text(
             numbers,
+            softWrap: false,
             textAlign: TextAlign.right,
             style: _textStyle.copyWith(
               color: isDark ? Colors.grey[600] : Colors.grey[500],
@@ -768,6 +786,7 @@ class _JsonPrettyViewerState extends State<JsonPrettyViewer> {
     if (style != _textStyle || scaler != _textScaler) {
       _textStyle = style;
       _textScaler = scaler;
+      _lineHeight = _measureText('0').height;
       _rows = null;
     }
     final lineCount = _formatted?.lineCount ?? 0;
