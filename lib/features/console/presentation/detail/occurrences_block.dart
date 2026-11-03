@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/chrome_palette.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/log/log_entry.dart';
 import '../shared/section_label.dart';
@@ -11,7 +12,7 @@ import '../shared/section_label.dart';
 /// Every run of a folded log: when each one ran and how long after the one
 /// before. Picking one shows its own time, metadata and stack trace in the
 /// detail panel.
-class OccurrencesBlock extends StatelessWidget {
+class OccurrencesBlock extends StatefulWidget {
   final List<LogEntry> occurrences;
   final String selectedId;
   final Color color;
@@ -28,7 +29,22 @@ class OccurrencesBlock extends StatelessWidget {
   static const _rowHeight = 28.0;
 
   @override
+  State<OccurrencesBlock> createState() => _OccurrencesBlockState();
+}
+
+class _OccurrencesBlockState extends State<OccurrencesBlock> {
+  final _scroll = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final OccurrencesBlock(:occurrences, :selectedId, :color, :onSelect) =
+        widget;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final time = DateFormat('HH:mm:ss.SSS');
     DateTime at(LogEntry e) => DateTime.fromMillisecondsSinceEpoch(e.timestamp);
@@ -65,15 +81,16 @@ class OccurrencesBlock extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Container(
-          height: math.min(occurrences.length, 8) * _rowHeight,
+          height: math.min(occurrences.length, 8) * OccurrencesBlock._rowHeight,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: color.withValues(alpha: 0.2)),
           ),
           child: ListView.builder(
+            controller: _scroll,
             itemCount: occurrences.length,
-            itemExtent: _rowHeight,
+            itemExtent: OccurrencesBlock._rowHeight,
             itemBuilder: (context, i) {
               final e = occurrences[i];
               final selected = e.id == selectedId;

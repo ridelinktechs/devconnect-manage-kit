@@ -978,6 +978,21 @@ class SJa extends S {
   String get consoleOccurrences => '発生履歴';
 
   @override
+  String get consoleNoMatchTitle => '一致するログがありません';
+
+  @override
+  String get consoleNoMatchSubtitle => 'フィルターを外すと再び表示されます。';
+
+  @override
+  String get consoleShowAllLevels => 'すべてのレベルを表示';
+
+  @override
+  String get consoleClearSearch => '検索をクリア';
+
+  @override
+  String get consoleResetFilters => 'フィルターをリセット';
+
+  @override
   String get consoleExport => 'ログを書き出す';
 
   @override

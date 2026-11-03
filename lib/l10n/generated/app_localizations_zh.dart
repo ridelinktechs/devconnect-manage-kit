@@ -967,6 +967,21 @@ class SZh extends S {
   String get consoleOccurrences => '重复记录';
 
   @override
+  String get consoleNoMatchTitle => '没有匹配的日志';
+
+  @override
+  String get consoleNoMatchSubtitle => '移除筛选条件即可重新显示。';
+
+  @override
+  String get consoleShowAllLevels => '显示所有级别';
+
+  @override
+  String get consoleClearSearch => '清除搜索';
+
+  @override
+  String get consoleResetFilters => '重置筛选';
+
+  @override
   String get consoleExport => '导出日志';
 
   @override
@@ -3239,6 +3254,21 @@ class SZhCn extends SZh {
   String get consoleOccurrences => '重复记录';
 
   @override
+  String get consoleNoMatchTitle => '没有匹配的日志';
+
+  @override
+  String get consoleNoMatchSubtitle => '移除筛选条件即可重新显示。';
+
+  @override
+  String get consoleShowAllLevels => '显示所有级别';
+
+  @override
+  String get consoleClearSearch => '清除搜索';
+
+  @override
+  String get consoleResetFilters => '重置筛选';
+
+  @override
   String get consoleExport => '导出日志';
 
   @override
@@ -5509,6 +5539,21 @@ class SZhTw extends SZh {
 
   @override
   String get consoleOccurrences => '重複記錄';
+
+  @override
+  String get consoleNoMatchTitle => '沒有符合的日誌';
+
+  @override
+  String get consoleNoMatchSubtitle => '移除篩選條件即可重新顯示。';
+
+  @override
+  String get consoleShowAllLevels => '顯示所有級別';
+
+  @override
+  String get consoleClearSearch => '清除搜尋';
+
+  @override
+  String get consoleResetFilters => '重設篩選';
 
   @override
   String get consoleExport => '匯出日誌';

@@ -66,23 +66,40 @@ class _ConsoleFilterNotifier extends Notifier<Set<LogLevel>> {
   }
 }
 
-final filteredConsoleEntriesProvider = Provider<List<LogEntry>>((ref) {
+/// Logs of the selected device (every device's with "All devices"), before
+/// the level filter and the search.
+final consoleDeviceEntriesProvider = Provider<List<LogEntry>>((ref) {
   final entries = ref.watch(consoleDisplayProvider).items;
+  final device = ref.watch(selectedDeviceProvider);
+  if (device == null) return const [];
+  if (device == allDevicesValue) return entries;
+  return entries.where((e) => e.deviceId == device).toList();
+});
+
+/// Whether [e]'s message or tag contains [query], already lowercased.
+bool matchesConsoleSearch(LogEntry e, String query) =>
+    query.isEmpty ||
+    e.message.toLowerCase().contains(query) ||
+    (e.tag?.toLowerCase().contains(query) ?? false);
+
+/// How many logs of each level match the device and the search, whatever
+/// the level filter: the counts on the level chips.
+final consoleLevelCountsProvider = Provider<Map<LogLevel, int>>((ref) {
+  final query = ref.watch(consoleSearchProvider).toLowerCase();
+  final counts = {for (final level in LogLevel.values) level: 0};
+  for (final e in ref.watch(consoleDeviceEntriesProvider)) {
+    if (matchesConsoleSearch(e, query)) counts[e.level] = counts[e.level]! + 1;
+  }
+  return counts;
+});
+
+final filteredConsoleEntriesProvider = Provider<List<LogEntry>>((ref) {
   final search = ref.watch(consoleSearchProvider).toLowerCase();
   final filters = ref.watch(consoleFilterProvider);
-  final selectedDevice = ref.watch(selectedDeviceProvider);
-
-  return entries.where((e) {
-    // Filter by selected device
-    if (selectedDevice == null) return false;
-    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) return false;
-    if (!filters.contains(e.level)) return false;
-    if (search.isNotEmpty) {
-      return e.message.toLowerCase().contains(search) ||
-          (e.tag?.toLowerCase().contains(search) ?? false);
-    }
-    return true;
-  }).toList();
+  return ref
+      .watch(consoleDeviceEntriesProvider)
+      .where((e) => filters.contains(e.level) && matchesConsoleSearch(e, search))
+      .toList();
 });
 
 /// Whether consecutive identical logs fold into one row with a repeat

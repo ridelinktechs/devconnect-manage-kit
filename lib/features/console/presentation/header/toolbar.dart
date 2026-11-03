@@ -12,18 +12,19 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/files/save_file.dart';
 import '../../../../core/utils/ui/toast_utils.dart';
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../models/log/log_entry.dart';
 import '../../../../core/providers/retention_provider.dart';
 import '../../provider/console_providers.dart';
-import '../shared/level_color.dart';
 import 'icon_btn.dart';
-import 'level_filter_chip.dart';
+import 'level_filter_row.dart';
 
 /// Top toolbar of the Console page — title + count pill, level
 /// filter chips (DEBUG/INFO/WARN/ERROR), search field, action group
 /// (auto-scroll, sort direction, clear).
 class Toolbar extends ConsumerWidget {
   final ValueNotifier<int> entryCount;
+
+  /// The search box's text, owned by the page so it can clear it.
+  final TextEditingController? searchController;
   final bool autoScroll;
   final VoidCallback onToggleAutoScroll;
   final VoidCallback onClear;
@@ -31,6 +32,7 @@ class Toolbar extends ConsumerWidget {
   const Toolbar({
     super.key,
     required this.entryCount,
+    this.searchController,
     required this.autoScroll,
     required this.onToggleAutoScroll,
     required this.onClear,
@@ -40,7 +42,6 @@ class Toolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final activeFilters = ref.watch(consoleFilterProvider);
     final retentionPreset = ref.watch(retentionLimitProvider);
     final retentionLimit = retentionPreset.limit;
     final retentionLabel = retentionPreset.label;
@@ -74,27 +75,14 @@ class Toolbar extends ConsumerWidget {
           const SizedBox(width: 16),
 
           // Level filter chips
-          ...LogLevel.values.map((level) {
-            final isActive = activeFilters.contains(level);
-            return Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: LevelFilterChip(
-                label: level.name.toUpperCase(),
-                isActive: isActive,
-                color: levelColor(level),
-                onTap: () {
-                  ref.read(consoleFilterProvider.notifier).toggle(level);
-                },
-              ),
-            );
-          }),
-
-          const Spacer(),
+          const Expanded(child: LevelFilterRow()),
+          const SizedBox(width: 12),
 
           // Search
           SizedBox(
             width: 220,
             child: SearchField(
+              controller: searchController,
               hintText: S.of(context).searchLogs,
               onChanged: (value) {
                 ref.read(consoleSearchProvider.notifier).set(value);

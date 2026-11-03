@@ -996,6 +996,21 @@ class SFr extends S {
   String get consoleOccurrences => 'Occurrences';
 
   @override
+  String get consoleNoMatchTitle => 'Aucun log ne correspond';
+
+  @override
+  String get consoleNoMatchSubtitle => 'Retirez un filtre pour les retrouver.';
+
+  @override
+  String get consoleShowAllLevels => 'Afficher tous les niveaux';
+
+  @override
+  String get consoleClearSearch => 'Effacer la recherche';
+
+  @override
+  String get consoleResetFilters => 'Réinitialiser les filtres';
+
+  @override
   String get consoleExport => 'Exporter les logs';
 
   @override

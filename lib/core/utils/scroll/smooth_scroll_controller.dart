@@ -106,6 +106,9 @@ class _WheelScrollActivity extends ScrollActivity {
     if (dt <= 0) return;
 
     final metrics = delegate as ScrollMetrics;
+    final drift = metrics.pixels - _x;
+    _x += drift;
+    target += drift;
     target = target.clamp(metrics.minScrollExtent, metrics.maxScrollExtent);
     final e = _x - target;
     final c = _v + _omega * e;

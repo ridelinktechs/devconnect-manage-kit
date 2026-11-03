@@ -989,6 +989,21 @@ class SEn extends S {
   String get consoleOccurrences => 'Occurrences';
 
   @override
+  String get consoleNoMatchTitle => 'No logs match';
+
+  @override
+  String get consoleNoMatchSubtitle => 'Drop a filter to bring them back.';
+
+  @override
+  String get consoleShowAllLevels => 'Show all levels';
+
+  @override
+  String get consoleClearSearch => 'Clear search';
+
+  @override
+  String get consoleResetFilters => 'Reset filters';
+
+  @override
   String get consoleExport => 'Export logs';
 
   @override

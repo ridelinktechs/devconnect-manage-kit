@@ -1,20 +1,29 @@
-import 'package:flutter/material.dart';
+// Lucian UX/UI Prompt #019 · MIT License (c) 2026 Seokwoooo · https://lucianlabs.dev/uxui-prompt/#019
+import 'dart:math' as math;
 
-/// Rounded "DEBUG / INFO / WARN / ERROR" pill used in the console
-/// toolbar. Active state tints the chip's bg + border with the
-/// level's accent color; hover state tints the chip subtly without
-/// the user committing to it.
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../../../core/theme/chrome_palette.dart';
+import '../../../../models/log/log_entry.dart';
+import '../../../settings/presentation/shared/focus_ring.dart';
+import '../shared/level_color.dart';
+
+/// A level toggle in the Console toolbar, ported from the multi-select chips
+/// of Lucian #019: switched on, a check slides out from the left as the chip
+/// fills with the level's color. It shows how many logs of the level match,
+/// so turning one off never hides lines silently.
 class LevelFilterChip extends StatefulWidget {
-  final String label;
+  final LogLevel level;
+  final int count;
   final bool isActive;
-  final Color color;
   final VoidCallback onTap;
 
   const LevelFilterChip({
     super.key,
-    required this.label,
+    required this.level,
+    required this.count,
     required this.isActive,
-    required this.color,
     required this.onTap,
   });
 
@@ -23,45 +32,103 @@ class LevelFilterChip extends StatefulWidget {
 }
 
 class _LevelFilterChipState extends State<LevelFilterChip> {
-  bool _hovered = false;
+  static const _ease = Cubic(0.2, 0.8, 0.2, 1);
+  static const _spring = Cubic(0.34, 1.45, 0.64, 1);
+
+  bool _hover = false;
+  bool _down = false;
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.isActive
-        ? widget.color.withValues(alpha: 0.15)
-        : _hovered
-            ? widget.color.withValues(alpha: 0.07)
-            : Colors.transparent;
-
-    final borderColor = widget.isActive
-        ? widget.color.withValues(alpha: 0.4)
-        : _hovered
-            ? widget.color.withValues(alpha: 0.25)
-            : Colors.grey.withValues(alpha: 0.2);
-
+    final p = ChromePalette.of(context);
+    final on = widget.isActive;
+    final label = widget.level.name.toUpperCase();
+    final ink = levelInk(widget.level, isDark: p.isDark);
+    final tint = levelColor(widget.level);
+    final fg = on ? ink : (_hover ? p.text : p.textMuted);
+    final base = DefaultTextStyle.of(context).style;
     return Tooltip(
-      message: '${widget.isActive ? "Hide" : "Show"} ${widget.label} logs',
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _hovered = true),
-          onExit: (_) => setState(() => _hovered = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderColor, width: 1),
-            ),
-            child: Text(
-              widget.label,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-                color: widget.isActive ? widget.color : Colors.grey[500],
+      message: '${on ? 'Hide' : 'Show'} $label logs',
+      child: Listener(
+        onPointerDown: (_) => setState(() => _down = true),
+        onPointerUp: (_) => setState(() => _down = false),
+        onPointerCancel: (_) => setState(() => _down = false),
+        child: AnimatedScale(
+          scale: _down ? 0.94 : 1,
+          duration: const Duration(milliseconds: 400),
+          curve: _spring,
+          child: FocusRing(
+            onTap: widget.onTap,
+            radius: 13,
+            selected: on,
+            label: '$label ${widget.count}',
+            onHover: (v) => setState(() => _hover = v),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 350),
+              curve: _ease,
+              height: 26,
+              decoration: BoxDecoration(
+                color: on
+                    ? tint.withValues(alpha: p.isDark ? 0.18 : 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(
+                  color: on
+                      ? tint.withValues(alpha: 0.45)
+                      : (_hover ? p.textMuted : p.border),
+                ),
+              ),
+              child: AnimatedPadding(
+                duration: const Duration(milliseconds: 450),
+                curve: _spring,
+                padding: EdgeInsets.only(left: on ? 7 : 10, right: 10),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(end: on ? 1 : 0),
+                      duration: const Duration(milliseconds: 450),
+                      curve: _spring,
+                      builder: (context, t, child) => SizedBox(
+                        width: 16 * math.max(0, t),
+                        child: ClipRect(child: child),
+                      ),
+                      child: AnimatedOpacity(
+                        opacity: on ? 1 : 0,
+                        duration: const Duration(milliseconds: 250),
+                        curve: _ease,
+                        child: OverflowBox(
+                          alignment: Alignment.centerLeft,
+                          maxWidth: 16,
+                          child: Icon(LucideIcons.check, size: 12, color: ink),
+                        ),
+                      ),
+                    ),
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 300),
+                      curve: _ease,
+                      style: base.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                        color: fg,
+                      ),
+                      child: Text(label),
+                    ),
+                    const SizedBox(width: 6),
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 300),
+                      curve: _ease,
+                      style: base.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: fg.withValues(alpha: 0.75),
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                      child: Text('${widget.count}'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -1701,6 +1701,36 @@ abstract class S {
   /// **'Occurrences'**
   String get consoleOccurrences;
 
+  /// No description provided for @consoleNoMatchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No logs match'**
+  String get consoleNoMatchTitle;
+
+  /// No description provided for @consoleNoMatchSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop a filter to bring them back.'**
+  String get consoleNoMatchSubtitle;
+
+  /// No description provided for @consoleShowAllLevels.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all levels'**
+  String get consoleShowAllLevels;
+
+  /// No description provided for @consoleClearSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get consoleClearSearch;
+
+  /// No description provided for @consoleResetFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset filters'**
+  String get consoleResetFilters;
+
   /// No description provided for @consoleExport.
   ///
   /// In en, this message translates to:

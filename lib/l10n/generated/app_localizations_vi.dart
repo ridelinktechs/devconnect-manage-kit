@@ -987,6 +987,21 @@ class SVi extends S {
   String get consoleOccurrences => 'Các lần lặp';
 
   @override
+  String get consoleNoMatchTitle => 'Không có log nào khớp';
+
+  @override
+  String get consoleNoMatchSubtitle => 'Bỏ bớt bộ lọc để xem lại log.';
+
+  @override
+  String get consoleShowAllLevels => 'Hiện tất cả level';
+
+  @override
+  String get consoleClearSearch => 'Xóa tìm kiếm';
+
+  @override
+  String get consoleResetFilters => 'Đặt lại bộ lọc';
+
+  @override
   String get consoleExport => 'Xuất log';
 
   @override
