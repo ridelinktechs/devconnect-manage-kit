@@ -2,8 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Shows a loading spinner for 1 frame on mount, then builds the child.
+import '../../../core/theme/theme_provider.dart';
+
+/// Shows a loading spinner for 1 frame on mount, then builds the child —
+/// at once when tab animations are off, as there is no switch to keep smooth.
 ///
 /// Use with a [ValueKey] tied to a view mode so that switching modes
 /// unmounts → remounts → defers → builds, preventing synchronous heavy
@@ -16,20 +20,21 @@ import 'package:flutter/material.dart';
 ///   builder: (_) => JsonViewer(data: parsed),
 /// )
 /// ```
-class DeferredBuilder extends StatefulWidget {
+class DeferredBuilder extends ConsumerStatefulWidget {
   final WidgetBuilder builder;
   const DeferredBuilder({super.key, required this.builder});
 
   @override
-  State<DeferredBuilder> createState() => _DeferredBuilderState();
+  ConsumerState<DeferredBuilder> createState() => _DeferredBuilderState();
 }
 
-class _DeferredBuilderState extends State<DeferredBuilder> {
-  bool _ready = false;
+class _DeferredBuilderState extends ConsumerState<DeferredBuilder> {
+  late bool _ready = !ref.read(tabAnimationEnabledProvider);
 
   @override
   void initState() {
     super.initState();
+    if (_ready) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _ready = true);
     });

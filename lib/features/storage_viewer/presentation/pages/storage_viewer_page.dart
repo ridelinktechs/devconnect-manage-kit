@@ -167,6 +167,7 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
     // History of operations | the stores' live contents, editable.
     return DefaultTabController(
       length: 2,
+      animationDuration: ref.watch(tabAnimationProvider),
       child: Column(
         children: [
           _StorageTabBar(),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/theme/theme_provider.dart';
 import 'detail_tab_bar.dart';
 
 /// Tree / Pretty viewer with a segmented-control tab bar at the top.
@@ -9,18 +11,19 @@ import 'detail_tab_bar.dart';
 /// Each instance owns its own [DefaultTabController], so the Before and
 /// After tabs in the parent panel keep their Tree/Pretty selection
 /// independently.
-class StateJsonTabView extends StatelessWidget {
+class StateJsonTabView extends ConsumerWidget {
   final dynamic data;
 
   const StateJsonTabView({super.key, required this.data});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return DefaultTabController(
       length: 2,
+      animationDuration: ref.watch(tabAnimationProvider),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -73,6 +73,7 @@ class SegmentedTabBar extends StatelessWidget {
                   accent: accent,
                   secondary: secondary,
                   palette: palette,
+                  animate: controller.animationDuration > Duration.zero,
                   onTap: () => controller.animateTo(i),
                 ),
             ],
@@ -89,6 +90,9 @@ class _TabButton extends StatefulWidget {
   final Color accent;
   final bool secondary;
   final ChromePalette palette;
+
+  /// Whether tabs animate; when they don't, the selection switches at once.
+  final bool animate;
   final VoidCallback onTap;
 
   const _TabButton({
@@ -97,6 +101,7 @@ class _TabButton extends StatefulWidget {
     required this.accent,
     required this.secondary,
     required this.palette,
+    required this.animate,
     required this.onTap,
   });
 
@@ -127,7 +132,9 @@ class _TabButtonState extends State<_TabButton> {
         child: GestureDetector(
           onTap: widget.onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+            duration: widget.animate
+                ? const Duration(milliseconds: 150)
+                : Duration.zero,
             height: secondary ? 26 : 28,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(

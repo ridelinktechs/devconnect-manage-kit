@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/theme_provider.dart';
 import 'protocol/graphql/graphql_tab.dart';
 import 'protocol/grpc/grpc_tab.dart';
 import 'protocol/protocol_tabs.dart';
@@ -24,7 +25,11 @@ class _ProtocolPanelState extends ConsumerState<ProtocolPanel>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(
+      length: 3,
+      vsync: this,
+      animationDuration: ref.read(tabAnimationProvider),
+    );
   }
 
   @override

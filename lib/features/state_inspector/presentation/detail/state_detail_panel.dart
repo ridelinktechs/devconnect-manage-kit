@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/text/text_component.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/files/screenshot_filename.dart';
 import '../../../../core/utils/files/screenshot_utils.dart';
 import '../../../../l10n/generated/app_localizations.dart';
@@ -15,7 +17,7 @@ import 'diff_view.dart';
 import 'state_json_tab_view.dart';
 
 /// Right-pane detail of the selected state change (Diff / Before / After).
-class StateDetailPanel extends StatefulWidget {
+class StateDetailPanel extends ConsumerStatefulWidget {
   final StateChange entry;
   final VoidCallback onClose;
   final VoidCallback onRestore;
@@ -30,10 +32,10 @@ class StateDetailPanel extends StatefulWidget {
   });
 
   @override
-  State<StateDetailPanel> createState() => _StateDetailPanelState();
+  ConsumerState<StateDetailPanel> createState() => _StateDetailPanelState();
 }
 
-class _StateDetailPanelState extends State<StateDetailPanel> {
+class _StateDetailPanelState extends ConsumerState<StateDetailPanel> {
   StateChange get entry => widget.entry;
 
   void _takeScreenshot(BuildContext context, bool isDark) {
@@ -174,6 +176,7 @@ class _StateDetailPanelState extends State<StateDetailPanel> {
 
     return DefaultTabController(
       length: 3,
+      animationDuration: ref.watch(tabAnimationProvider),
       child: Column(
         children: [
           Container(

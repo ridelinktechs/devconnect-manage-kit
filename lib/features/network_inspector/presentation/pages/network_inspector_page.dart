@@ -53,7 +53,11 @@ class _NetworkInspectorPageState
   @override
   void initState() {
     super.initState();
-    _outerTab = TabController(length: 3, vsync: this);
+    _outerTab = TabController(
+      length: 3,
+      vsync: this,
+      animationDuration: ref.read(tabAnimationProvider),
+    );
     _scrollController.addListener(_onScroll);
     ref.listenManual(
       filteredNetworkEntriesProvider,

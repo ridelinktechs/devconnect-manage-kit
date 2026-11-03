@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -74,7 +75,7 @@ class ViewModeSegment extends StatelessWidget {
 }
 
 /// Premium 3-mode toggle (Tree / JSON / Code).
-class ViewModeSwitcher extends StatelessWidget {
+class ViewModeSwitcher extends ConsumerWidget {
   final BodyViewMode current;
   final String codeLabel;
   final ValueChanged<BodyViewMode> onChanged;
@@ -98,7 +99,7 @@ class ViewModeSwitcher extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final trackColor = isDark
         ? const Color(0xFF1C2128).withValues(alpha: 0.6)
@@ -123,7 +124,7 @@ class ViewModeSwitcher extends StatelessWidget {
         children: [
           AnimatedAlign(
             alignment: _alignmentFor(current),
-            duration: const Duration(milliseconds: 260),
+            duration: ref.watch(tabAnimationProvider),
             curve: Curves.easeOutCubic,
             child: FractionallySizedBox(
               widthFactor: 1 / 3,

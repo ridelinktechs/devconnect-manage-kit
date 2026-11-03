@@ -159,6 +159,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
 
     return DefaultTabController(
       length: 3,
+      animationDuration: ref.watch(tabAnimationProvider),
       child: Column(
         children: [
           StateManagerTabBar(),
