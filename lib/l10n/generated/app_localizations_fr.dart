@@ -660,6 +660,16 @@ class SFr extends S {
   }
 
   @override
+  String sdkTipsPillLatest(Object version) {
+    return 'v$version · Dernière version';
+  }
+
+  @override
+  String sdkTipsPillUpdate(Object version) {
+    return 'v$version · Mettre à jour';
+  }
+
+  @override
   String get sdkTipsInstalled => 'Installé';
 
   @override
@@ -679,13 +689,10 @@ class SFr extends S {
 
   @override
   String get sdkTipsCheckProject =>
-      'Vérifiez la version dans votre projet et mettez à jour si besoin.';
+      'Exécutez ceci dans votre projet pour voir la version installée :';
 
   @override
-  String get sdkTipsAccessDenied => 'Pas d\'autorisation pour lire ce dossier.';
-
-  @override
-  String get sdkTipsOpenSettings => 'Ouvrir les Réglages';
+  String get sdkTipsInstallLatest => 'Installer la dernière version :';
 
   @override
   String get appUpdateTitle => 'Version de DevConnect';

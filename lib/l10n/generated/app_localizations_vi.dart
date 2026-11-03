@@ -659,6 +659,16 @@ class SVi extends S {
   }
 
   @override
+  String sdkTipsPillLatest(Object version) {
+    return 'v$version · Mới nhất';
+  }
+
+  @override
+  String sdkTipsPillUpdate(Object version) {
+    return 'v$version · Cập nhật';
+  }
+
+  @override
   String get sdkTipsInstalled => 'Đang dùng';
 
   @override
@@ -678,13 +688,10 @@ class SVi extends S {
 
   @override
   String get sdkTipsCheckProject =>
-      'Kiểm tra version trong project và cập nhật nếu cần.';
+      'Chạy lệnh này trong project để xem version đang cài:';
 
   @override
-  String get sdkTipsAccessDenied => 'Chưa có quyền đọc thư mục này.';
-
-  @override
-  String get sdkTipsOpenSettings => 'Mở Cài đặt';
+  String get sdkTipsInstallLatest => 'Cài version mới nhất:';
 
   @override
   String get appUpdateTitle => 'Phiên bản DevConnect';

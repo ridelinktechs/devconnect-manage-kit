@@ -657,6 +657,16 @@ class SEn extends S {
   }
 
   @override
+  String sdkTipsPillLatest(Object version) {
+    return 'v$version · Latest';
+  }
+
+  @override
+  String sdkTipsPillUpdate(Object version) {
+    return 'v$version · Update';
+  }
+
+  @override
   String get sdkTipsInstalled => 'Installed';
 
   @override
@@ -676,13 +686,10 @@ class SEn extends S {
 
   @override
   String get sdkTipsCheckProject =>
-      'Check the version in your project and update if needed.';
+      'Run this in your project to see the installed version:';
 
   @override
-  String get sdkTipsAccessDenied => 'No permission to read this folder.';
-
-  @override
-  String get sdkTipsOpenSettings => 'Open Settings';
+  String get sdkTipsInstallLatest => 'Install the latest version:';
 
   @override
   String get appUpdateTitle => 'DevConnect version';

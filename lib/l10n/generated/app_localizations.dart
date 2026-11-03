@@ -1179,6 +1179,18 @@ abstract class S {
   /// **'v{version}'**
   String sdkTipsVersionLabel(Object version);
 
+  /// No description provided for @sdkTipsPillLatest.
+  ///
+  /// In en, this message translates to:
+  /// **'v{version} · Latest'**
+  String sdkTipsPillLatest(Object version);
+
+  /// No description provided for @sdkTipsPillUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'v{version} · Update'**
+  String sdkTipsPillUpdate(Object version);
+
   /// No description provided for @sdkTipsInstalled.
   ///
   /// In en, this message translates to:
@@ -1218,20 +1230,14 @@ abstract class S {
   /// No description provided for @sdkTipsCheckProject.
   ///
   /// In en, this message translates to:
-  /// **'Check the version in your project and update if needed.'**
+  /// **'Run this in your project to see the installed version:'**
   String get sdkTipsCheckProject;
 
-  /// No description provided for @sdkTipsAccessDenied.
+  /// No description provided for @sdkTipsInstallLatest.
   ///
   /// In en, this message translates to:
-  /// **'No permission to read this folder.'**
-  String get sdkTipsAccessDenied;
-
-  /// No description provided for @sdkTipsOpenSettings.
-  ///
-  /// In en, this message translates to:
-  /// **'Open Settings'**
-  String get sdkTipsOpenSettings;
+  /// **'Install the latest version:'**
+  String get sdkTipsInstallLatest;
 
   /// No description provided for @appUpdateTitle.
   ///

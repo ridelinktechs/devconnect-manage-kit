@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/providers/local_projects_provider.dart';
 import '../../core/theme/chrome_palette.dart';
 import '../../core/theme/color_tokens.dart';
 import '../../core/utils/app/reload_apps.dart';
+import '../../core/utils/app/sdk_version.dart';
 import '../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'deep_link_dialog.dart';
@@ -36,7 +36,6 @@ class _DeviceBottomBarState extends ConsumerState<DeviceBottomBar> {
     final ref = this.ref;
     final devices = ref.watch(connectedDevicesProvider);
     final selectedId = ref.watch(selectedDeviceProvider);
-    final localProjects = ref.watch(localProjectsProvider).value ?? const [];
     final palette = ChromePalette.of(context);
     final loc = S.of(context);
     final isDark = palette.isDark;
@@ -98,7 +97,7 @@ class _DeviceBottomBarState extends ConsumerState<DeviceBottomBar> {
                   isSelected: isActive,
                   palette: palette,
                   device: d,
-                  sdkVersion: deviceSdkVersion(d, localProjects),
+                  sdkVersion: reportedSdkVersion(d.sdkVersion),
                   onTap: () => ref
                       .read(selectedDeviceProvider.notifier)
                       .select(isActive ? null : d.deviceId),

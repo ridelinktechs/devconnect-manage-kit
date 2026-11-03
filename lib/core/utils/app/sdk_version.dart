@@ -33,3 +33,13 @@ int _componentInt(String s) {
   final match = RegExp(r'^\d+').firstMatch(s);
   return match != null ? int.parse(match.group(0)!) : 0;
 }
+
+/// What released SDKs (RN ≤ 1.0.9, Flutter ≤ 1.0.6, Android ≤ 1.1.0) send as
+/// `sdkVersion` in the handshake, whatever version they really are.
+const _legacyHandshakeVersion = '1.0.0';
+
+/// The SDK version a device reported in its handshake, or null when it's
+/// unknown: nothing reported, or the [_legacyHandshakeVersion] that older
+/// SDKs hardcode.
+String? reportedSdkVersion(String? handshake) =>
+    handshake == _legacyHandshakeVersion ? null : handshake;

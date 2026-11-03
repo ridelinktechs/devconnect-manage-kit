@@ -643,6 +643,16 @@ class SZh extends S {
   }
 
   @override
+  String sdkTipsPillLatest(Object version) {
+    return 'v$version · 最新';
+  }
+
+  @override
+  String sdkTipsPillUpdate(Object version) {
+    return 'v$version · 更新';
+  }
+
+  @override
   String get sdkTipsInstalled => '当前';
 
   @override
@@ -661,13 +671,10 @@ class SZh extends S {
   String get sdkTipsRetry => '重试';
 
   @override
-  String get sdkTipsCheckProject => '请检查项目中的版本，必要时更新。';
+  String get sdkTipsCheckProject => '在项目中运行此命令，查看当前版本：';
 
   @override
-  String get sdkTipsAccessDenied => '没有读取此文件夹的权限。';
-
-  @override
-  String get sdkTipsOpenSettings => '打开设置';
+  String get sdkTipsInstallLatest => '安装最新版本：';
 
   @override
   String get appUpdateTitle => 'DevConnect 版本';
@@ -2908,6 +2915,16 @@ class SZhCn extends SZh {
   }
 
   @override
+  String sdkTipsPillLatest(Object version) {
+    return 'v$version · 最新';
+  }
+
+  @override
+  String sdkTipsPillUpdate(Object version) {
+    return 'v$version · 更新';
+  }
+
+  @override
   String get sdkTipsInstalled => '当前';
 
   @override
@@ -2926,13 +2943,10 @@ class SZhCn extends SZh {
   String get sdkTipsRetry => '重试';
 
   @override
-  String get sdkTipsCheckProject => '请检查项目中的版本，必要时更新。';
+  String get sdkTipsCheckProject => '在项目中运行此命令，查看当前版本：';
 
   @override
-  String get sdkTipsAccessDenied => '没有读取此文件夹的权限。';
-
-  @override
-  String get sdkTipsOpenSettings => '打开设置';
+  String get sdkTipsInstallLatest => '安装最新版本：';
 
   @override
   String get appUpdateTitle => 'DevConnect 版本';
@@ -5173,6 +5187,16 @@ class SZhTw extends SZh {
   }
 
   @override
+  String sdkTipsPillLatest(Object version) {
+    return 'v$version · 最新';
+  }
+
+  @override
+  String sdkTipsPillUpdate(Object version) {
+    return 'v$version · 更新';
+  }
+
+  @override
   String get sdkTipsInstalled => '目前';
 
   @override
@@ -5191,13 +5215,10 @@ class SZhTw extends SZh {
   String get sdkTipsRetry => '重試';
 
   @override
-  String get sdkTipsCheckProject => '請檢查專案中的版本，必要時更新。';
+  String get sdkTipsCheckProject => '在專案中執行此指令，查看目前版本：';
 
   @override
-  String get sdkTipsAccessDenied => '沒有讀取此資料夾的權限。';
-
-  @override
-  String get sdkTipsOpenSettings => '打開設定';
+  String get sdkTipsInstallLatest => '安裝最新版本：';
 
   @override
   String get appUpdateTitle => 'DevConnect 版本';

@@ -654,6 +654,16 @@ class SJa extends S {
   }
 
   @override
+  String sdkTipsPillLatest(Object version) {
+    return 'v$version · 最新';
+  }
+
+  @override
+  String sdkTipsPillUpdate(Object version) {
+    return 'v$version · 更新';
+  }
+
+  @override
   String get sdkTipsInstalled => '使用中';
 
   @override
@@ -672,13 +682,10 @@ class SJa extends S {
   String get sdkTipsRetry => '再試行';
 
   @override
-  String get sdkTipsCheckProject => 'プロジェクトのバージョンを確認し、必要なら更新してください。';
+  String get sdkTipsCheckProject => 'プロジェクトで実行して、使用中のバージョンを確認:';
 
   @override
-  String get sdkTipsAccessDenied => 'このフォルダを読み取る権限がありません。';
-
-  @override
-  String get sdkTipsOpenSettings => '設定を開く';
+  String get sdkTipsInstallLatest => '最新バージョンをインストール:';
 
   @override
   String get appUpdateTitle => 'DevConnect のバージョン';

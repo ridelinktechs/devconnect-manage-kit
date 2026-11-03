@@ -1,13 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/providers/local_projects_provider.dart';
 import '../../core/providers/sdk_versions_provider.dart';
 import '../../core/theme/chrome_palette.dart';
 import '../../core/utils/app/sdk_version.dart';
@@ -29,13 +26,11 @@ import 'title_bar_flyout.dart';
 /// Each SDK row shows:
 ///   - **Latest** version, fetched live from pub.dev / npm / Maven
 ///     Central by [sdkLatestVersionsProvider].
-///   - **Installed** version, from [deviceSdkVersion]: read from the
-///     connected project's files on this machine (found through its
-///     Metro / `flutter run` process), else the handshake. Across several
-///     devices the oldest one wins. When it's unknown — Android, a folder
-///     the OS won't let us read, no dev server here — the row asks the
-///     user to check their project instead.
-///   - **Update** badge when device < latest. Amber is reserved for that
+///   - **Installed** version, from [reportedSdkVersion]: what the device
+///     sent in its handshake. Across several devices the oldest one wins.
+///     When it's unknown — older SDKs send `1.0.0`, or no device runs that
+///     SDK — the row gives the command that shows it in the project.
+///   - **Update** badge when device ≠ latest. Amber is reserved for that
 ///     state (the pill grows an amber dot too) so it keeps its meaning.
 ///   - Copyable install snippets pinned to the latest version.
 class LibUpdateTips extends ConsumerWidget {
@@ -46,23 +41,17 @@ class LibUpdateTips extends ConsumerWidget {
     final palette = ChromePalette.of(context);
     final loc = S.of(context);
     final latest = ref.watch(sdkLatestVersionsProvider);
-    final localProjects = ref.watch(localProjectsProvider).value ?? const [];
     final devices = ref.watch(connectedDevicesProvider);
     final selectedId = ref.watch(selectedDeviceProvider);
 
-    _SdkStatus status(
-      _SdkEntry entry,
-      String? installed, {
-      String? project,
-      LocalProject? local,
-    }) => _SdkStatus(
-      entry: entry,
-      fetch: latest.fetchStateFor(entry.platform),
-      latest: latest.latestFor(entry.platform),
-      installed: installed,
-      project: project,
-      local: local,
-    );
+    _SdkStatus status(_SdkEntry entry, String? installed, {String? project}) =>
+        _SdkStatus(
+          entry: entry,
+          fetch: latest.fetchStateFor(entry.platform),
+          latest: latest.latestFor(entry.platform),
+          installed: installed,
+          project: project,
+        );
 
     final selected = devices.where((d) => d.deviceId == selectedId).firstOrNull;
     final selectedEntry = _SdkCatalog.entries
@@ -71,24 +60,15 @@ class LibUpdateTips extends ConsumerWidget {
     final project = selected != null && selectedEntry != null
         ? status(
             selectedEntry,
-            deviceSdkVersion(selected, localProjects),
+            reportedSdkVersion(selected.sdkVersion),
             project: '${selected.appName} · ${selected.deviceName}',
-            local: localProjectFor(selected, localProjects),
           )
         : null;
     final rows = project != null
         ? [project]
         : [
             for (final entry in _SdkCatalog.entries)
-              status(
-                entry,
-                _installedFor(devices, entry.platform, localProjects),
-                // A folder we couldn't read, so the row can say why.
-                local: localProjects
-                    .where((p) => p.platform == entry.platform)
-                    .where((p) => p.accessDenied)
-                    .firstOrNull,
-              ),
+              status(entry, _installedFor(devices, entry.platform)),
           ];
     final projectVersion = project?.installed;
     final needsUpdate = rows.any((r) => r.outdated);
@@ -96,9 +76,6 @@ class LibUpdateTips extends ConsumerWidget {
     return TitleBarFlyout(
       semanticLabel: loc.sdkTipsHeader,
       alignRight: true,
-      // Re-scan on open: picks up a dev server started, or folder access
-      // granted, since the device connected.
-      onOpen: () => ref.invalidate(localProjectsProvider),
       pill: (open, focusRing) {
         // A selected project turns the pill into its version.
         final (icon, color) = projectVersion != null
@@ -113,10 +90,15 @@ class LibUpdateTips extends ConsumerWidget {
         return FlyoutPill(
           palette: palette,
           leading: Icon(icon, size: 12, color: color),
-          label: projectVersion != null
-              ? loc.sdkTipsVersionLabel(projectVersion)
-              : loc.sdkTipsPill,
-          mono: projectVersion != null,
+          label: switch (project) {
+            _SdkStatus(:final installed?, outdated: true) =>
+              loc.sdkTipsPillUpdate(installed),
+            _SdkStatus(:final installed?, upToDate: true) =>
+              loc.sdkTipsPillLatest(installed),
+            _SdkStatus(:final installed?) => loc.sdkTipsVersionLabel(installed),
+            _ => loc.sdkTipsPill,
+          },
+          mono: projectVersion != null && project?.latest == null,
           active: open,
           focusRing: focusRing,
           dot: needsUpdate,
@@ -143,15 +125,11 @@ class LibUpdateTips extends ConsumerWidget {
 
 /// Oldest known SDK version among connected devices of [p] — the one that
 /// most needs the update. Null when none is known.
-String? _installedFor(
-  List<DeviceInfo> devices,
-  SdkPlatform p,
-  List<LocalProject> projects,
-) {
+String? _installedFor(List<DeviceInfo> devices, SdkPlatform p) {
   final versions =
       devices
           .where((d) => d.platform == p.handshakeId)
-          .map((d) => deviceSdkVersion(d, projects))
+          .map((d) => reportedSdkVersion(d.sdkVersion))
           .nonNulls
           .toList()
         ..sort(compareSdkVersions);
@@ -163,22 +141,31 @@ String? _installedFor(
 class _SdkEntry {
   final SdkPlatform platform;
 
+  /// Copyable command that prints the version a project has installed.
+  final String check;
+
   /// Copyable install lines; `<version>` is swapped for the latest release.
   final List<String> snippets;
 
-  const _SdkEntry(this.platform, this.snippets);
+  const _SdkEntry(this.platform, this.check, this.snippets);
 }
 
 class _SdkCatalog {
   static const entries = [
-    _SdkEntry(SdkPlatform.flutter, ['devconnect_manage_kit: ^<version>']),
-    _SdkEntry(SdkPlatform.reactNative, [
+    _SdkEntry(
+      SdkPlatform.flutter,
+      'flutter pub deps --style=compact | grep devconnect_manage_kit',
+      ['devconnect_manage_kit: ^<version>'],
+    ),
+    _SdkEntry(SdkPlatform.reactNative, 'npm ls devconnect-manage-kit', [
       'npm i devconnect-manage-kit@<version>',
       'yarn add devconnect-manage-kit@<version>',
     ]),
-    _SdkEntry(SdkPlatform.android, [
-      'implementation("io.github.buivietphi:devconnect-android:<version>")',
-    ]),
+    _SdkEntry(
+      SdkPlatform.android,
+      './gradlew :app:dependencies | grep devconnect-android',
+      ['implementation("io.github.buivietphi:devconnect-android:<version>")'],
+    ),
   ];
 }
 
@@ -192,22 +179,18 @@ class _SdkStatus {
   /// "App · device" when this row is for the selected project.
   final String? project;
 
-  /// The local project [installed] was read from — or couldn't be.
-  final LocalProject? local;
-
   const _SdkStatus({
     required this.entry,
     required this.fetch,
     required this.latest,
     required this.installed,
     this.project,
-    this.local,
   });
 
   bool get outdated =>
       installed != null &&
       latest != null &&
-      compareSdkVersions(installed!, latest!) < 0;
+      compareSdkVersions(installed!, latest!) != 0;
 
   bool get upToDate => installed != null && latest != null && !outdated;
 
@@ -224,12 +207,6 @@ String _platformLabel(S loc, SdkPlatform p) => switch (p) {
   SdkPlatform.reactNative => loc.sdkTipsReactNative,
   SdkPlatform.android => loc.sdkTipsAndroid,
 };
-
-/// System Settings › Privacy & Security › Files and Folders.
-final _filesAndFoldersSettings = Uri.parse(
-  'x-apple.systempreferences:com.apple.preference.security'
-  '?Privacy_FilesAndFolders',
-);
 
 class _SdkRow extends StatelessWidget {
   final _SdkStatus status;
@@ -254,8 +231,6 @@ class _SdkRow extends StatelessWidget {
       status.entry.platform.handshakeId,
       isDark: palette.isDark,
     );
-    final local = status.local;
-    final denied = local?.accessDenied ?? false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -293,42 +268,6 @@ class _SdkRow extends StatelessWidget {
                         color: palette.textMuted,
                       ),
                     ),
-                  // Where the version was read from, so a wrong match is
-                  // easy to spot. Last three segments; full path on hover.
-                  if (local != null)
-                    Tooltip(
-                      message: local.root,
-                      child: Row(
-                        children: [
-                          Icon(
-                            denied
-                                ? LucideIcons.folderLock
-                                : LucideIcons.folder,
-                            size: 11,
-                            color: palette.textMuted,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              local.root
-                                  .split('/')
-                                  .reversed
-                                  .take(3)
-                                  .toList()
-                                  .reversed
-                                  .join('/'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: chromeMono(
-                                context,
-                                size: 10.5,
-                                color: palette.textMuted,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -359,36 +298,25 @@ class _SdkRow extends StatelessWidget {
                 fetch: status.fetch,
                 onRetry: onRetry,
               ),
-              if (denied)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 2,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(loc.sdkTipsAccessDenied, style: muted),
-                    if (Platform.isMacOS)
-                      FlyoutButton(
-                        palette: palette,
-                        icon: LucideIcons.settings,
-                        label: loc.sdkTipsOpenSettings,
-                        onPressed: () => launchUrl(_filesAndFoldersSettings),
-                      ),
-                  ],
-                )
-              else if (status.installed == null &&
-                  status.fetch == SdkVersionFetch.loaded)
+              if (status.installed == null) ...[
                 Padding(
-                  padding: const EdgeInsets.only(top: 2),
+                  padding: const EdgeInsets.only(top: 8, bottom: 4),
                   child: Text(loc.sdkTipsCheckProject, style: muted),
+                ),
+                _Snippet(text: status.entry.check, palette: palette),
+              ],
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Text(loc.sdkTipsInstallLatest, style: muted),
+              ),
+              for (final (i, snippet) in status.snippets.indexed)
+                Padding(
+                  padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
+                  child: _Snippet(text: snippet, palette: palette),
                 ),
             ],
           ),
         ),
-        for (final (i, snippet) in status.snippets.indexed)
-          Padding(
-            padding: EdgeInsets.only(left: 40, top: i == 0 ? 8 : 6),
-            child: _Snippet(text: snippet, palette: palette),
-          ),
       ],
     );
   }
