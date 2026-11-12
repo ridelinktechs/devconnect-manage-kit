@@ -1828,7 +1828,7 @@ class SJa extends S {
 
   @override
   String get tipMockSteps =>
-      'Android：まず OkHttpClient に DevConnect.mockServerInterceptor() を追加\nデバイスを 1 つ選び、\"Add rule\"を押して項目を入力し、\"Save changes\"を押す\n\"Push all\"を押す。以降の編集、スイッチの切り替え、削除は自動でデバイスに反映される\nルールのスイッチを切り替えて一時停止、またはゴミ箱アイコンで削除\n\"Clear device\"を押すと、デバイスからすべてのルールを削除して同期を停止';
+      'Android：まず OkHttpClient に DevConnect.mockServerInterceptor() を追加\nデバイスを 1 つ選び、\"Add rule\"を押して項目を入力し、\"Save changes\"を押す\n\"Push all\"を押す。以降の編集、スイッチの切り替え、削除は自動でデバイスに反映される\nルールのスイッチを切り替えて一時停止、またはルールを開いて\"Hold to delete\"を長押しして削除（Undo で元に戻せる）\n\"Clear device\"を押すと、デバイスからすべてのルールを削除して同期を停止';
 
   @override
   String get tipMockTip =>
@@ -2173,7 +2173,7 @@ class SJa extends S {
 
   @override
   String get guideMockApiSteps =>
-      '下部のバーでデバイスを選び、\"Mock Server\"を開いて\"Add rule\"を押す\n\"Method\"、\"Status\"、\"URL pattern\"（URL のどこかに一致する正規表現）、ボディを設定\n\"Save & push\"または\"Push all\"を押す（どちらもルール一覧全体を送信）\nNetwork › \"Mock Audit\"で、ルールが応答したリクエストを確認\nルールのスイッチで一時停止、または\"Clear device\"ですべてのルールを削除';
+      '下部のバーでデバイスを選び、\"Mock Server\"を開いて\"Add rule\"を押す\n\"Method\"、\"Status\"、\"URL pattern\"（URL のどこかに一致する正規表現）、ボディを設定\n\"Save changes\"を押してから\"Push all\"を押す（ルール一覧全体を送信し、以降の保存は自動でデバイスに反映される）\nNetwork › \"Mock Audit\"で、ルールが応答したリクエストを確認\nルールのスイッチで一時停止、または\"Clear device\"ですべてのルールを削除';
 
   @override
   String get guideMockApiTip =>

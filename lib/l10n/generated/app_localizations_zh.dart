@@ -1810,7 +1810,7 @@ class SZh extends S {
 
   @override
   String get tipMockSteps =>
-      'Android：先把 DevConnect.mockServerInterceptor() 添加到你的 OkHttpClient\n选择一台设备，点击\"Add rule\"，填写各字段，再点击\"Save changes\"\n点击\"Push all\"——此后的编辑、开关切换和删除会自动同步到设备\n拨动规则的开关可暂停它，或点击垃圾桶图标删除它\n点击\"Clear device\"，移除设备上的所有规则并停止同步';
+      'Android：先把 DevConnect.mockServerInterceptor() 添加到你的 OkHttpClient\n选择一台设备，点击\"Add rule\"，填写各字段，再点击\"Save changes\"\n点击\"Push all\"——此后的编辑、开关切换和删除会自动同步到设备\n拨动规则的开关可暂停它，或打开规则并按住\"Hold to delete\"删除它（Undo 可恢复）\n点击\"Clear device\"，移除设备上的所有规则并停止同步';
 
   @override
   String get tipMockTip =>
@@ -2149,7 +2149,7 @@ class SZh extends S {
 
   @override
   String get guideMockApiSteps =>
-      '在底部栏选择一台设备，打开\"Mock Server\"，点击\"Add rule\"\n设置\"Method\"、\"Status\"、\"URL pattern\"（在 URL 任意位置匹配的正则表达式）和正文\n点击\"Save & push\"或\"Push all\"——两者都会发送完整的规则列表\n在 Network › \"Mock Audit\"中查看被规则响应的请求\n用规则的开关暂停它，或用\"Clear device\"移除所有规则';
+      '在底部栏选择一台设备，打开\"Mock Server\"，点击\"Add rule\"\n设置\"Method\"、\"Status\"、\"URL pattern\"（在 URL 任意位置匹配的正则表达式）和正文\n点击\"Save changes\"，再点击\"Push all\"——会发送完整的规则列表，之后的保存会自动同步到设备\n在 Network › \"Mock Audit\"中查看被规则响应的请求\n用规则的开关暂停它，或用\"Clear device\"移除所有规则';
 
   @override
   String get guideMockApiTip =>
@@ -4097,7 +4097,7 @@ class SZhCn extends SZh {
 
   @override
   String get tipMockSteps =>
-      'Android：先把 DevConnect.mockServerInterceptor() 添加到你的 OkHttpClient\n选择一台设备，点击\"Add rule\"，填写各字段，再点击\"Save changes\"\n点击\"Push all\"——此后的编辑、开关切换和删除会自动同步到设备\n拨动规则的开关可暂停它，或点击垃圾桶图标删除它\n点击\"Clear device\"，移除设备上的所有规则并停止同步';
+      'Android：先把 DevConnect.mockServerInterceptor() 添加到你的 OkHttpClient\n选择一台设备，点击\"Add rule\"，填写各字段，再点击\"Save changes\"\n点击\"Push all\"——此后的编辑、开关切换和删除会自动同步到设备\n拨动规则的开关可暂停它，或打开规则并按住\"Hold to delete\"删除它（Undo 可恢复）\n点击\"Clear device\"，移除设备上的所有规则并停止同步';
 
   @override
   String get tipMockTip =>
@@ -4436,7 +4436,7 @@ class SZhCn extends SZh {
 
   @override
   String get guideMockApiSteps =>
-      '在底部栏选择一台设备，打开\"Mock Server\"，点击\"Add rule\"\n设置\"Method\"、\"Status\"、\"URL pattern\"（在 URL 任意位置匹配的正则表达式）和正文\n点击\"Save & push\"或\"Push all\"——两者都会发送完整的规则列表\n在 Network › \"Mock Audit\"中查看被规则响应的请求\n用规则的开关暂停它，或用\"Clear device\"移除所有规则';
+      '在底部栏选择一台设备，打开\"Mock Server\"，点击\"Add rule\"\n设置\"Method\"、\"Status\"、\"URL pattern\"（在 URL 任意位置匹配的正则表达式）和正文\n点击\"Save changes\"，再点击\"Push all\"——会发送完整的规则列表，之后的保存会自动同步到设备\n在 Network › \"Mock Audit\"中查看被规则响应的请求\n用规则的开关暂停它，或用\"Clear device\"移除所有规则';
 
   @override
   String get guideMockApiTip =>
@@ -6386,7 +6386,7 @@ class SZhTw extends SZh {
 
   @override
   String get tipMockSteps =>
-      'Android：先把 DevConnect.mockServerInterceptor() 加到你的 OkHttpClient\n選擇一台裝置，點擊\"Add rule\"，填寫各欄位，再點擊\"Save changes\"\n點擊\"Push all\"——此後的編輯、開關切換與刪除會自動同步到裝置\n撥動規則的開關可暫停它，或點擊垃圾桶圖示刪除它\n點擊\"Clear device\"，移除裝置上的所有規則並停止同步';
+      'Android：先把 DevConnect.mockServerInterceptor() 加到你的 OkHttpClient\n選擇一台裝置，點擊\"Add rule\"，填寫各欄位，再點擊\"Save changes\"\n點擊\"Push all\"——此後的編輯、開關切換與刪除會自動同步到裝置\n撥動規則的開關可暫停它，或開啟規則並按住\"Hold to delete\"刪除它（Undo 可復原）\n點擊\"Clear device\"，移除裝置上的所有規則並停止同步';
 
   @override
   String get tipMockTip =>
@@ -6727,7 +6727,7 @@ class SZhTw extends SZh {
 
   @override
   String get guideMockApiSteps =>
-      '在底部列選擇一台裝置，開啟\"Mock Server\"，點擊\"Add rule\"\n設定\"Method\"、\"Status\"、\"URL pattern\"（在 URL 任意位置比對的正規表示式）與內文\n點擊\"Save & push\"或\"Push all\"——兩者都會傳送完整的規則清單\n在 Network › \"Mock Audit\"中查看被規則回應的請求\n用規則的開關暫停它，或用\"Clear device\"移除所有規則';
+      '在底部列選擇一台裝置，開啟\"Mock Server\"，點擊\"Add rule\"\n設定\"Method\"、\"Status\"、\"URL pattern\"（在 URL 任意位置比對的正規表示式）與內文\n點擊\"Save changes\"，再點擊\"Push all\"——會傳送完整的規則清單，之後的儲存會自動同步到裝置\n在 Network › \"Mock Audit\"中查看被規則回應的請求\n用規則的開關暫停它，或用\"Clear device\"移除所有規則';
 
   @override
   String get guideMockApiTip =>

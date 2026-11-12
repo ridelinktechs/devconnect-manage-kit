@@ -1864,7 +1864,7 @@ class SFr extends S {
 
   @override
   String get tipMockSteps =>
-      'Android : ajoutez d\'abord DevConnect.mockServerInterceptor() à votre OkHttpClient\nSélectionnez un appareil, appuyez sur \"Add rule\", remplissez les champs puis appuyez sur \"Save changes\"\nAppuyez sur \"Push all\" — les modifications, interrupteurs et suppressions qui suivent parviennent ensuite tout seuls à l\'appareil\nBasculez l\'interrupteur d\'une règle pour la mettre en pause, ou supprimez-la avec l\'icône de corbeille\nAppuyez sur \"Clear device\" pour retirer toutes les règles de l\'appareil et arrêter la synchronisation';
+      'Android : ajoutez d\'abord DevConnect.mockServerInterceptor() à votre OkHttpClient\nSélectionnez un appareil, appuyez sur \"Add rule\", remplissez les champs puis appuyez sur \"Save changes\"\nAppuyez sur \"Push all\" — les modifications, interrupteurs et suppressions qui suivent parviennent ensuite tout seuls à l\'appareil\nBasculez l\'interrupteur d\'une règle pour la mettre en pause, ou ouvrez-la et maintenez \"Hold to delete\" pour la supprimer (Undo la rétablit)\nAppuyez sur \"Clear device\" pour retirer toutes les règles de l\'appareil et arrêter la synchronisation';
 
   @override
   String get tipMockTip =>
@@ -2212,7 +2212,7 @@ class SFr extends S {
 
   @override
   String get guideMockApiSteps =>
-      'Sélectionnez un appareil dans la barre du bas, ouvrez \"Mock Server\" et appuyez sur \"Add rule\"\nRenseignez \"Method\", \"Status\", \"URL pattern\" (une regex appliquée n\'importe où dans l\'URL) et le corps\nAppuyez sur \"Save & push\" ou \"Push all\" — les deux envoient toute la liste de règles\nConsultez Network › \"Mock Audit\" pour voir les requêtes auxquelles une règle a répondu\nUtilisez l\'interrupteur d\'une règle pour la mettre en pause, ou \"Clear device\" pour retirer toutes les règles';
+      'Sélectionnez un appareil dans la barre du bas, ouvrez \"Mock Server\" et appuyez sur \"Add rule\"\nRenseignez \"Method\", \"Status\", \"URL pattern\" (une regex appliquée n\'importe où dans l\'URL) et le corps\nAppuyez sur \"Save changes\", puis sur \"Push all\" — toute la liste de règles est envoyée, et les enregistrements suivants parviennent seuls à l\'appareil\nConsultez Network › \"Mock Audit\" pour voir les requêtes auxquelles une règle a répondu\nUtilisez l\'interrupteur d\'une règle pour la mettre en pause, ou \"Clear device\" pour retirer toutes les règles';
 
   @override
   String get guideMockApiTip =>

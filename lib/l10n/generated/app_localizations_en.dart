@@ -1855,7 +1855,7 @@ class SEn extends S {
 
   @override
   String get tipMockSteps =>
-      'Android: add DevConnect.mockServerInterceptor() to your OkHttpClient first\nSelect one device, press \"Add rule\", fill in the fields and press \"Save changes\"\nPress \"Push all\" — later edits, switches and deletes then reach the device on their own\nFlip a rule\'s switch to pause it, or delete it with the trash icon\nPress \"Clear device\" to remove every rule from the device and stop syncing';
+      'Android: add DevConnect.mockServerInterceptor() to your OkHttpClient first\nSelect one device, press \"Add rule\", fill in the fields and press \"Save changes\"\nPress \"Push all\" — later edits, switches and deletes then reach the device on their own\nFlip a rule\'s switch to pause it, or open it and hold \"Hold to delete\" (Undo brings it back)\nPress \"Clear device\" to remove every rule from the device and stop syncing';
 
   @override
   String get tipMockTip =>
@@ -2204,7 +2204,7 @@ class SEn extends S {
 
   @override
   String get guideMockApiSteps =>
-      'Select a device in the bottom bar, open \"Mock Server\" and press \"Add rule\"\nSet \"Method\", \"Status\", \"URL pattern\" (a regex matched anywhere in the URL) and the body\nPress \"Save & push\" or \"Push all\" — both send the whole rule list\nCheck Network › \"Mock Audit\" for the requests a rule answered\nUse a rule\'s switch to pause it, or \"Clear device\" to remove every rule';
+      'Select a device in the bottom bar, open \"Mock Server\" and press \"Add rule\"\nSet \"Method\", \"Status\", \"URL pattern\" (a regex matched anywhere in the URL) and the body\nPress \"Save changes\", then \"Push all\" — it sends the whole rule list, and later saves reach the device on their own\nCheck Network › \"Mock Audit\" for the requests a rule answered\nUse a rule\'s switch to pause it, or \"Clear device\" to remove every rule';
 
   @override
   String get guideMockApiTip =>

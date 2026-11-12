@@ -1854,7 +1854,7 @@ class SVi extends S {
 
   @override
   String get tipMockSteps =>
-      'Android: thêm DevConnect.mockServerInterceptor() vào OkHttpClient trước\nChọn một thiết bị, bấm \"Add rule\", điền các trường rồi bấm \"Save changes\"\nBấm \"Push all\" — sau đó mọi chỉnh sửa, bật/tắt và xóa tự đồng bộ xuống thiết bị\nGạt công tắc của rule để tạm tắt, hoặc xóa rule bằng biểu tượng thùng rác\nBấm \"Clear device\" để gỡ mọi rule khỏi thiết bị và ngừng đồng bộ';
+      'Android: thêm DevConnect.mockServerInterceptor() vào OkHttpClient trước\nChọn một thiết bị, bấm \"Add rule\", điền các trường rồi bấm \"Save changes\"\nBấm \"Push all\" — sau đó mọi chỉnh sửa, bật/tắt và xóa tự đồng bộ xuống thiết bị\nGạt công tắc của rule để tạm tắt, hoặc mở rule rồi nhấn giữ \"Hold to delete\" để xóa (Undo khôi phục lại)\nBấm \"Clear device\" để gỡ mọi rule khỏi thiết bị và ngừng đồng bộ';
 
   @override
   String get tipMockTip =>
@@ -2204,7 +2204,7 @@ class SVi extends S {
 
   @override
   String get guideMockApiSteps =>
-      'Chọn một thiết bị ở thanh dưới cùng, mở \"Mock Server\" rồi bấm \"Add rule\"\nĐặt \"Method\", \"Status\", \"URL pattern\" (regex, khớp ở bất kỳ đâu trong URL) và body\nBấm \"Save & push\" hoặc \"Push all\" — cả hai đều gửi toàn bộ danh sách rule\nXem Network › \"Mock Audit\" để biết những request nào được rule trả lời\nGạt công tắc của rule để tạm tắt, hoặc bấm \"Clear device\" để gỡ mọi rule';
+      'Chọn một thiết bị ở thanh dưới cùng, mở \"Mock Server\" rồi bấm \"Add rule\"\nĐặt \"Method\", \"Status\", \"URL pattern\" (regex, khớp ở bất kỳ đâu trong URL) và body\nBấm \"Save changes\" rồi \"Push all\" — toàn bộ danh sách rule được gửi, các lần lưu sau tự đồng bộ xuống thiết bị\nXem Network › \"Mock Audit\" để biết những request nào được rule trả lời\nGạt công tắc của rule để tạm tắt, hoặc bấm \"Clear device\" để gỡ mọi rule';
 
   @override
   String get guideMockApiTip =>
