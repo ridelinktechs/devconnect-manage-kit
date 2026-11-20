@@ -222,6 +222,7 @@ class WsMessageHandler {
           'deviceId': message.deviceId,
           ...message.payload,
         });
+        _handleStateSnapshot(message);
         break;
       case WsMessageTypes.clientPerformanceMetric:
         _handlePerformance(message);

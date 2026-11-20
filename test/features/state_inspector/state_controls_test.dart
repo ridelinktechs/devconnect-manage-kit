@@ -159,6 +159,37 @@ void main() {
     expect(take.onPressed, isNull);
   });
 
+  testWidgets('the state an app sends as it connects is known right away and '
+      'opens its Timeline as @@snapshot', (tester) async {
+    final page = await _open(tester);
+    page.server.emit(
+      DCMessage(
+        id: 'snap',
+        type: WsMessageTypes.clientStateSnapshot,
+        deviceId: 'dev',
+        timestamp: 1700000000000,
+        payload: {'stateManager': 'redux', 'state': _state},
+      ),
+    );
+    await _deliver(tester);
+
+    expect(
+      find.text('This device hasn\'t reported any state yet.'),
+      findsNothing,
+    );
+    final take = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.text('Take snapshot'),
+        matching: find.byWidgetPredicate((w) => w is FilledButton),
+      ),
+    );
+    expect(take.onPressed, isNotNull);
+    final entry = page.container.read(stateChangesProvider).single;
+    expect(entry.actionName, '@@snapshot');
+    expect(entry.stateManagerType, 'redux');
+    expect(entry.nextState, _state);
+  });
+
   testWidgets('a pinned path shows its live value and follows the app; a '
       'missing path reads apart from null; pins are kept', (tester) async {
     final page = await _open(tester, state: _state);
