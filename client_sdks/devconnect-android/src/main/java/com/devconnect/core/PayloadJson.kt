@@ -67,22 +67,20 @@ private fun encodeHeaderValue(v: Any?): Any = when (v) {
 
 internal fun jsonObjectToMap(json: JSONObject): Map<String, Any> {
     val map = mutableMapOf<String, Any>()
-    val keys = json.keys()
-    while (keys.hasNext()) {
-        val key = keys.next()
-        val value = json.get(key)
-        map[key] = when (value) {
-            is JSONObject -> jsonObjectToMap(value)
-            is org.json.JSONArray -> {
-                val list = mutableListOf<Any>()
-                for (i in 0 until value.length()) {
-                    val item = value.get(i)
-                    list.add(if (item is JSONObject) jsonObjectToMap(item) else item)
-                }
-                list
-            }
-            else -> value
-        }
+    for (key in json.keys()) {
+        jsonToKotlin(json.opt(key))?.let { map[key] = it }
     }
     return map
+}
+
+/**
+ * An org.json value as plain Kotlin: maps, lists, and `null` for
+ * [JSONObject.NULL] at any depth. [jsonObjectToMap] leaves a null member
+ * out, since its map can't hold one; reading that key still gives null.
+ */
+internal fun jsonToKotlin(value: Any?): Any? = when (value) {
+    null, JSONObject.NULL -> null
+    is JSONObject -> jsonObjectToMap(value)
+    is org.json.JSONArray -> List(value.length()) { jsonToKotlin(value.opt(it)) }
+    else -> value
 }

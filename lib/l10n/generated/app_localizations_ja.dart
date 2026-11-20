@@ -808,7 +808,7 @@ class SJa extends S {
 
   @override
   String get stateSubscriptionsHint =>
-      '状態のパスをピン留めすると値をライブで確認できます（例: auth.user、cart.items[0].price）。';
+      'パスをピン留めすると、その値をリアルタイムで確認できます（例: auth.user.name、cart.items[0].price）。アプリ側のコード不要で全プラットフォームで動作します。最新の変更の state を読み取ります。Redux ではストア全体、Zustand・MobX・Riverpod・ViewModel では最後に変更されたストアまたはプロバイダーです。';
 
   @override
   String get statePinPath => 'パスをピン留め';
@@ -824,7 +824,7 @@ class SJa extends S {
 
   @override
   String get stateSnapshotsHint =>
-      '現在の状態を保存し、後で送り返してバグの再現や長いフォームの省略に使えます。アプリは onStateRestore で適用します。';
+      '最新の state を保存し、後で送り返してバグを再現したり長いフォームを飛ばしたりできます。保存はどこでも動作します。Restore には、React Native・Flutter・Android で onStateRestore を使ってアプリが state を適用する必要があります。';
 
   @override
   String get stateTakeSnapshot => 'スナップショットを撮る';
@@ -859,13 +859,18 @@ class SJa extends S {
 
   @override
   String get stateDispatchHint =>
-      'Redux アクションをアプリに送ります。ストアの接続が必要です: React Native は connectReduxStore(store)、Flutter と Android は onReduxDispatch。';
+      '\"type\" に \"LOGOUT\" などを指定した JSON オブジェクトのアクションをアプリに送ります。React Native では connectReduxStore(store) で接続した Redux ストアで実行され、Flutter と Android では onReduxDispatch に渡されます。';
 
   @override
   String get stateDispatchButton => 'ディスパッチ';
 
   @override
   String get stateDispatchSent => 'アクションを送信しました';
+
+  @override
+  String stateSetupIn(String platform) {
+    return '$platform アプリでの設定';
+  }
 
   @override
   String get stateActionInvalid => 'アクションは JSON オブジェクトにしてください。';
@@ -1723,7 +1728,7 @@ class SJa extends S {
 
   @override
   String get tipStateSteps =>
-      '\"Redux\"タブを開く（Redux だけでなく、すべての state ライブラリの変更が表示される）\n\"アクションをフィルター...\"に入力して、アクション名や store 名で絞り込み\n変更をクリックして、\"差分\"、\"変更前\"、\"変更後\"を切り替え\n\"アプリの状態をこの時点に復元\"（DevConnect.onStateRestore が必要）または\"スナップショットとして保存\"を使う\n\"コントロール\"を開いて、state パスの固定、スナップショットの取得、Redux アクションの dispatch を行う';
+      '\"Timeline\"タブを開く（すべての state ライブラリの変更が表示され、ヘッダーのチップでライブラリごとに表示／非表示を切り替えられる）\n\"アクションをフィルター...\"に入力して、アクション名や store 名で絞り込み\n変更をクリックして、\"差分\"、\"変更前\"、\"変更後\"を切り替え\n\"アプリの状態をこの時点に復元\"（DevConnect.onStateRestore が必要）または\"スナップショットとして保存\"を使う\n\"コントロール\"を開いて、state パスの固定、スナップショットの取得、Redux アクションの dispatch を行う';
 
   @override
   String get tipStateTip =>
@@ -2178,6 +2183,21 @@ class SJa extends S {
   @override
   String get guideMockApiTip =>
       'Android では OkHttp に DevConnect.mockServerInterceptor() が必要です。React Native でモックされるのは fetch 呼び出しだけで、axios や XMLHttpRequest は対象外です。';
+
+  @override
+  String get guideStateControlsTitle => 'デスクトップから state を操作';
+
+  @override
+  String get guideStateControlsSummary =>
+      'State Inspector の Controls タブでは、state のパスを監視し、送り返せるスナップショットを保存し、アプリにアクションを送れます。';
+
+  @override
+  String get guideStateControlsSteps =>
+      '下部のバーでデバイスを 1 つ選び、State Inspector を開いて\"Controls\"タブに切り替える\nSubscriptions：auth.user.name のようなパスをピン留め（アプリ側のコード不要、全プラットフォーム対応）\nSnapshots：\"Take snapshot\"で最新の state を保存し、アプリが onStateRestore を処理していれば\"Restore\"で送り返せる\nDispatch action：\"type\" に \"LOGOUT\" などを指定した JSON オブジェクトを入力して\"Dispatch\"を押す（React Native は connectReduxStore(store)、Flutter と Android は onReduxDispatch が必要）\nこれらによる変更は、アプリの state ライブラリが報告すれば\"Timeline\"に表示される';
+
+  @override
+  String get guideStateControlsTip =>
+      'Subscriptions は最後に報告された state を読み取ります。Redux ではストア全体ですが、Zustand・MobX・Riverpod・ViewModel では最後に変更されたストアまたはプロバイダーだけです。Restore や Dispatch が何もしない場合は、アプリがハンドラーを設定していません。ハンドラーが投げた例外は Console に表示されます。';
 
   @override
   String get guideNetworkConditionsTitle => '低速・オフラインのネットワーク';

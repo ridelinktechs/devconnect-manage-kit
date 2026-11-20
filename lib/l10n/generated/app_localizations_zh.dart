@@ -797,7 +797,7 @@ class SZh extends S {
 
   @override
   String get stateSubscriptionsHint =>
-      '固定一个状态路径以实时查看其值，例如 auth.user 或 cart.items[0].price。';
+      '固定一个路径以实时查看它的值，例如 auth.user.name 或 cart.items[0].price。所有平台都可用，无需在应用中写代码；读取的是最新一次变更的 state：Redux 为整个 store，Zustand、MobX、Riverpod 或 ViewModel 则是最后变更的 store 或 provider。';
 
   @override
   String get statePinPath => '固定路径';
@@ -813,7 +813,7 @@ class SZh extends S {
 
   @override
   String get stateSnapshotsHint =>
-      '保存当前状态，稍后发回以复现 bug 或跳过长表单。应用在 onStateRestore 中应用它。';
+      '保存最新的 state，之后再发回应用以复现问题或跳过冗长的表单。保存在所有平台都可用；Restore 需要应用通过 onStateRestore 应用该 state（React Native、Flutter 和 Android）。';
 
   @override
   String get stateTakeSnapshot => '拍摄快照';
@@ -848,13 +848,18 @@ class SZh extends S {
 
   @override
   String get stateDispatchHint =>
-      '向应用发送一个 Redux action。需要连接 store：React Native 用 connectReduxStore(store)，Flutter 和 Android 用 onReduxDispatch。';
+      '向应用发送一个 action（带 \"type\" 的 JSON 对象，例如 \"LOGOUT\"）。React Native 会在通过 connectReduxStore(store) 接入的 Redux store 中执行；Flutter 和 Android 会把它交给 onReduxDispatch。';
 
   @override
   String get stateDispatchButton => '派发';
 
   @override
   String get stateDispatchSent => 'action 已派发';
+
+  @override
+  String stateSetupIn(String platform) {
+    return '在 $platform 应用中设置';
+  }
 
   @override
   String get stateActionInvalid => 'action 必须是 JSON 对象。';
@@ -1707,7 +1712,7 @@ class SZh extends S {
 
   @override
   String get tipStateSteps =>
-      '打开\"Redux\"标签页——它会列出所有 state 库的变更，而不只是 Redux\n在\"筛选操作...\"中输入，匹配 action 或 store 名称\n点击某次变更，再在\"差异\"、\"之前\"和\"之后\"之间切换\n使用\"将应用状态恢复到此时\"（需要 DevConnect.onStateRestore）或\"保存为快照\"\n打开\"控制\"，可固定 state 路径、创建快照并分发 Redux action';
+      '打开\"Timeline\"标签页——它会列出所有 state 库的变更；用标题栏的标签可逐个显示或隐藏\n在\"筛选操作...\"中输入，匹配 action 或 store 名称\n点击某次变更，再在\"差异\"、\"之前\"和\"之后\"之间切换\n使用\"将应用状态恢复到此时\"（需要 DevConnect.onStateRestore）或\"保存为快照\"\n打开\"控制\"，可固定 state 路径、创建快照并分发 Redux action';
 
   @override
   String get tipStateTip =>
@@ -2154,6 +2159,21 @@ class SZh extends S {
   @override
   String get guideMockApiTip =>
       'Android 需要在 OkHttp 上添加 DevConnect.mockServerInterceptor()；React Native 只模拟 fetch 调用，不模拟 axios 或 XMLHttpRequest。';
+
+  @override
+  String get guideStateControlsTitle => '从桌面控制 state';
+
+  @override
+  String get guideStateControlsSummary =>
+      'State Inspector 的 Controls 标签页可以监视 state 路径、保存可发回的快照，并向应用发送 action。';
+
+  @override
+  String get guideStateControlsSteps =>
+      '在底部栏选择一台设备，打开 State Inspector 并切换到\"Controls\"标签页\nSubscriptions：固定 auth.user.name 这样的路径；所有平台都可用，无需在应用中写代码\nSnapshots：\"Take snapshot\"保存最新的 state；应用处理 onStateRestore 后，\"Restore\"即可把它发回\nDispatch action：输入带 \"type\"（例如 \"LOGOUT\"）的 JSON 对象并点击\"Dispatch\"；React Native 需要 connectReduxStore(store)，Flutter 和 Android 需要 onReduxDispatch\n它们引起的变更会在应用的 state 库上报后出现在\"Timeline\"中';
+
+  @override
+  String get guideStateControlsTip =>
+      'Subscriptions 读取最后上报的 state：Redux 为整个 store，而 Zustand、MobX、Riverpod 或 ViewModel 只是最后变更的 store 或 provider。如果 Restore 或 Dispatch 没有效果，说明应用还没设置处理函数；处理函数抛出的错误会显示在 Console 中。';
 
   @override
   String get guideNetworkConditionsTitle => '慢速或离线网络';
@@ -3084,7 +3104,7 @@ class SZhCn extends SZh {
 
   @override
   String get stateSubscriptionsHint =>
-      '固定一个状态路径以实时查看其值，例如 auth.user 或 cart.items[0].price。';
+      '固定一个路径以实时查看它的值，例如 auth.user.name 或 cart.items[0].price。所有平台都可用，无需在应用中写代码；读取的是最新一次变更的 state：Redux 为整个 store，Zustand、MobX、Riverpod 或 ViewModel 则是最后变更的 store 或 provider。';
 
   @override
   String get statePinPath => '固定路径';
@@ -3100,7 +3120,7 @@ class SZhCn extends SZh {
 
   @override
   String get stateSnapshotsHint =>
-      '保存当前状态，稍后发回以复现 bug 或跳过长表单。应用在 onStateRestore 中应用它。';
+      '保存最新的 state，之后再发回应用以复现问题或跳过冗长的表单。保存在所有平台都可用；Restore 需要应用通过 onStateRestore 应用该 state（React Native、Flutter 和 Android）。';
 
   @override
   String get stateTakeSnapshot => '拍摄快照';
@@ -3135,13 +3155,18 @@ class SZhCn extends SZh {
 
   @override
   String get stateDispatchHint =>
-      '向应用发送一个 Redux action。需要连接 store：React Native 用 connectReduxStore(store)，Flutter 和 Android 用 onReduxDispatch。';
+      '向应用发送一个 action（带 \"type\" 的 JSON 对象，例如 \"LOGOUT\"）。React Native 会在通过 connectReduxStore(store) 接入的 Redux store 中执行；Flutter 和 Android 会把它交给 onReduxDispatch。';
 
   @override
   String get stateDispatchButton => '派发';
 
   @override
   String get stateDispatchSent => 'action 已派发';
+
+  @override
+  String stateSetupIn(String platform) {
+    return '在 $platform 应用中设置';
+  }
 
   @override
   String get stateActionInvalid => 'action 必须是 JSON 对象。';
@@ -3994,7 +4019,7 @@ class SZhCn extends SZh {
 
   @override
   String get tipStateSteps =>
-      '打开\"Redux\"标签页——它会列出所有 state 库的变更，而不只是 Redux\n在\"筛选操作...\"中输入，匹配 action 或 store 名称\n点击某次变更，再在\"差异\"、\"之前\"和\"之后\"之间切换\n使用\"将应用状态恢复到此时\"（需要 DevConnect.onStateRestore）或\"保存为快照\"\n打开\"控制\"，可固定 state 路径、创建快照并分发 Redux action';
+      '打开\"Timeline\"标签页——它会列出所有 state 库的变更；用标题栏的标签可逐个显示或隐藏\n在\"筛选操作...\"中输入，匹配 action 或 store 名称\n点击某次变更，再在\"差异\"、\"之前\"和\"之后\"之间切换\n使用\"将应用状态恢复到此时\"（需要 DevConnect.onStateRestore）或\"保存为快照\"\n打开\"控制\"，可固定 state 路径、创建快照并分发 Redux action';
 
   @override
   String get tipStateTip =>
@@ -4441,6 +4466,21 @@ class SZhCn extends SZh {
   @override
   String get guideMockApiTip =>
       'Android 需要在 OkHttp 上添加 DevConnect.mockServerInterceptor()；React Native 只模拟 fetch 调用，不模拟 axios 或 XMLHttpRequest。';
+
+  @override
+  String get guideStateControlsTitle => '从桌面控制 state';
+
+  @override
+  String get guideStateControlsSummary =>
+      'State Inspector 的 Controls 标签页可以监视 state 路径、保存可发回的快照，并向应用发送 action。';
+
+  @override
+  String get guideStateControlsSteps =>
+      '在底部栏选择一台设备，打开 State Inspector 并切换到\"Controls\"标签页\nSubscriptions：固定 auth.user.name 这样的路径；所有平台都可用，无需在应用中写代码\nSnapshots：\"Take snapshot\"保存最新的 state；应用处理 onStateRestore 后，\"Restore\"即可把它发回\nDispatch action：输入带 \"type\"（例如 \"LOGOUT\"）的 JSON 对象并点击\"Dispatch\"；React Native 需要 connectReduxStore(store)，Flutter 和 Android 需要 onReduxDispatch\n它们引起的变更会在应用的 state 库上报后出现在\"Timeline\"中';
+
+  @override
+  String get guideStateControlsTip =>
+      'Subscriptions 读取最后上报的 state：Redux 为整个 store，而 Zustand、MobX、Riverpod 或 ViewModel 只是最后变更的 store 或 provider。如果 Restore 或 Dispatch 没有效果，说明应用还没设置处理函数；处理函数抛出的错误会显示在 Console 中。';
 
   @override
   String get guideNetworkConditionsTitle => '慢速或离线网络';
@@ -5371,7 +5411,7 @@ class SZhTw extends SZh {
 
   @override
   String get stateSubscriptionsHint =>
-      '釘選狀態路徑以即時查看其值，例如 auth.user 或 cart.items[0].price。';
+      '固定一個路徑以即時查看它的值，例如 auth.user.name 或 cart.items[0].price。所有平台都可用，無需在應用程式中寫程式碼；讀取的是最新一次變更的 state：Redux 為整個 store，Zustand、MobX、Riverpod 或 ViewModel 則是最後變更的 store 或 provider。';
 
   @override
   String get statePinPath => '釘選路徑';
@@ -5387,7 +5427,7 @@ class SZhTw extends SZh {
 
   @override
   String get stateSnapshotsHint =>
-      '儲存目前狀態，稍後送回以重現 bug 或略過長表單。應用在 onStateRestore 中套用。';
+      '儲存最新的 state，之後再傳回應用程式以重現問題或略過冗長的表單。儲存在所有平台都可用；Restore 需要應用程式透過 onStateRestore 套用該 state（React Native、Flutter 和 Android）。';
 
   @override
   String get stateTakeSnapshot => '拍攝快照';
@@ -5422,13 +5462,18 @@ class SZhTw extends SZh {
 
   @override
   String get stateDispatchHint =>
-      '向應用傳送 Redux action。需要連接 store：React Native 用 connectReduxStore(store)，Flutter 和 Android 用 onReduxDispatch。';
+      '向應用程式傳送一個 action（帶 \"type\" 的 JSON 物件，例如 \"LOGOUT\"）。React Native 會在透過 connectReduxStore(store) 接入的 Redux store 中執行；Flutter 和 Android 會把它交給 onReduxDispatch。';
 
   @override
   String get stateDispatchButton => '派發';
 
   @override
   String get stateDispatchSent => 'action 已派發';
+
+  @override
+  String stateSetupIn(String platform) {
+    return '在 $platform 應用程式中設定';
+  }
 
   @override
   String get stateActionInvalid => 'action 必須是 JSON 物件。';
@@ -6282,7 +6327,7 @@ class SZhTw extends SZh {
 
   @override
   String get tipStateSteps =>
-      '開啟\"Redux\"分頁——它會列出所有 state 函式庫的變更，而不只是 Redux\n在\"篩選操作...\"中輸入，比對 action 或 store 名稱\n點擊某次變更，再在\"差異\"、\"之前\"與\"之後\"之間切換\n使用\"將應用狀態還原到此時\"（需要 DevConnect.onStateRestore）或\"儲存為快照\"\n開啟\"控制\"，可固定 state 路徑、建立快照並派發 Redux action';
+      '開啟\"Timeline\"分頁——它會列出所有 state 函式庫的變更；用標題列的標籤可逐一顯示或隱藏\n在\"篩選操作...\"中輸入，比對 action 或 store 名稱\n點擊某次變更，再在\"差異\"、\"之前\"與\"之後\"之間切換\n使用\"將應用狀態還原到此時\"（需要 DevConnect.onStateRestore）或\"儲存為快照\"\n開啟\"控制\"，可固定 state 路徑、建立快照並派發 Redux action';
 
   @override
   String get tipStateTip =>
@@ -6732,6 +6777,21 @@ class SZhTw extends SZh {
   @override
   String get guideMockApiTip =>
       'Android 需要在 OkHttp 上加入 DevConnect.mockServerInterceptor()；React Native 只模擬 fetch 呼叫，不模擬 axios 或 XMLHttpRequest。';
+
+  @override
+  String get guideStateControlsTitle => '從桌面控制 state';
+
+  @override
+  String get guideStateControlsSummary =>
+      'State Inspector 的 Controls 分頁可以監看 state 路徑、儲存可傳回的快照，並向應用程式傳送 action。';
+
+  @override
+  String get guideStateControlsSteps =>
+      '在底部列選擇一台裝置，開啟 State Inspector 並切換到\"Controls\"分頁\nSubscriptions：固定 auth.user.name 這樣的路徑；所有平台都可用，無需在應用程式中寫程式碼\nSnapshots：\"Take snapshot\"儲存最新的 state；應用程式處理 onStateRestore 後，\"Restore\"即可把它傳回\nDispatch action：輸入帶 \"type\"（例如 \"LOGOUT\"）的 JSON 物件並點擊\"Dispatch\"；React Native 需要 connectReduxStore(store)，Flutter 和 Android 需要 onReduxDispatch\n它們引起的變更會在應用程式的 state 函式庫回報後出現在\"Timeline\"中';
+
+  @override
+  String get guideStateControlsTip =>
+      'Subscriptions 讀取最後回報的 state：Redux 為整個 store，而 Zustand、MobX、Riverpod 或 ViewModel 只是最後變更的 store 或 provider。如果 Restore 或 Dispatch 沒有效果，表示應用程式尚未設定處理函式；處理函式擲出的錯誤會顯示在 Console 中。';
 
   @override
   String get guideNetworkConditionsTitle => '慢速或離線網路';

@@ -223,10 +223,10 @@ object DevConnect {
 
     // ---- State Restore ----
 
-    /** Handler called when desktop restores a state snapshot */
+    /** Handler called, on the main thread, when desktop restores a state snapshot */
     var onStateRestore: ((Map<String, Any>) -> Unit)? = null
 
-    /** Handler called when desktop dispatches a Redux/ViewModel action */
+    /** Handler called, on the main thread, when desktop dispatches a Redux/ViewModel action */
     var onReduxDispatch: ((Map<String, Any>) -> Unit)? = null
 
     // ---- Reload ----

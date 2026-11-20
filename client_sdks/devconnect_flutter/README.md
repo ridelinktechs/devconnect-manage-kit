@@ -196,6 +196,22 @@ class DevConnectObserver extends ProviderObserver {
 }
 ```
 
+#### Controls from the desktop
+
+State Inspector › **Controls** watches state paths with no app code. Restoring
+a snapshot and dispatching an action call these handlers; set them after
+`DevConnect.init`:
+
+```dart
+// Restore: apply a snapshot sent from the desktop
+DevConnect.onStateRestore = (state) => store.restore(state);
+
+// Dispatch action: the desktop sends a map such as {'type': 'LOGOUT'}
+DevConnect.onReduxDispatch = (action) => store.dispatch(action);
+```
+
+A throw in either handler shows in the desktop's Console.
+
 ### Storage
 
 Supports: SharedPreferences, Hive, Realm, SecureStorage, MMKV, ObjectBox, Sembast, sqflite, Floor.

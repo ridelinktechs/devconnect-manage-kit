@@ -13,6 +13,8 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/device_info.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../provider/state_tools_providers.dart';
+import '../shared/state_setup_code.dart';
+import 'setup_disclosure.dart';
 
 /// Reactotron-style state controls for one device: pinned paths with their
 /// live values, snapshots to restore, and a Redux action composer.
@@ -157,6 +159,13 @@ class _StateToolsPanelState extends ConsumerState<StateToolsPanel> {
             hint: loc.stateSnapshotsHint,
             isDark: isDark,
             children: [
+              if (stateRestoreSetup.containsKey(target.platform)) ...[
+                SetupDisclosure(
+                  platform: target.platform,
+                  setup: stateRestoreSetup,
+                ),
+                const SizedBox(height: 10),
+              ],
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
@@ -197,6 +206,13 @@ class _StateToolsPanelState extends ConsumerState<StateToolsPanel> {
             hint: loc.stateDispatchHint,
             isDark: isDark,
             children: [
+              if (stateDispatchSetup.containsKey(target.platform)) ...[
+                SetupDisclosure(
+                  platform: target.platform,
+                  setup: stateDispatchSetup,
+                ),
+                const SizedBox(height: 10),
+              ],
               TextField(
                 controller: _action,
                 style: mono,

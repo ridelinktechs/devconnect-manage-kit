@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../state_inspector/presentation/shared/state_setup_code.dart';
 
 /// Tabs of the Tips & Shortcuts card, in display order.
 enum TipTab { features, shortcuts, connect, sdk, advanced }
@@ -125,6 +126,23 @@ List<Guide> buildGuides(S s) => [
     summary: s.tipStateBody,
     steps: s.tipStateSteps,
     tip: s.tipStateTip,
+    route: '/state',
+  ),
+  Guide(
+    tab: TipTab.features,
+    icon: LucideIcons.slidersHorizontal,
+    color: _purple,
+    title: s.guideStateControlsTitle,
+    summary: s.guideStateControlsSummary,
+    steps: s.guideStateControlsSteps,
+    tip: s.guideStateControlsTip,
+    code: [
+      for (final platform in ['react_native', 'flutter', 'android'])
+        (
+          '${platformName(platform)} · ${stateRestoreSetup[platform]!.$1}',
+          stateControlsSetup(platform),
+        ),
+    ],
     route: '/state',
   ),
   Guide(

@@ -295,6 +295,24 @@ DevConnect.init(
 DevConnect.stateObserver().observe(lifecycleScope, viewModel.userState, "UserState")
 ```
 
+#### Controls from the desktop
+
+State Inspector › **Controls** watches state paths with no app code. Restoring
+a snapshot and dispatching an action call these handlers, on the main thread,
+so they can update views and LiveData directly:
+
+```kotlin
+// Restore: apply a snapshot sent from the desktop
+DevConnect.onStateRestore = { state -> viewModel.restore(state) }
+
+// Dispatch action: the desktop sends a map such as {"type": "LOGOUT"}
+DevConnect.onReduxDispatch = { action -> viewModel.handle(action) }
+```
+
+Values arrive as maps and lists; a JSON `null` member is left out of its map,
+so reading that key gives `null`. A throw in either handler shows in the
+desktop's Console.
+
 ### Crash & ANR detection
 
 When `autoAnrWatchdog = true` (the default for `installForApp`), a

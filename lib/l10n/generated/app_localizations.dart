@@ -1434,7 +1434,7 @@ abstract class S {
   /// No description provided for @stateSubscriptionsHint.
   ///
   /// In en, this message translates to:
-  /// **'Pin a state path to watch its live value, e.g. auth.user or cart.items[0].price.'**
+  /// **'Pin a path to watch its live value, e.g. auth.user.name or cart.items[0].price. Works on every platform with no app code; it reads the state of the latest change: the whole store with Redux, the store or provider that changed last with Zustand, MobX, Riverpod or a ViewModel.'**
   String get stateSubscriptionsHint;
 
   /// No description provided for @statePinPath.
@@ -1464,7 +1464,7 @@ abstract class S {
   /// No description provided for @stateSnapshotsHint.
   ///
   /// In en, this message translates to:
-  /// **'Save the current state and send it back later to reproduce a bug or skip a long form. The app applies it in onStateRestore.'**
+  /// **'Save the latest state, then send it back to reproduce a bug or skip a long form. Saving works everywhere; Restore needs the app to apply the state with onStateRestore on React Native, Flutter and Android.'**
   String get stateSnapshotsHint;
 
   /// No description provided for @stateTakeSnapshot.
@@ -1518,7 +1518,7 @@ abstract class S {
   /// No description provided for @stateDispatchHint.
   ///
   /// In en, this message translates to:
-  /// **'Send a Redux action to the app. Needs the store wired: connectReduxStore(store) on React Native, onReduxDispatch on Flutter and Android.'**
+  /// **'Send an action, a JSON object with a \"type\" such as \"LOGOUT\", to the app. React Native runs it in the Redux store wired with connectReduxStore(store); Flutter and Android pass it to onReduxDispatch.'**
   String get stateDispatchHint;
 
   /// No description provided for @stateDispatchButton.
@@ -1532,6 +1532,12 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Action dispatched'**
   String get stateDispatchSent;
+
+  /// No description provided for @stateSetupIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up in your {platform} app'**
+  String stateSetupIn(String platform);
 
   /// No description provided for @stateActionInvalid.
   ///
@@ -3096,7 +3102,7 @@ abstract class S {
   /// No description provided for @tipStateSteps.
   ///
   /// In en, this message translates to:
-  /// **'Open the \"Redux\" tab — it lists changes from every state library, not only Redux\nType in \"Filter actions...\" to match an action or store name\nClick a change, then switch between \"Diff\", \"Before\" and \"After\"\nUse \"Restore the app\'s state to this point\" (needs DevConnect.onStateRestore) or \"Save as snapshot\"\nOpen \"Controls\" to pin state paths, take snapshots and dispatch Redux actions'**
+  /// **'Open the \"Timeline\" tab — it lists changes from every state library; the chips in the header show or hide each one\nType in \"Filter actions...\" to match an action or store name\nClick a change, then switch between \"Diff\", \"Before\" and \"After\"\nUse \"Restore the app\'s state to this point\" (needs DevConnect.onStateRestore) or \"Save as snapshot\"\nOpen \"Controls\" to pin state paths, take snapshots and dispatch Redux actions'**
   String get tipStateSteps;
 
   /// No description provided for @tipStateTip.
@@ -3854,6 +3860,30 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Android needs DevConnect.mockServerInterceptor() on OkHttp; React Native mocks fetch calls only, not axios or XMLHttpRequest.'**
   String get guideMockApiTip;
+
+  /// No description provided for @guideStateControlsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Control state from the desktop'**
+  String get guideStateControlsTitle;
+
+  /// No description provided for @guideStateControlsSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'The State Inspector\'s Controls tab watches state paths, saves snapshots to send back, and dispatches actions into the app.'**
+  String get guideStateControlsSummary;
+
+  /// No description provided for @guideStateControlsSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick one device in the bottom bar, open State Inspector and switch to \"Controls\"\nSubscriptions: pin a path such as auth.user.name; works on every platform with no app code\nSnapshots: \"Take snapshot\" saves the latest state; \"Restore\" sends it back once the app handles onStateRestore\nDispatch action: type a JSON object with a \"type\" such as \"LOGOUT\" and press \"Dispatch\"; React Native needs connectReduxStore(store), Flutter and Android need onReduxDispatch\nChanges they cause show in \"Timeline\" when the app\'s state library reports them'**
+  String get guideStateControlsSteps;
+
+  /// No description provided for @guideStateControlsTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscriptions read the latest reported state: the whole store with Redux, but only the store or provider that changed last with Zustand, MobX, Riverpod or a ViewModel. If Restore or Dispatch does nothing, the app hasn\'t set its handler; a handler that throws shows in the Console.'**
+  String get guideStateControlsTip;
 
   /// No description provided for @guideNetworkConditionsTitle.
   ///

@@ -18,10 +18,12 @@ internal object DesktopCommands {
                     // coroutine scope and silently fail the
                     // whole restore. Log to the desktop so the
                     // dev can see which handler broke.
-                    try {
-                        DevConnect.onStateRestore?.invoke(map)
-                    } catch (e: Exception) {
-                        DevConnect.sendLog("error", "onStateRestore threw: ${e.message}", "DevConnect", e.stackTraceToString())
+                    onMainThread {
+                        try {
+                            DevConnect.onStateRestore?.invoke(map)
+                        } catch (e: Exception) {
+                            DevConnect.sendLog("error", "onStateRestore threw: ${e.message}", "DevConnect", e.stackTraceToString())
+                        }
                     }
                 }
             }
@@ -29,10 +31,12 @@ internal object DesktopCommands {
                 val action = payload.optJSONObject("action")
                 if (action != null) {
                     val map = jsonObjectToMap(action)
-                    try {
-                        DevConnect.onReduxDispatch?.invoke(map)
-                    } catch (e: Exception) {
-                        DevConnect.sendLog("error", "onReduxDispatch threw: ${e.message}", "DevConnect", e.stackTraceToString())
+                    onMainThread {
+                        try {
+                            DevConnect.onReduxDispatch?.invoke(map)
+                        } catch (e: Exception) {
+                            DevConnect.sendLog("error", "onReduxDispatch threw: ${e.message}", "DevConnect", e.stackTraceToString())
+                        }
                     }
                 }
             }
@@ -106,7 +110,7 @@ internal object DesktopCommands {
             try {
                 val key = p.optString("key")
                 when (type) {
-                    "server:storage:write" -> adapter.set(key, fromJson(p.opt("value")))
+                    "server:storage:write" -> adapter.set(key, jsonToKotlin(p.opt("value")))
                     "server:storage:delete" -> adapter.remove(key)
                     "server:storage:clear" -> adapter.clear()
                 }
@@ -118,11 +122,19 @@ internal object DesktopCommands {
         }
     }
 
-    private fun fromJson(v: Any?): Any? = when (v) {
-        null, JSONObject.NULL -> null
-        is JSONObject -> jsonObjectToMap(v)
-        is org.json.JSONArray -> List(v.length()) { fromJson(v.opt(it)) }
-        else -> v
+    /**
+     * Runs [block] on the main thread, so a handler can touch views and
+     * `LiveData.setValue`; inline when already there, or when there is no
+     * Android main looper (JVM tests).
+     */
+    private fun onMainThread(block: () -> Unit) {
+        val main = try {
+            android.os.Looper.getMainLooper()
+        } catch (_: RuntimeException) {
+            null
+        }
+        if (main == null || main.thread == Thread.currentThread()) block()
+        else android.os.Handler(main).post(block)
     }
 
     /**

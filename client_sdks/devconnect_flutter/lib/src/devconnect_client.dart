@@ -266,10 +266,16 @@ class DevConnectClient {
               onConnected?.call();
             } else if (type == 'server:redux:dispatch') {
               final action = msg['payload']?['action'] as Map<String, dynamic>?;
-              if (action != null) onReduxDispatch?.call(action);
+              if (action != null) {
+                _runAppHandler(
+                    'onReduxDispatch', () => onReduxDispatch?.call(action));
+              }
             } else if (type == 'server:state:restore') {
               final state = msg['payload']?['state'] as Map<String, dynamic>?;
-              if (state != null) onStateRestore?.call(state);
+              if (state != null) {
+                _runAppHandler(
+                    'onStateRestore', () => onStateRestore?.call(state));
+              }
             } else if (type == 'server:custom:command') {
               final cmd = msg['payload']?['command'] as String?;
               final args = msg['payload']?['args'] as Map<String, dynamic>?;
@@ -614,6 +620,21 @@ class DevConnectClient {
       if (value != null) 'value': value,
       'operation': operation,
     });
+  }
+
+  /// Runs a handler the app set; a throw shows in the desktop's Console
+  /// instead of vanishing.
+  void _runAppHandler(String name, void Function() handler) {
+    try {
+      handler();
+    } catch (e, stack) {
+      sendLog(
+        level: 'error',
+        message: '$name threw: $e',
+        tag: 'DevConnect',
+        stackTrace: '$stack',
+      );
+    }
   }
 
   // --- Public API ---

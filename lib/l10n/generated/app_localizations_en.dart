@@ -818,7 +818,7 @@ class SEn extends S {
 
   @override
   String get stateSubscriptionsHint =>
-      'Pin a state path to watch its live value, e.g. auth.user or cart.items[0].price.';
+      'Pin a path to watch its live value, e.g. auth.user.name or cart.items[0].price. Works on every platform with no app code; it reads the state of the latest change: the whole store with Redux, the store or provider that changed last with Zustand, MobX, Riverpod or a ViewModel.';
 
   @override
   String get statePinPath => 'Pin path';
@@ -834,7 +834,7 @@ class SEn extends S {
 
   @override
   String get stateSnapshotsHint =>
-      'Save the current state and send it back later to reproduce a bug or skip a long form. The app applies it in onStateRestore.';
+      'Save the latest state, then send it back to reproduce a bug or skip a long form. Saving works everywhere; Restore needs the app to apply the state with onStateRestore on React Native, Flutter and Android.';
 
   @override
   String get stateTakeSnapshot => 'Take snapshot';
@@ -870,13 +870,18 @@ class SEn extends S {
 
   @override
   String get stateDispatchHint =>
-      'Send a Redux action to the app. Needs the store wired: connectReduxStore(store) on React Native, onReduxDispatch on Flutter and Android.';
+      'Send an action, a JSON object with a \"type\" such as \"LOGOUT\", to the app. React Native runs it in the Redux store wired with connectReduxStore(store); Flutter and Android pass it to onReduxDispatch.';
 
   @override
   String get stateDispatchButton => 'Dispatch';
 
   @override
   String get stateDispatchSent => 'Action dispatched';
+
+  @override
+  String stateSetupIn(String platform) {
+    return 'Set up in your $platform app';
+  }
 
   @override
   String get stateActionInvalid => 'The action must be a JSON object.';
@@ -1750,7 +1755,7 @@ class SEn extends S {
 
   @override
   String get tipStateSteps =>
-      'Open the \"Redux\" tab — it lists changes from every state library, not only Redux\nType in \"Filter actions...\" to match an action or store name\nClick a change, then switch between \"Diff\", \"Before\" and \"After\"\nUse \"Restore the app\'s state to this point\" (needs DevConnect.onStateRestore) or \"Save as snapshot\"\nOpen \"Controls\" to pin state paths, take snapshots and dispatch Redux actions';
+      'Open the \"Timeline\" tab — it lists changes from every state library; the chips in the header show or hide each one\nType in \"Filter actions...\" to match an action or store name\nClick a change, then switch between \"Diff\", \"Before\" and \"After\"\nUse \"Restore the app\'s state to this point\" (needs DevConnect.onStateRestore) or \"Save as snapshot\"\nOpen \"Controls\" to pin state paths, take snapshots and dispatch Redux actions';
 
   @override
   String get tipStateTip =>
@@ -2209,6 +2214,21 @@ class SEn extends S {
   @override
   String get guideMockApiTip =>
       'Android needs DevConnect.mockServerInterceptor() on OkHttp; React Native mocks fetch calls only, not axios or XMLHttpRequest.';
+
+  @override
+  String get guideStateControlsTitle => 'Control state from the desktop';
+
+  @override
+  String get guideStateControlsSummary =>
+      'The State Inspector\'s Controls tab watches state paths, saves snapshots to send back, and dispatches actions into the app.';
+
+  @override
+  String get guideStateControlsSteps =>
+      'Pick one device in the bottom bar, open State Inspector and switch to \"Controls\"\nSubscriptions: pin a path such as auth.user.name; works on every platform with no app code\nSnapshots: \"Take snapshot\" saves the latest state; \"Restore\" sends it back once the app handles onStateRestore\nDispatch action: type a JSON object with a \"type\" such as \"LOGOUT\" and press \"Dispatch\"; React Native needs connectReduxStore(store), Flutter and Android need onReduxDispatch\nChanges they cause show in \"Timeline\" when the app\'s state library reports them';
+
+  @override
+  String get guideStateControlsTip =>
+      'Subscriptions read the latest reported state: the whole store with Redux, but only the store or provider that changed last with Zustand, MobX, Riverpod or a ViewModel. If Restore or Dispatch does nothing, the app hasn\'t set its handler; a handler that throws shows in the Console.';
 
   @override
   String get guideNetworkConditionsTitle => 'Slow or offline network';

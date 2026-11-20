@@ -1,41 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../core/theme/color_tokens.dart';
+import '../../../../components/layout/segmented_tab_bar.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../round/provider/round_providers.dart';
+import '../../provider/state_providers.dart';
+import '../../provider/state_tools_providers.dart';
 
-/// Top tab bar switching between Redux, State Managers and State Tools.
-class StateManagerTabBar extends StatelessWidget {
+/// The State Inspector's tabs as the segmented control the Network page
+/// uses — Timeline, State Managers and State Tools — each with what it
+/// holds.
+class StateManagerTabBar extends ConsumerWidget {
   const StateManagerTabBar({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5)),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final changes = ref.watch(
+      filteredStateChangesProvider.select((e) => e.length),
+    );
+    final managers = ref.watch(
+      filteredStateRoundProvider.select((e) => e.length),
+    );
+    final snapshots = ref.watch(stateSnapshotsProvider.select((s) => s.length));
+    return SegmentedTabBar(
+      controller: DefaultTabController.of(context),
+      tabs: [
+        SegmentedTab(
+          icon: LucideIcons.history,
+          label: 'Timeline',
+          count: changes,
+          tooltip: 'Changes from every state library, with their actions',
         ),
-      ),
-      child: TabBar(
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        labelColor: ColorTokens.primary,
-        unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-        indicatorColor: ColorTokens.primary,
-        indicatorWeight: 2,
-        labelStyle: theme.textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w600,
+        SegmentedTab(
+          icon: LucideIcons.boxes,
+          label: 'State Managers',
+          count: managers,
+          tooltip: 'BLoC, Provider, React Query and Apollo updates',
         ),
-        unselectedLabelStyle: theme.textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w500,
+        SegmentedTab(
+          icon: LucideIcons.wrench,
+          label: S.of(context).stateToolsTab,
+          count: snapshots,
         ),
-        tabs: [
-          const Tab(text: 'Redux'),
-          const Tab(text: 'State Managers'),
-          Tab(text: S.of(context).stateToolsTab),
-        ],
-      ),
+      ],
     );
   }
 }

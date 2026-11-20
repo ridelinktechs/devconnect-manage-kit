@@ -824,7 +824,7 @@ class SFr extends S {
 
   @override
   String get stateSubscriptionsHint =>
-      'Épinglez un chemin d\'état pour suivre sa valeur en direct, par ex. auth.user ou cart.items[0].price.';
+      'Épinglez un chemin pour suivre sa valeur en direct, par ex. auth.user.name ou cart.items[0].price. Fonctionne sur toutes les plateformes sans code dans l\'app ; lit l\'état du dernier changement : tout le store avec Redux, le store ou provider modifié en dernier avec Zustand, MobX, Riverpod ou un ViewModel.';
 
   @override
   String get statePinPath => 'Épingler le chemin';
@@ -840,7 +840,7 @@ class SFr extends S {
 
   @override
   String get stateSnapshotsHint =>
-      'Enregistrez l\'état actuel et renvoyez-le plus tard pour reproduire un bug ou sauter un long formulaire. L\'app l\'applique dans onStateRestore.';
+      'Enregistrez le dernier état, puis renvoyez-le pour reproduire un bug ou sauter un long formulaire. L\'enregistrement fonctionne partout ; Restore nécessite que l\'app applique l\'état avec onStateRestore sur React Native, Flutter et Android.';
 
   @override
   String get stateTakeSnapshot => 'Prendre un instantané';
@@ -876,13 +876,18 @@ class SFr extends S {
 
   @override
   String get stateDispatchHint =>
-      'Envoyez une action Redux à l\'app. Le store doit être branché : connectReduxStore(store) sur React Native, onReduxDispatch sur Flutter et Android.';
+      'Envoyez une action, un objet JSON avec un \"type\" comme \"LOGOUT\", à l\'app. React Native l\'exécute dans le store Redux branché avec connectReduxStore(store) ; Flutter et Android la transmettent à onReduxDispatch.';
 
   @override
   String get stateDispatchButton => 'Dispatcher';
 
   @override
   String get stateDispatchSent => 'Action envoyée';
+
+  @override
+  String stateSetupIn(String platform) {
+    return 'Configurer dans votre app $platform';
+  }
 
   @override
   String get stateActionInvalid => 'L\'action doit être un objet JSON.';
@@ -1759,7 +1764,7 @@ class SFr extends S {
 
   @override
   String get tipStateSteps =>
-      'Ouvrez l\'onglet \"Redux\" — il liste les changements de toutes les bibliothèques de state, pas seulement Redux\nSaisissez dans \"Filtrer les actions...\" pour trouver une action ou un nom de store\nCliquez sur un changement, puis basculez entre \"Différence\", \"Avant\" et \"Après\"\nUtilisez \"Restaurer l\'état de l\'app à ce point\" (nécessite DevConnect.onStateRestore) ou \"Enregistrer comme instantané\"\nOuvrez \"Contrôles\" pour épingler des chemins de state, prendre des instantanés et dispatcher des actions Redux';
+      'Ouvrez l\'onglet \"Timeline\" — il liste les changements de toutes les bibliothèques de state ; les puces de l\'en-tête affichent ou masquent chacune\nSaisissez dans \"Filtrer les actions...\" pour trouver une action ou un nom de store\nCliquez sur un changement, puis basculez entre \"Différence\", \"Avant\" et \"Après\"\nUtilisez \"Restaurer l\'état de l\'app à ce point\" (nécessite DevConnect.onStateRestore) ou \"Enregistrer comme instantané\"\nOuvrez \"Contrôles\" pour épingler des chemins de state, prendre des instantanés et dispatcher des actions Redux';
 
   @override
   String get tipStateTip =>
@@ -2217,6 +2222,21 @@ class SFr extends S {
   @override
   String get guideMockApiTip =>
       'Android exige DevConnect.mockServerInterceptor() sur OkHttp ; React Native ne simule que les appels fetch, pas axios ni XMLHttpRequest.';
+
+  @override
+  String get guideStateControlsTitle => 'Piloter l\'état depuis le bureau';
+
+  @override
+  String get guideStateControlsSummary =>
+      'L\'onglet Controls du State Inspector suit des chemins d\'état, enregistre des snapshots à renvoyer et envoie des actions à l\'app.';
+
+  @override
+  String get guideStateControlsSteps =>
+      'Choisissez un appareil dans la barre du bas, ouvrez State Inspector puis l\'onglet \"Controls\"\nSubscriptions : épinglez un chemin comme auth.user.name ; fonctionne sur toutes les plateformes sans code dans l\'app\nSnapshots : \"Take snapshot\" enregistre le dernier état ; \"Restore\" le renvoie dès que l\'app gère onStateRestore\nDispatch action : saisissez un objet JSON avec un \"type\" comme \"LOGOUT\" puis appuyez sur \"Dispatch\" ; React Native nécessite connectReduxStore(store), Flutter et Android onReduxDispatch\nLes changements qu\'ils provoquent apparaissent dans \"Timeline\" quand la bibliothèque de state de l\'app les signale';
+
+  @override
+  String get guideStateControlsTip =>
+      'Subscriptions lit le dernier état signalé : tout le store avec Redux, mais seulement le store ou provider modifié en dernier avec Zustand, MobX, Riverpod ou un ViewModel. Si Restore ou Dispatch ne fait rien, l\'app n\'a pas défini son handler ; un handler qui lève une erreur s\'affiche dans la Console.';
 
   @override
   String get guideNetworkConditionsTitle => 'Réseau lent ou hors ligne';

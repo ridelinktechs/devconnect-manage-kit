@@ -32,6 +32,8 @@ class StateInspectorPage extends ConsumerStatefulWidget {
 class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
   final ScrollController _scrollController = SmoothScrollController();
   final _entryCount = ValueNotifier<int>(0);
+  final _search = TextEditingController();
+  Set<String> _fresh = const {};
   bool _autoScroll = true;
   bool _programmaticScroll = false;
   int _visibleCount = 0;
@@ -47,6 +49,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
       (previous, next) {
         final prevLen = _entries.length;
         if (next.length > prevLen && previous != null && next.length - prevLen == next.length - previous.length) {
+          _fresh = {for (final e in next.sublist(prevLen)) e.id};
           _entries.addAll(next.sublist(prevLen));
           _entryCount.value = _entries.length;
           if (!_autoScroll) return;
@@ -54,6 +57,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
           setState(() {});
           _autoScrollIfNeeded();
         } else {
+          _fresh = const {};
           _entries..clear()..addAll(next);
           _entryCount.value = _entries.length;
           _visibleCount = _entries.length;
@@ -147,6 +151,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _entryCount.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -162,8 +167,27 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
       animationDuration: ref.watch(tabAnimationProvider),
       child: Column(
         children: [
-          StateManagerTabBar(),
+          Toolbar(
+            totalCount: _entryCount,
+            searchController: _search,
+            autoScroll: _autoScroll,
+            onToggleAutoScroll: () {
+              if (_autoScroll) {
+                _autoScroll = false;
+                _programmaticScroll = false;
+                if (_scrollController.hasClients) {
+                  _scrollController.jumpTo(_scrollController.offset);
+                }
+              } else {
+                _autoScroll = true;
+                _visibleCount = _entries.length;
+                _autoScrollIfNeeded();
+              }
+              setState(() {});
+            },
+          ),
           const Divider(height: 1),
+          const StateManagerTabBar(),
           Expanded(
             child: TabBarView(
               children: [
@@ -181,33 +205,21 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
   Widget _buildReduxTab(dynamic selected, ThemeData theme, bool isReversed) {
     return Column(
       children: [
-        Toolbar(
-          totalCount: _entryCount,
-          autoScroll: _autoScroll,
-          onToggleAutoScroll: () {
-            if (_autoScroll) {
-              _autoScroll = false;
-              _programmaticScroll = false;
-              if (_scrollController.hasClients) {
-                _scrollController.jumpTo(_scrollController.offset);
-              }
-            } else {
-              _autoScroll = true;
-              _visibleCount = _entries.length;
-              _autoScrollIfNeeded();
-            }
-            setState(() {});
-          },
-        ),
-        const Divider(height: 1),
         Expanded(
           child: _entries.isEmpty
-              ? EmptyStateWithPulse(
-                  icon: LucideIcons.layers,
-                  title: S.of(context).noStateChanges,
-                  subtitle:
-                      S.of(context).stateChangesAppearHere,
-                )
+              ? ref.watch(stateManagerCountsProvider).isEmpty &&
+                      ref.watch(stateSearchProvider).isEmpty
+                  ? EmptyStateWithPulse(
+                      icon: LucideIcons.layers,
+                      title: S.of(context).noStateChanges,
+                      subtitle: S.of(context).stateChangesAppearHere,
+                    )
+                  : const EmptyStateWithPulse(
+                      icon: LucideIcons.listFilter,
+                      title: 'No changes match',
+                      subtitle:
+                          'Turn a state library back on, or clear the filter.',
+                    )
               : Stack(
                   children: [
                     Row(
@@ -219,7 +231,8 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                             controller: _scrollController,
                             reverse: isReversed,
                             physics: isReversed ? const PositionRetainedScrollPhysics() : null,
-                            itemExtent: 44,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemExtent: 90,
                             childrenDelegate: StableBuilderDelegate(
                               generation: _generation,
                               childCount: _visibleCount,
@@ -234,8 +247,11 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                                 final entry = _entries[index];
                                 return RepaintBoundary(
                                   key: ValueKey(entry.id),
-                                  child: StateChangeTile(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                    child: StateChangeTile(
                                     entry: entry,
+                                    fresh: _fresh.contains(entry.id),
                                     onTap: () {
                                       final currentlySelected =
                                           ref.read(selectedStateChangeIdProvider) ==
@@ -252,6 +268,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
                                         setState(() {});
                                       }
                                     },
+                                  ),
                                   ),
                                 );
                               },

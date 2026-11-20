@@ -146,6 +146,27 @@ const useStore = create(
 );
 ```
 
+#### Controls from the desktop
+
+State Inspector › **Controls** watches state paths with no app code. Restoring
+a snapshot and dispatching an action need the store wired:
+
+```typescript
+// Dispatch action: the desktop's action runs in this store
+DevConnect.connectReduxStore(store);
+
+// Restore: apply a snapshot sent from the desktop
+DevConnect.onStateRestore((state) =>
+  store.dispatch({ type: "RESTORE_STATE", payload: state }),
+);
+// root reducer
+const rootReducer = (state, action) =>
+  action.type === "RESTORE_STATE" ? action.payload : appReducer(state, action);
+```
+
+An action the store rejects, or a throw in the handler, shows in the desktop's
+Console.
+
 ### Storage
 
 Supports: AsyncStorage, MMKV, Encrypted Storage, WatermelonDB, SQLite, Realm.

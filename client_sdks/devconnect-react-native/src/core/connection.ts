@@ -58,12 +58,12 @@ export function connect(dc: DevConnect): void {
         } else if (msg.type === 'server:redux:dispatch') {
           // Desktop dispatching a Redux action into the app
           if (dc._reduxStore && msg.payload?.action) {
-            dc._reduxStore.dispatch(msg.payload.action);
+            _runAppHandler(dc, 'Redux dispatch', () => dc._reduxStore.dispatch(msg.payload.action));
           }
         } else if (msg.type === 'server:state:restore') {
           // Desktop restoring a state snapshot
           if (dc._stateRestoreHandler && msg.payload?.state) {
-            dc._stateRestoreHandler(msg.payload.state);
+            _runAppHandler(dc, 'onStateRestore', () => dc._stateRestoreHandler!(msg.payload.state));
           }
         } else if (msg.type === 'server:custom:command') {
           // Desktop sending a custom command
@@ -161,6 +161,20 @@ function scheduleReconnect(dc: DevConnect): void {
 }
 
 /** Sends [json] now, or in chunks by [_sendChunk] when it's longer than CHUNK_SIZE. */
+/** Runs code the app supplied; a throw shows in the desktop's Console instead of vanishing. */
+function _runAppHandler(dc: DevConnect, name: string, run: () => void): void {
+  try {
+    run();
+  } catch (e: any) {
+    dc.send('client:log', {
+      level: 'error',
+      message: `${name} threw: ${e?.message ?? String(e)}`,
+      tag: 'DevConnect',
+      ...(e?.stack ? { stackTrace: String(e.stack) } : {}),
+    });
+  }
+}
+
 export function _wsSend(dc: DevConnect, json: string): void {
   if (json.length <= CHUNK_SIZE) {
     dc.ws?.send(json);

@@ -554,13 +554,26 @@ class DevConnect {
   /// Set handler for state restore from desktop.
   ///
   /// ```dart
-  /// DevConnect.onStateRestore((state) {
+  /// DevConnect.onStateRestore = (state) {
   ///   ref.read(appStateProvider.notifier).restore(state);
-  /// });
+  /// };
   /// ```
   static set onStateRestore(void Function(Map<String, dynamic> state)? handler) {
     if (!_active) return;
     clientSafe?.onStateRestore = handler;
+  }
+
+  /// Set handler for the actions the desktop sends from State Inspector ›
+  /// Controls › Dispatch action. Set it after [init].
+  ///
+  /// ```dart
+  /// DevConnect.onReduxDispatch = (action) => store.dispatch(action);
+  /// ```
+  static set onReduxDispatch(
+    void Function(Map<String, dynamic> action)? handler,
+  ) {
+    if (!_active) return;
+    clientSafe?.onReduxDispatch = handler;
   }
 
   /// Set custom handler for "reload" requests from the desktop.

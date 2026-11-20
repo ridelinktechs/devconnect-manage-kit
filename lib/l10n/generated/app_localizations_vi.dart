@@ -817,7 +817,7 @@ class SVi extends S {
 
   @override
   String get stateSubscriptionsHint =>
-      'Ghim một đường dẫn state để xem giá trị trực tiếp, ví dụ auth.user hoặc cart.items[0].price.';
+      'Ghim một đường dẫn để xem giá trị trực tiếp, ví dụ auth.user.name hoặc cart.items[0].price. Chạy trên mọi nền tảng, không cần thêm code vào app; đọc state của thay đổi mới nhất: cả store với Redux, còn với Zustand, MobX, Riverpod hay ViewModel là store hoặc provider vừa đổi.';
 
   @override
   String get statePinPath => 'Ghim đường dẫn';
@@ -833,7 +833,7 @@ class SVi extends S {
 
   @override
   String get stateSnapshotsHint =>
-      'Lưu state hiện tại rồi gửi ngược lại sau để tái hiện bug hoặc bỏ qua form dài. App áp dụng trong onStateRestore.';
+      'Lưu state mới nhất rồi gửi lại cho app để tái hiện bug hoặc bỏ qua form dài. Lưu thì nền tảng nào cũng được; Restore cần app tự áp state bằng onStateRestore trên React Native, Flutter và Android.';
 
   @override
   String get stateTakeSnapshot => 'Chụp state';
@@ -868,13 +868,18 @@ class SVi extends S {
 
   @override
   String get stateDispatchHint =>
-      'Gửi một Redux action vào app. Cần nối store: connectReduxStore(store) với React Native, onReduxDispatch với Flutter và Android.';
+      'Gửi một action (object JSON có \"type\", ví dụ \"LOGOUT\") xuống app. React Native chạy nó trong store Redux đã nối bằng connectReduxStore(store); Flutter và Android chuyển nó cho onReduxDispatch.';
 
   @override
   String get stateDispatchButton => 'Dispatch';
 
   @override
   String get stateDispatchSent => 'Đã gửi action';
+
+  @override
+  String stateSetupIn(String platform) {
+    return 'Cách nối trong app $platform';
+  }
 
   @override
   String get stateActionInvalid => 'Action phải là một object JSON.';
@@ -1749,7 +1754,7 @@ class SVi extends S {
 
   @override
   String get tipStateSteps =>
-      'Mở tab \"Redux\" — tab này chứa thay đổi từ mọi thư viện state, không chỉ Redux\nGõ vào \"Lọc hành động...\" để tìm theo tên action hoặc store\nNhấn một thay đổi rồi chuyển giữa \"Khác biệt\", \"Trước\" và \"Sau\"\nDùng \"Khôi phục state của app về thời điểm này\" (cần DevConnect.onStateRestore) hoặc \"Lưu thành snapshot\"\nMở \"Điều khiển\" để ghim đường dẫn state, chụp snapshot và dispatch action Redux';
+      'Mở tab \"Timeline\" — tab này chứa thay đổi từ mọi thư viện state; các chip trên header bật/tắt từng thư viện\nGõ vào \"Lọc hành động...\" để tìm theo tên action hoặc store\nNhấn một thay đổi rồi chuyển giữa \"Khác biệt\", \"Trước\" và \"Sau\"\nDùng \"Khôi phục state của app về thời điểm này\" (cần DevConnect.onStateRestore) hoặc \"Lưu thành snapshot\"\nMở \"Điều khiển\" để ghim đường dẫn state, chụp snapshot và dispatch action Redux';
 
   @override
   String get tipStateTip =>
@@ -2209,6 +2214,21 @@ class SVi extends S {
   @override
   String get guideMockApiTip =>
       'Android cần DevConnect.mockServerInterceptor() trên OkHttp; React Native chỉ mock được fetch, không mock axios hay XMLHttpRequest.';
+
+  @override
+  String get guideStateControlsTitle => 'Điều khiển state từ desktop';
+
+  @override
+  String get guideStateControlsSummary =>
+      'Tab Controls của State Inspector theo dõi đường dẫn state, lưu snapshot để gửi lại, và gửi action vào app.';
+
+  @override
+  String get guideStateControlsSteps =>
+      'Chọn một thiết bị ở thanh dưới cùng, mở State Inspector rồi chuyển sang tab \"Controls\"\nSubscriptions: ghim một đường dẫn như auth.user.name; chạy trên mọi nền tảng, không cần code trong app\nSnapshots: \"Take snapshot\" lưu state mới nhất; \"Restore\" gửi lại khi app đã xử lý onStateRestore\nDispatch action: nhập một object JSON có \"type\", ví dụ \"LOGOUT\", rồi bấm \"Dispatch\"; React Native cần connectReduxStore(store), Flutter và Android cần onReduxDispatch\nThay đổi do chúng gây ra sẽ hiện trong \"Timeline\" nếu thư viện state của app báo lên';
+
+  @override
+  String get guideStateControlsTip =>
+      'Subscriptions đọc state được báo gần nhất: cả store với Redux, nhưng chỉ store hoặc provider vừa đổi với Zustand, MobX, Riverpod hay ViewModel. Nếu Restore hay Dispatch không có tác dụng, app chưa gán handler; handler ném lỗi sẽ hiện trong Console.';
 
   @override
   String get guideNetworkConditionsTitle => 'Mạng chậm hoặc mất mạng';

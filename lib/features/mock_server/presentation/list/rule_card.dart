@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../components/labels/tag_label.dart';
 import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/round/mock_entry.dart';
@@ -86,7 +87,7 @@ class _RuleCardState extends State<RuleCard> {
                     opacity: dim,
                     child: Row(
                       children: [
-                        _Label(
+                        TagLabel(
                           text: rule.method.toUpperCase(),
                           color: methodInk(rule.method, isDark: p.isDark),
                           fill: ColorTokens.httpMethodColor(
@@ -142,7 +143,7 @@ class _RuleCardState extends State<RuleCard> {
                     child: Row(
                       children: [
                         Flexible(
-                          child: _Label(
+                          child: TagLabel(
                             text:
                                 '${rule.statusCode} ${statusReason(rule.statusCode)}'
                                     .trim(),
@@ -157,7 +158,7 @@ class _RuleCardState extends State<RuleCard> {
                             (
                               64.0,
                               'Answers after ${formatDelay(delay)}',
-                              _Label(
+                              TagLabel(
                                 icon: LucideIcons.timer,
                                 text: formatDelay(delay),
                                 color: p.textMuted,
@@ -169,7 +170,7 @@ class _RuleCardState extends State<RuleCard> {
                             (
                               44.0,
                               'Only on $ids device${ids == 1 ? '' : 's'}',
-                              _Label(
+                              TagLabel(
                                 icon: LucideIcons.smartphone,
                                 text: '$ids',
                                 color: p.textMuted,
@@ -183,7 +184,7 @@ class _RuleCardState extends State<RuleCard> {
                                     72.0,
                                     'Expired at ${md['expiresAt']}: it no '
                                         'longer answers',
-                                    _Label(
+                                    TagLabel(
                                       icon: LucideIcons.clock3,
                                       text: 'expired',
                                       color: mockDanger(p.isDark),
@@ -194,7 +195,7 @@ class _RuleCardState extends State<RuleCard> {
                                 : (
                                     28.0,
                                     'Answers until ${md['expiresAt']}',
-                                    _Label(
+                                    TagLabel(
                                       icon: LucideIcons.clock3,
                                       text: '',
                                       color: p.textMuted,
@@ -282,69 +283,6 @@ class _RuleCardState extends State<RuleCard> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// A 20px rounded label: an optional glyph and a short text.
-class _Label extends StatelessWidget {
-  final IconData? icon;
-  final String text;
-  final Color color;
-  final Color fill;
-  final Color? edge;
-  final bool mono;
-
-  const _Label({
-    this.icon,
-    required this.text,
-    required this.color,
-    required this.fill,
-    this.edge,
-    this.mono = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 7),
-      decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(6),
-        border: edge == null ? null : Border.all(color: edge!),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 11, color: color),
-            if (text.isNotEmpty) const SizedBox(width: 4),
-          ],
-          if (text.isNotEmpty)
-            Flexible(
-              child: Text(
-                text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: mono
-                    ? chromeMono(
-                        context,
-                        size: 10.5,
-                        color: color,
-                        weight: FontWeight.w700,
-                      )
-                    : DefaultTextStyle.of(context).style.copyWith(
-                        fontSize: 10.5,
-                        height: 1.4,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3,
-                        color: color,
-                      ),
-              ),
-            ),
-        ],
       ),
     );
   }
