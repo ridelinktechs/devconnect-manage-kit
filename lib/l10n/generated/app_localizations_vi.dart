@@ -1075,6 +1075,34 @@ class SVi extends S {
   String get storageKvFilter => 'Lọc key';
 
   @override
+  String get storageNoMatchTitle => 'Không có thao tác nào khớp';
+
+  @override
+  String get storageNoMatchSubtitle => 'Bỏ bớt bộ lọc để xem lại các thao tác.';
+
+  @override
+  String get storageShowAllOps => 'Hiện tất cả thao tác';
+
+  @override
+  String get storageShowAllTypes => 'Hiện tất cả loại storage';
+
+  @override
+  String get storageCopyValue => 'Sao chép giá trị';
+
+  @override
+  String get storageKvNoMatch => 'Không có key nào khớp';
+
+  @override
+  String storageFilterHide(String name) {
+    return 'Ẩn $name';
+  }
+
+  @override
+  String storageFilterShow(String name) {
+    return 'Hiện $name';
+  }
+
+  @override
   String get deepLinkTitle => 'Mở deep link';
 
   @override

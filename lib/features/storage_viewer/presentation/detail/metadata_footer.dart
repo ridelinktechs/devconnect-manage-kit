@@ -1,67 +1,97 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_constants.dart';
+import '../../../../core/theme/chrome_palette.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/storage/storage_entry.dart';
+import '../shared/storage_preview.dart';
+import '../shared/storage_tokens.dart';
 
-/// Key/value list rendered at the bottom of the detail panel —
-/// `Type / Operation / Shape / Device`. Mono-style values, 96px
-/// label gutter, no bottom row spacing override so consecutive
-/// rows stay close.
+/// What the detail panel lists under the value — the storage and its store,
+/// the operation, the value's shape and size, and the app and device — as
+/// label and value rows in a card.
 class MetadataFooter extends StatelessWidget {
   final StorageEntry entry;
-  final bool isDark;
-  final String stats;
+
+  /// "App · device" the operation came from, when that device is known.
+  final String? source;
+
+  /// The value's size, e.g. "1.2 KB".
+  final String size;
 
   const MetadataFooter({
     super.key,
     required this.entry,
-    required this.isDark,
-    required this.stats,
+    this.source,
+    required this.size,
   });
 
   @override
   Widget build(BuildContext context) {
-    final labelColor = isDark ? Colors.grey[500] : Colors.grey[600];
-    final valueColor = isDark ? Colors.white70 : Colors.black87;
-    final monoStyle = TextStyle(
-      fontFamily: AppConstants.monoFontFamily,
-      fontSize: 11,
-      color: valueColor,
-    );
-
-    Widget row(String label, String value) => Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 96,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: labelColor,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  value,
-                  style: monoStyle,
-                  softWrap: true,
-                ),
-              ),
-            ],
-          ),
-        );
-
+    final p = ChromePalette.of(context);
+    final rows = [
+      ('Storage', storageLabel(entry.storageType, entry.storeId)),
+      ('Operation', entry.operation),
+      ('Shape', storageShapeOf(entry.value)),
+      ('Size', size),
+      ('Device', source ?? entry.deviceId),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        row('Type', entry.storageType.name),
-        row('Operation', entry.operation),
-        row('Shape', stats),
-        row('Device', entry.deviceId),
+        Text(
+          S.of(context).details.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+            color: p.textMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: p.border),
+          ),
+          child: Column(
+            children: [
+              for (final (i, (label, value)) in rows.indexed)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  decoration: BoxDecoration(
+                    border: i == 0
+                        ? null
+                        : Border(
+                            top: BorderSide(
+                              color: p.border.withValues(alpha: 0.6),
+                            ),
+                          ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 96,
+                        child: Text(
+                          label,
+                          style: TextStyle(fontSize: 12, color: p.textMuted),
+                        ),
+                      ),
+                      Expanded(
+                        child: SelectableText(
+                          value,
+                          style: chromeMono(context, size: 12, color: p.text),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }

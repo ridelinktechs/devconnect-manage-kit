@@ -43,17 +43,20 @@ class _StorageSearchNotifier extends Notifier<String> {
   void set(String v) => state = v;
 }
 
-/// Single-select operation filter (null = show all).
-final storageOperationFilterProvider =
-    NotifierProvider<_StorageOperationFilterNotifier, String?>(
-  _StorageOperationFilterNotifier.new,
+/// Operations hidden from the history (`read`, `write`, …), in lower case.
+final storageHiddenOpsProvider =
+    NotifierProvider<StorageHiddenOpsNotifier, Set<String>>(
+  StorageHiddenOpsNotifier.new,
 );
 
-class _StorageOperationFilterNotifier extends Notifier<String?> {
+class StorageHiddenOpsNotifier extends Notifier<Set<String>> {
   @override
-  String? build() => null;
+  Set<String> build() => const {};
 
-  void set(String? v) => state = v;
+  void set(Set<String> v) => state = v;
+
+  void toggle(String op) =>
+      state = state.contains(op) ? state.difference({op}) : {...state, op};
 }
 
 /// Multi-select storage type filter (all enabled by default).
@@ -79,24 +82,48 @@ final filteredStorageEntriesProvider = Provider<List<StorageEntry>>((ref) {
   final entries = ref.watch(storageDisplayProvider).items;
   final search = ref.watch(storageSearchProvider).toLowerCase();
   final selectedDevice = ref.watch(selectedDeviceProvider);
-  final opFilter = ref.watch(storageOperationFilterProvider);
+  final hiddenOps = ref.watch(storageHiddenOpsProvider);
   final typeFilter = ref.watch(storageTypeFilterProvider);
 
   return entries.where((e) {
-    if (selectedDevice == null) return false;
-    if (selectedDevice != allDevicesValue && e.deviceId != selectedDevice) {
-      return false;
-    }
-    if (opFilter != null && e.operation.toLowerCase() != opFilter) {
-      return false;
-    }
+    if (!storageOnDevice(e, selectedDevice)) return false;
+    if (hiddenOps.contains(e.operation.toLowerCase())) return false;
     if (!typeFilter.contains(e.storageType)) return false;
-    if (search.isNotEmpty) {
-      return e.key.toLowerCase().contains(search) ||
-          (e.value?.toString().toLowerCase().contains(search) ?? false);
-    }
-    return true;
+    return storageMatchesSearch(e, search);
   }).toList();
+});
+
+/// Whether [e] came from [selectedDevice], or any device when every device
+/// is picked.
+bool storageOnDevice(StorageEntry e, String? selectedDevice) =>
+    selectedDevice != null &&
+    (selectedDevice == allDevicesValue || e.deviceId == selectedDevice);
+
+/// Whether [e]'s key or value holds [search], already in lower case.
+bool storageMatchesSearch(StorageEntry e, String search) =>
+    search.isEmpty ||
+    e.key.toLowerCase().contains(search) ||
+    (e.value?.toString().toLowerCase().contains(search) ?? false);
+
+/// How many operations of each kind and of each storage type the history
+/// holds for the picked device and search, before the operation and type
+/// filters: the counts on their chips.
+final storageFacetsProvider =
+    Provider<({Map<String, int> ops, Map<StorageType, int> types})>((ref) {
+  final entries = ref.watch(storageDisplayProvider).items;
+  final search = ref.watch(storageSearchProvider).toLowerCase();
+  final device = ref.watch(selectedDeviceProvider);
+  final ops = <String, int>{};
+  final types = <StorageType, int>{};
+  for (final e in entries) {
+    if (!storageOnDevice(e, device) || !storageMatchesSearch(e, search)) {
+      continue;
+    }
+    final op = e.operation.toLowerCase();
+    ops[op] = (ops[op] ?? 0) + 1;
+    types[e.storageType] = (types[e.storageType] ?? 0) + 1;
+  }
+  return (ops: ops, types: types);
 });
 
 final selectedStorageIdProvider =

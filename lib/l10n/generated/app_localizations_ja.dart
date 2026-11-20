@@ -1065,6 +1065,34 @@ class SJa extends S {
   String get storageKvFilter => 'キーを絞り込む';
 
   @override
+  String get storageNoMatchTitle => '一致する操作はありません';
+
+  @override
+  String get storageNoMatchSubtitle => 'フィルターを外すと再表示されます。';
+
+  @override
+  String get storageShowAllOps => 'すべての操作を表示';
+
+  @override
+  String get storageShowAllTypes => 'すべてのストレージ種別を表示';
+
+  @override
+  String get storageCopyValue => '値をコピー';
+
+  @override
+  String get storageKvNoMatch => '一致するキーはありません';
+
+  @override
+  String storageFilterHide(String name) {
+    return '$name を非表示';
+  }
+
+  @override
+  String storageFilterShow(String name) {
+    return '$name を表示';
+  }
+
+  @override
   String get deepLinkTitle => 'ディープリンクを開く';
 
   @override

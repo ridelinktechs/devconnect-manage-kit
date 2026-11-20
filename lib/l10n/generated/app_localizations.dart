@@ -1863,6 +1863,54 @@ abstract class S {
   /// **'Filter keys'**
   String get storageKvFilter;
 
+  /// No description provided for @storageNoMatchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No operations match'**
+  String get storageNoMatchTitle;
+
+  /// No description provided for @storageNoMatchSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop a filter to bring them back.'**
+  String get storageNoMatchSubtitle;
+
+  /// No description provided for @storageShowAllOps.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all operations'**
+  String get storageShowAllOps;
+
+  /// No description provided for @storageShowAllTypes.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all storage types'**
+  String get storageShowAllTypes;
+
+  /// No description provided for @storageCopyValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy value'**
+  String get storageCopyValue;
+
+  /// No description provided for @storageKvNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No keys match'**
+  String get storageKvNoMatch;
+
+  /// No description provided for @storageFilterHide.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide {name}'**
+  String storageFilterHide(String name);
+
+  /// No description provided for @storageFilterShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show {name}'**
+  String storageFilterShow(String name);
+
   /// No description provided for @deepLinkTitle.
   ///
   /// In en, this message translates to:

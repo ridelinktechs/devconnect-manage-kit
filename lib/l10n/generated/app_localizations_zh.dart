@@ -1054,6 +1054,34 @@ class SZh extends S {
   String get storageKvFilter => '筛选键';
 
   @override
+  String get storageNoMatchTitle => '没有匹配的操作';
+
+  @override
+  String get storageNoMatchSubtitle => '移除筛选条件即可重新显示。';
+
+  @override
+  String get storageShowAllOps => '显示所有操作';
+
+  @override
+  String get storageShowAllTypes => '显示所有存储类型';
+
+  @override
+  String get storageCopyValue => '复制值';
+
+  @override
+  String get storageKvNoMatch => '没有匹配的键';
+
+  @override
+  String storageFilterHide(String name) {
+    return '隐藏 $name';
+  }
+
+  @override
+  String storageFilterShow(String name) {
+    return '显示 $name';
+  }
+
+  @override
   String get deepLinkTitle => '打开深层链接';
 
   @override
@@ -3361,6 +3389,34 @@ class SZhCn extends SZh {
   String get storageKvFilter => '筛选键';
 
   @override
+  String get storageNoMatchTitle => '没有匹配的操作';
+
+  @override
+  String get storageNoMatchSubtitle => '移除筛选条件即可重新显示。';
+
+  @override
+  String get storageShowAllOps => '显示所有操作';
+
+  @override
+  String get storageShowAllTypes => '显示所有存储类型';
+
+  @override
+  String get storageCopyValue => '复制值';
+
+  @override
+  String get storageKvNoMatch => '没有匹配的键';
+
+  @override
+  String storageFilterHide(String name) {
+    return '隐藏 $name';
+  }
+
+  @override
+  String storageFilterShow(String name) {
+    return '显示 $name';
+  }
+
+  @override
   String get deepLinkTitle => '打开深层链接';
 
   @override
@@ -5666,6 +5722,34 @@ class SZhTw extends SZh {
 
   @override
   String get storageKvFilter => '篩選鍵';
+
+  @override
+  String get storageNoMatchTitle => '沒有符合的操作';
+
+  @override
+  String get storageNoMatchSubtitle => '移除篩選條件即可重新顯示。';
+
+  @override
+  String get storageShowAllOps => '顯示所有操作';
+
+  @override
+  String get storageShowAllTypes => '顯示所有儲存類型';
+
+  @override
+  String get storageCopyValue => '複製值';
+
+  @override
+  String get storageKvNoMatch => '沒有符合的鍵';
+
+  @override
+  String storageFilterHide(String name) {
+    return '隱藏 $name';
+  }
+
+  @override
+  String storageFilterShow(String name) {
+    return '顯示 $name';
+  }
 
   @override
   String get deepLinkTitle => '開啟深層連結';

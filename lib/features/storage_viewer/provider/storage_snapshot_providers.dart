@@ -2,7 +2,17 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/device_info.dart';
 import '../../../server/providers/server_providers.dart';
+
+/// The device whose stores the Key-Value tab shows: the picked one, or the
+/// only one connected.
+final storageTargetDeviceProvider = Provider<DeviceInfo?>((ref) {
+  final devices = ref.watch(connectedDevicesProvider);
+  final selected = ref.watch(selectedDeviceProvider);
+  return devices.where((d) => d.deviceId == selected).firstOrNull ??
+      (devices.length == 1 ? devices.single : null);
+});
 
 /// A store's contents as the app last reported them.
 class StorageSnapshot {

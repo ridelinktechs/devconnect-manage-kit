@@ -31,7 +31,16 @@ const _spring = Cubic(0.34, 1.45, 0.64, 1);
 class NoMatchState extends StatefulWidget {
   final List<NoMatchFix> fixes;
 
-  const NoMatchState({super.key, required this.fixes});
+  /// What it says above [fixes]; the Console's words when left out.
+  final String? title;
+  final String? subtitle;
+
+  const NoMatchState({
+    super.key,
+    required this.fixes,
+    this.title,
+    this.subtitle,
+  });
 
   @override
   State<NoMatchState> createState() => _NoMatchStateState();
@@ -94,7 +103,7 @@ class _NoMatchStateState extends State<NoMatchState>
               ),
               const SizedBox(height: 10),
               Text(
-                loc.consoleNoMatchTitle,
+                widget.title ?? loc.consoleNoMatchTitle,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16.5,
@@ -105,7 +114,7 @@ class _NoMatchStateState extends State<NoMatchState>
               ),
               const SizedBox(height: 4),
               Text(
-                loc.consoleNoMatchSubtitle,
+                widget.subtitle ?? loc.consoleNoMatchSubtitle,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12.5,

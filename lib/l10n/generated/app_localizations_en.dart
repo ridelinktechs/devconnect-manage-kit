@@ -1077,6 +1077,34 @@ class SEn extends S {
   String get storageKvFilter => 'Filter keys';
 
   @override
+  String get storageNoMatchTitle => 'No operations match';
+
+  @override
+  String get storageNoMatchSubtitle => 'Drop a filter to bring them back.';
+
+  @override
+  String get storageShowAllOps => 'Show all operations';
+
+  @override
+  String get storageShowAllTypes => 'Show all storage types';
+
+  @override
+  String get storageCopyValue => 'Copy value';
+
+  @override
+  String get storageKvNoMatch => 'No keys match';
+
+  @override
+  String storageFilterHide(String name) {
+    return 'Hide $name';
+  }
+
+  @override
+  String storageFilterShow(String name) {
+    return 'Show $name';
+  }
+
+  @override
   String get deepLinkTitle => 'Open a deep link';
 
   @override

@@ -5,17 +5,20 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
-import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/scroll/position_retained_scroll_physics.dart';
 import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/storage/storage_entry.dart';
+import '../../../../server/providers/server_providers.dart';
+import '../../../console/presentation/empty/no_match_state.dart';
 import '../../provider/storage_providers.dart';
 import '../detail/detail_panel.dart';
 import '../event_row/storage_entry_tile.dart';
+import '../header/storage_tab_bar.dart';
 import '../header/toolbar.dart';
 import '../key_value/storage_key_value_panel.dart';
+import '../shared/storage_tokens.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
 /// Storage Viewer Page — streaming list of storage operations with
@@ -34,6 +37,12 @@ class StorageViewerPage extends ConsumerStatefulWidget {
 class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
   final ScrollController _scrollController = SmoothScrollController();
   final _entryCount = ValueNotifier<int>(0);
+
+  /// The key filter's text, kept here so it survives tab switches.
+  final _search = TextEditingController();
+
+  /// Operations that arrived in the last update, which glow.
+  Set<String> _fresh = const {};
   bool _autoScroll = true;
   bool _programmaticScroll = false;
   int _visibleCount = 0;
@@ -51,6 +60,10 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
         // Always full sync to ensure tiles reflect latest data.
         final grew = next.length > _entries.length;
         final shrunk = next.length < _entries.length;
+        final known = {for (final e in _entries) e.id};
+        _fresh = previous == null || !grew
+            ? const {}
+            : {for (final e in next) if (!known.contains(e.id)) e.id};
         _entries..clear()..addAll(next);
         _entryCount.value = _entries.length;
         if (grew || shrunk || _autoScroll) _visibleCount = _entries.length;
@@ -155,6 +168,7 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _entryCount.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -170,8 +184,27 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
       animationDuration: ref.watch(tabAnimationProvider),
       child: Column(
         children: [
-          _StorageTabBar(),
+          Toolbar(
+            totalCount: _entryCount,
+            searchController: _search,
+            autoScroll: _autoScroll,
+            onToggleAutoScroll: () {
+              if (_autoScroll) {
+                _autoScroll = false;
+                _programmaticScroll = false;
+                if (_scrollController.hasClients) {
+                  _scrollController.jumpTo(_scrollController.offset);
+                }
+              } else {
+                _autoScroll = true;
+                _visibleCount = _entries.length;
+                _autoScrollIfNeeded();
+              }
+              setState(() {});
+            },
+          ),
           const Divider(height: 1),
+          const StorageTabBar(),
           Expanded(
             child: TabBarView(
               physics: const NeverScrollableScrollPhysics(),
@@ -186,36 +219,101 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
     );
   }
 
-  Widget _history(ThemeData theme, bool isReversed) {
-    return Column(
-      children: [
-        Toolbar(
-          totalCount: _entryCount,
-          autoScroll: _autoScroll,
-          onToggleAutoScroll: () {
-            if (_autoScroll) {
-              _autoScroll = false;
-              _programmaticScroll = false;
-              if (_scrollController.hasClients) {
-                _scrollController.jumpTo(_scrollController.offset);
-              }
-            } else {
-              _autoScroll = true;
-              _visibleCount = _entries.length;
-              _autoScrollIfNeeded();
-            }
-            setState(() {});
+  /// Ways out of an empty history whose operations the filters hide: each
+  /// drops one filter and says how many operations it brings back.
+  List<NoMatchFix> _fixes() {
+    final loc = S.of(context);
+    final all = ref.watch(storageDisplayProvider).items;
+    final device = ref.watch(selectedDeviceProvider);
+    final hiddenOps = ref.watch(storageHiddenOpsProvider);
+    final types = ref.watch(storageTypeFilterProvider);
+    final search = ref.watch(storageSearchProvider).toLowerCase();
+    final mine = [for (final e in all) if (storageOnDevice(e, device)) e];
+    bool opOk(StorageEntry e) => !hiddenOps.contains(e.operation.toLowerCase());
+    bool typeOk(StorageEntry e) => types.contains(e.storageType);
+    final withAllOps = mine
+        .where((e) => typeOk(e) && storageMatchesSearch(e, search))
+        .length;
+    final withAllTypes = mine
+        .where((e) => opOk(e) && storageMatchesSearch(e, search))
+        .length;
+    final withoutSearch = mine.where((e) => opOk(e) && typeOk(e)).length;
+    final hiddenTypes = {
+      for (final e in mine)
+        if (!typeOk(e)) storageTypeName(e.storageType),
+    };
+    String drops(Iterable<String> names) => names.length <= 2
+        ? names.join(' · ')
+        : '${names.first} +${names.length - 1}';
+    void showAllOps() => ref.read(storageHiddenOpsProvider.notifier).set({});
+    void showAllTypes() => ref
+        .read(storageTypeFilterProvider.notifier)
+        .set(StorageType.values.toSet());
+    void clearSearch() {
+      _search.clear();
+      ref.read(storageSearchProvider.notifier).set('');
+    }
+
+    return [
+      if (hiddenOps.isNotEmpty && withAllOps > 0)
+        (
+          drops: drops(hiddenOps.map((op) => op.toUpperCase())),
+          label: loc.storageShowAllOps,
+          count: withAllOps,
+          apply: showAllOps,
+        ),
+      if (hiddenTypes.isNotEmpty && withAllTypes > 0)
+        (
+          drops: drops(hiddenTypes),
+          label: loc.storageShowAllTypes,
+          count: withAllTypes,
+          apply: showAllTypes,
+        ),
+      if (search.isNotEmpty && withoutSearch > 0)
+        (
+          drops: '"${_search.text}"',
+          label: loc.consoleClearSearch,
+          count: withoutSearch,
+          apply: clearSearch,
+        ),
+      if (withAllOps == 0 && withAllTypes == 0 && withoutSearch == 0)
+        (
+          drops: loc.consoleResetFilters,
+          label: loc.consoleResetFilters,
+          count: mine.length,
+          apply: () {
+            showAllOps();
+            showAllTypes();
+            clearSearch();
           },
         ),
-        const Divider(height: 1),
+    ];
+  }
+
+  Widget _history(ThemeData theme, bool isReversed) {
+    final device = ref.watch(selectedDeviceProvider);
+    final hasAny = _entries.isNotEmpty ||
+        ref.watch(
+          storageDisplayProvider.select(
+            (c) => c.items.any((e) => storageOnDevice(e, device)),
+          ),
+        );
+    return Column(
+      children: [
         Expanded(
           child: _entries.isEmpty
-              ? EmptyStateWithPulse(
-                  icon: LucideIcons.database,
-                  title: S.of(context).noStorageData,
-                  subtitle:
-                      S.of(context).storageEntriesAppearHere,
-                )
+              ? hasAny
+                  ? NoMatchState(
+                      title: S.of(context).storageNoMatchTitle,
+                      subtitle: S.of(context).storageNoMatchSubtitle,
+                      fixes: _fixes(),
+                    )
+                  : EmptyStateWithPulse(
+                      icon: LucideIcons.database,
+                      title: S.of(context).noStorageData,
+                      subtitle:
+                          S.of(context).storageEntriesAppearHere,
+                    )
               : Stack(
                   children: [
                     Consumer(
@@ -230,7 +328,8 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                                 controller: _scrollController,
                                 reverse: isReversed,
                                 physics: isReversed ? const PositionRetainedScrollPhysics() : null,
-                                itemExtent: 58,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                itemExtent: 90,
                                 childrenDelegate: StableBuilderDelegate(
                                   generation: _generation,
                                   childCount: _visibleCount,
@@ -246,9 +345,12 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                                     final isSelected = selected?.id == entry.id;
                                     return RepaintBoundary(
                                       key: ValueKey(entry.id),
-                                      child: StorageEntryTile(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        child: StorageEntryTile(
                                         entry: entry,
                                         isSelected: isSelected,
+                                        fresh: _fresh.contains(entry.id),
                                         onTap: () {
                                           ref
                                               .read(selectedStorageIdProvider.notifier)
@@ -262,6 +364,7 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                                             setState(() {});
                                           }
                                         },
+                                      ),
                                       ),
                                     );
                                   },
@@ -300,32 +403,6 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
                 ),
         ),
       ],
-    );
-  }
-}
-
-class _StorageTabBar extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      color: theme.colorScheme.surface,
-      child: TabBar(
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        labelColor: ColorTokens.primary,
-        unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-        indicatorColor: ColorTokens.primary,
-        indicatorWeight: 2,
-        labelStyle:
-            theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-        unselectedLabelStyle:
-            theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w500),
-        tabs: [
-          Tab(text: S.of(context).storageTabHistory),
-          Tab(text: S.of(context).storageTabKeyValue),
-        ],
-      ),
     );
   }
 }

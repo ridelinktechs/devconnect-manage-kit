@@ -1084,6 +1084,34 @@ class SFr extends S {
   String get storageKvFilter => 'Filtrer les clés';
 
   @override
+  String get storageNoMatchTitle => 'Aucune opération ne correspond';
+
+  @override
+  String get storageNoMatchSubtitle => 'Retirez un filtre pour les retrouver.';
+
+  @override
+  String get storageShowAllOps => 'Afficher toutes les opérations';
+
+  @override
+  String get storageShowAllTypes => 'Afficher tous les types de stockage';
+
+  @override
+  String get storageCopyValue => 'Copier la valeur';
+
+  @override
+  String get storageKvNoMatch => 'Aucune clé ne correspond';
+
+  @override
+  String storageFilterHide(String name) {
+    return 'Masquer $name';
+  }
+
+  @override
+  String storageFilterShow(String name) {
+    return 'Afficher $name';
+  }
+
+  @override
   String get deepLinkTitle => 'Ouvrir un lien profond';
 
   @override

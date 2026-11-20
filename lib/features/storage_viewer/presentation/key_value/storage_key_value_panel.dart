@@ -2,13 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
+import '../../../../components/inputs/search_field.dart';
+import '../../../../components/layout/segmented_tab_bar.dart';
 import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/device_info.dart';
+import '../../../../models/storage/storage_entry.dart';
 import '../../../../server/providers/server_providers.dart';
+import '../../../../server/ws_message_handler.dart';
 import '../../provider/storage_snapshot_providers.dart';
+import '../header/icon_btn.dart';
+import '../shared/storage_tokens.dart';
+import 'edit_key_dialog.dart';
+import 'key_value_row.dart';
+
+/// A store as people read it — `async_storage` is AsyncStorage,
+/// `mmkv:settings` is MMKV · settings — or as the SDK sent it when the app
+/// doesn't know the storage.
+String _storeName(String raw) {
+  final (:storageType, :storeId) = parseStorageTypeAndStoreId(raw);
+  final base = raw.split(':').first.toLowerCase().replaceAll('_', '');
+  return storageType != StorageType.sharedPreferences ||
+          base == 'sharedpreferences'
+      ? storageLabel(storageType, storeId)
+      : raw;
+}
 
 /// The current contents of an app's key-value stores (AsyncStorage, MMKV,
 /// SharedPreferences, …), editable from here: add, edit or delete a key,
@@ -37,62 +57,13 @@ class _StorageKeyValuePanelState extends ConsumerState<StorageKeyValuePanel> {
     String? key,
     Object? original,
   }) async {
-    final loc = S.of(context);
-    final mono = chromeMono(
-      context,
-      size: 12.5,
-      color: Theme.of(context).colorScheme.onSurface,
-    );
-    final keyField = TextEditingController(text: key ?? '');
-    final valueField = TextEditingController(
-      text: key == null ? '' : storageValueText(original),
-    );
     final result = await showDialog<(String, String)>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(key == null ? loc.storageKvAdd : loc.storageKvEdit),
-        content: SizedBox(
-          width: 480,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: keyField,
-                enabled: key == null,
-                autofocus: key == null,
-                style: mono,
-                decoration: InputDecoration(labelText: loc.storageKvKey),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: valueField,
-                autofocus: key != null,
-                minLines: 3,
-                maxLines: 12,
-                style: mono,
-                decoration: InputDecoration(
-                  labelText: loc.storageKvValue,
-                  alignLabelWithHint: true,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(loc.cancel),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, (keyField.text.trim(), valueField.text)),
-            child: Text(loc.storageKvSave),
-          ),
-        ],
+      builder: (context) => EditKeyDialog(
+        entryKey: key,
+        value: key == null ? '' : storageValueText(original),
       ),
     );
-    keyField.dispose();
-    valueField.dispose();
     if (result == null || result.$1.isEmpty) return;
     ref
         .read(wsMessageHandlerProvider)
@@ -134,14 +105,10 @@ class _StorageKeyValuePanelState extends ConsumerState<StorageKeyValuePanel> {
   @override
   Widget build(BuildContext context) {
     final loc = S.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final devices = ref.watch(connectedDevicesProvider);
-    final selectedId = ref.watch(selectedDeviceProvider);
-    final target =
-        devices.where((d) => d.deviceId == selectedId).firstOrNull ??
-        (devices.length == 1 ? devices.single : null);
+    final p = ChromePalette.of(context);
+    final target = ref.watch(storageTargetDeviceProvider);
     if (target == null) {
-      return EmptyState(
+      return EmptyStateWithPulse(
         icon: LucideIcons.database,
         title: loc.storageTabKeyValue,
         subtitle: loc.storageKvNoDevice,
@@ -154,9 +121,10 @@ class _StorageKeyValuePanelState extends ConsumerState<StorageKeyValuePanel> {
     }
     final stores =
         ref.watch(storageSnapshotsProvider)[target.deviceId] ?? const {};
+    final names = stores.keys.toList();
     final storageType = stores.containsKey(_storageType)
         ? _storageType!
-        : stores.keys.firstOrNull;
+        : names.firstOrNull;
     final snapshot = storageType == null ? null : stores[storageType];
     final filter = _filter.toLowerCase();
     final entries =
@@ -164,254 +132,204 @@ class _StorageKeyValuePanelState extends ConsumerState<StorageKeyValuePanel> {
             .where((e) => e.key.toLowerCase().contains(filter))
             .toList()
           ..sort((a, b) => a.key.compareTo(b.key));
-    final divider = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.black.withValues(alpha: 0.08);
+    final head = TextStyle(
+      fontSize: 10.5,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.6,
+      color: p.textMuted,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          height: 44,
+          height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: isDark ? ColorTokens.darkBackground : Colors.white,
-            border: Border(bottom: BorderSide(color: divider)),
+            color: p.isDark ? ColorTokens.darkBackground : Colors.white,
+            border: Border(bottom: BorderSide(color: p.border)),
           ),
           child: Row(
             children: [
               Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final type in stores.keys)
-                        _StoreChip(
-                          label: type,
-                          count: stores[type]!.entries.length,
-                          selected: type == storageType,
-                          isDark: isDark,
-                          onTap: () => setState(() => _storageType = type),
-                        ),
-                    ],
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: storageType == null
+                        ? const SizedBox.shrink()
+                        : SegmentedTabs(
+                            tabs: [
+                              for (final name in names)
+                                SegmentedTab(
+                                  icon: LucideIcons.database,
+                                  label: _storeName(name),
+                                  count: stores[name]!.entries.length,
+                                ),
+                            ],
+                            index: names.indexOf(storageType),
+                            animate: !MediaQuery.disableAnimationsOf(context),
+                            onSelect: (i) =>
+                                setState(() => _storageType = names[i]),
+                          ),
                   ),
                 ),
               ),
               if (storageType != null) ...[
+                const SizedBox(width: 12),
                 SizedBox(
-                  width: 180,
-                  child: TextField(
+                  width: 200,
+                  child: SearchField(
+                    hintText: loc.storageKvFilter,
                     onChanged: (v) => setState(() => _filter = v),
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: loc.storageKvFilter,
-                      prefixIcon: const Icon(LucideIcons.search, size: 14),
-                      prefixIconConstraints: const BoxConstraints(minWidth: 30),
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
                   ),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(LucideIcons.plus, size: 15),
-                  tooltip: loc.storageKvAdd,
-                  onPressed: () => _edit(target, storageType),
-                ),
-                IconButton(
-                  icon: const Icon(LucideIcons.trash2, size: 14),
-                  color: ColorTokens.error,
-                  tooltip: loc.storageKvClear,
-                  onPressed: () => _clear(target, storageType),
-                ),
               ],
-              IconButton(
-                icon: const Icon(LucideIcons.refreshCw, size: 14),
-                tooltip: loc.storageKvRefresh,
-                onPressed: () => _request(target.deviceId),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: p.isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : Colors.black.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (storageType != null) ...[
+                      IconBtn(
+                        icon: LucideIcons.plus,
+                        tooltip: loc.storageKvAdd,
+                        onTap: () => _edit(target, storageType),
+                      ),
+                      const SizedBox(width: 2),
+                    ],
+                    IconBtn(
+                      icon: LucideIcons.refreshCw,
+                      tooltip: loc.storageKvRefresh,
+                      onTap: () => _request(target.deviceId),
+                    ),
+                    if (storageType != null) ...[
+                      const SizedBox(width: 2),
+                      Container(width: 1, height: 18, color: p.border),
+                      const SizedBox(width: 2),
+                      IconBtn(
+                        icon: LucideIcons.trash2,
+                        tooltip: loc.storageKvClear,
+                        isDanger: true,
+                        onTap: () => _clear(target, storageType),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ],
           ),
         ),
         if (snapshot?.error case final error?)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            color: ColorTokens.error.withValues(alpha: 0.1),
-            child: Text(
-              error,
-              style: TextStyle(fontSize: 12, color: ColorTokens.error),
+            margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Color.alphaBlend(
+                ColorTokens.error.withValues(alpha: 0.10),
+                p.surface,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: ColorTokens.error.withValues(alpha: 0.22),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  LucideIcons.circleAlert,
+                  size: 14,
+                  color: ColorTokens.error,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SelectableText(
+                    error,
+                    style: TextStyle(fontSize: 12, height: 1.4, color: p.text),
+                  ),
+                ),
+              ],
             ),
           ),
         Expanded(
           child: storageType == null
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.database,
                   title: loc.storageTabKeyValue,
                   subtitle: loc.storageKvEmpty,
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: entries.length,
-                  separatorBuilder: (_, _) =>
-                      Divider(height: 1, color: divider),
-                  itemBuilder: (context, i) {
-                    final MapEntry(:key, :value) = entries[i];
-                    return _KeyValueRow(
-                      entryKey: key,
-                      value: value,
-                      isDark: isDark,
-                      onEdit: () =>
-                          _edit(target, storageType, key: key, original: value),
-                      onDelete: () => ref
-                          .read(wsMessageHandlerProvider)
-                          .deleteStorage(target.deviceId, storageType, key),
-                    );
-                  },
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 12, 16, 4),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 240,
+                            child: Text(
+                              loc.storageKvKey.toUpperCase(),
+                              style: head,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(loc.storageKvValue.toUpperCase(), style: head),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: entries.isEmpty
+                          ? Center(
+                              child: Text(
+                                filter.isNotEmpty
+                                    ? loc.storageKvNoMatch
+                                    : (snapshot?.error == null
+                                          ? loc.noData
+                                          : ''),
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: p.textMuted,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+                              itemCount: entries.length,
+                              itemBuilder: (context, i) {
+                                final MapEntry(:key, :value) = entries[i];
+                                return KeyValueRow(
+                                  key: ValueKey(key),
+                                  entryKey: key,
+                                  value: value,
+                                  onEdit: () => _edit(
+                                    target,
+                                    storageType,
+                                    key: key,
+                                    original: value,
+                                  ),
+                                  onDelete: () => ref
+                                      .read(wsMessageHandlerProvider)
+                                      .deleteStorage(
+                                        target.deviceId,
+                                        storageType,
+                                        key,
+                                      ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 ),
         ),
       ],
-    );
-  }
-}
-
-class _StoreChip extends StatelessWidget {
-  final String label;
-  final int count;
-  final bool selected;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _StoreChip({
-    required this.label,
-    required this.count,
-    required this.selected,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: selected
-                ? ColorTokens.primary.withValues(alpha: 0.15)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: selected
-                  ? ColorTokens.primary.withValues(alpha: 0.5)
-                  : (isDark
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.1)),
-            ),
-          ),
-          child: Text(
-            '$label  $count',
-            style: chromeMono(
-              context,
-              size: 11.5,
-              color: selected
-                  ? ColorTokens.primary
-                  : (isDark ? Colors.white70 : Colors.black87),
-              weight: selected ? FontWeight.w600 : FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _KeyValueRow extends StatelessWidget {
-  final String entryKey;
-  final Object? value;
-  final bool isDark;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _KeyValueRow({
-    required this.entryKey,
-    required this.value,
-    required this.isDark,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = S.of(context);
-    final text = storageValueText(value);
-    final type = switch (value) {
-      String() => 'string',
-      num() => 'number',
-      bool() => 'bool',
-      null => 'null',
-      _ => 'json',
-    };
-    return InkWell(
-      onDoubleTap: onEdit,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 240,
-              child: Text(
-                entryKey,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: chromeMono(
-                  context,
-                  size: 12,
-                  color: isDark ? const Color(0xFFE06C75) : ColorTokens.primary,
-                  weight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Tooltip(
-                message: text.length > 80 ? text : '',
-                waitDuration: const Duration(milliseconds: 500),
-                child: Text(
-                  text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: chromeMono(
-                    context,
-                    size: 12,
-                    color: isDark ? Colors.white70 : Colors.black87,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              type,
-              style: TextStyle(fontSize: 10.5, color: Colors.grey[500]),
-            ),
-            IconButton(
-              icon: const Icon(LucideIcons.pencil, size: 13),
-              tooltip: loc.storageKvEdit,
-              visualDensity: VisualDensity.compact,
-              onPressed: onEdit,
-            ),
-            IconButton(
-              icon: const Icon(LucideIcons.trash2, size: 13),
-              tooltip: loc.storageKvDelete,
-              visualDensity: VisualDensity.compact,
-              onPressed: onDelete,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

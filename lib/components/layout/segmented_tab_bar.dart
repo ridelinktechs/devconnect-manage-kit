@@ -51,34 +51,70 @@ class SegmentedTabBar extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         border: Border(bottom: BorderSide(color: palette.border)),
       ),
-      child: Container(
-        padding: EdgeInsets.all(secondary ? 0 : 3),
-        decoration: BoxDecoration(
-          color: secondary
-              ? null
-              : palette.isDark
-              ? Colors.white.withValues(alpha: 0.05)
-              : Colors.black.withValues(alpha: 0.045),
-          borderRadius: BorderRadius.circular(9),
+      child: ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) => SegmentedTabs(
+          tabs: tabs,
+          index: controller.index,
+          onSelect: controller.animateTo,
+          accent: accent,
+          secondary: secondary,
+          animate: controller.animationDuration > Duration.zero,
         ),
-        child: ListenableBuilder(
-          listenable: controller,
-          builder: (context, _) => Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final (i, tab) in tabs.indexed)
-                _TabButton(
-                  tab: tab,
-                  selected: controller.index == i,
-                  accent: accent,
-                  secondary: secondary,
-                  palette: palette,
-                  animate: controller.animationDuration > Duration.zero,
-                  onTap: () => controller.animateTo(i),
-                ),
-            ],
-          ),
-        ),
+      ),
+    );
+  }
+}
+
+/// [SegmentedTabBar]'s tray on its own, to pick one of [tabs] that aren't
+/// pages of a [TabBarView].
+class SegmentedTabs extends StatelessWidget {
+  final List<SegmentedTab> tabs;
+  final int index;
+  final ValueChanged<int> onSelect;
+  final Color accent;
+  final bool secondary;
+
+  /// Whether the selection animates; when it doesn't, it switches at once.
+  final bool animate;
+
+  const SegmentedTabs({
+    super.key,
+    required this.tabs,
+    required this.index,
+    required this.onSelect,
+    this.accent = ColorTokens.primary,
+    this.secondary = false,
+    this.animate = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ChromePalette.of(context);
+    return Container(
+      padding: EdgeInsets.all(secondary ? 0 : 3),
+      decoration: BoxDecoration(
+        color: secondary
+            ? null
+            : palette.isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.045),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final (i, tab) in tabs.indexed)
+            _TabButton(
+              tab: tab,
+              selected: index == i,
+              accent: accent,
+              secondary: secondary,
+              palette: palette,
+              animate: animate,
+              onTap: () => onSelect(i),
+            ),
+        ],
       ),
     );
   }
