@@ -1,3 +1,14 @@
+## 1.1.1
+
+- **Network**: a response read only with `drain()`, or whose subscription's
+  `onDone` is replaced (as `asFuture()` does), now completes on the desktop
+  with its request body. Replays from the desktop read the response that
+  way, so they no longer stay pending, and replaying such a request keeps
+  its body.
+- **Network conditions**: the desktop's simulated latency now counts in a
+  request's reported duration, and a request the simulated offline network
+  refuses is reported as failed instead of not at all.
+
 ## 1.1.0
 
 - **Database inspector**: new `DevConnect.registerDatabase(name, query)`
