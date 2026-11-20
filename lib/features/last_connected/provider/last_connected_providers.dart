@@ -22,8 +22,15 @@ class LastConnectedNotifier extends Notifier<List<DisconnectedSession>> {
   final Map<String, Timer> _pendingTimers = {};
   final Map<String, DeviceInfo> _pendingDevices = {};
 
+  /// Devices seen connecting: by the time a disconnect gets here, the
+  /// connected list may already have dropped the device.
+  final Map<String, DeviceInfo> _seen = {};
+
   @override
   List<DisconnectedSession> build() {
+    for (final d in ref.read(connectedDevicesProvider)) {
+      _seen[d.deviceId] = d;
+    }
     final handler = ref.watch(wsMessageHandlerProvider);
     final connectSub = handler.onDeviceConnected.listen(_onDeviceConnected);
     final disconnectSub =
@@ -40,6 +47,7 @@ class LastConnectedNotifier extends Notifier<List<DisconnectedSession>> {
   }
 
   void _onDeviceConnected(DeviceInfo device) {
+    _seen[device.deviceId] = device;
     // Device reconnected within timeout window → cancel pending save (it's a reload)
     final timer = _pendingTimers.remove(device.deviceId);
     if (timer != null) {
@@ -63,9 +71,11 @@ class LastConnectedNotifier extends Notifier<List<DisconnectedSession>> {
   }
 
   void _onDeviceDisconnected(String deviceId) {
-    // Snapshot device info before it's removed from connected list
-    final devices = ref.read(connectedDevicesProvider);
-    final device = devices.where((d) => d.deviceId == deviceId).firstOrNull;
+    final device = _seen.remove(deviceId) ??
+        ref
+            .read(connectedDevicesProvider)
+            .where((d) => d.deviceId == deviceId)
+            .firstOrNull;
     if (device == null) return;
 
     _pendingDevices[deviceId] = device;
