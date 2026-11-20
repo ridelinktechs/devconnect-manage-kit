@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,8 +55,12 @@ void main() {
     await tester.pump();
   }
 
-  /// The page showing a 390 × 844 capture with a button at the bottom.
-  Future<S> showCapture(WidgetTester tester) async {
+  /// The page showing a 390 × 844 capture with a button at the bottom; on
+  /// screen while [shown] holds, as the router shows it.
+  Future<S> showCapture(
+    WidgetTester tester, {
+    ValueListenable<bool>? shown,
+  }) async {
     // Made in the test's zone, so its events run on the test's clock.
     server = FakeWsServer();
     final handler = WsMessageHandler(server: server);
@@ -66,10 +71,15 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [wsMessageHandlerProvider.overrideWithValue(handler)],
-        child: const MaterialApp(
+        child: MaterialApp(
           localizationsDelegates: S.localizationsDelegates,
           supportedLocales: S.supportedLocales,
-          home: Scaffold(body: LayoutInspectorPage()),
+          home: ValueListenableBuilder<bool>(
+            valueListenable: shown ?? const AlwaysStoppedAnimation(true),
+            builder: (context, on, page) =>
+                TickerMode(enabled: on, child: page!),
+            child: const Scaffold(body: LayoutInspectorPage()),
+          ),
         ),
       ),
     );
@@ -135,6 +145,25 @@ void main() {
 
     await shortcut(tester, LogicalKeyboardKey.digit1);
     expect(tester.getRect(screen), fitted);
+  });
+
+  testWidgets('kept behind another page, it leaves ⌘0 to that page', (
+    tester,
+  ) async {
+    final shown = ValueNotifier(true);
+    addTearDown(shown.dispose);
+    await showCapture(tester, shown: shown);
+    final fitted = tester.getRect(screen);
+
+    shown.value = false;
+    await tester.pump();
+    await shortcut(tester, LogicalKeyboardKey.digit0);
+    expect(tester.getRect(screen), fitted);
+
+    shown.value = true;
+    await tester.pump();
+    await shortcut(tester, LogicalKeyboardKey.digit0);
+    expect(tester.getRect(screen).width, closeTo(390, 0.01));
   });
 
   testWidgets('a color prop shows its sample', (tester) async {

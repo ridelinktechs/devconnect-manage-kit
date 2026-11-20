@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../l10n/generated/app_localizations.dart';
@@ -30,7 +31,8 @@ class DatabaseViewerPage extends ConsumerStatefulWidget {
   ConsumerState<DatabaseViewerPage> createState() => _DatabaseViewerPageState();
 }
 
-class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
+class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage>
+    with ListenWhileShown {
   final _sql = TextEditingController();
 
   /// The picked (database, table).
@@ -39,8 +41,12 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
   /// Whether the picked table shows its structure rather than its data.
   bool _structure = false;
 
-  /// Devices already asked for their schema, so rebuilds don't re-ask.
+  /// Devices asked for their schema since the page was last shown, so
+  /// rebuilds don't re-ask.
   final _asked = <String>{};
+
+  @override
+  void onShownAgain() => _asked.clear();
 
   @override
   void dispose() {

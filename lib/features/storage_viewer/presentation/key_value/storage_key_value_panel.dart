@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/inputs/search_field.dart';
 import '../../../../components/layout/segmented_tab_bar.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../l10n/generated/app_localizations.dart';
@@ -42,11 +43,16 @@ class StorageKeyValuePanel extends ConsumerStatefulWidget {
       _StorageKeyValuePanelState();
 }
 
-class _StorageKeyValuePanelState extends ConsumerState<StorageKeyValuePanel> {
-  /// Devices already asked for their stores, so rebuilds don't re-ask.
+class _StorageKeyValuePanelState extends ConsumerState<StorageKeyValuePanel>
+    with ListenWhileShown {
+  /// Devices asked for their stores since the panel was last shown, so
+  /// rebuilds don't re-ask.
   final _asked = <String>{};
   String? _storageType;
   String _filter = '';
+
+  @override
+  void onShownAgain() => _asked.clear();
 
   void _request(String deviceId) =>
       ref.read(wsMessageHandlerProvider).requestStorage(deviceId);

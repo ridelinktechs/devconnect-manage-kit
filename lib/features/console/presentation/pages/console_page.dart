@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../../../l10n/generated/app_localizations.dart';
@@ -31,7 +32,8 @@ class ConsolePage extends ConsumerStatefulWidget {
   ConsumerState<ConsolePage> createState() => _ConsolePageState();
 }
 
-class _ConsolePageState extends ConsumerState<ConsolePage> {
+class _ConsolePageState extends ConsumerState<ConsolePage>
+    with ListenWhileShown {
   final _scrollController = SmoothScrollController();
   final _selectedId = ValueNotifier<String?>(null);
   final _entryCount = ValueNotifier<int>(0);
@@ -66,7 +68,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
     // `StableListView.shouldRebuild` returned false and new entries
     // were never materialised in the viewport even though
     // `_visibleCount` had grown.
-    ref.listenManual(
+    listenWhileShown(
       groupedConsoleEntriesProvider,
       (previous, next) {
         final appended = _primed &&
@@ -85,7 +87,6 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
       },
-      fireImmediately: true,
     );
   }
 

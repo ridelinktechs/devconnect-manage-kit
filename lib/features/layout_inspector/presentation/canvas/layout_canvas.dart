@@ -119,7 +119,12 @@ class _LayoutCanvasState extends State<LayoutCanvas> {
     final command = Platform.isMacOS
         ? keyboard.isMetaPressed
         : keyboard.isControlPressed;
-    if (event is KeyUpEvent || !command || keyboard.isAltPressed) return false;
+    if (event is KeyUpEvent ||
+        !command ||
+        keyboard.isAltPressed ||
+        !TickerMode.getValuesNotifier(context).value.enabled) {
+      return false;
+    }
     switch (event.logicalKey) {
       case LogicalKeyboardKey.equal ||
           LogicalKeyboardKey.add ||

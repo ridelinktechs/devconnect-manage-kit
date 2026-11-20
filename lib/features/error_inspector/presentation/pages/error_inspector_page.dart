@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/scroll/position_retained_scroll_physics.dart';
@@ -38,7 +39,8 @@ class ErrorInspectorPage extends ConsumerStatefulWidget {
       _ErrorInspectorPageState();
 }
 
-class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
+class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage>
+    with ListenWhileShown {
   final _scrollController = SmoothScrollController();
   final _selectedId = ValueNotifier<String?>(null);
   final _entryCount = ValueNotifier<int>(0);
@@ -53,7 +55,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    ref.listenManual<List<ErrorEvent>>(
+    listenWhileShown<List<ErrorEvent>>(
       filteredErrorEntriesProvider,
       (previous, next) {
         final prevLen = _entries.length;
@@ -75,7 +77,6 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
           if (_autoScroll) _autoScrollIfNeeded();
         }
       },
-      fireImmediately: true,
     );
     // Selection changes must also bump generation — StableBuilderDelegate
     // short-circuits shouldRebuild when generation is unchanged, which

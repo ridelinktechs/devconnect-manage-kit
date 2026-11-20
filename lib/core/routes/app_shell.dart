@@ -115,9 +115,17 @@ class _AppShellState extends ConsumerState<AppShell> {
                       children: [
                         SizedBox(height: Platform.isMacOS ? 64 : Platform.isWindows || Platform.isLinux ? 32 : 0),
                         Expanded(
-                          child: isLocked
-                              ? const _LockedTabOverlay()
-                              : widget.child,
+                          child: IndexedStack(
+                            index: isLocked ? 1 : 0,
+                            sizing: StackFit.expand,
+                            children: [
+                              TickerMode(
+                                enabled: !isLocked,
+                                child: widget.child,
+                              ),
+                              const _LockedTabOverlay(),
+                            ],
+                          ),
                         ),
                         const DeviceBottomBar(),
                       ],

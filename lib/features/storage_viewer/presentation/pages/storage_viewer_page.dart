@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/scroll/position_retained_scroll_physics.dart';
 import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
@@ -34,7 +35,8 @@ class StorageViewerPage extends ConsumerStatefulWidget {
   ConsumerState<StorageViewerPage> createState() => _StorageViewerPageState();
 }
 
-class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
+class _StorageViewerPageState extends ConsumerState<StorageViewerPage>
+    with ListenWhileShown {
   final ScrollController _scrollController = SmoothScrollController();
   final _entryCount = ValueNotifier<int>(0);
 
@@ -53,7 +55,7 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    ref.listenManual(
+    listenWhileShown(
       filteredStorageEntriesProvider,
       (previous, next) {
         // Storage has in-place updates (value changes for existing key).
@@ -71,7 +73,6 @@ class _StorageViewerPageState extends ConsumerState<StorageViewerPage> {
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
       },
-      fireImmediately: true,
     );
     // Selection changes must also bump generation — StableBuilderDelegate
     // short-circuits shouldRebuild when generation is unchanged, which

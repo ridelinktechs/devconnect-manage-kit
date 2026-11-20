@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state_with_pulse.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../models/state/state_change.dart';
 import '../../../../components/lists/stable_list_view.dart';
@@ -29,7 +30,8 @@ class StateInspectorPage extends ConsumerStatefulWidget {
       _StateInspectorPageState();
 }
 
-class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
+class _StateInspectorPageState extends ConsumerState<StateInspectorPage>
+    with ListenWhileShown {
   final ScrollController _scrollController = SmoothScrollController();
   final _entryCount = ValueNotifier<int>(0);
   final _search = TextEditingController();
@@ -44,7 +46,7 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    ref.listenManual(
+    listenWhileShown(
       filteredStateChangesProvider,
       (previous, next) {
         final prevLen = _entries.length;
@@ -66,7 +68,6 @@ class _StateInspectorPageState extends ConsumerState<StateInspectorPage> {
           if (_autoScroll) _autoScrollIfNeeded();
         }
       },
-      fireImmediately: true,
     );
   }
 

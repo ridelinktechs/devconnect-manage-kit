@@ -6,6 +6,7 @@ import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/layout/segmented_tab_bar.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/scroll/position_retained_scroll_physics.dart';
 import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
@@ -40,7 +41,7 @@ class NetworkInspectorPage extends ConsumerStatefulWidget {
 
 class _NetworkInspectorPageState
     extends ConsumerState<NetworkInspectorPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, ListenWhileShown {
   final _scrollController = SmoothScrollController();
   final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
@@ -59,7 +60,7 @@ class _NetworkInspectorPageState
       animationDuration: ref.read(tabAnimationProvider),
     );
     _scrollController.addListener(_onScroll);
-    ref.listenManual(
+    listenWhileShown(
       filteredNetworkEntriesProvider,
       (previous, next) {
         // Network has in-place updates (response arrives for pending request).
@@ -73,7 +74,6 @@ class _NetworkInspectorPageState
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
       },
-      fireImmediately: true,
     );
   }
 

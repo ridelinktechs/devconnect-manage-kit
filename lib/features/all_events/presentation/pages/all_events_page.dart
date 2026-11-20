@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/utils/app/reload_apps.dart';
 import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
@@ -44,7 +45,8 @@ class AllEventsPage extends ConsumerStatefulWidget {
   ConsumerState<AllEventsPage> createState() => _AllEventsPageState();
 }
 
-class _AllEventsPageState extends ConsumerState<AllEventsPage> {
+class _AllEventsPageState extends ConsumerState<AllEventsPage>
+    with ListenWhileShown {
   final _scrollController = SmoothScrollController();
   final _selectedEventId = ValueNotifier<String?>(null);
   final _eventCount = ValueNotifier<int>(0);
@@ -66,7 +68,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    ref.listenManual(
+    listenWhileShown(
       filteredAllEventsProvider,
       (previous, next) {
         _events..clear()..addAll(next.items);
@@ -94,7 +96,6 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
       },
-      fireImmediately: true,
     );
   }
 
