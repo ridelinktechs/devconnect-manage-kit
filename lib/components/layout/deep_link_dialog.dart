@@ -45,16 +45,53 @@ Future<void> openDeepLink(
   List<DeviceInfo> devices,
 ) async {
   final loc = S.of(context);
-  final recent = ref.read(recentDeepLinksProvider);
-  final field = TextEditingController(text: recent.firstOrNull ?? '');
-  final mono = chromeMono(
-    context,
-    size: 12.5,
-    color: Theme.of(context).colorScheme.onSurface,
-  );
   final url = await showDialog<String>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (_) => _DeepLinkDialog(recent: ref.read(recentDeepLinksProvider)),
+  );
+  final link = url?.trim();
+  if (link == null || link.isEmpty) return;
+  ref.read(recentDeepLinksProvider.notifier).add(link);
+  final handler = ref.read(wsMessageHandlerProvider);
+  for (final d in devices) {
+    handler.openUrl(d.deviceId, link);
+  }
+  if (context.mounted) {
+    showSuccessToast(context, message: loc.deepLinkSent, subtitle: link);
+  }
+}
+
+/// Owns the URL field's controller, so it is disposed only once the dialog
+/// has closed: its exit transition still builds the field.
+class _DeepLinkDialog extends StatefulWidget {
+  const _DeepLinkDialog({required this.recent});
+
+  final List<String> recent;
+
+  @override
+  State<_DeepLinkDialog> createState() => _DeepLinkDialogState();
+}
+
+class _DeepLinkDialogState extends State<_DeepLinkDialog> {
+  late final _field = TextEditingController(
+    text: widget.recent.firstOrNull ?? '',
+  );
+
+  @override
+  void dispose() {
+    _field.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = S.of(context);
+    final mono = chromeMono(
+      context,
+      size: 12.5,
+      color: Theme.of(context).colorScheme.onSurface,
+    );
+    return AlertDialog(
       title: Text(loc.deepLinkTitle),
       content: SizedBox(
         width: 460,
@@ -63,7 +100,7 @@ Future<void> openDeepLink(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextField(
-              controller: field,
+              controller: _field,
               autofocus: true,
               style: mono,
               decoration: InputDecoration(
@@ -72,7 +109,7 @@ Future<void> openDeepLink(
               ),
               onSubmitted: (v) => Navigator.pop(context, v),
             ),
-            if (recent.isNotEmpty) ...[
+            if (widget.recent.isNotEmpty) ...[
               const SizedBox(height: 16),
               Text(
                 loc.stateRecentActions.toUpperCase(),
@@ -83,7 +120,7 @@ Future<void> openDeepLink(
                   color: Colors.grey[500],
                 ),
               ),
-              for (final link in recent)
+              for (final link in widget.recent)
                 InkWell(
                   onTap: () => Navigator.pop(context, link),
                   child: Padding(
@@ -106,21 +143,10 @@ Future<void> openDeepLink(
           child: Text(loc.cancel),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, field.text),
+          onPressed: () => Navigator.pop(context, _field.text),
           child: Text(loc.deepLinkOpen),
         ),
       ],
-    ),
-  );
-  field.dispose();
-  final link = url?.trim();
-  if (link == null || link.isEmpty) return;
-  ref.read(recentDeepLinksProvider.notifier).add(link);
-  final handler = ref.read(wsMessageHandlerProvider);
-  for (final d in devices) {
-    handler.openUrl(d.deviceId, link);
-  }
-  if (context.mounted) {
-    showSuccessToast(context, message: loc.deepLinkSent, subtitle: link);
+    );
   }
 }
