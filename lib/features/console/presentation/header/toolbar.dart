@@ -1,3 +1,6 @@
+import '../../../settings/presentation/tips/page_guide_button.dart';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -6,19 +9,22 @@ import '../../../../components/inputs/search_field.dart';
 import '../../../../components/misc/retention_hint.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../l10n/app_localizations.dart';
-import '../../../../models/log/log_entry.dart';
+import '../../../../core/utils/files/save_file.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../core/providers/retention_provider.dart';
 import '../../provider/console_providers.dart';
-import '../shared/level_color.dart';
 import 'icon_btn.dart';
-import 'level_filter_chip.dart';
+import 'level_filter_row.dart';
 
 /// Top toolbar of the Console page — title + count pill, level
 /// filter chips (DEBUG/INFO/WARN/ERROR), search field, action group
 /// (auto-scroll, sort direction, clear).
 class Toolbar extends ConsumerWidget {
   final ValueNotifier<int> entryCount;
+
+  /// The search box's text, owned by the page so it can clear it.
+  final TextEditingController? searchController;
   final bool autoScroll;
   final VoidCallback onToggleAutoScroll;
   final VoidCallback onClear;
@@ -26,6 +32,7 @@ class Toolbar extends ConsumerWidget {
   const Toolbar({
     super.key,
     required this.entryCount,
+    this.searchController,
     required this.autoScroll,
     required this.onToggleAutoScroll,
     required this.onClear,
@@ -35,7 +42,6 @@ class Toolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final activeFilters = ref.watch(consoleFilterProvider);
     final retentionPreset = ref.watch(retentionLimitProvider);
     final retentionLimit = retentionPreset.limit;
     final retentionLabel = retentionPreset.label;
@@ -53,6 +59,7 @@ class Toolbar extends ConsumerWidget {
           Icon(LucideIcons.terminal, size: 16, color: ColorTokens.primary),
           const SizedBox(width: 8),
           Text('Console', style: theme.textTheme.titleMedium),
+          const PageGuideButton(route: '/console'),
           const SizedBox(width: 8),
           ValueListenableBuilder<int>(
             valueListenable: entryCount,
@@ -68,27 +75,14 @@ class Toolbar extends ConsumerWidget {
           const SizedBox(width: 16),
 
           // Level filter chips
-          ...LogLevel.values.map((level) {
-            final isActive = activeFilters.contains(level);
-            return Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: LevelFilterChip(
-                label: level.name.toUpperCase(),
-                isActive: isActive,
-                color: levelColor(level),
-                onTap: () {
-                  ref.read(consoleFilterProvider.notifier).toggle(level);
-                },
-              ),
-            );
-          }),
-
-          const Spacer(),
+          const Expanded(child: LevelFilterRow()),
+          const SizedBox(width: 12),
 
           // Search
           SizedBox(
             width: 220,
             child: SearchField(
+              controller: searchController,
               hintText: S.of(context).searchLogs,
               onChanged: (value) {
                 ref.read(consoleSearchProvider.notifier).set(value);
@@ -133,6 +127,33 @@ class Toolbar extends ConsumerWidget {
                   },
                 ),
                 const SizedBox(width: 2),
+                IconBtn(
+                  icon: LucideIcons.listCollapse,
+                  tooltip: S.of(context).consoleGroupRepeats,
+                  isActive: ref.watch(consoleGroupRepeatsProvider),
+                  onTap: () =>
+                      ref.read(consoleGroupRepeatsProvider.notifier).toggle(),
+                ),
+                const SizedBox(width: 2),
+                MenuAnchor(
+                  menuChildren: [
+                    MenuItemButton(
+                      onPressed: () => _exportLogs(context, ref, json: false),
+                      child: Text(S.of(context).consoleExportText),
+                    ),
+                    MenuItemButton(
+                      onPressed: () => _exportLogs(context, ref, json: true),
+                      child: Text(S.of(context).consoleExportJson),
+                    ),
+                  ],
+                  builder: (context, controller, _) => IconBtn(
+                    icon: LucideIcons.fileDown,
+                    tooltip: S.of(context).consoleExport,
+                    onTap: () =>
+                        controller.isOpen ? controller.close() : controller.open(),
+                  ),
+                ),
+                const SizedBox(width: 2),
                 Container(
                   width: 1,
                   height: 18,
@@ -154,4 +175,28 @@ class Toolbar extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Saves the logs the list shows (current filters, repeats unfolded).
+Future<void> _exportLogs(
+  BuildContext context,
+  WidgetRef ref, {
+  required bool json,
+}) async {
+  final entries = ref.read(filteredConsoleEntriesProvider);
+  if (entries.isEmpty) {
+    showInfoToast(context, message: S.of(context).consoleNothingToExport);
+    return;
+  }
+  await saveTextFile(
+    context,
+    suggestedName: exportFileName('logs', json ? 'json' : 'txt'),
+    typeLabel: json ? 'JSON' : 'Text',
+    extension: json ? 'json' : 'txt',
+    content: json
+        ? const JsonEncoder.withIndent(
+            '  ',
+          ).convert([for (final e in entries) e.toJson()])
+        : formatLogsAsText(entries),
+  );
 }

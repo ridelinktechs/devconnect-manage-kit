@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/utils/position_retained_scroll_physics.dart';
+import '../../core/utils/scroll/position_retained_scroll_physics.dart';
 
 /// A high-performance ListView that prevents visible items from rebuilding
 /// when new items are appended or selection changes.

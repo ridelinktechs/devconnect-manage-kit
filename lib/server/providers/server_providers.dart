@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/providers/app_version_provider.dart';
 import '../../features/benchmark/provider/benchmark_providers.dart';
 import '../../features/console/provider/console_providers.dart';
 import '../../features/device_history/provider/device_history_providers.dart';
@@ -16,6 +17,11 @@ import '../ws_server.dart';
 
 final wsServerProvider = Provider<WsServer>((ref) {
   final server = WsServer();
+  ref.listen(
+    appVersionProvider,
+    (_, v) => server.version = v.value ?? '',
+    fireImmediately: true,
+  );
   ref.onDispose(() { server.dispose(); });
   return server;
 });

@@ -1,5 +1,6 @@
 package com.devconnect.interceptors
 
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -296,6 +297,88 @@ class MockRuleStoreTest {
         assertNotNull(MockRuleStore.findMatch("GET", "https://x", mapOf("X-Api-Key" to "secret-abc")))
         // Non-matching header → no match.
         assertNull(MockRuleStore.findMatch("GET", "https://x", mapOf("X-Api-Key" to "wrong")))
+    }
+
+    // ---------- loadFromPayload (server:mock_rules_update) ----------
+
+    @Test
+    fun `loadFromPayload applies the rules list of a mock_rules_update payload`() {
+        MockRuleStore.loadFromPayload(JSONObject("""
+            {"rules":[{"id":"r1","name":"Users","enabled":true,
+              "match":{"method":"GET","url":"/users/\\d+"},
+              "response":{"status":201,"body":"{}"}}]}
+        """.trimIndent()))
+        assertEquals("r1", MockRuleStore.findMatch("GET", "https://api/users/42", null)?.id)
+
+        // The desktop re-sends the full list every time; an empty one clears.
+        MockRuleStore.loadFromPayload(JSONObject("""{"rules":[]}"""))
+        assertNull(MockRuleStore.findMatch("GET", "https://api/users/42", null))
+    }
+
+    @Test
+    fun `clearDesktopRules drops pushed rules and keeps the app's own`() {
+        MockRuleStore.setRules(listOf(rule(id = "app")))
+        MockRuleStore.clearDesktopRules()
+        assertEquals("app", MockRuleStore.findMatch("GET", "https://x", null)?.id)
+
+        MockRuleStore.loadFromPayload(JSONObject("""{"rules":[{"id":"pushed","match":{"url":".*"}}]}"""))
+        MockRuleStore.clearDesktopRules()
+        assertNull(MockRuleStore.findMatch("GET", "https://x", null))
+    }
+
+    @Test
+    fun `loadFromPayload keeps disabled rules out`() {
+        MockRuleStore.loadFromPayload(JSONObject("""
+            {"rules":[{"id":"off","enabled":false,"match":{"url":".*"},"response":{}}]}
+        """.trimIndent()))
+        assertNull(MockRuleStore.findMatch("GET", "https://x", null))
+    }
+
+    @Test
+    fun `expired rules are skipped`() {
+        MockRuleStore.loadFromPayload(JSONObject("""
+            {"rules":[
+              {"id":"old","match":{"url":".*"},"response":{},"expiresAt":"2000-01-01T00:00:00Z"},
+              {"id":"live","match":{"url":".*"},"response":{},"expiresAt":"2999-01-01T00:00:00.000+07:00"}
+            ]}
+        """.trimIndent()))
+        assertEquals("live", MockRuleStore.findMatch("GET", "https://x", null)?.id)
+    }
+
+    @Test
+    fun `unparseable expiresAt never expires`() {
+        MockRuleStore.loadFromPayload(JSONObject("""
+            {"rules":[{"id":"r","match":{"url":".*"},"response":{},"expiresAt":"next tuesday"}]}
+        """.trimIndent()))
+        assertEquals("r", MockRuleStore.findMatch("GET", "https://x", null)?.id)
+    }
+
+    @Test
+    fun `scoped rules only match the listed devices`() {
+        // DevConnect isn't initialised in unit tests, so this device's id is "".
+        MockRuleStore.loadFromPayload(JSONObject("""
+            {"rules":[
+              {"id":"other","match":{"url":".*"},"response":{},"scope":{"deviceIds":["someone-else"]}},
+              {"id":"all","match":{"url":".*"},"response":{},"scope":{"deviceIds":[]}}
+            ]}
+        """.trimIndent()))
+        assertEquals("all", MockRuleStore.findMatch("GET", "https://x", null)?.id)
+    }
+
+    @Test
+    fun `invalid header regex is no match instead of throwing`() {
+        MockRuleStore.setRules(listOf(
+            rule(id = "bad", matchHeaders = mapOf("X-Api-Key" to "(unclosed")),
+            rule(id = "ok"),
+        ))
+        val match = MockRuleStore.findMatch("GET", "https://x", mapOf("X-Api-Key" to "v"))
+        assertEquals("ok", match?.id)
+    }
+
+    @Test
+    fun `header name lookup ignores case on the rule side too`() {
+        MockRuleStore.setRules(listOf(rule(id = "a", matchHeaders = mapOf("x-api-key" to "^v$"))))
+        assertNotNull(MockRuleStore.findMatch("GET", "https://x", mapOf("X-Api-Key" to "v")))
     }
 
     @Test

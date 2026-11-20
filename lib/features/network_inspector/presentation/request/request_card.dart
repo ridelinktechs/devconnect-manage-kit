@@ -6,11 +6,12 @@ import '../../../../components/misc/service_tag.dart';
 import '../../../../components/misc/status_badge.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../core/utils/duration_format.dart';
-import '../../../../core/utils/network_url_formatter.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/utils/format/duration_format.dart';
+import '../../../../core/utils/network/network_url_formatter.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../models/network/network_entry.dart';
+import '../../provider/network_control.dart';
 
 /// One row in the Network Inspector's request list.
 ///
@@ -124,6 +125,28 @@ class RequestCard extends ConsumerWidget {
 
     return GestureDetector(
       onTap: onTap,
+      // Right-click: send the request again from the app.
+      onSecondaryTapUp: (details) async {
+        final position = details.globalPosition;
+        final replay = await showMenu<bool>(
+          context: context,
+          position: RelativeRect.fromLTRB(
+            position.dx,
+            position.dy,
+            position.dx,
+            position.dy,
+          ),
+          items: [
+            PopupMenuItem(
+              value: true,
+              child: Text(S.of(context).networkReplay),
+            ),
+          ],
+        );
+        if (replay == true && context.mounted) {
+          replayNetworkRequest(context, ref, entry);
+        }
+      },
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Padding(

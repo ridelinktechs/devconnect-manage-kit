@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/storage/storage_entry.dart';
@@ -69,3 +70,49 @@ Color storageOpAccentColor(String op) {
     default: return const Color(0xFFFBBF24); // amber 400
   }
 }
+
+/// [type] as its library spells it, for labels people read.
+String storageTypeName(StorageType type) => switch (type) {
+  StorageType.asyncStorage => 'AsyncStorage',
+  StorageType.sharedPreferences => 'SharedPreferences',
+  StorageType.hive => 'Hive',
+  StorageType.sqlite => 'SQLite',
+  StorageType.realm => 'Realm',
+  StorageType.objectbox => 'ObjectBox',
+  StorageType.floor => 'Floor',
+  StorageType.sembast => 'Sembast',
+  StorageType.sqflite => 'sqflite',
+  StorageType.watermelondb => 'WatermelonDB',
+  StorageType.encryptedStorage => 'EncryptedStorage',
+  StorageType.sqldelight => 'SQLDelight',
+  StorageType.mmkv => 'MMKV',
+};
+
+/// [type] and its [storeId] (an MMKV instance, say) as one label.
+String storageLabel(StorageType type, String? storeId) => storeId == null
+    ? storageTypeName(type)
+    : '${storageTypeName(type)} · $storeId';
+
+/// [color] made dark or light enough to read as text on its own tint.
+Color storageInk(Color color, bool isDark) {
+  final l = color.computeLuminance();
+  return isDark
+      ? Color.lerp(color, Colors.white, l < 0.1 ? 0.55 : 0.35)!
+      : Color.lerp(color, Colors.black, l > 0.4 ? 0.45 : (l > 0.15 ? 0.3 : 0.1))!;
+}
+
+/// Glyph for a storage operation.
+IconData storageOpIcon(String op) => switch (op.toLowerCase()) {
+  'write' => LucideIcons.pencilLine,
+  'delete' || 'clear' => LucideIcons.trash2,
+  _ => LucideIcons.eye,
+};
+
+/// A stored value's type as the key-value table labels it, and its color.
+(String, Color) storageValueKind(Object? value) => switch (value) {
+  String() => ('string', const Color(0xFF3FB950)),
+  num() => ('number', const Color(0xFF58A6FF)),
+  bool() => ('bool', const Color(0xFFBC8CFF)),
+  null => ('null', const Color(0xFF8B949E)),
+  _ => ('json', const Color(0xFFF0883E)),
+};

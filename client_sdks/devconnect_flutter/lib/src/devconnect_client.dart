@@ -2,22 +2,19 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 
+import 'core/device_identity.dart';
+import 'core/host_discovery.dart';
+import 'layout_inspector.dart';
+import 'core/server_commands.dart' as server_commands;
+import 'storage_adapter.dart';
 import 'version.dart';
 
 typedef OnConnected = void Function();
 typedef OnDisconnected = void Function();
-
-/// Cached host + the server's stable machineId for identity verification.
-class _CachedHost {
-  final String host;
-  final String machineId;
-  const _CachedHost(this.host, this.machineId);
-}
 
 class DevConnectClient {
   static DevConnectClient? _instance;
@@ -27,8 +24,52 @@ class DevConnectClient {
   /// Use this in interceptors/reporters that may run before init().
   static DevConnectClient? get instanceSafe => _instance;
 
+  /// Key-value stores the desktop can edit, by storage type. Static: the
+  /// storage wrappers may be created before the client.
+  static final Map<String, DevConnectStorageAdapter> _storages = {};
+
+  static void registerStorage(
+          String storageType, DevConnectStorageAdapter adapter) =>
+      _storages[storageType] = adapter;
+
+  /// Desktop-set network conditions, applied by `DevConnectHttpOverrides`.
+  static int _latencyMs = 0;
+  static bool _offline = false;
+
+  @visibleForTesting
+  static void setNetworkConditions({int latencyMs = 0, bool offline = false}) {
+    _latencyMs = latencyMs < 0 ? 0 : latencyMs;
+    _offline = offline;
+  }
+
+  @visibleForTesting
+  static Map<String, DevConnectStorageAdapter> get storages =>
+      Map.unmodifiable(_storages);
+
+  /// Holds a request back by the desktop-set latency, or fails it the way
+  /// an offline device does. DevConnect's own connection is exempt — else
+  /// "offline" would cut the desktop off from turning it back on.
+  static Future<void> applyNetworkConditions(Uri url) async {
+    final self = _instance;
+    if (self != null && url.host == self._host && url.port == self._port) {
+      return;
+    }
+    if (_offline) {
+      throw const SocketException(
+          'Network is unreachable (simulated by DevConnect)');
+    }
+    if (_latencyMs > 0) {
+      await Future<void>.delayed(Duration(milliseconds: _latencyMs));
+    }
+  }
+
   /// Pre-init message queue: messages sent before init() completes.
   static final List<Map<String, dynamic>> _preInitQueue = [];
+
+  /// Messages waiting for init(), as `{type, payload}`; tests read what
+  /// the SDK sent from here.
+  @visibleForTesting
+  static List<Map<String, dynamic>> get queuedMessages => _preInitQueue;
 
   /// Send a message safely - queues if init() hasn't completed yet.
   /// Use this instead of instance.xxx() in interceptors/reporters.
@@ -95,6 +136,10 @@ class DevConnectClient {
   /// Custom command handlers: command name -> handler
   final Map<String, dynamic Function(Map<String, dynamic>?)> _commandHandlers = {};
 
+  /// Databases the desktop's Database tab can query: name -> SQL runner.
+  final Map<String, Future<List<Map<String, Object?>>> Function(String sql)>
+      _databases = {};
+
   /// Custom server-message handlers registered by SDK plugins
   /// (e.g. layout inspector, mock server interceptor). Keyed by the
   /// `type` field of the incoming WebSocket message.
@@ -112,6 +157,7 @@ class DevConnectClient {
   final Map<String, List<int>> _benchmarks = {}; // title -> [startTime, ...stepTimes]
 
   bool get isConnected => _connected;
+  String get deviceId => _deviceId;
   String get host => _host;
   int get port => _port;
 
@@ -135,30 +181,6 @@ class DevConnectClient {
         _auto = auto_,
         _deviceId = deviceId;
 
-  /// Get a stable device identifier using device_info_plus.
-  /// Android: UUID from androidId + packageName
-  /// iOS: identifierForVendor (already UUID)
-  static Future<String> _getStableDeviceId(String appName) async {
-    try {
-      final deviceInfo = DeviceInfoPlugin();
-      if (Platform.isAndroid) {
-        final android = await deviceInfo.androidInfo;
-        final id = android.id; // ANDROID_ID
-        // Convert to UUID v5 format via Uuid.v5
-        return const Uuid().v5(Namespace.url.value, '$id:$appName');
-      } else if (Platform.isIOS) {
-        final ios = await deviceInfo.iosInfo;
-        return ios.identifierForVendor ?? const Uuid().v5(Namespace.url.value, '$appName:${Platform.localHostname}');
-      } else if (Platform.isMacOS) {
-        final mac = await deviceInfo.macOsInfo;
-        final guid = mac.systemGUID ?? mac.computerName;
-        return const Uuid().v5(Namespace.url.value, '$guid:$appName');
-      }
-    } catch (_) {}
-    // Fallback
-    return const Uuid().v5(Namespace.url.value, '$appName:${Platform.localHostname}:${Platform.operatingSystem}');
-  }
-
   /// Initialize DevConnect client.
   ///
   /// [host] - Desktop app IP. Leave null or 'auto' for auto-detection.
@@ -179,347 +201,32 @@ class DevConnectClient {
     String platform = 'flutter',
     bool auto_ = true,
   }) async {
-    final resolvedHost = host == null || host == 'auto'
-        ? await _autoDetectHost(port)
-        : host;
+    final stableDeviceId = await getStableDeviceId(appName);
 
-    final stableDeviceId = await _getStableDeviceId(appName);
-
-    _instance = DevConnectClient._(
-      host: resolvedHost,
+    final client = _instance = DevConnectClient._(
+      host: host ?? 'auto',
       port: port,
       appName: appName,
       appVersion: appVersion,
       versionCode: versionCode,
-      deviceName: deviceName ?? _defaultDeviceName(),
+      deviceName: deviceName ?? defaultDeviceName(),
       deviceId: stableDeviceId,
       platform: platform,
       auto_: auto_,
     );
-    await _instance!.connect();
-    return _instance!;
-  }
-
-  static String _defaultDeviceName() {
-    // Use localHostname for a meaningful device name (e.g., "Johns-iPhone")
-    final hostname = Platform.localHostname;
-    if (hostname.isNotEmpty && hostname != 'localhost') return hostname;
-    if (Platform.isAndroid) return 'Android Device';
-    if (Platform.isIOS) return 'iOS Device';
-    if (Platform.isMacOS) return 'macOS';
-    if (Platform.isWindows) return 'Windows';
-    if (Platform.isLinux) return 'Linux';
-    return 'Unknown Device';
-  }
-
-  /// UDP discovery port — server broadcasts beacons here.
-  static const int _discoveryPort = 41234;
-
-  /// XOR key for obfuscating cached data.
-  static const String _cacheKey = 'DcN3t\$ecR7!';
-
-  /// Cache file for last known server host.
-  static File get _cacheFile =>
-      File('${Directory.systemTemp.path}/.dc_session');
-
-  /// XOR encrypt/decrypt with key.
-  static String _xorCipher(String input, String key) {
-    final output = StringBuffer();
-    for (int i = 0; i < input.length; i++) {
-      output.writeCharCode(
-          input.codeUnitAt(i) ^ key.codeUnitAt(i % key.length));
-    }
-    return output.toString();
-  }
-
-  /// Save discovered server host to cache file (encrypted), keyed by host +
-  /// machineId so stale entries from a different desktop can be invalidated.
-  static Future<void> _saveHostCache(
-      String host, int port, String? machineId) async {
-    try {
-      final plain = jsonEncode({
-        'h': host,
-        'p': port,
-        't': DateTime.now().millisecondsSinceEpoch,
-        if (machineId != null) 'm': machineId,
-      });
-      final encrypted = base64Encode(utf8.encode(_xorCipher(plain, _cacheKey)));
-      await _cacheFile.writeAsString(encrypted);
-    } catch (_) {}
-  }
-
-  /// Delete cached host entry. Used when verification fails — so the next
-  /// connect falls through to fresh discovery rather than reusing the
-  /// stale entry.
-  static Future<void> _clearHostCache() async {
-    try {
-      if (await _cacheFile.exists()) await _cacheFile.delete();
-    } catch (_) {}
-  }
-
-  /// Read cached server host (decrypted). Returns null if expired, missing,
-  /// or if the cache doesn't carry a machineId (legacy entries are ignored
-  /// since they can't be verified).
-  static Future<_CachedHost?> _readHostCache(int port) async {
-    try {
-      if (!await _cacheFile.exists()) return null;
-      final encrypted = await _cacheFile.readAsString();
-      final decrypted =
-          _xorCipher(utf8.decode(base64Decode(encrypted)), _cacheKey);
-      final data = jsonDecode(decrypted) as Map<String, dynamic>;
-      // Expire after 24 hours
-      final cachedTime = data['t'] as int? ?? 0;
-      if (DateTime.now().millisecondsSinceEpoch - cachedTime > 24 * 3600000) {
-        return null;
-      }
-      if (data['p'] != port) return null;
-      final host = data['h'] as String?;
-      final machineId = data['m'] as String?;
-      // Require machineId — legacy caches without it cannot be verified and
-      // would re-introduce the simulator/device-swap bug we are fixing.
-      if (host == null || machineId == null || machineId.isEmpty) return null;
-      return _CachedHost(host, machineId);
-    } catch (_) {}
-    return null;
-  }
-
-  /// Verify a cached host by opening a short-lived WebSocket and checking
-  /// that the server announces the machineId we cached. This prevents the
-  /// case where the cached IP now points at a different device or another
-  /// service that just happens to listen on the same port.
-  ///
-  /// Returns true only when the server's `server:hello.machineId` matches
-  /// [expectedMachineId]; false on connect failure, timeout, or mismatch.
-  static Future<bool> _verifyCachedHost(
-      String host, int port, String expectedMachineId) async {
-    WebSocket? probe;
-    try {
-      probe = await WebSocket.connect('ws://$host:$port')
-          .timeout(const Duration(milliseconds: 1500));
-
-      final helloCompleter = Completer<String?>();
-      final sub = probe.listen(
-        (data) {
-          if (helloCompleter.isCompleted) return;
-          try {
-            final msg = jsonDecode(data as String) as Map<String, dynamic>;
-            if (msg['type'] == 'server:hello') {
-              final payload = msg['payload'] as Map<String, dynamic>?;
-              helloCompleter.complete(payload?['machineId'] as String?);
-            }
-          } catch (_) {}
-        },
-        onError: (_) {
-          if (!helloCompleter.isCompleted) helloCompleter.complete(null);
-        },
-        onDone: () {
-          if (!helloCompleter.isCompleted) helloCompleter.complete(null);
-        },
-        cancelOnError: true,
-      );
-
-      final announcedId = await helloCompleter.future
-          .timeout(const Duration(milliseconds: 1500));
-      unawaited(sub.cancel());
-      return announcedId != null && announcedId == expectedMachineId;
-    } catch (_) {
-      return false;
-    } finally {
-      try {
-        await probe?.close();
-      } catch (_) {}
-    }
-  }
-
-  /// Auto-detect the DevConnect desktop host IP.
-  ///
-  /// 0. Try cached host from last session (instant)
-  /// 1. Race: UDP beacon vs known emulator/USB addresses (parallel)
-  /// 2. Scan local subnet (real device WiFi)
-  /// 3. Scan common subnets as fallback
-  static Future<String> _autoDetectHost(int port) async {
-    // 0. Try cached host from previous session (instant reconnect).
-    //    We verify the server's stable machineId matches what we cached —
-    //    this catches the case where the cached IP now points at a
-    //    different device (e.g. switched from iOS Simulator to a real
-    //    iPhone, or back, after the Mac's address changed).
-    final cached = await _readHostCache(port);
-    if (cached != null) {
-      if (await _verifyCachedHost(cached.host, port, cached.machineId)) {
-        return cached.host;
-      }
-      // Stale or wrong machine — invalidate so the next discovery wins.
-      await _clearHostCache();
-    }
-
-    // 1. Race: UDP beacon + known hosts in parallel
-    //    USB (adb reverse) → localhost/10.0.2.2 responds fast
-    //    WiFi → UDP beacon responds fast
-    //    Whoever wins first, we use it.
-    final knownHosts = Platform.isAndroid
-        ? ['10.0.2.2', '10.0.3.2', 'localhost', '127.0.0.1']
-        : ['localhost', '127.0.0.1'];
-
-    final raceFutures = <Future<String?>>[];
-
-    // UDP beacon listener
-    raceFutures.add(_listenForBeacon(port));
-
-    // Known hosts (try all in parallel)
-    for (final host in knownHosts) {
-      raceFutures.add(
-        _tryHost(host, port, 800).then((ok) => ok ? host : null),
-      );
-    }
-
-    // Wait for first non-null result, or all to complete
-    final raceResult = await _firstNonNull(raceFutures);
-    if (raceResult != null) {
-      await _saveHostCache(raceResult, port, null);
-      return raceResult;
-    }
-
-    // 2. Scan device's own subnet (real device on same WiFi)
-    try {
-      final interfaces = await NetworkInterface.list();
-      for (final iface in interfaces) {
-        for (final addr in iface.addresses) {
-          if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
-            final parts = addr.address.split('.');
-            if (parts.length == 4) {
-              final subnet = '${parts[0]}.${parts[1]}.${parts[2]}';
-              final found = await _scanSubnet(subnet, port);
-              if (found != null) {
-                await _saveHostCache(found, port, null);
-                return found;
-              }
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 3. Scan common subnets as fallback
-    for (final subnet in ['192.168.1', '192.168.0', '192.168.2', '10.0.0', '10.0.1', '172.16.0']) {
-      final found = await _scanSubnet(subnet, port);
-      if (found != null) {
-        await _saveHostCache(found, port, null);
-        return found;
-      }
-    }
-
-    // Fallback
-    return Platform.isAndroid ? '10.0.2.2' : 'localhost';
-  }
-
-  /// Returns the first non-null result from a list of futures.
-  /// Waits for all to complete; returns first non-null in order.
-  static Future<String?> _firstNonNull(List<Future<String?>> futures) async {
-    final completer = Completer<String?>();
-    int remaining = futures.length;
-
-    for (final future in futures) {
-      future.then((value) {
-        if (value != null && !completer.isCompleted) {
-          completer.complete(value);
-        } else {
-          remaining--;
-          if (remaining == 0 && !completer.isCompleted) {
-            completer.complete(null);
-          }
-        }
-      }).catchError((_) {
-        remaining--;
-        if (remaining == 0 && !completer.isCompleted) {
-          completer.complete(null);
-        }
-      });
-    }
-
-    return completer.future;
-  }
-
-  /// Listen for a UDP beacon from the DevConnect server.
-  /// Server broadcasts {"type":"devconnect_beacon","port":9090,...}
-  /// every 2 seconds. We listen for up to 3 seconds.
-  static Future<String?> _listenForBeacon(int expectedPort) async {
-    RawDatagramSocket? udp;
-    try {
-      udp = await RawDatagramSocket.bind(
-        InternetAddress.anyIPv4,
-        _discoveryPort,
-        reuseAddress: true,
-      );
-
-      final completer = Completer<String?>();
-      StreamSubscription<RawSocketEvent>? subscription;
-
-      final timer = Timer(const Duration(seconds: 3), () {
-        if (!completer.isCompleted) {
-          subscription?.cancel();
-          completer.complete(null);
-        }
-      });
-
-      subscription = udp.listen((event) {
-        if (event == RawSocketEvent.read) {
-          final datagram = udp!.receive();
-          if (datagram != null && !completer.isCompleted) {
-            try {
-              final data = jsonDecode(utf8.decode(datagram.data));
-              if (data['type'] == 'devconnect_beacon') {
-                final serverPort = data['port'] as int?;
-                if (serverPort == expectedPort) {
-                  timer.cancel();
-                  subscription?.cancel();
-                  completer.complete(datagram.address.address);
-                }
-              }
-            } catch (_) {}
-          }
-        }
-      });
-
-      return await completer.future;
-    } catch (_) {
-      return null;
-    } finally {
-      udp?.close();
-    }
-  }
-
-  /// Try connecting to a single host with timeout.
-  static Future<bool> _tryHost(String host, int port, int timeoutMs) async {
-    try {
-      final socket = await Socket.connect(host, port,
-          timeout: Duration(milliseconds: timeoutMs));
-      await socket.close();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Scan a subnet (x.x.x.1 through x.x.x.30) in parallel.
-  /// Returns first host that responds, or null.
-  static Future<String?> _scanSubnet(String subnet, int port) async {
-    final futures = <Future<String?>>[];
-    for (int i = 1; i <= 30; i++) {
-      final host = '$subnet.$i';
-      futures.add(
-        _tryHost(host, port, 400).then((ok) => ok ? host : null),
-      );
-    }
-    final results = await Future.wait(futures);
-    for (final result in results) {
-      if (result != null) return result;
-    }
-    return null;
+    unawaited(() async {
+      if (client._host == 'auto') client._host = await autoDetectHost(port);
+      await client.connect();
+    }());
+    return client;
   }
 
   Future<void> connect() async {
     try {
-      _socket = await WebSocket.connect('ws://$_host:$_port');
+      // shortcut: a socket that connects after the timeout is left open.
+      _socket = await WebSocket.connect('ws://$_host:$_port',
+              customClient: wsHttpClient)
+          .timeout(const Duration(seconds: 5));
       _connected = true;
 
       // Flush pre-init queue (messages from interceptors before init)
@@ -552,29 +259,77 @@ class DevConnectClient {
               final serverMachineId = payload?['machineId'] as String?;
               if (serverMachineId != null && serverMachineId.isNotEmpty) {
                 unawaited(
-                    _saveHostCache(_host, _port, serverMachineId));
+                    saveHostCache(_host, _port, serverMachineId));
               }
               _sendHandshake();
             } else if (type == 'server:handshake_ack') {
               onConnected?.call();
             } else if (type == 'server:redux:dispatch') {
               final action = msg['payload']?['action'] as Map<String, dynamic>?;
-              if (action != null) onReduxDispatch?.call(action);
+              if (action != null) {
+                _runAppHandler(
+                    'onReduxDispatch', () => onReduxDispatch?.call(action));
+              }
             } else if (type == 'server:state:restore') {
               final state = msg['payload']?['state'] as Map<String, dynamic>?;
-              if (state != null) onStateRestore?.call(state);
+              if (state != null) {
+                _runAppHandler(
+                    'onStateRestore', () => onStateRestore?.call(state));
+              }
             } else if (type == 'server:custom:command') {
               final cmd = msg['payload']?['command'] as String?;
               final args = msg['payload']?['args'] as Map<String, dynamic>?;
               if (cmd != null && _commandHandlers.containsKey(cmd)) {
-                try {
-                  final result = _commandHandlers[cmd]!(args);
-                  _send('client:custom:command_result', {
+                final correlationId = msg['correlationId'] as String?;
+                // Async handlers resolve before the result goes back; a throw
+                // (sync or async) is reported as the error.
+                Future.sync(() => _commandHandlers[cmd]!(args)).then(
+                  (result) => _send('client:custom:command_result', {
                     'command': cmd,
                     'result': result,
-                  }, correlationId: msg['correlationId'] as String?);
-                } catch (_) {}
+                  }, correlationId: correlationId),
+                  onError: (Object e) => _send('client:custom:command_result', {
+                    'command': cmd,
+                    'error': e.toString(),
+                  }, correlationId: correlationId),
+                );
               }
+            } else if (type is String && type.startsWith('server:storage:')) {
+              unawaited(_handleStorageCommand(
+                  type, (msg['payload'] as Map?)?.cast<String, dynamic>() ?? {}));
+            } else if (type == 'server:open_url') {
+              final url = msg['payload']?['url'] as String?;
+              if (url != null) server_commands.openUrl(url);
+            } else if (type == 'server:network:throttle') {
+              final payload = msg['payload'] as Map?;
+              setNetworkConditions(
+                latencyMs: (payload?['latencyMs'] as num?)?.toInt() ?? 0,
+                offline: payload?['offline'] == true,
+              );
+            } else if (type == 'server:network:replay') {
+              unawaited(server_commands.replayRequest(
+                  (msg['payload'] as Map?)?.cast<String, dynamic>() ?? {}));
+            } else if (type == 'server:layout:capture') {
+              final correlationId = msg['correlationId'] as String?;
+              unawaited(captureLayout().then(
+                (snapshot) => _send('client:layout:snapshot', snapshot,
+                    correlationId: correlationId),
+                onError: (Object e) => _send('client:layout:snapshot',
+                    {'error': e.toString()}, correlationId: correlationId),
+              ));
+            } else if (type == 'server:database:request_schema') {
+              final correlationId = msg['correlationId'] as String?;
+              unawaited(_databaseSchemas().then((databases) => _send(
+                  'client:database:schema', {'databases': databases},
+                  correlationId: correlationId)));
+            } else if (type == 'server:database:query') {
+              final payload = msg['payload'] as Map<String, dynamic>?;
+              final correlationId = msg['correlationId'] as String?;
+              unawaited(_runDatabaseQuery(
+                payload?['database'] as String?,
+                payload?['sql'] as String? ?? '',
+              ).then((result) => _send('client:database:query_result', result,
+                  correlationId: correlationId)));
             } else if (type == 'server:reload') {
               // Desktop asking the app to reload itself.
               // Flutter offers no public hot-reload API outside the IDE, so we
@@ -631,6 +386,12 @@ class DevConnectClient {
         'sdkVersion': devConnectSdkVersion,
       },
     });
+    _announceCommands();
+  }
+
+  /// Tells the desktop which custom commands it can run (Commands panel).
+  void _announceCommands() {
+    _send('client:custom:commands', {'commands': _commandHandlers.keys.toList()});
   }
 
   /// Default handler for [WsMessageTypes.serverReload].
@@ -677,7 +438,7 @@ class DevConnectClient {
       if (!_connected) {
         // If auto mode, re-detect host on reconnect
         if (_auto) {
-          _host = await _autoDetectHost(_port);
+          _host = await autoDetectHost(_port);
         }
         connect();
       }
@@ -700,8 +461,7 @@ class DevConnectClient {
       json = jsonEncode(message);
     } catch (e) {
       // Body contains non-serializable data — sanitize and retry
-      final sanitized = _sanitizePayload(payload);
-      message['payload'] = sanitized;
+      message['payload'] = sanitizeForJson(payload);
       try {
         json = jsonEncode(message);
       } catch (_) {
@@ -715,22 +475,44 @@ class DevConnectClient {
     }
   }
 
-  /// Sanitize payload by converting non-serializable values to strings.
-  static Map<String, dynamic> _sanitizePayload(Map<String, dynamic> payload) {
-    final result = <String, dynamic>{};
-    for (final entry in payload.entries) {
+  /// Makes [value] JSON-encodable: maps and lists keep their shape, and
+  /// only the values jsonEncode rejects (a DateTime, a custom object)
+  /// become strings. A map or list met again inside itself becomes
+  /// `<cycle>`; past 32 levels or 10,000 values the copy stops with `…`.
+  @visibleForTesting
+  static dynamic sanitizeForJson(dynamic value, [int depth = 0]) {
+    final path = Set<Object>.identity();
+    var left = 10000;
+    dynamic copy(dynamic value, int depth) {
+      if (left-- <= 0) return '…';
+      if (value is Map || value is Iterable) {
+        if (depth >= 32) return '…';
+        if (!path.add(value)) return '<cycle>';
+        final out = value is Map
+            ? <String, dynamic>{
+                for (final e in value.entries.takeWhile((_) => left >= 0))
+                  '${e.key}': copy(e.value, depth + 1),
+              }
+            : [
+                for (final v in value.takeWhile((_) => left >= 0))
+                  copy(v, depth + 1),
+              ];
+        path.remove(value);
+        return out;
+      }
       try {
-        jsonEncode(entry.value);
-        result[entry.key] = entry.value;
+        jsonEncode(value);
+        return value;
       } catch (_) {
         try {
-          result[entry.key] = entry.value.toString();
+          return value.toString();
         } catch (_) {
-          result[entry.key] = '<unserializable>';
+          return '<unserializable>';
         }
       }
     }
-    return result;
+
+    return copy(value, depth);
   }
 
   // --- Safe static API (for interceptors/reporters that may run before init) ---
@@ -838,6 +620,21 @@ class DevConnectClient {
       if (value != null) 'value': value,
       'operation': operation,
     });
+  }
+
+  /// Runs a handler the app set; a throw shows in the desktop's Console
+  /// instead of vanishing.
+  void _runAppHandler(String name, void Function() handler) {
+    try {
+      handler();
+    } catch (e, stack) {
+      sendLog(
+        level: 'error',
+        message: '$name threw: $e',
+        tag: 'DevConnect',
+        stackTrace: '$stack',
+      );
+    }
   }
 
   // --- Public API ---
@@ -1132,7 +929,34 @@ class DevConnectClient {
   void registerCommand(
       String name, dynamic Function(Map<String, dynamic>?) handler) {
     _commandHandlers[name] = handler;
+    // Before connecting, the handshake announces every command so far.
+    if (_connected) _announceCommands();
   }
+
+  // ---- Storage, deep links, replay ----
+
+  Future<void> _handleStorageCommand(String type, Map<String, dynamic> p) =>
+      server_commands.handleStorageCommand(_storages, _send, type, p);
+
+  // ---- Databases ----
+
+  void registerDatabase(String name,
+      Future<List<Map<String, Object?>>> Function(String sql) query) {
+    _databases[name] = query;
+  }
+
+  Future<List<Map<String, dynamic>>> _databaseSchemas() =>
+      server_commands.databaseSchemas(_databases);
+
+  /// SQLite tables with their columns and row counts; empty if unreadable.
+  @visibleForTesting
+  static Future<List<Map<String, dynamic>>> sqliteTables(
+          Future<List<Map<String, Object?>>> Function(String sql) query) =>
+      server_commands.sqliteTables(query);
+
+  Future<Map<String, dynamic>> _runDatabaseQuery(
+          String? database, String sql) =>
+      server_commands.runDatabaseQuery(_databases, database, sql);
 
   Future<void> disconnect() async {
     _reconnectTimer?.cancel();

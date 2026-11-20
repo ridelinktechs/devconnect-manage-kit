@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -13,7 +14,9 @@ import '../../components/layout/device_bottom_bar.dart';
 import '../../components/layout/sidebar.dart';
 import '../providers/tab_visibility_provider.dart';
 import '../theme/theme_provider.dart';
+import '../utils/app/reload_apps.dart';
 import '../../features/benchmark/provider/benchmark_providers.dart';
+import '../../features/custom_commands/provider/custom_commands_providers.dart';
 import '../../features/performance/provider/performance_providers.dart';
 import '../../features/last_connected/provider/last_connected_providers.dart';
 import '../../server/providers/server_providers.dart';
@@ -36,6 +39,30 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
+  // ⌘R / ⇧⌘R reload the app(s) — through HardwareKeyboard rather than
+  // Shortcuts so they fire whatever has focus, even when nothing does.
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
+
+  bool _onKey(KeyEvent event) {
+    for (final hotRestart in const [false, true]) {
+      if (isReloadShortcut(event, hotRestart: hotRestart)) {
+        reloadApps(context, ref, hotRestart: hotRestart);
+        return true;
+      }
+    }
+    return false;
+  }
+
   int get _selectedIndex {
     for (int i = 0; i < sidebarItems.length; i++) {
       if (sidebarItems[i].routePath == widget.currentPath) return i;
@@ -54,6 +81,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(benchmarkEntriesProvider);
     ref.watch(performanceEntriesProvider);
     ref.watch(memoryLeakEntriesProvider);
+    // The app announces its commands right after the handshake.
+    ref.watch(customCommandsProvider);
     final isCollapsed = ref.watch(sidebarCollapsedProvider);
 
     return Scaffold(
@@ -86,9 +115,17 @@ class _AppShellState extends ConsumerState<AppShell> {
                       children: [
                         SizedBox(height: Platform.isMacOS ? 64 : Platform.isWindows || Platform.isLinux ? 32 : 0),
                         Expanded(
-                          child: isLocked
-                              ? const _LockedTabOverlay()
-                              : widget.child,
+                          child: IndexedStack(
+                            index: isLocked ? 1 : 0,
+                            sizing: StackFit.expand,
+                            children: [
+                              TickerMode(
+                                enabled: !isLocked,
+                                child: widget.child,
+                              ),
+                              const _LockedTabOverlay(),
+                            ],
+                          ),
                         ),
                         const DeviceBottomBar(),
                       ],

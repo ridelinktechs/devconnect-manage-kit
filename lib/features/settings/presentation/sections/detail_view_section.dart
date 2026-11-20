@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
+import '../controls/bubble_slider.dart';
+import '../controls/segmented_picker.dart';
+import '../controls/settings_row.dart';
+import '../controls/stretch_switch.dart';
 import '../header/section_title.dart';
 
 /// Detail View card — picks between tree/json/code for response body
@@ -29,139 +32,68 @@ class DetailViewSection extends ConsumerWidget {
     final viewMode = ref.watch(bodyViewModeProvider);
     final animEnabled = ref.watch(tabAnimationEnabledProvider);
     final animMs = ref.watch(tabAnimationDurationProvider);
+    final s = S.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionTitle(
-          icon: LucideIcons.panelRight,
-          title: S.of(context).detailView,
-        ),
+        SectionTitle(icon: LucideIcons.panelRight, title: s.detailView),
         Text(
-          S.of(context).detailViewDesc,
-          style: TextStyle(fontSize: 11, color: Colors.grey[500], height: 1.4),
-        ),
-        const SizedBox(height: 14),
-
-        // Body view mode
-        Row(
-          children: [
-            SizedBox(
-              width: 100,
-              child: Text(S.of(context).bodyView,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-            ),
-            Expanded(
-              child: SegmentedButton<BodyViewMode>(
-                segments: [
-                  ButtonSegment(
-                    value: BodyViewMode.tree,
-                    icon: Icon(LucideIcons.listTree, size: 14),
-                    label: Text(S.of(context).tree),
-                  ),
-                  ButtonSegment(
-                    value: BodyViewMode.json,
-                    icon: Icon(LucideIcons.braces, size: 14),
-                    label: Text(S.of(context).json),
-                  ),
-                  ButtonSegment(
-                    value: BodyViewMode.code,
-                    icon: Icon(LucideIcons.code, size: 14),
-                    label: Text(S.of(context).code),
-                  ),
-                ],
-                selected: {viewMode},
-                onSelectionChanged: (value) {
-                  ref
-                      .read(bodyViewModeProvider.notifier)
-                      .set(value.first);
-                },
-                style: ButtonStyle(
-                  textStyle: WidgetStateProperty.all(
-                    const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Padding(
-          padding: const EdgeInsets.only(left: 100),
-          child: Text(
-            _modeDescription(ref, viewMode),
-            style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
+          s.detailViewDesc,
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.45,
+            color: ChromePalette.of(context).textMuted,
           ),
         ),
-        const SizedBox(height: 14),
-
-        // Tab animation toggle
-        Row(
-          children: [
-            SizedBox(
-              width: 100,
-              child: Text(S.of(context).tabAnimation,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-            ),
-            Switch.adaptive(
+        const SizedBox(height: 10),
+        SettingsRow(
+          first: true,
+          title: s.bodyView,
+          description: _modeDescription(ref, viewMode),
+          control: SegmentedPicker<BodyViewMode>(
+            segments: [
+              (
+                value: BodyViewMode.tree,
+                label: s.tree,
+                icon: LucideIcons.listTree,
+              ),
+              (
+                value: BodyViewMode.json,
+                label: s.json,
+                icon: LucideIcons.braces,
+              ),
+              (value: BodyViewMode.code, label: s.code, icon: LucideIcons.code),
+            ],
+            value: viewMode,
+            onChanged: (v) => ref.read(bodyViewModeProvider.notifier).set(v),
+          ),
+        ),
+        SettingsRow(
+          title: s.tabAnimation,
+          control: Align(
+            alignment: Alignment.centerRight,
+            child: StretchSwitch(
               value: animEnabled,
+              label: s.tabAnimation,
               onChanged: (v) =>
                   ref.read(tabAnimationEnabledProvider.notifier).set(v),
             ),
-            const SizedBox(width: 8),
-            Text(
-              animEnabled ? S.of(context).on : S.of(context).off,
-              style: TextStyle(
-                fontSize: 12,
-                color: animEnabled
-                    ? ColorTokens.primary
-                    : Colors.grey[500],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          ),
         ),
-        const SizedBox(height: 10),
-
-        // Duration slider (only when enabled)
-        Opacity(
-          opacity: animEnabled ? 1.0 : 0.45,
-          child: IgnorePointer(
-            ignoring: !animEnabled,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 100,
-                  child: Text(S.of(context).duration,
-                      style:
-                          TextStyle(fontSize: 13, color: Colors.grey[500])),
-                ),
-                Expanded(
-                  child: Slider(
-                    value: animMs.toDouble(),
-                    min: 0,
-                    max: 1000,
-                    divisions: 20,
-                    label: '${animMs}ms',
-                    onChanged: (v) => ref
-                        .read(tabAnimationDurationProvider.notifier)
-                        .set(v.round()),
-                  ),
-                ),
-                SizedBox(
-                  width: 54,
-                  child: Text(
-                    '${animMs}ms',
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      fontFamily: AppConstants.monoFontFamily,
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        SettingsRow(
+          title: s.duration,
+          control: BubbleSlider(
+            value: animMs,
+            min: 0,
+            max: 1000,
+            step: 50,
+            ticks: const [0, 250, 500, 750, 1000],
+            format: (v) => '${v}ms',
+            label: s.duration,
+            onChanged: animEnabled
+                ? (v) => ref.read(tabAnimationDurationProvider.notifier).set(v)
+                : null,
           ),
         ),
       ],

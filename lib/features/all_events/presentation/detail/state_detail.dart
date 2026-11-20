@@ -9,8 +9,8 @@ import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
 import '../../../../models/state/state_change.dart';
 import '../shared/body_view.dart';
 import '../shared/detail_tab_bar.dart';
@@ -40,7 +40,7 @@ class StateDetail extends ConsumerStatefulWidget {
 }
 
 class _StateDetailState extends ConsumerState<StateDetail>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
   final _diffScrollController = SmoothScrollController();
 

@@ -6,8 +6,8 @@ import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/text/text_component.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
 
 /// Query-parameter tab. One bordered section card with a title bar
 /// (icon + count badge) and a list of [ParamRow] rows underneath —

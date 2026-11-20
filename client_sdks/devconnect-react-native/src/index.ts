@@ -1,26 +1,27 @@
 export { DevConnect } from './client';
-export { devConnectReduxMiddleware } from './interceptors/reduxMiddleware';
-export { setupMobxSpy } from './interceptors/mobxSpy';
-export { setupAxiosInterceptor } from './interceptors/axiosInterceptor';
-export { DevConnectAsyncStorage } from './interceptors/asyncStoragePlugin';
-export { devConnectMiddleware } from './interceptors/zustandMiddleware';
-export { devConnectAtomEffect, devConnectAtomOnMount, watchAtom } from './interceptors/jotaiPlugin';
-export { watchValtio } from './interceptors/valtioPlugin';
-export { devConnectXStateInspector, devConnectXStateService } from './interceptors/xstatePlugin';
-export { DevConnectLogger } from './reporters/logReporter';
-export { DevConnectStorage } from './reporters/storageReporter';
-export { DevConnectMMKV } from './reporters/mmkvReporter';
-export { DevConnectEncryptedStorage } from './reporters/encryptedStorageReporter';
-export { DevConnectWatermelon } from './reporters/watermelonReporter';
-export { DevConnectSQLite } from './reporters/sqliteReporter';
-export { DevConnectRealm } from './reporters/realmReporter';
+export type { DatabaseQuery, StorageAdapter } from './client';
+export { devConnectReduxMiddleware } from './interceptors/state/reduxMiddleware';
+export { setupMobxSpy } from './interceptors/state/mobxSpy';
+export { setupAxiosInterceptor } from './interceptors/network/axiosInterceptor';
+export { DevConnectAsyncStorage } from './interceptors/storage/asyncStoragePlugin';
+export { devConnectMiddleware } from './interceptors/state/zustandMiddleware';
+export { devConnectAtomEffect, devConnectAtomOnMount, watchAtom } from './interceptors/state/jotaiPlugin';
+export { watchValtio } from './interceptors/state/valtioPlugin';
+export { devConnectXStateInspector, devConnectXStateService } from './interceptors/state/xstatePlugin';
+export { DevConnectLogger } from './reporters/logging/logReporter';
+export { DevConnectStorage } from './reporters/storage/storageReporter';
+export { DevConnectMMKV } from './reporters/storage/mmkvReporter';
+export { DevConnectEncryptedStorage } from './reporters/storage/encryptedStorageReporter';
+export { DevConnectWatermelon } from './reporters/storage/watermelonReporter';
+export { DevConnectSQLite } from './reporters/storage/sqliteReporter';
+export { DevConnectRealm } from './reporters/storage/realmReporter';
 
 // Auto-monitoring plugins
-export { startPerformanceMonitor, stopPerformanceMonitor } from './plugins/performanceMonitor';
-export { startMemoryLeakDetector, stopMemoryLeakDetector, watchCollection } from './plugins/memoryLeakDetector';
-export { startErrorMonitor } from './plugins/errorMonitor';
-export { setupAppBenchmark, benchmarkScreen, benchmarkAsync } from './plugins/appBenchmark';
-export { devConnectThunkTracker, trackAsync } from './plugins/asyncTracker';
+export { startPerformanceMonitor, stopPerformanceMonitor } from './plugins/performance/performanceMonitor';
+export { startMemoryLeakDetector, stopMemoryLeakDetector, watchCollection } from './plugins/performance/memoryLeakDetector';
+export { startErrorMonitor } from './plugins/errors/errorMonitor';
+export { setupAppBenchmark, benchmarkScreen, benchmarkAsync } from './plugins/performance/appBenchmark';
+export { devConnectThunkTracker, trackAsync } from './plugins/state/asyncTracker';
 
 // Logging library integrations
 export {
@@ -30,21 +31,21 @@ export {
   pinoDevConnectTransport,   // pino
   bunyanDevConnectStream,    // bunyan
   wrapLogger,                // any custom logger
-} from './interceptors/logLibraryPlugins';
+} from './interceptors/logging/logLibraryPlugins';
 
 // Round 2: State auto-discovery (React Query + Apollo)
 export { setupReactQueryDevConnect } from './integrations/reactQuery';
 export { setupApolloDevConnect } from './integrations/apollo';
 
 // Round 3: Protocol inspectors
-export { installWebSocketInterceptor } from './interceptors/webSocketInterceptor';
-export { devConnectApolloLink } from './interceptors/apollo/devConnectApolloLink';
+export { installWebSocketInterceptor } from './interceptors/network/webSocketInterceptor';
+export { devConnectApolloLink } from './interceptors/network/apollo/devConnectApolloLink';
 
 // Round 4: Source maps + mock server
-export { uploadSourceMap } from './reporters/sourceMapReporter';
+export { uploadSourceMap } from './reporters/errors/sourceMapReporter';
 export {
   setMockRules,
   findMockMatch,
   buildMockResponse,
   installMockServerInterceptor,
-} from './interceptors/mockServerInterceptor';
+} from './interceptors/network/mockServerInterceptor';

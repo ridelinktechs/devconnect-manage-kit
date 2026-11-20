@@ -7,7 +7,7 @@ import '../../../../components/misc/status_badge.dart';
 import '../../../../components/text/text_component.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../provider/all_events_provider.dart';
 import '../buttons/pressable_button.dart';

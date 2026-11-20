@@ -6,7 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/providers/app_update_provider.dart';
 import '../../core/providers/sdk_versions_provider.dart';
 import '../../core/theme/chrome_palette.dart';
-import '../../l10n/app_localizations.dart';
+import '../../l10n/generated/app_localizations.dart';
 import 'title_bar_flyout.dart';
 
 /// The desktop app's own version, top-left of the title bar (the right

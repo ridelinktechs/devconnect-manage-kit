@@ -4,7 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/misc/status_badge.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../header/section_title.dart';
 
 /// Connected-devices card — shows each active connection with a

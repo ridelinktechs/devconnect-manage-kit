@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import '../shared/format/memory.dart';
 import '../shared/status_colors.dart';
 import 'metric_pill.dart';
@@ -131,6 +132,7 @@ class ProfilerToolbar extends StatelessWidget {
               color: isDark ? Colors.white30 : Colors.black26,
             ),
           ),
+          const PageGuideButton(route: '/performance'),
         ],
       ),
     );

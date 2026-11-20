@@ -1,6 +1,11 @@
 import 'dart:io';
 
+import 'package:devconnect_manage_kit/devconnect_manage_kit.dart';
+import 'package:devconnect_manage_kit/src/interceptors/state/bloc/devconnect_bloc_observer.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// The type the compiler checks [value] against.
+Type _staticType<T>(T value) => T;
 
 /// Regression test for `devconnect_bloc_observer.dart:33-61`.
 ///
@@ -17,7 +22,7 @@ void main() {
       () {
     // Relative: `flutter test` runs from the package root, locally and on CI.
     final src = File(
-      'lib/src/interceptors/bloc/devconnect_bloc_observer.dart',
+      'lib/src/interceptors/state/bloc/devconnect_bloc_observer.dart',
     ).readAsStringSync();
 
     // Find the BlocObserverBase class block. The doc comment sits
@@ -95,5 +100,13 @@ void main() {
           'BlocObserverBase doc must explicitly warn that super.* does not '
           'chain to the real flutter_bloc BlocObserver.',
     );
+  });
+
+  test('blocObserver() is typed, so Bloc.observer = it no longer compiles',
+      () {
+    // Typed `dynamic`, `Bloc.observer = DevConnect.blocObserver()` compiled
+    // and threw at startup: it isn't flutter_bloc's BlocObserver.
+    // ignore: deprecated_member_use_from_same_package
+    expect(_staticType(DevConnect.blocObserver()), DevConnectBlocObserver);
   });
 }

@@ -1,34 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/misc/status_badge.dart';
-import '../../../../components/text/text_component.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../core/utils/toast_utils.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/log/log_entry.dart';
 import '../shared/level_color.dart';
 import '../shared/section_label.dart';
-import '../shared/tag_badge.dart';
+import 'detail_header.dart';
 import 'log_message_block.dart';
 import 'metadata_block.dart';
+import 'occurrences_block.dart';
 import 'screenshot_builder.dart';
+import 'stack_trace_block.dart';
 
 /// Right-pane detail panel for a selected log entry. Owns:
-///   • the level + timestamp header with copy/screenshot/close
-///   • the tag, message, metadata, and stack-trace sections
-///   • the level-tinted stack trace styling
+///   • the [LogDetailHeader] with copy/screenshot/close
+///   • the message, metadata, and stack-trace sections
 class LogDetailPanel extends StatefulWidget {
   final LogEntry entry;
+
+  /// Every log [entry]'s row stands for when repeats are folded, oldest
+  /// first; empty otherwise.
+  final List<LogEntry> occurrences;
+
+  /// "App · device" the log came from, when that device is known.
+  final String? source;
   final VoidCallback onClose;
 
   const LogDetailPanel({
     super.key,
     required this.entry,
+    this.occurrences = const [],
+    this.source,
     required this.onClose,
   });
 
@@ -39,6 +44,9 @@ class LogDetailPanel extends StatefulWidget {
 class _LogDetailPanelState extends State<LogDetailPanel> {
   final _scrollController = SmoothScrollController();
 
+  /// The occurrence picked in [OccurrencesBlock]; the row's own log if none.
+  String? _occurrenceId;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -47,123 +55,31 @@ class _LogDetailPanelState extends State<LogDetailPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final entry = widget.entry;
+    final occurrences = widget.occurrences;
+    final entry =
+        occurrences.where((e) => e.id == _occurrenceId).firstOrNull ??
+            widget.entry;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final color = levelColor(entry.level);
-    final time = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(
-      DateTime.fromMillisecondsSinceEpoch(entry.timestamp),
-    );
 
     return Container(
       color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
       child: Column(
         children: [
-          // Header bar
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: isDark ? ColorTokens.darkBackground : Colors.white,
-              border: Border(
-                bottom: BorderSide(
-                  color: theme.dividerColor.withValues(alpha: 0.5),
-                  width: 1,
-                ),
-              ),
+          LogDetailHeader(
+            entry: entry,
+            source: widget.source,
+            onCopy: () {
+              Clipboard.setData(ClipboardData(text: entry.message));
+              showCopiedToast(context, label: S.of(context).logCopied);
+            },
+            onCapture: () => buildLogDetailScreenshot(
+              context: context,
+              entry: entry,
+              isDark: isDark,
             ),
-            child: Row(
-              children: [
-                LogLevelBadge(level: entry.level.name),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextComponent(
-                    time,
-                    style: TextStyle(
-                      fontFamily: AppConstants.monoFontFamily,
-                      fontSize: 11,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ),
-                // Copy button
-                Tooltip(
-                  message: S.of(context).copyMessage,
-                  child: GestureDetector(
-                    onTap: () {
-                      Clipboard.setData(
-                          ClipboardData(text: entry.message));
-                      showCopiedToast(context, label: S.of(context).logCopied);
-                    },
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(
-                          LucideIcons.copy,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                // Screenshot button
-                Tooltip(
-                  message: 'Capture detail as image',
-                  child: GestureDetector(
-                    onTap: () => buildLogDetailScreenshot(
-                      context: context,
-                      entry: entry,
-                      isDark: isDark,
-                    ),
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(
-                          LucideIcons.camera,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                // Close button
-                Tooltip(
-                  message: S.of(context).closePanel,
-                  child: GestureDetector(
-                    onTap: widget.onClose,
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(
-                          LucideIcons.x,
-                          size: 16,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            onClose: widget.onClose,
           ),
           // Scrollable content
           Expanded(
@@ -173,12 +89,15 @@ class _LogDetailPanelState extends State<LogDetailPanel> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Tag
-                  if (entry.tag != null) ...[
-                    SectionLabel(label: S.of(context).tag),
-                    const SizedBox(height: 6),
-                    TagBadge(tag: entry.tag!),
-                    const SizedBox(height: 16),
+                  // When each folded repeat ran; picking one shows its details.
+                  if (occurrences.length > 1) ...[
+                    OccurrencesBlock(
+                      occurrences: occurrences,
+                      selectedId: entry.id,
+                      color: color,
+                      onSelect: (e) => setState(() => _occurrenceId = e.id),
+                    ),
+                    const SizedBox(height: 20),
                   ],
 
                   // Message — with 3 view modes (Tree / JSON / Code), same
@@ -207,26 +126,9 @@ class _LogDetailPanelState extends State<LogDetailPanel> {
                     const SizedBox(height: 20),
                     SectionLabel(label: S.of(context).stackTrace),
                     const SizedBox(height: 6),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: color.withValues(alpha: 0.15),
-                          width: 1,
-                        ),
-                      ),
-                      child: TextComponent(
-                        entry.stackTrace!,
-                        style: TextStyle(
-                          fontFamily: AppConstants.monoFontFamily,
-                          fontSize: 11,
-                          color: color.withValues(alpha: 0.9),
-                          height: 1.5,
-                        ),
-                      ),
+                    StackTraceBlock(
+                      trace: entry.stackTrace!,
+                      level: entry.level,
                     ),
                   ],
                 ],

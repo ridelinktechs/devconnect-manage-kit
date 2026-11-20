@@ -6,9 +6,10 @@ import '../../../../components/inputs/search_field.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/log/error_event.dart';
 import '../../../../core/providers/retention_provider.dart';
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import '../../provider/error_providers.dart';
 import '../shared/count_up.dart';
 import '../shared/error_tokens.dart' show platformColor, platformLabel;
@@ -80,6 +81,7 @@ class Toolbar extends ConsumerWidget {
                       : ColorTokens.darkNeutral,
                 ),
               ),
+              const PageGuideButton(route: '/errors'),
               const SizedBox(width: 10),
               // Count pill with pulsing red dot when errors > 0
               ValueListenableBuilder<int>(

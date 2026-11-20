@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/providers/local_projects_provider.dart';
 import '../../core/theme/chrome_palette.dart';
 import '../../core/theme/color_tokens.dart';
-import '../../core/utils/smooth_scroll_controller.dart';
-import '../../l10n/app_localizations.dart';
+import '../../core/utils/app/reload_apps.dart';
+import '../../core/utils/app/sdk_version.dart';
+import '../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../l10n/generated/app_localizations.dart';
+import 'deep_link_dialog.dart';
 import '../../models/device_info.dart';
 import '../../server/providers/server_providers.dart';
 
@@ -34,12 +36,13 @@ class _DeviceBottomBarState extends ConsumerState<DeviceBottomBar> {
     final ref = this.ref;
     final devices = ref.watch(connectedDevicesProvider);
     final selectedId = ref.watch(selectedDeviceProvider);
-    final localProjects = ref.watch(localProjectsProvider).value ?? const [];
     final palette = ChromePalette.of(context);
     final loc = S.of(context);
     final isDark = palette.isDark;
 
     if (devices.isEmpty) return const SizedBox.shrink();
+    final selected = devices.where((d) => d.deviceId == selectedId).toList();
+    final targets = selected.isNotEmpty ? selected : devices;
 
     return Container(
       height: 44,
@@ -94,7 +97,7 @@ class _DeviceBottomBarState extends ConsumerState<DeviceBottomBar> {
                   isSelected: isActive,
                   palette: palette,
                   device: d,
-                  sdkVersion: deviceSdkVersion(d, localProjects),
+                  sdkVersion: reportedSdkVersion(d.sdkVersion),
                   onTap: () => ref
                       .read(selectedDeviceProvider.notifier)
                       .select(isActive ? null : d.deviceId),
@@ -102,8 +105,77 @@ class _DeviceBottomBarState extends ConsumerState<DeviceBottomBar> {
               },
             ),
           ),
-          const SizedBox(width: 8),
+          // Device tools for the selected app, or every app when none is.
+          Container(width: 1, height: 16, color: palette.border),
+          const SizedBox(width: 6),
+          _BarButton(
+            icon: LucideIcons.link,
+            tooltip: loc.deepLinkTitle,
+            palette: palette,
+            onPressed: () => openDeepLink(context, ref, targets),
+          ),
+          if (targets.any((d) => _isReactNative(d.platform)))
+            _BarButton(
+              icon: LucideIcons.squareMenu,
+              tooltip: loc.devMenu,
+              palette: palette,
+              onPressed: () {
+                final handler = ref.read(wsMessageHandlerProvider);
+                for (final d in targets) {
+                  if (_isReactNative(d.platform)) {
+                    handler.showDevMenu(d.deviceId);
+                  }
+                }
+              },
+            ),
+          for (final a in reloadActionsFor(targets, loc))
+            _BarButton(
+              icon: a.icon,
+              tooltip:
+                  '${a.label} (${reloadShortcutLabel(hotRestart: a.hotRestart)})',
+              palette: palette,
+              onPressed: () =>
+                  reloadApps(context, ref, hotRestart: a.hotRestart),
+            ),
+          const SizedBox(width: 10),
         ],
+      ),
+    );
+  }
+}
+
+bool _isReactNative(String platform) => const {
+  'react_native',
+  'reactnative',
+  'rn',
+}.contains(platform.toLowerCase());
+
+class _BarButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final ChromePalette palette;
+  final VoidCallback onPressed;
+
+  const _BarButton({
+    required this.icon,
+    required this.tooltip,
+    required this.palette,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      icon: Icon(icon, size: 14),
+      style: IconButton.styleFrom(
+        foregroundColor: palette.textMuted,
+        fixedSize: const Size.square(28),
+        minimumSize: const Size.square(28),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
     );
   }

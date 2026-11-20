@@ -1,13 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
-import '../../../core/utils/list_retention.dart';
-import '../../../core/utils/retention_capped.dart';
+import '../../../core/utils/collections/list_retention.dart';
+import '../../../core/utils/collections/retention_capped.dart';
 import '../../../models/round/mock_entry.dart';
 import '../../../models/round/protocol_entry.dart';
 import '../../../models/round/state_round_entry.dart';
 import '../../../server/providers/server_providers.dart';
-import '../../../server/ws_message_handler.dart';
 
 // =============================================================
 // Round 2 — extended state managers (BLoC, Provider, ReactQuery,
@@ -122,6 +121,12 @@ class GraphqlEntriesNotifier extends Notifier<List<GraphqlEntry>> {
   List<GraphqlEntry> build() {
     final handler = ref.watch(wsMessageHandlerProvider);
     final sub = handler.onGraphql.listen((entry) {
+      // The response half lands on its operation's row.
+      final i = state.lastIndexWhere((e) => e.id == entry.id);
+      if (i >= 0) {
+        state = [...state]..[i] = mergeGraphql(state[i], entry);
+        return;
+      }
       final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
     });
@@ -211,6 +216,12 @@ class GrpcEntriesNotifier extends Notifier<List<GrpcCallEntry>> {
   List<GrpcCallEntry> build() {
     final handler = ref.watch(wsMessageHandlerProvider);
     final sub = handler.onGrpc.listen((entry) {
+      // The end half lands on its start's row.
+      final i = state.lastIndexWhere((e) => e.id == entry.id);
+      if (i >= 0) {
+        state = [...state]..[i] = mergeGrpc(state[i], entry);
+        return;
+      }
       final limit = ref.read(retentionLimitProvider).limit ?? kRetentionSafetyCap;
       state = truncateList([...state, entry], limit);
     });
@@ -251,9 +262,9 @@ class MockAuditEntriesNotifier extends Notifier<List<MockedRequestEntry>> {
 
   void clear() => state = [];
 
-  /// The SDK's audit wire format only ships `ruleId`, `status`,
-  /// `requestId`, `timestamp` — no URL, method, or human-readable
-  /// name. Look the rule up locally so the audit row is useful.
+  /// Adds the rule's name, and its method / URL pattern when the SDK
+  /// didn't send the request's real ones (older SDKs only ship `ruleId`
+  /// and `status`).
   MockedRequestEntry _enrich(MockedRequestEntry entry) {
     if (entry.matchedRuleId.isEmpty) return entry;
     final rule = ref
@@ -264,8 +275,8 @@ class MockAuditEntriesNotifier extends Notifier<List<MockedRequestEntry>> {
     return MockedRequestEntry(
       id: entry.id,
       deviceId: entry.deviceId,
-      method: rule.method,
-      url: rule.urlPattern,
+      method: entry.url.isNotEmpty ? entry.method : rule.method,
+      url: entry.url.isNotEmpty ? entry.url : rule.urlPattern,
       matchedRuleId: entry.matchedRuleId,
       matchedRuleName: rule.name,
       statusCode: entry.statusCode,
@@ -317,6 +328,47 @@ final mockRulesProvider =
     NotifierProvider<MockRulesNotifier, List<MockRule>>(
         MockRulesNotifier.new);
 
+/// The devices that were sent the mock rules, kept in step with the list:
+/// it's re-sent whole whenever it changes (toggle, edit, delete — every
+/// SDK replaces its rules with what it gets) and when such a device
+/// reconnects (the SDKs keep rules in memory only).
+final mockRulesSyncProvider =
+    NotifierProvider<MockRulesSyncNotifier, Set<String>>(
+        MockRulesSyncNotifier.new);
+
+class MockRulesSyncNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() {
+    final handler = ref.watch(wsMessageHandlerProvider);
+    final sub = handler.onDeviceConnected.listen((device) {
+      if (state.contains(device.deviceId)) {
+        handler.installMockRules(device.deviceId, ref.read(mockRulesProvider));
+      }
+    });
+    ref.onDispose(sub.cancel);
+    ref.listen(mockRulesProvider, (_, rules) {
+      for (final deviceId in state) {
+        handler.installMockRules(deviceId, rules);
+      }
+    });
+    return const {};
+  }
+
+  /// Sends [deviceId] the whole list and keeps it in step from now on.
+  void push(String deviceId) {
+    state = {...state, deviceId};
+    ref
+        .read(wsMessageHandlerProvider)
+        .installMockRules(deviceId, ref.read(mockRulesProvider));
+  }
+
+  /// Empties [deviceId]'s rules and stops keeping it in step.
+  void clear(String deviceId) {
+    state = {...state}..remove(deviceId);
+    ref.read(wsMessageHandlerProvider).clearMockRules(deviceId);
+  }
+}
+
 final selectedMockRuleIdProvider =
     NotifierProvider<_SelectedMockRuleIdNotifier, String?>(
   _SelectedMockRuleIdNotifier.new,
@@ -361,28 +413,51 @@ final roundActionTargetProvider = Provider<String?>((ref) {
   return selected;
 });
 
-// =============================================================
-// Round 4 / 5 server→client actions (push mock rules, etc.).
-// Wraps WsMessageHandler so widgets can
-// `ref.read(roundActionBridgeProvider).installMockRules(...)` instead
-// of pulling the handler off the websocket tree.
-// =============================================================
 
-class RoundActionBridge {
-  final WsMessageHandler _handler;
-  const RoundActionBridge(this._handler);
-
-  void installMockRules(String deviceId, List<MockRule> rules) {
-    _handler.installMockRules(deviceId, rules);
-  }
-
-  void clearMockRules(String deviceId) => _handler.clearMockRules(deviceId);
-
-  void toggleMockRule(String deviceId, String ruleId, bool enabled) {
-    _handler.toggleMockRule(deviceId, ruleId, enabled);
-  }
+/// One GraphQL operation from its two halves, which may arrive in either
+/// order: the request's name, type, variables and start time; the latest
+/// response's result.
+GraphqlEntry mergeGraphql(GraphqlEntry old, GraphqlEntry next) {
+  final request = next.isComplete ? old : next;
+  final result = next.isComplete ? next : old;
+  return GraphqlEntry(
+    id: old.id,
+    deviceId: old.deviceId,
+    operation: request.operation,
+    type: request.type,
+    variables:
+        request.variables.isNotEmpty ? request.variables : result.variables,
+    isComplete: result.isComplete,
+    latencyMs: result.latencyMs,
+    cacheHit: result.cacheHit,
+    data: result.data,
+    errors: result.errors,
+    error: result.error,
+    timestamp: request.timestamp,
+    metadata: request.metadata == null && result.metadata == null
+        ? null
+        : {...?request.metadata, ...?result.metadata},
+  );
 }
 
-final roundActionBridgeProvider = Provider<RoundActionBridge>((ref) {
-  return RoundActionBridge(ref.watch(wsMessageHandlerProvider));
-});
+/// One gRPC call from its start and end events, in either order; a
+/// finished call never goes back to pending.
+GrpcCallEntry mergeGrpc(GrpcCallEntry old, GrpcCallEntry next) {
+  final end = next.status != null ? next : old;
+  final start = identical(end, next) ? old : next;
+  return GrpcCallEntry(
+    id: old.id,
+    deviceId: old.deviceId,
+    service: start.service.isNotEmpty ? start.service : end.service,
+    method: start.method.isNotEmpty ? start.method : end.method,
+    request: start.request.isNotEmpty ? start.request : end.request,
+    response: end.response,
+    timestamp: start.timestamp < end.timestamp ? start.timestamp : end.timestamp,
+    latencyMs: end.latencyMs,
+    status: end.status,
+    error: end.error,
+    metadata: start.metadata == null && end.metadata == null
+        ? null
+        : {...?start.metadata, ...?end.metadata},
+  );
+}

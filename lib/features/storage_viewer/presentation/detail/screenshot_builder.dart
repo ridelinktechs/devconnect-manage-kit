@@ -3,16 +3,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../components/text/text_component.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/code_generator.dart';
-import '../../../../core/utils/screenshot_filename.dart';
-import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/code/code_generator.dart';
+import '../../../../core/utils/files/screenshot_filename.dart';
+import '../../../../core/utils/files/screenshot_utils.dart';
 import '../../../../models/storage/storage_entry.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../shared/storage_preview.dart';
@@ -301,18 +300,4 @@ String _sizeLabel(dynamic value) {
   if (value == null) return '0 B';
   final raw = value is String ? value : jsonEncode(value);
   return AppConstants.formatBytes(raw.length);
-}
-
-/// Icon picker for a storage operation (used in the live detail
-/// panel header chips — not the screenshot, which uses a dot+label).
-IconData storageOpIcon(String op) {
-  switch (op.toLowerCase()) {
-    case 'write':
-      return LucideIcons.pencilLine;
-    case 'delete':
-    case 'clear':
-      return LucideIcons.trash2;
-    default:
-      return LucideIcons.eye;
-  }
 }

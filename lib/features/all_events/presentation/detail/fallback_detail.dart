@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../components/viewers/json_viewer.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../provider/all_events_provider.dart';
 import '../shared/code_block.dart';
 import '../shared/section_label.dart';

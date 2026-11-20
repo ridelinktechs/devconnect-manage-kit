@@ -6,7 +6,7 @@ import '../../../../components/inputs/search_field.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/retention_provider.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/device_info.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../provider/all_events_provider.dart';

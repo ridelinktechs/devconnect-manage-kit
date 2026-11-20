@@ -8,11 +8,14 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.view.Choreographer
 import com.devconnect.DevConnect
 
 private var running = false
+private var samplerThread: HandlerThread? = null
+@Volatile private var frameCallback: Choreographer.FrameCallback? = null
 private var memoryHandler: Handler? = null
 private var memoryRunnable: Runnable? = null
 private var cpuHandler: Handler? = null
@@ -60,7 +63,9 @@ fun startPerformanceMonitor(context: Any? = null, opts: PerformanceMonitorOption
     Handler(Looper.getMainLooper()).post { startFrameMonitor(opts) }
 
     // ---- Memory monitor ----
-    val handler = Handler(Looper.getMainLooper())
+    val sampler = HandlerThread("DevConnect-perf").apply { start() }
+    samplerThread = sampler
+    val handler = Handler(sampler.looper)
     memoryHandler = handler
     val runnable = object : Runnable {
         override fun run() {
@@ -73,7 +78,7 @@ fun startPerformanceMonitor(context: Any? = null, opts: PerformanceMonitorOption
     handler.postDelayed(runnable, opts.memoryInterval)
 
     // ---- CPU monitor ----
-    val cpuH = Handler(Looper.getMainLooper())
+    val cpuH = Handler(sampler.looper)
     cpuHandler = cpuH
     lastCpuTime = android.os.Process.getElapsedCpuTime()
     lastCpuWallTime = System.currentTimeMillis()
@@ -88,9 +93,8 @@ fun startPerformanceMonitor(context: Any? = null, opts: PerformanceMonitorOption
     cpuH.postDelayed(cpuR, opts.cpuInterval)
 
     // ---- System metrics (battery, threads, disk, thermal) ----
-    val sysH = Handler(Looper.getMainLooper())
+    val sysH = Handler(sampler.looper)
     systemHandler = sysH
-    reportSystemMetrics() // Report immediately
     val sysR = object : Runnable {
         override fun run() {
             if (!running) return
@@ -99,11 +103,12 @@ fun startPerformanceMonitor(context: Any? = null, opts: PerformanceMonitorOption
         }
     }
     systemRunnable = sysR
-    sysH.postDelayed(sysR, opts.systemInterval)
+    sysH.post(sysR)
 }
 
 fun stopPerformanceMonitor() {
     running = false
+    frameCallback = null
     memoryHandler?.removeCallbacksAndMessages(null)
     memoryHandler = null
     memoryRunnable = null
@@ -113,6 +118,8 @@ fun stopPerformanceMonitor() {
     systemHandler?.removeCallbacksAndMessages(null)
     systemHandler = null
     systemRunnable = null
+    samplerThread?.quit()
+    samplerThread = null
 }
 
 // ---- Frame monitoring ----
@@ -130,7 +137,7 @@ private fun startFrameMonitor(opts: PerformanceMonitorOptions) {
 
     val callback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
-            if (!running) return
+            if (!running || frameCallback !== this) return
 
             val now = System.nanoTime()
             if (lastFrameTime > 0) {
@@ -176,6 +183,7 @@ private fun startFrameMonitor(opts: PerformanceMonitorOptions) {
         }
     }
 
+    frameCallback = callback
     Choreographer.getInstance().postFrameCallback(callback)
 }
 

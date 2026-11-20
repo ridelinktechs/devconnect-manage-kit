@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../components/misc/status_badge.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
 import '../../../../models/log/log_entry.dart';
 import '../shared/body_view.dart' show InlineJsonView;
 import '../shared/code_block.dart';

@@ -131,6 +131,31 @@ void main() {
       expect(entries[0].id, isNot(entries[1].id));
     });
   });
+
+  test('an Android error, whose metadata is "key=value" text, still arrives',
+      () async {
+    final fakeServer = _FakeWsServer();
+    final handler = WsMessageHandler(server: fakeServer);
+    addTearDown(handler.dispose);
+    final first = handler.onError.first.timeout(const Duration(seconds: 2));
+    fakeServer.emitMessage(
+      DCMessage(
+        id: 'e1',
+        type: WsMessageTypes.clientError,
+        deviceId: 'dev',
+        timestamp: 1,
+        payload: const {
+          'platform': 'android',
+          'severity': 'fatal',
+          'message': 'boom',
+          'metadata': 'threadName=main; isNativeCrash=true',
+        },
+      ),
+    );
+    final error = await first;
+    expect(error.message, 'boom');
+    expect(error.metadata, {'metadata': 'threadName=main; isNativeCrash=true'});
+  });
 }
 
 DCMessage _msg({

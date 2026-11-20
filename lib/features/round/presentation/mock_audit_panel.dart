@@ -5,14 +5,13 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../components/feedback/empty_state.dart';
-import '../../../core/theme/color_tokens.dart';
-import '../../../core/utils/toast_utils.dart';
+import '../../../core/utils/ui/toast_utils.dart';
 import '../../../models/round/mock_entry.dart';
 import '../provider/round_providers.dart';
 
 /// Round 4 — read-only audit log of which requests the SDK actually
 /// matched against mock rules on the device. Wired into the Network
-/// Inspector as the 4th tab so QA can correlate network traffic with
+/// Inspector as a tab so QA can correlate network traffic with
 /// the rules currently installed on the device.
 class MockAuditPanel extends ConsumerStatefulWidget {
   const MockAuditPanel({super.key});
@@ -22,117 +21,23 @@ class MockAuditPanel extends ConsumerStatefulWidget {
 }
 
 class _MockAuditPanelState extends ConsumerState<MockAuditPanel> {
-  String _filter = 'all'; // all | matched | fallback
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // Every audit event is a request a rule answered: the SDKs send
+    // nothing for requests that went to the network.
     final entries = ref.watch(mockAuditDisplayProvider).items;
-    final filtered = entries.where((e) {
-      if (_filter == 'matched') return e.matchedRuleId.isNotEmpty;
-      if (_filter == 'fallback') return e.matchedRuleId.isEmpty;
-      return true;
-    }).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _FilterBar(
-          current: _filter,
-          onChanged: (v) => setState(() => _filter = v),
-        ),
-        Divider(height: 1, color: theme.dividerColor.withValues(alpha: 0.5)),
-        Expanded(
-          child: filtered.isEmpty
-              ? EmptyState(
-                  icon: LucideIcons.scrollText,
-                  title: 'No audit entries',
-                  subtitle:
-                      'When the SDK matches (or falls through) a request, it sends an audit event here.',
-                )
-              : ListView.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1),
-                  itemBuilder: (context, i) =>
-                      _AuditRow(entry: filtered[i]),
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FilterBar extends StatelessWidget {
-  final String current;
-  final ValueChanged<String> onChanged;
-
-  const _FilterBar({required this.current, required this.onChanged});
-
-  static const _options = [
-    ('all', 'All'),
-    ('matched', 'Matched'),
-    ('fallback', 'Fallback'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      color: theme.colorScheme.surface,
-      child: Row(
-        children: [
-          for (final (key, label) in _options) ...[
-            _Pill(
-              label: label,
-              selected: current == key,
-              onTap: () => onChanged(key),
-            ),
-            const SizedBox(width: 4),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _Pill({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: selected
-          ? ColorTokens.primary.withValues(alpha: 0.18)
-          : Colors.transparent,
-      borderRadius: BorderRadius.circular(6),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: selected
-                  ? ColorTokens.primary
-                  : theme.colorScheme.onSurfaceVariant,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
-    );
+    return entries.isEmpty
+        ? EmptyState(
+            icon: LucideIcons.scrollText,
+            title: 'No audit entries',
+            subtitle:
+                'Requests the app answered with a Mock Server rule instead of the network appear here.',
+          )
+        : ListView.separated(
+            itemCount: entries.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, i) => _AuditRow(entry: entries[i]),
+          );
   }
 }
 

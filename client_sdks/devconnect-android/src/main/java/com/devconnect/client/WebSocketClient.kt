@@ -9,7 +9,10 @@ import java.net.Socket
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.*
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
@@ -33,13 +36,22 @@ class WebSocketClient(
      * for identity verification on subsequent reconnects.
      */
     var onServerHello: ((String?) -> Unit)? = null
+    /** Fired when the connection to the desktop is lost or [disconnect] closes it. */
+    var onDisconnected: (() -> Unit)? = null
     var isConnected = false
         private set
+    @Volatile private var closed = false
 
     private var socket: Socket? = null
     private var writer: PrintWriter? = null
     private val messageQueue = ConcurrentLinkedQueue<String>()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    // One writer thread: a write stuck on a hung desktop can't hold the app's IO threads.
+    private val writeExecutor = ThreadPoolExecutor(
+        1, 1, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(1000),
+        { Thread(it, "DevConnect-ws-writer").apply { isDaemon = true } },
+        ThreadPoolExecutor.DiscardOldestPolicy(),
+    )
     private var reconnectJob: Job? = null
     private val reconnectAttempts = AtomicInteger(0)
     private val secureRandom = SecureRandom()
@@ -157,7 +169,7 @@ class WebSocketClient(
                 while (isConnected) {
                     // WebSocket frame reading per RFC 6455 §5.2.
                     val firstByte = inputStream.read()
-                    if (firstByte == -1) break
+                    if (firstByte == -1) throw java.io.EOFException()
 
                     val secondByte = inputStream.read()
                     val payloadLength = secondByte and 0x7F
@@ -168,7 +180,7 @@ class WebSocketClient(
                             // 16-bit length
                             val b1 = inputStream.read()
                             val b2 = inputStream.read()
-                            if (b1 == -1 || b2 == -1) break
+                            if (b1 == -1 || b2 == -1) throw java.io.EOFException()
                             ((b1 shl 8) or b2).toLong()
                         }
                         else -> {
@@ -250,7 +262,7 @@ class WebSocketClient(
 
     fun send(message: String) {
         if (isConnected) {
-            scope.launch { sendRaw(message) }
+            sendRaw(message)
         } else {
             if (messageQueue.size < 1000) {
                 messageQueue.add(message)
@@ -259,38 +271,45 @@ class WebSocketClient(
     }
 
     private fun sendRaw(message: String) {
-        try {
-            val data = message.toByteArray()
-            val frame = buildWebSocketFrame(data)
-            socket?.getOutputStream()?.write(frame)
-            socket?.getOutputStream()?.flush()
-        } catch (e: Exception) {
-            isConnected = false
-            scheduleReconnect()
+        writeExecutor.execute {
+            try {
+                val data = message.toByteArray()
+                val frame = buildWebSocketFrame(data)
+                socket?.getOutputStream()?.write(frame)
+                socket?.getOutputStream()?.flush()
+            } catch (e: Exception) {
+                isConnected = false
+                scheduleReconnect()
+            }
         }
     }
 
     private fun buildWebSocketFrame(data: ByteArray): ByteArray {
-        val frame = mutableListOf<Byte>()
+        val header = when {
+            data.size <= 125 -> 2
+            data.size <= 65535 -> 4
+            else -> 10
+        }
+        val frame = ByteArray(header + 4 + data.size)
         // Text frame, FIN bit set
-        frame.add(0x81.toByte())
+        frame[0] = 0x81.toByte()
 
         // Mask bit set (client must mask)
         val maskBit = 0x80
 
-        when {
-            data.size <= 125 -> {
-                frame.add((maskBit or data.size).toByte())
+        when (header) {
+            2 -> {
+                frame[1] = (maskBit or data.size).toByte()
             }
-            data.size <= 65535 -> {
-                frame.add((maskBit or 126).toByte())
-                frame.add((data.size shr 8).toByte())
-                frame.add((data.size and 0xFF).toByte())
+            4 -> {
+                frame[1] = (maskBit or 126).toByte()
+                frame[2] = (data.size shr 8).toByte()
+                frame[3] = (data.size and 0xFF).toByte()
             }
             else -> {
-                frame.add((maskBit or 127).toByte())
-                for (i in 7 downTo 0) {
-                    frame.add(((data.size.toLong() shr (8 * i)) and 0xFF).toByte())
+                frame[1] = (maskBit or 127).toByte()
+                for (i in 0 until 8) {
+                    frame[2 + i] = ((data.size.toLong() shr (8 * (7 - i))) and 0xFF).toByte()
                 }
             }
         }
@@ -301,17 +320,19 @@ class WebSocketClient(
         // makes the 32-bit mask key trivially guessable by an on-path
         // observer and breaks WebSocket's framing-integrity guarantee.
         val maskKey = ByteArray(4).also { secureRandom.nextBytes(it) }
-        frame.addAll(maskKey.toList())
+        maskKey.copyInto(frame, header)
 
         // Masked data
         for (i in data.indices) {
-            frame.add((data[i].toInt() xor maskKey[i % 4].toInt()).toByte())
+            frame[header + 4 + i] = (data[i].toInt() xor maskKey[i % 4].toInt()).toByte()
         }
 
-        return frame.toByteArray()
+        return frame
     }
 
     private fun scheduleReconnect() {
+        if (closed) return
+        onDisconnected?.invoke()
         reconnectJob?.cancel()
         val attempt = reconnectAttempts.incrementAndGet()
         // Exponential backoff with jitter, capped at 30 s.
@@ -335,10 +356,13 @@ class WebSocketClient(
     }
 
     fun disconnect() {
+        closed = true
         isConnected = false
+        onDisconnected?.invoke()
         reconnectJob?.cancel()
         reconnectJob = null
         scope.coroutineContext.cancelChildren()  // Cancel children, keep scope alive
+        writeExecutor.shutdownNow()
         try { socket?.close() } catch (_: Exception) {}
         socket = null
     }

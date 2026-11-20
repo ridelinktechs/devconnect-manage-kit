@@ -59,7 +59,7 @@ with `NoClassDefFoundError: kotlin/reflect/full/KClasses` (the
 
 The fastest way to wire DevConnect is `installForApp()` — one call turns on
 all auto-wiring flags: ANR detection, ViewModel state auto-discovery,
-auto-intercepted logs and HTTP, performance, memory-leak and benchmark monitors.
+auto-intercepted logs, performance, memory-leak and benchmark monitors.
 
 ```kotlin
 class MyApp : Application() {
@@ -164,7 +164,7 @@ DevConnect.init(
     port = 9090,                    // default: 9090
     enabled = BuildConfig.DEBUG,    // false in release
     autoInterceptLogs = true,       // true = auto-capture println()
-    autoInterceptHttp = true,       // true = auto-capture HttpURLConnection
+    autoInterceptHttp = true,       // no-op: HttpURLConnection can't be auto-captured; use okHttpInterceptor()
     autoPerformance = true,         // true = auto-start performance monitor
     autoMemoryLeak = true,          // true = auto-start memory leak detection
     autoBenchmark = true,           // true = auto-start benchmark collector
@@ -295,13 +295,33 @@ DevConnect.init(
 DevConnect.stateObserver().observe(lifecycleScope, viewModel.userState, "UserState")
 ```
 
+#### Controls from the desktop
+
+State Inspector › **Controls** watches state paths with no app code. Restoring
+a snapshot and dispatching an action call these handlers, on the main thread,
+so they can update views and LiveData directly:
+
+```kotlin
+// Restore: apply a snapshot sent from the desktop
+DevConnect.onStateRestore = { state -> viewModel.restore(state) }
+
+// Dispatch action: the desktop sends a map such as {"type": "LOGOUT"}
+DevConnect.onReduxDispatch = { action -> viewModel.handle(action) }
+```
+
+Values arrive as maps and lists; a JSON `null` member is left out of its map,
+so reading that key gives `null`. A throw in either handler shows in the
+desktop's Console.
+
 ### Crash & ANR detection
 
 When `autoAnrWatchdog = true` (the default for `installForApp`), a
 daemon thread pings the main `Looper` every 500 ms and reports an
 `anr` `performance_metric` event the moment the main thread is blocked
 for ≥6 seconds. The event payload includes the first 20 frames of the
-main thread's stack trace.
+main thread's stack trace. The same monitor reports uncaught Java/Kotlin
+exceptions, which show in the desktop's **Errors** tab with their stack
+trace.
 
 **Native (C++/JNI) crashes** are captured automatically by the bundled
 NDK signal handler — call `NativeCrashHandler.start()` once after
@@ -311,12 +331,18 @@ own via `ErrorMonitor.reportNativeCrash(signal, stackTrace)`.
 
 ### WebSocket inspector
 
-Wrap OkHttp WebSockets with the `devConnectWrap` extension to stream
-open / frame / close events (`client:ws_*`) to the desktop:
+Open OkHttp WebSockets through `DevConnect.newWebSocket` to stream
+open / frame / close events (`client:ws_*`) to the desktop, including
+the frames your app sends:
 
 ```kotlin
-val ws = client.newWebSocket(request, devConnectWrap(listener))
+val ws = DevConnect.newWebSocket(client, request, listener)
+ws.send("subscribe") // shows as a sent frame
 ```
+
+Your `listener` gets that same `ws` in its callbacks, so sends made there
+are captured too. `client.newWebSocket(request, devConnectWrap(listener))`
+still works, but only sees incoming frames, open and close.
 
 ### GraphQL / gRPC
 
@@ -330,12 +356,26 @@ channel = ManagedChannelBuilder.forAddress(host, port)
     .build()
 ```
 
-### Mock server (Round 4)
+### Mock Server
 
-The desktop pushes mock rules down over the websocket; the SDK's OkHttp
-interceptor matches them (method + URL regex + headers) and returns the
-canned response with optional delay — no app code needed. Push rules
-programmatically with `DevConnect.installMockRulesFromJson(json)`.
+Rules you save in the desktop's **Mock** tab reach the app over the
+websocket when you click **Push all**; each mocked request is listed in the
+desktop's **Network › Mock Audit**. Add the mock interceptor to your OkHttp
+client, **after** DevConnect's own interceptor so mocked responses still
+show in the HTTP tab:
+
+```kotlin
+val client = OkHttpClient.Builder()
+    .addInterceptor(DevConnect.okHttpInterceptor())
+    .addInterceptor(DevConnect.mockServerInterceptor())
+    .build()
+```
+
+A request that matches an enabled rule (method + URL regex + optional
+header regexes, within the rule's device scope and before its
+`expiresAt`) gets the canned response, after the optional delay, instead
+of going to the network. Push rules programmatically with
+`DevConnect.installMockRulesFromJson(json)`.
 
 ### Jetpack Compose
 
@@ -422,11 +462,19 @@ sdl.reportExecute("INSERT INTO users (name) VALUES (?)", mapOf("name" to "John")
 
 ### Performance
 
+With `autoPerformance` (on by default) the desktop's **Perf** tab fills in on
+its own: FPS, jank frames, frame build time, CPU, memory and its peak,
+threads and startup time. Report your own metrics too:
+
 ```kotlin
 DevConnect.reportPerformanceMetric(metricType = "fps", value = 58.5, label = "Main Thread FPS")
 ```
 
 ### Benchmark
+
+With `autoBenchmark` (on by default) the desktop's **Bench** tab times the
+app's startup and each stay in the background. Time your own flows step by
+step:
 
 ```kotlin
 DevConnect.benchmarkStart("loadHome")
@@ -436,11 +484,123 @@ fetchPosts()
 DevConnect.benchmarkStop("loadHome")
 ```
 
+Or time a screen; the returned function stops the timer:
+
+```kotlin
+val stop = com.devconnect.plugins.benchmarkScreen("HomeScreen")
+// ... once the screen is shown
+stop()
+```
+
+### Memory Leaks
+
+`MemoryLeakDetector` (`autoMemoryLeak`, on by default) reports to the
+desktop's **Leaks** tab. Report your own:
+
+```kotlin
+DevConnect.reportMemoryLeak(
+    leakType = "growing_collection",
+    severity = "critical", // info, warning or critical
+    objectName = "imageCache",
+    detail = "Map grows without bound: 15,200 entries, expected under 500",
+    retainedSizeBytes = 48_000_000,
+)
+```
+
+From Java: `DevConnectJava.reportMemoryLeak("growing_collection", "critical", "imageCache");`
+
+### Display
+
+Send any value to watch in the desktop's **Display** tab; each call adds a
+snapshot:
+
+```kotlin
+DevConnect.display(
+    "Feature Flags",
+    value = mapOf("newCheckout" to true, "wishlist" to false),
+    preview = "newCheckout on · wishlist off",
+)
+```
+
+From Java: `DevConnectJava.display("Feature Flags", flags, "newCheckout on");`
+
+### Async Operations
+
+Report the start and the end of async work; the desktop's **Async** tab
+shows each with its duration:
+
+```kotlin
+DevConnect.reportAsyncOperation("background_job", "syncCart", "start")
+syncCart()
+DevConnect.reportAsyncOperation("background_job", "syncCart", "resolve", duration = 840)
+// or "reject", with error = "..."
+```
+
+From Java: `DevConnectJava.reportAsyncOperation("background_job", "syncCart", "resolve", 840L, null, null, null);`
+
 ### Custom Commands
 
 ```kotlin
 DevConnect.registerCommand("clearCache") { args ->
     mapOf("cleared" to true)
+}
+```
+
+Registered commands show up in the desktop's **Commands** tab, where you
+run them with optional JSON args and see what they return.
+
+### Database Browser
+
+Let the desktop's **Database** tab browse your SQLite tables and run SQL —
+pass a function that runs one statement and returns its cursor (the SDK
+reads and closes it):
+
+```kotlin
+DevConnect.registerDatabase("app.db") { sql -> db.rawQuery(sql, null) }
+// Room
+DevConnect.registerDatabase("room") { sql -> roomDb.openHelper.readableDatabase.query(sql) }
+```
+
+Java: `DevConnectJava.registerDatabase("app.db", sql -> db.rawQuery(sql, null));`.
+Results are capped at 1000 rows.
+
+### Storage Editing
+
+The desktop's **Storage** tab lists, edits, deletes and clears stores
+wrapped with `DevConnectSharedPrefs` / `DevConnectMMKV`. For any other:
+
+```kotlin
+DevConnect.registerStorage("settings", object : DevConnect.StorageAdapter {
+    override fun getAll() = store.all()
+    override fun set(key: String, value: Any?) = store.put(key, value)
+    override fun remove(key: String) = store.remove(key)
+    override fun clear() = store.clear()
+})
+```
+
+### Layout Inspector
+
+Nothing to set up: the desktop's **Layout** tab captures a screenshot of
+the current activity and its view tree, with each view's bounds,
+properties, padding and margin (Compose content shows as its `ComposeView`).
+Click **Capture** whenever you want the current screen;
+[the desktop guide](https://github.com/ridelinktechs/devconnect-manage-kit#layout-inspector)
+covers picking elements, zooming and measuring.
+
+### Reload from Desktop
+
+The desktop's reload (<kbd>⌘</kbd> <kbd>R</kbd>, or <kbd>Ctrl</kbd> <kbd>R</kbd>
+on Windows; add <kbd>Shift</kbd> for a restart) recreates the current
+activity: the closest Android has to a hot reload. To wipe in-memory state
+first, set your own handler, which then does the reload itself:
+
+```kotlin
+DevConnect.onReloadRequest = {
+    viewModelCache.clear()
+    startActivity(
+        Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+    )
 }
 ```
 
@@ -456,7 +616,8 @@ DevConnect.init(context = this, appName = "MyApp", enabled = BuildConfig.DEBUG)
 
 - [Main Repository](https://github.com/ridelinktechs/devconnect-manage-kit)
 - [Desktop App Download](https://github.com/ridelinktechs/devconnect-manage-kit/releases)
-- [Full Documentation](https://github.com/ridelinktechs/devconnect-manage-kit#android-native-sdk)
+- [Full Documentation](https://github.com/ridelinktechs/devconnect-manage-kit#sdks)
+- [Using the desktop app, page by page](https://github.com/ridelinktechs/devconnect-manage-kit#using-the-desktop-app)
 
 ## License
 

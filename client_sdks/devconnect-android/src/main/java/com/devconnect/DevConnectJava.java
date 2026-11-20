@@ -7,7 +7,9 @@ import com.devconnect.interceptors.DevConnectKermitWriter;
 import com.devconnect.interceptors.DevConnectLogInterceptor;
 import com.devconnect.interceptors.DevConnectNapierAntilog;
 import com.devconnect.interceptors.DevConnectTimberHelper;
+import com.devconnect.interceptors.MockServerInterceptor;
 import com.devconnect.interceptors.OkHttpInterceptor;
+import com.devconnect.interceptors.grpc.DevConnectGrpcClientInterceptor;
 import com.devconnect.reporters.DataStoreReporter;
 import com.devconnect.reporters.DevConnectStateObserver;
 import com.devconnect.reporters.LogReporter;
@@ -130,6 +132,34 @@ public final class DevConnectJava {
      */
     public static OkHttpInterceptor okHttpInterceptor() {
         return DevConnect.INSTANCE.okHttpInterceptor();
+    }
+
+    /**
+     * Returns an OkHttp {@link okhttp3.Interceptor} that answers requests
+     * matching the desktop's mock rules. Add it after
+     * {@link #okHttpInterceptor()} so mocked responses still show in the
+     * HTTP tab.
+     */
+    public static MockServerInterceptor mockServerInterceptor() {
+        return DevConnect.INSTANCE.mockServerInterceptor();
+    }
+
+    /**
+     * Returns a gRPC {@code io.grpc.ClientInterceptor} that reports each
+     * call. Install it with {@code ManagedChannelBuilder.intercept(...)}.
+     */
+    public static DevConnectGrpcClientInterceptor grpcClientInterceptor() {
+        return DevConnect.INSTANCE.grpcClientInterceptor();
+    }
+
+    /**
+     * {@code client.newWebSocket(request, listener)} that mirrors the socket
+     * to the desktop, including the frames the app sends. The listener gets
+     * the same {@link okhttp3.WebSocket} this returns.
+     */
+    public static okhttp3.WebSocket newWebSocket(okhttp3.OkHttpClient client, okhttp3.Request request,
+                                                 okhttp3.WebSocketListener listener) {
+        return DevConnect.INSTANCE.newWebSocket(client, request, listener);
     }
 
     // ───────────────────── Logs ─────────────────────
@@ -336,12 +366,33 @@ public final class DevConnectJava {
      * }</pre>
      */
     public static void registerCommand(String name, CommandHandler handler) {
+        // Hand the result back: it's what the desktop shows for the run.
         @SuppressWarnings({"rawtypes", "unchecked"})
-        Function1 adapter = args -> {
-            handler.onCommand((Map<String, Object>) args);
-            return Unit.INSTANCE;
-        };
+        Function1 adapter = args -> handler.onCommand((Map<String, Object>) args);
         DevConnect.INSTANCE.registerCommand(name, adapter);
+    }
+
+    /**
+     * Lets the desktop's Storage tab list, edit, delete and clear a
+     * key-value store. {@code DevConnectSharedPrefs} and {@code DevConnectMMKV}
+     * register theirs.
+     */
+    public static void registerStorage(String storageType, DevConnect.StorageAdapter adapter) {
+        DevConnect.INSTANCE.registerStorage(storageType, adapter);
+    }
+
+    /**
+     * Lets the desktop's Database tab browse and query a SQLite database.
+     * The query runs one SQL statement and returns its cursor, which the
+     * SDK reads and closes.
+     *
+     * <p>Java example:</p>
+     * <pre>{@code
+     * DevConnectJava.registerDatabase("app.db", sql -> db.rawQuery(sql, null));
+     * }</pre>
+     */
+    public static void registerDatabase(String name, DatabaseQuery query) {
+        DevConnect.INSTANCE.registerDatabase(name, query::query);
     }
 
     // ───────────────────── Listeners (Java-friendly) ─────────────────────
@@ -488,6 +539,14 @@ public final class DevConnectJava {
      */
     public interface CommandHandler {
         Object onCommand(Map<String, Object> args);
+    }
+
+    /**
+     * Query for {@link DevConnectJava#registerDatabase(String, DatabaseQuery)}:
+     * runs one SQL statement and returns its cursor.
+     */
+    public interface DatabaseQuery {
+        android.database.Cursor query(String sql);
     }
 
     /** Listener for {@link DevConnectJava#setOnStateRestore(StateListener)}. */

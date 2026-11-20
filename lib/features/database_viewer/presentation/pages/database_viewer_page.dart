@@ -1,15 +1,29 @@
 import 'package:flutter/material.dart';
-import '../../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../core/utils/duration_format.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../core/routes/listen_while_shown.dart';
+import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
+import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../models/device_info.dart';
+import '../../../../models/storage/storage_entry.dart';
+import '../../../../server/providers/server_providers.dart';
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import '../../provider/database_providers.dart';
+import '../editor/sql_editor.dart';
+import '../grid/query_status_bar.dart';
+import '../grid/result_grid.dart';
+import '../header/table_bar.dart';
+import '../shared/db_look.dart';
+import '../shared/quiet_state.dart';
+import '../sidebar/table_sidebar.dart';
 
+/// Browses and queries the SQLite databases an app registered with
+/// `DevConnect.registerDatabase`, laid out like a desktop database client:
+/// the databases and their tables on the left; on the right the picked
+/// table's bar, then the SQL editor, the result grid and its status bar, or
+/// the table's structure. Picking a table runs a preview query.
 class DatabaseViewerPage extends ConsumerStatefulWidget {
   const DatabaseViewerPage({super.key});
 
@@ -17,225 +31,186 @@ class DatabaseViewerPage extends ConsumerStatefulWidget {
   ConsumerState<DatabaseViewerPage> createState() => _DatabaseViewerPageState();
 }
 
-class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
-  final _queryController = TextEditingController();
+class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage>
+    with ListenWhileShown {
+  final _sql = TextEditingController();
+
+  /// The picked (database, table).
+  (String, String)? _picked;
+
+  /// Whether the picked table shows its structure rather than its data.
+  bool _structure = false;
+
+  /// Devices asked for their schema since the page was last shown, so
+  /// rebuilds don't re-ask.
+  final _asked = <String>{};
+
+  @override
+  void onShownAgain() => _asked.clear();
 
   @override
   void dispose() {
-    _queryController.dispose();
+    _sql.dispose();
     super.dispose();
+  }
+
+  void _run(DeviceInfo device, List<DatabaseSchema> schemas) {
+    final sql = _sql.text.trim();
+    if (sql.isEmpty) return;
+    ref
+        .read(databaseQueryProvider.notifier)
+        .run(
+          device.deviceId,
+          _picked?.$1 ?? schemas.firstOrNull?.name ?? '',
+          sql,
+          noResponse: S.of(context).dbNoResponse,
+        );
+  }
+
+  void _pickTable(
+    DeviceInfo device,
+    List<DatabaseSchema> schemas,
+    String database,
+    String table,
+  ) {
+    setState(() {
+      _picked = (database, table);
+      _sql.text = 'SELECT * FROM "${table.replaceAll('"', '""')}" LIMIT 50;';
+    });
+    _run(device, schemas);
+  }
+
+  /// The picked table in [schemas], once they list it.
+  DatabaseTable? _table(List<DatabaseSchema> schemas) {
+    final (database, table) = _picked ?? ('', '');
+    return schemas
+        .where((s) => s.name == database)
+        .firstOrNull
+        ?.tables
+        .where((t) => t.name == table)
+        .firstOrNull;
   }
 
   @override
   Widget build(BuildContext context) {
-    final schemas = ref.watch(databaseSchemaProvider);
-    final selectedTable = ref.watch(selectedTableProvider);
-    final queryResult = ref.watch(queryResultProvider);
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final loc = S.of(context);
+    final p = ChromePalette.of(context);
+    final devices = ref.watch(connectedDevicesProvider);
+    final selectedId = ref.watch(selectedDeviceProvider);
+    // The selected device, else the only one connected.
+    final target =
+        devices.where((d) => d.deviceId == selectedId).firstOrNull ??
+        (devices.length == 1 ? devices.single : null);
+    final schemas = target == null
+        ? const <DatabaseSchema>[]
+        : ref.watch(databaseSchemasProvider)[target.deviceId] ?? const [];
+    final query = target == null
+        ? null
+        : ref.watch(databaseQueryProvider)[target.deviceId];
+    if (target != null && _asked.add(target.deviceId)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(databaseSchemasProvider.notifier).request(target.deviceId);
+        }
+      });
+    }
+    final table = _table(schemas);
 
     return Column(
       children: [
-        // Toolbar
         Container(
           height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.only(left: 16, right: 8),
           decoration: BoxDecoration(
-            color: isDark ? ColorTokens.darkBackground : Colors.white,
+            color: p.isDark ? ColorTokens.darkBackground : Colors.white,
+            border: Border(bottom: BorderSide(color: p.border)),
           ),
           child: Row(
             children: [
-              Icon(LucideIcons.hardDrive, size: 16, color: ColorTokens.primary),
+              const Icon(
+                LucideIcons.hardDrive,
+                size: 16,
+                color: ColorTokens.primary,
+              ),
               const SizedBox(width: 8),
-              Text('Database', style: theme.textTheme.titleMedium),
-              const Spacer(),
+              Text(
+                loc.database,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const PageGuideButton(route: '/database'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: target == null
+                    ? const SizedBox.shrink()
+                    : Text(
+                        '${target.appName} · ${target.deviceName}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: p.textMuted),
+                      ),
+              ),
+              if (target != null)
+                IconButton(
+                  icon: const Icon(LucideIcons.refreshCw, size: 14),
+                  color: p.textMuted,
+                  visualDensity: VisualDensity.compact,
+                  tooltip: loc.dbRefresh,
+                  onPressed: () => ref
+                      .read(databaseSchemasProvider.notifier)
+                      .request(target.deviceId),
+                ),
             ],
           ),
         ),
-        const Divider(height: 1),
-        // Content
         Expanded(
-          child: schemas.isEmpty
-              ? EmptyState(
-                  icon: LucideIcons.hardDrive,
-                  title: S.of(context).noData,
-                  subtitle:
-                      'Connect a device with SQLite to browse tables and run queries',
+          child: target == null
+              ? QuietState(
+                  title: loc.database,
+                  subtitle: devices.isEmpty
+                      ? loc.dbNoDevice
+                      : loc.dbSelectDevice,
                 )
               : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Table list
                     SizedBox(
-                      width: 220,
-                      child: Container(
-                        color: isDark
-                            ? ColorTokens.darkSurface
-                            : ColorTokens.lightSurface,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Text(
-                                'TABLES',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.grey[500],
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: ListView(
-                                children: schemas.expand((schema) {
-                                  return schema.tables.map((table) {
-                                    final isSelected =
-                                        selectedTable == table.name;
-                                    return GestureDetector(
-                                      onTap: () {
-                                        ref
-                                            .read(selectedTableProvider.notifier)
-                                            .set(table.name);
-                                      },
-                                      child: MouseRegion(
-                                        cursor: SystemMouseCursors.click,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
-                                          ),
-                                          color: isSelected
-                                              ? ColorTokens.selectedBg(
-                                                  Theme.of(context).brightness == Brightness.dark)
-                                              : null,
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                LucideIcons.table2,
-                                                size: 14,
-                                                color: isSelected
-                                                    ? ColorTokens.selectedAccent
-                                                    : Colors.grey[500],
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  table.name,
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: isSelected
-                                                        ? FontWeight.w600
-                                                        : FontWeight.w400,
-                                                    color: isSelected
-                                                        ? ColorTokens.selectedAccent
-                                                        : null,
-                                                  ),
-                                                ),
-                                              ),
-                                              Text(
-                                                '${table.rowCount}',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: Colors.grey[500],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  });
-                                }).toList(),
-                              ),
-                            ),
-                          ],
-                        ),
+                      width: 248,
+                      child: TableSidebar(
+                        schemas: schemas,
+                        picked: _picked,
+                        onPick: (database, name) =>
+                            _pickTable(target, schemas, database, name),
                       ),
                     ),
-                    VerticalDivider(width: 1, color: theme.dividerColor),
-                    // Main content
+                    VerticalDivider(width: 1, thickness: 1, color: p.border),
                     Expanded(
-                      child: Column(
-                        children: [
-                          // Query editor
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? ColorTokens.darkBackground
-                                  : Colors.white,
-                              border: Border(
-                                bottom: BorderSide(color: theme.dividerColor),
+                      child: ColoredBox(
+                        color: p.isDark
+                            ? ColorTokens.darkSurface
+                            : Colors.white,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (table != null)
+                              TableBar(
+                                table: table,
+                                structure: _structure,
+                                onStructure: (v) =>
+                                    setState(() => _structure = v),
                               ),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _queryController,
-                                    style: TextStyle(
-                                      fontFamily: AppConstants.monoFontFamily,
-                                      fontSize: 13,
-                                      color: isDark
-                                          ? Colors.white
-                                          : Colors.black87,
-                                    ),
-                                    decoration: InputDecoration(
-                                      hintText:
-                                          'SELECT * FROM table_name LIMIT 100',
-                                      hintStyle: TextStyle(
-                                        fontFamily: AppConstants.monoFontFamily,
-                                        fontSize: 13,
-                                        color: Colors.grey[500],
-                                      ),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(
-                                          color: theme.dividerColor,
-                                        ),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
-                                      ),
-                                    ),
-                                    maxLines: 2,
-                                    minLines: 1,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    // TODO: Execute query via WebSocket
-                                  },
-                                  icon: const Icon(LucideIcons.play, size: 14),
-                                  label: const Text('Run'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: ColorTokens.primary,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Results
-                          Expanded(
-                            child: queryResult == null
-                                ? EmptyState(
-                                    icon: LucideIcons.table2,
-                                    title: 'Run a query to see results',
-                                    subtitle:
-                                        'Select a table or write a custom SQL query',
-                                  )
-                                : _QueryResultView(result: queryResult),
-                          ),
-                        ],
+                            if (table != null && _structure)
+                              Expanded(child: _structureOf(table))
+                            else ...[
+                              SqlEditor(
+                                controller: _sql,
+                                running: query != null && query.result == null,
+                                onRun: () => _run(target, schemas),
+                              ),
+                              Divider(height: 1, thickness: 1, color: p.border),
+                              Expanded(child: _results(query, table)),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -244,134 +219,117 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
       ],
     );
   }
-}
 
-class _QueryResultView extends StatefulWidget {
-  final QueryResult result;
-
-  const _QueryResultView({required this.result});
-
-  @override
-  State<_QueryResultView> createState() => _QueryResultViewState();
-}
-
-class _QueryResultViewState extends State<_QueryResultView> {
-  final _verticalScrollController = SmoothScrollController();
-  final _horizontalScrollController = SmoothScrollController();
-
-  @override
-  void dispose() {
-    _verticalScrollController.dispose();
-    _horizontalScrollController.dispose();
-    super.dispose();
+  /// [table]'s columns as a grid: name, type, key and nullability.
+  Widget _structureOf(DatabaseTable table) {
+    if (table.columns.isEmpty) return QuietState(title: S.of(context).noData);
+    return ResultGrid(
+      key: ValueKey('structure ${table.name}'),
+      columns: const ['column', 'type', 'primary_key', 'nullable'],
+      rows: [
+        for (final c in table.columns)
+          {
+            'column': c.name,
+            'type': c.type,
+            'primary_key': c.isPrimaryKey ? 'YES' : '',
+            'nullable': c.isNullable ? 'YES' : 'NO',
+          },
+      ],
+    );
   }
+
+  /// The last query's outcome: a hint before any, a thin bar while it runs,
+  /// its error, or its rows with the status bar.
+  Widget _results(DatabaseQuery? query, DatabaseTable? table) {
+    final loc = S.of(context);
+    final p = ChromePalette.of(context);
+    return switch (query) {
+      null => QuietState(title: loc.dbRunHint, subtitle: loc.dbRunHintSubtitle),
+      DatabaseQuery(result: null) => Align(
+        alignment: Alignment.topCenter,
+        child: LinearProgressIndicator(
+          minHeight: 2,
+          color: dbSelection(p.isDark),
+          backgroundColor: Colors.transparent,
+        ),
+      ),
+      DatabaseQuery(result: QueryResult(:final error?)) => _ErrorNote(
+        error: error,
+      ),
+      DatabaseQuery(:final sql, :final database, result: final result?) =>
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: result.columns.isEmpty
+                  ? QuietState(title: loc.dbRows(0))
+                  : ResultGrid(
+                      key: ObjectKey(result),
+                      columns: result.columns,
+                      rows: result.rows,
+                      schema: table != null && sql.contains(table.name)
+                          ? {for (final c in table.columns) c.name: c}
+                          : const {},
+                    ),
+            ),
+            QueryStatusBar(
+              rows: result.rows.length,
+              truncated: result.truncated,
+              ms: result.executionTimeMs,
+              database: database,
+            ),
+          ],
+        ),
+    };
+  }
+}
+
+/// A failed query's error as a callout at the top of the results, in mono
+/// so it reads like the database said it.
+class _ErrorNote extends StatelessWidget {
+  final String error;
+
+  const _ErrorNote({required this.error});
 
   @override
   Widget build(BuildContext context) {
-    final result = widget.result;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    if (result.error != null) {
-      return Center(
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: ColorTokens.error.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: ColorTokens.error.withValues(alpha: 0.3)),
+    final p = ChromePalette.of(context);
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            ColorTokens.error.withValues(alpha: 0.08),
+            p.isDark ? ColorTokens.darkSurface : Colors.white,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.circleAlert, color: ColorTokens.error, size: 24),
-              const SizedBox(height: 8),
-              Text(
-                result.error!,
-                style: TextStyle(
-                  fontFamily: AppConstants.monoFontFamily,
-                  fontSize: 12,
-                  color: ColorTokens.error,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+          border: const Border(
+            left: BorderSide(color: ColorTokens.error, width: 2),
           ),
         ),
-      );
-    }
-
-    return Column(
-      children: [
-        // Stats bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          color: isDark
-              ? ColorTokens.darkBackground
-              : ColorTokens.lightSurface,
-          child: Row(
-            children: [
-              Text(
-                '${result.rows.length} rows',
-                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                formatDuration(result.executionTimeMs),
-                style: TextStyle(
-                  fontFamily: AppConstants.monoFontFamily,
-                  fontSize: 11,
-                  color: Colors.grey[500],
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Data table
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _horizontalScrollController,
-            scrollDirection: Axis.horizontal,
-            child: SingleChildScrollView(
-              controller: _verticalScrollController,
-              child: DataTable(
-                headingRowHeight: 36,
-                dataRowMinHeight: 32,
-                dataRowMaxHeight: 32,
-                columnSpacing: 24,
-                headingTextStyle: TextStyle(
-                  fontFamily: AppConstants.monoFontFamily,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: ColorTokens.primary,
-                ),
-                dataTextStyle: TextStyle(
-                  fontFamily: AppConstants.monoFontFamily,
-                  fontSize: 11,
-                  color: isDark ? Colors.white70 : Colors.black87,
-                ),
-                columns: result.columns
-                    .map((c) => DataColumn(label: Text(c)))
-                    .toList(),
-                rows: result.rows.map((row) {
-                  return DataRow(
-                    cells: result.columns.map((col) {
-                      return DataCell(
-                        Text(
-                          row[col]?.toString() ?? 'NULL',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
-                  );
-                }).toList(),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: Icon(
+                LucideIcons.circleAlert,
+                size: 14,
+                color: ColorTokens.error,
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: SelectableText(
+                error,
+                style: chromeMono(context, size: 12, color: p.text),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

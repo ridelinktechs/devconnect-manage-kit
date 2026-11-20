@@ -7,14 +7,17 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../components/text/text_component.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/screenshot_filename.dart';
-import '../../../../core/utils/screenshot_utils.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../core/utils/toast_utils.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/utils/files/screenshot_filename.dart';
+import '../../../../core/utils/files/screenshot_utils.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/log/error_event.dart';
+import '../../../../server/providers/server_providers.dart';
+import '../../symbolication/symbolicate.dart';
 import '../shared/copy_button.dart';
 import '../shared/error_tokens.dart' show severityColor;
 import '../shared/platform_badge.dart';
@@ -42,11 +45,41 @@ class ErrorDetailPanel extends ConsumerStatefulWidget {
 }
 
 class _ErrorDetailPanelState extends ConsumerState<ErrorDetailPanel>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
   final _messageScrollController = SmoothScrollController();
   final _stackTraceScrollController = SmoothScrollController();
   final _detailsScrollController = SmoothScrollController();
+
+  /// The stack mapped back to source files, once asked for.
+  List<JsFrame>? _symbolicated;
+  bool _symbolicating = false;
+  bool _symbolicateFailed = false;
+
+  @override
+  void didUpdateWidget(ErrorDetailPanel old) {
+    super.didUpdateWidget(old);
+    if (old.entry.id != widget.entry.id) {
+      _symbolicated = null;
+      _symbolicating = false;
+      _symbolicateFailed = false;
+    }
+  }
+
+  Future<void> _symbolicate(List<JsFrame> frames) async {
+    setState(() {
+      _symbolicating = true;
+      _symbolicateFailed = false;
+    });
+    final maps = ref.read(wsMessageHandlerProvider).snapshotSourceMaps().values;
+    final result = await symbolicate(frames, maps);
+    if (!mounted) return;
+    setState(() {
+      _symbolicating = false;
+      _symbolicated = result;
+      _symbolicateFailed = result == null;
+    });
+  }
 
   @override
   void initState() {
@@ -324,6 +357,37 @@ class _ErrorDetailPanelState extends ConsumerState<ErrorDetailPanel>
                                   ),
                                 ),
                                 const Spacer(),
+                                // JS frames (React Native) can be mapped
+                                // back to the .ts / .tsx sources.
+                                if (parseJsStack(entry.stackTrace!)
+                                    case final frames
+                                    when frames.isNotEmpty) ...[
+                                  TextButton.icon(
+                                    onPressed: _symbolicating
+                                        ? null
+                                        : () => _symbolicate(frames),
+                                    icon: _symbolicating
+                                        ? const SizedBox.square(
+                                            dimension: 12,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 1.5),
+                                          )
+                                        : const Icon(LucideIcons.wandSparkles,
+                                            size: 13),
+                                    label: Text(S.of(context).errorSymbolicate),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: ColorTokens.primary,
+                                      textStyle: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                ],
                                 CopyButton(
                                   tooltip: 'Copy stack trace',
                                   onTap: () => _copyText(
@@ -334,6 +398,27 @@ class _ErrorDetailPanelState extends ConsumerState<ErrorDetailPanel>
                                 ),
                               ],
                             ),
+                            if (_symbolicateFailed)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  S.of(context).errorSymbolicateFailed,
+                                  style: TextStyle(
+                                      fontSize: 11.5,
+                                      height: 1.45,
+                                      color: Colors.grey[500]),
+                                ),
+                              ),
+                            if (_symbolicated case final frames?)
+                              _SymbolicatedStack(
+                                frames: frames,
+                                isDark: isDark,
+                                onCopy: () => _copyText(
+                                  context,
+                                  frames.join('\n'),
+                                  'Stack trace',
+                                ),
+                              ),
                             const SizedBox(height: 6),
                             TextComponent(
                               entry.stackTrace!,
@@ -682,6 +767,84 @@ class _ErrorDetailPanelState extends ConsumerState<ErrorDetailPanel>
           Expanded(
             child: TextComponent(value, style: TextStyle(fontFamily: AppConstants.monoFontFamily, fontSize: 10, color: isDark ? Colors.white70 : Colors.black87)),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The stack mapped back to source files; library frames are dimmed.
+class _SymbolicatedStack extends StatelessWidget {
+  final List<JsFrame> frames;
+  final bool isDark;
+  final VoidCallback onCopy;
+
+  const _SymbolicatedStack({
+    required this.frames,
+    required this.isDark,
+    required this.onCopy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final mono = chromeMono(
+      context,
+      size: 11,
+      color: isDark ? Colors.white : Colors.black87,
+    );
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 6, 10),
+      decoration: BoxDecoration(
+        color: ColorTokens.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: ColorTokens.primary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.wandSparkles, size: 12, color: ColorTokens.primary),
+              const SizedBox(width: 6),
+              Text(
+                S.of(context).errorSymbolicated,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: ColorTokens.primary,
+                ),
+              ),
+              const Spacer(),
+              CopyButton(tooltip: 'Copy', onTap: onCopy),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (final f in frames)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1.5),
+              child: SelectableText.rich(
+                TextSpan(
+                  style: mono.copyWith(
+                    color: f.isLibrary ? Colors.grey[500] : mono.color,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: f.method ?? '<anonymous>',
+                      style: TextStyle(
+                        fontWeight: f.isLibrary ? null : FontWeight.w600,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '  ${f.file}:${f.line}:${f.column}',
+                      style: TextStyle(
+                        color: f.isLibrary ? null : Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

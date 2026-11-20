@@ -45,6 +45,9 @@ class PageBar extends StatelessWidget {
   final String? countLabel;
   final List<Widget> actions;
 
+  /// Shown right after [title], e.g. the page's guide button.
+  final Widget? afterTitle;
+
   const PageBar({
     super.key,
     required this.icon,
@@ -52,6 +55,7 @@ class PageBar extends StatelessWidget {
     this.count,
     this.countLabel,
     this.actions = const [],
+    this.afterTitle,
   });
 
   @override
@@ -76,6 +80,7 @@ class PageBar extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+          ?afterTitle,
           if (count != null) ...[
             const SizedBox(width: 6),
             Text(

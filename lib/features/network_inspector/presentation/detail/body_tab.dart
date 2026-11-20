@@ -9,12 +9,13 @@ import '../../../../components/feedback/empty_state.dart';
 import '../../../../components/text/text_component.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/code_generator.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/code/code_generator.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../shared/detect_blob_payload.dart';
 import 'blob_info.dart';
+import 'image_body.dart';
 
 /// Tab body viewer for a single network request/response body. Three
 /// modes (`Tree` / `JSON` / `Code`) gated behind the global
@@ -30,11 +31,15 @@ class BodyTab extends ConsumerStatefulWidget {
   final String label;
   final String deviceId;
 
+  /// See [BlobInfo.openUrl].
+  final String? openUrl;
+
   const BodyTab({
     super.key,
     required this.body,
     required this.label,
     required this.deviceId,
+    this.openUrl,
   });
 
   @override
@@ -66,12 +71,16 @@ class _BodyTabState extends ConsumerState<BodyTab> {
       );
     }
 
+    if (widget.body case final String url when url.startsWith('data:image/')) {
+      return ImageBody(dataUrl: url, label: widget.label, isDark: isDark);
+    }
     final blob = detectBlobPayload(widget.body);
     if (blob.$1 != null) {
       return BlobInfo(
         label: widget.label,
         sizeBytes: blob.$2 ?? 0,
         isDark: isDark,
+        openUrl: widget.openUrl,
       );
     }
 
@@ -199,12 +208,10 @@ class _BodyTabState extends ConsumerState<BodyTab> {
             return JsonPrettyViewer(data: widget.body);
           case BodyViewMode.code:
             final generated = CodeGenerator.generate(parsedBody, codeLang);
-            return SingleChildScrollView(
-              child: CodeViewer(
-                generated: generated,
-                lang: codeLang,
-                languageLabel: CodeGenerator.labelFor(codeLang),
-              ),
+            return CodeViewer(
+              generated: generated,
+              lang: codeLang,
+              languageLabel: CodeGenerator.labelFor(codeLang),
             );
         }
       },

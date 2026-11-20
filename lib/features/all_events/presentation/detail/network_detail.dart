@@ -10,10 +10,10 @@ import '../../../../components/text/text_component.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../core/utils/network_url_formatter.dart';
+import '../../../../core/utils/network/network_url_formatter.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/duration_format.dart';
-import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/format/duration_format.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
 import '../../../../models/network/network_entry.dart';
 import '../shared/body_view.dart';
 import '../shared/detail_tab_bar.dart';
@@ -45,13 +45,18 @@ class NetworkDetail extends ConsumerStatefulWidget {
 }
 
 class _NetworkDetailState extends ConsumerState<NetworkDetail>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = _makeController();
+    _tabController = _makeController(
+      0,
+      (Uri.tryParse(widget.entry.url)?.queryParametersAll.isNotEmpty ?? false)
+          ? 5
+          : 4,
+    );
     _tabController.addListener(_onTabIndexChange);
   }
 

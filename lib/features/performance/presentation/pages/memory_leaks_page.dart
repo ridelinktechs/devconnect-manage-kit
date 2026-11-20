@@ -1,9 +1,10 @@
+import '../../../settings/presentation/tips/page_guide_button.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,10 +13,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_constants.dart';
 
 import '../../../../components/text/text_component.dart';
-import '../../../../core/utils/toast_utils.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../../models/performance/performance_entry.dart';
 import '../../provider/performance_providers.dart';
@@ -56,7 +57,7 @@ class _MemoryLeaksPageState extends ConsumerState<MemoryLeaksPage> {
         // Content
         Expanded(
           child: entries.isEmpty
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.bug,
                   title: S.of(context).noMemoryLeaksDetected,
                   subtitle:
@@ -142,6 +143,7 @@ class _Toolbar extends StatelessWidget {
               color: isDark ? Colors.white : Colors.black87,
             ),
           ),
+          const PageGuideButton(route: '/memory-leaks'),
           const SizedBox(width: 12),
           _SeverityBadge(
             label: S.of(context).critical,

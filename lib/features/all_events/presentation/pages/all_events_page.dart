@@ -3,12 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../core/utils/toast_utils.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/utils/app/reload_apps.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/device_info.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../benchmark/provider/benchmark_providers.dart';
@@ -43,7 +45,8 @@ class AllEventsPage extends ConsumerStatefulWidget {
   ConsumerState<AllEventsPage> createState() => _AllEventsPageState();
 }
 
-class _AllEventsPageState extends ConsumerState<AllEventsPage> {
+class _AllEventsPageState extends ConsumerState<AllEventsPage>
+    with ListenWhileShown {
   final _scrollController = SmoothScrollController();
   final _selectedEventId = ValueNotifier<String?>(null);
   final _eventCount = ValueNotifier<int>(0);
@@ -65,7 +68,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    ref.listenManual(
+    listenWhileShown(
       filteredAllEventsProvider,
       (previous, next) {
         _events..clear()..addAll(next.items);
@@ -93,7 +96,6 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
       },
-      fireImmediately: true,
     );
   }
 
@@ -294,39 +296,17 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
     }
   }
 
-  /// Ask every connected device to reload its own app.
-  ///
-  /// Behaviour on each SDK:
-  /// - **Flutter** → `WidgetsBinding.instance.reassembleApplication()` (full
-  ///   widget tree rebuild — the same mechanism `flutter run -r` uses)
-  /// - **React Native** → `DevSettings.reload()` (Metro reload)
-  /// - **Android** → `Activity.recreate()` on the host activity
-  ///
-  /// We broadcast to ALL devices regardless of platform — the wire message
-  /// is the same, the SDK knows what to do with it.
+  /// Reloads the selected device's app, or every connected one when none is
+  /// selected — see [reloadApps]. Each SDK knows what reload means for it:
+  /// Flutter reassembles, React Native reloads from Metro, Android
+  /// recreates the activity.
   bool _reloading = false;
 
-  Future<void> _reloadApp() async {
+  void _reloadApp() {
     if (_reloading) return;
-    final handler = ref.read(wsMessageHandlerProvider);
-    final devices = ref.read(connectedDevicesProvider);
-    if (devices.isEmpty) {
-      showInfoToast(
-        context,
-        message: S.of(context).reloadApp,
-        subtitle: S.of(context).reloadAppNoDevices,
-      );
-      return;
-    }
     setState(() => _reloading = true);
     try {
-      handler.broadcastReload();
-      if (!mounted) return;
-      showSuccessToast(
-        context,
-        message: S.of(context).reloadSent,
-        subtitle: S.of(context).sentReloadTo(devices.length),
-      );
+      reloadApps(context, ref);
     } finally {
       if (mounted) setState(() => _reloading = false);
     }
@@ -334,32 +314,14 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
 
   bool _hotRestarting = false;
 
-  /// Hot restart — the heavier Flutter IDE action. Same broadcast semantics
-  /// as [_reloadApp] but sends `server:hot_restart` so Flutter SDKs can
-  /// branch into their heavy-weight handler (default still
-  /// `reassembleApplication`; apps can register `onHotRestartRequest` to
-  /// actually wipe state).
-  Future<void> _hotRestartApp() async {
+  /// Hot restart — the heavier Flutter IDE action, sent as
+  /// `server:hot_restart` so Flutter SDKs can branch into their heavy-weight
+  /// handler (apps can register `onHotRestartRequest` to wipe state).
+  void _hotRestartApp() {
     if (_hotRestarting) return;
-    final handler = ref.read(wsMessageHandlerProvider);
-    final devices = ref.read(connectedDevicesProvider);
-    if (devices.isEmpty) {
-      showInfoToast(
-        context,
-        message: S.of(context).reloadAppHotRestart,
-        subtitle: S.of(context).reloadAppNoDevices,
-      );
-      return;
-    }
     setState(() => _hotRestarting = true);
     try {
-      handler.broadcastReload(hotRestart: true);
-      if (!mounted) return;
-      showSuccessToast(
-        context,
-        message: S.of(context).reloadSent,
-        subtitle: S.of(context).sentReloadTo(devices.length),
-      );
+      reloadApps(context, ref, hotRestart: true);
     } finally {
       if (mounted) setState(() => _hotRestarting = false);
     }
@@ -373,6 +335,9 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
   @override
   Widget build(BuildContext context) {
     final devices = ref.watch(connectedDevicesProvider);
+    final selectedId = ref.watch(selectedDeviceProvider);
+    final selectedDevice =
+        devices.where((d) => d.deviceId == selectedId).firstOrNull;
     final server = ref.watch(wsServerProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -417,7 +382,7 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
             // ── Content ──
             Expanded(
               child: _events.isEmpty
-                  ? EmptyState(
+                  ? EmptyStateWithPulse(
                       icon: LucideIcons.layoutDashboard,
                       title: devices.isEmpty
                           ? S.of(context).noDevicesConnected
@@ -547,7 +512,8 @@ class _AllEventsPageState extends ConsumerState<AllEventsPage> {
         // because it lives at the screen edge by default and the user can
         // drag it anywhere within the viewport.
         DraggableReloadFab(
-          devices: devices,
+          // The devices a reload would hit, so the actions match them.
+          devices: selectedDevice != null ? [selectedDevice] : devices,
           reloading: _reloading,
           hotRestarting: _hotRestarting,
           onReload: _reloadApp,

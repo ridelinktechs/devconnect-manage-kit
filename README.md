@@ -12,7 +12,19 @@
 [![Android](https://img.shields.io/badge/Android-SDK-3DDC84?logo=android)](client_sdks/devconnect-android/README.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[Features](#features) · [Download](#download) · [Quick Start](#quick-start) · [Desktop Guide](#using-the-desktop-app) · [Mock Server](#mock-server) · [SDKs](#sdks) · [Support](#support-devconnect-manage-kit)
+[Demo](#demo) · [Features](#features) · [Download](#download) · [Quick Start](#quick-start) · [Desktop Guide](#using-the-desktop-app) · [Mock Server](#mock-server) · [SDKs](#sdks) · [Support](#support-devconnect-manage-kit)
+
+</div>
+
+---
+
+## Demo
+
+<div align="center">
+
+[![DevConnect Manage Kit in action: events, network, state, database, layout inspector, mock server and more](docs/demo/devconnect-demo.gif)](docs/demo/devconnect-tutorial.mp4)
+
+**[▶ Watch the full walkthrough of every page (MP4, about 3 minutes)](docs/demo/devconnect-tutorial.mp4)**
 
 </div>
 
@@ -49,10 +61,14 @@ If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know
 ## Features
 
 - **Network Inspector** — HTTP request/response viewer with headers, body (tree + JSON), timing bar, copy as cURL, status badges
-- **State Inspector** — Real-time state change timeline with before/after diff for Redux, MobX, Zustand, Jotai, Valtio, XState, BLoC, Riverpod, GetX, Provider, ViewModel, StateFlow, LiveData
+- **State Inspector** — Real-time state change timeline with before/after diff for Redux, MobX, Zustand, Jotai, Valtio, XState, BLoC, Riverpod, GetX, Provider, ViewModel, StateFlow, LiveData; snapshot, restore and dispatch actions from the desktop
 - **Console / Logs** — Log viewer with level filters (debug/info/warn/error), search, tags, metadata, stack traces
-- **Storage Viewer** — Browse and monitor SharedPreferences, AsyncStorage, Hive, MMKV, SecureStorage, DataStore
-- **Database Browser** — SQLite, Drift, Room, Isar table viewer with SQL query editor
+- **Storage Viewer** — Browse and monitor SharedPreferences, AsyncStorage, Hive, MMKV, SecureStorage, DataStore; edit the live key-value store
+- **Database Browser** — SQLite, Drift, Room, Isar table viewer with SQL query editor and table structure
+- **Layout Inspector** — Capture the app's screen and element tree; inspect each element's bounds, box model and props
+- **Error Inspector** — JS and native errors and crashes with stack traces
+- **Display & Async Operations** — Watch values your app sends, and sagas, thunks and background jobs with their timing
+- **History** — Sessions of devices that disconnected, with everything they sent
 - **Performance Profiling** — Real-time FPS, CPU, memory usage charts with jank frame detection
 - **Memory Leak Detection** — Detect undisposed controllers, streams, timers, growing collections with severity levels and stack traces
 - **Benchmark** — Performance timing with step markers
@@ -163,6 +179,11 @@ flutter build windows --release # Windows
 - Memory Leak Detection - severity-based leak viewer with stack traces and metadata
 - Benchmark - performance timing with steps
 - Custom Commands - send commands from desktop to app
+- Layout Inspector - screen capture, element tree, bounds and props
+- Error Inspector - JS and native errors with stack traces
+- Display & Async - values your app sends, sagas and jobs with timing
+- Mock Server - mock HTTP responses pushed to the device, with an audit
+- History - sessions of devices that disconnected
 - Device Panel - connected devices with platform badge, OS version
 - ADB Reverse - one-click for Android USB
 - Port Config - change WebSocket port in Settings
@@ -251,20 +272,89 @@ Or manually: `adb reverse tcp:9090 tcp:9090`
 
 Open DevConnect, run your app with the SDK — data appears automatically. The sidebar shows all features, the bottom bar shows connected devices.
 
-### Tabs & Features
+### Pages
 
-| Tab              | What it shows                        | Key actions                                                                                                                       |
-| ---------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Console**      | Real-time logs from your app         | Filter by level (debug/info/warn/error), search, click to expand                                                                  |
-| **Network**      | HTTP requests & responses            | Filter by method (GET/POST/PUT/PATCH/DELETE), filter by source (App/Library/System), click request to see headers + body + timing |
-| **State**        | State changes timeline               | Click to see before/after diff, snapshot & restore state                                                                          |
-| **Storage**      | Key/value storage entries            | Filter by operation (READ/WRITE/DELETE), filter by type (AS/SP/HV/SQL), click to see full value                                   |
-| **Database**     | SQLite tables & queries              | Browse tables, view schema, run SQL queries                                                                                       |
-| **Performance**  | Real-time FPS, CPU, memory charts    | Hover for exact values, jank frames highlighted                                                                                   |
-| **Memory Leaks** | Detected leaks with severity         | Sorted by severity (critical/warning/info), stack traces                                                                          |
-| **Benchmark**    | Timing measurements with steps       | Start/step/stop lifecycle with duration                                                                                           |
-| **Mock Server**  | Push mock HTTP responses to device   | Add rule → push to SDK → audit shows every intercepted request                                                                    |
-| **All Events**   | Unified timeline across all features | Filter by type, search across everything                                                                                          |
+Every page in the sidebar, top to bottom:
+
+| Page         | What it shows                                                                   | Key actions                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **All**      | One live timeline of every event: logs, requests, state, storage, display, async | Filter by type with the chips, search, click any event for its detail                                          |
+| **Console**  | Logs with their level and tag                                                   | Filter by level (debug/info/warn/error), search, click a log to expand it                                      |
+| **Network**  | HTTP requests and responses, other protocols, and the Mock Audit                | Filter by method, source (App/Library/System) or status; click a request for headers, params, body and timing |
+| **State**    | Timeline of state changes, with **Controls**                                    | Click a change for its diff and previous/next state; snapshot, restore and dispatch from Controls             |
+| **Storage**  | Every read, write and delete, and the live **Key-Value** store                  | Filter by operation and store; view a value as tree, JSON or TypeScript; edit keys in Key-Value               |
+| **Database** | The app's SQLite databases and their tables                                     | Pick a table to preview it, run SQL, see the table's structure                                                 |
+| **Perf**     | Live FPS, frame build time, CPU, memory and network charts                      | Hover for exact values, record or clear                                                                        |
+| **Leaks**    | Memory leaks by severity (critical/warning/info)                                | Click a leak for its retained size, details and stack trace                                                    |
+| **Bench**    | Benchmarks and their steps                                                      | Click one for each step's duration and share of the total                                                      |
+| **Errors**   | Errors and crashes from JS and native code                                      | Filter by platform (JS/Native/Android/iOS); click one for its message, stack trace and details                |
+| **Display**  | Values your app sends to watch: flags, the current user, anything               | Click one to see its value as a tree                                                                           |
+| **Async**    | Sagas, thunks and background jobs                                               | See each start, resolve or reject with its duration; click one for details                                     |
+| **Layout**   | The app's screen and element tree                                               | Capture, hover or click an element, inspect its bounds and props                                               |
+| **Commands** | Commands your app registered                                                    | Pick one, add JSON arguments, **Run**, read the answer                                                         |
+| **Mock**     | Mock HTTP rules                                                                 | **Add rule**, **Save changes**, **Push all** to the device                                                     |
+| **History**  | Sessions of devices that disconnected                                           | Click a session to browse what it sent                                                                         |
+| **Settings** | Server, devices, appearance, data, guides                                       | Change the port, theme, language and which tabs show                                                           |
+
+### Pages keep their place
+
+Switching pages doesn't reset them. Each page keeps its selection, open detail panel, scroll position, search text, SQL query and layout capture. A page you're not looking at pauses, then catches up with everything that arrived as soon as you come back.
+
+### State controls
+
+**State → Controls** drives the app's state from the desktop:
+
+- **Subscriptions** — pin a path such as `auth.user.name` to watch its live value.
+- **Snapshots** — **Take snapshot** saves the whole state; **Restore** sends it back to the app, e.g. to replay a bug.
+- **Dispatch action** — send an action as JSON, such as `{"type": "cart/CLEAR"}`; the change it makes shows up in the timeline.
+
+The app opts in with a few lines: [Flutter](client_sdks/devconnect_flutter/README.md#controls-from-the-desktop) · [React Native](client_sdks/devconnect-react-native/README.md#controls-from-the-desktop) · [Android](client_sdks/devconnect-android/README.md#controls-from-the-desktop)
+
+### Storage: history and live store
+
+- **History** lists every read, write and delete. Click one to see its value as a tree, as JSON or as a TypeScript type.
+- **Key-Value** shows each registered store as it is now. Add, edit or delete a key, or clear the whole store; the app answers with the store's new contents.
+
+Setup: [Flutter](client_sdks/devconnect_flutter/README.md#storage-editing) · [React Native](client_sdks/devconnect-react-native/README.md#storage-editing) · [Android](client_sdks/devconnect-android/README.md#storage-editing)
+
+### Database
+
+1. Pick a table on the left. It opens with its first 50 rows; filter the list to find a table fast.
+2. Write SQL in the editor and click **Run**, or press <kbd>⌘</kbd> <kbd>↵</kbd> (<kbd>Ctrl</kbd> <kbd>Enter</kbd> on Windows).
+3. Read the result in the grid: each column's type, the primary key, `NULL` values set apart. The status bar shows the row count, the time taken and the database. Double-click a cell to copy it.
+4. Switch to **Structure** for the table's columns, types, primary key and nullability.
+
+Queries run in the app on the device, and a result stops at 1,000 rows. Setup: [Flutter](client_sdks/devconnect_flutter/README.md#database-browser) · [React Native](client_sdks/devconnect-react-native/README.md#database-browser) · [Android](client_sdks/devconnect-android/README.md#database-browser)
+
+### Layout Inspector
+
+1. Open **Layout** and click **Capture**. The app sends its current screen and element tree.
+2. Hover the screenshot to outline an element, click it to select it, or pick it in the **Element tree** (search it by name or value).
+3. **Properties** shows the element's box (margin, padding, content), its position and size, and its props.
+4. Zoom with the toolbar or the keyboard: <kbd>⌘</kbd> <kbd>+</kbd> and <kbd>⌘</kbd> <kbd>−</kbd>, <kbd>⌘</kbd> <kbd>0</kbd> actual size, <kbd>⌘</kbd> <kbd>1</kbd> fit, <kbd>⌘</kbd> <kbd>2</kbd> zoom to the selection (<kbd>Ctrl</kbd> instead of <kbd>⌘</kbd> on Windows). Hold <kbd>⌥</kbd> (<kbd>Alt</kbd>) while hovering to measure distances.
+
+React Native needs a screenshot provider (`DevConnect.registerScreenshot`). Setup: [Flutter](client_sdks/devconnect_flutter/README.md#layout-inspector) · [React Native](client_sdks/devconnect-react-native/README.md#layout-inspector) · [Android](client_sdks/devconnect-android/README.md#layout-inspector)
+
+### Custom commands
+
+Your app registers commands with `DevConnect.registerCommand(name, handler)`. Open **Commands**, pick one, add arguments as a JSON object if it takes any, and click **Run**. The app's answer appears below, with the commands you ran before it.
+
+Setup: [Flutter](client_sdks/devconnect_flutter/README.md#custom-commands) · [React Native](client_sdks/devconnect-react-native/README.md#custom-commands) · [Android](client_sdks/devconnect-android/README.md#custom-commands)
+
+### Display, Async, Leaks and Errors
+
+These pages fill in from the SDK:
+
+| Page        | Fills in from                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------------- |
+| **Display** | `DevConnect.display(name, …)`: any value you want to watch, with a short preview                |
+| **Async**   | `DevConnect.reportAsyncOperation(…)`: the start, resolve or reject of a saga, thunk or job      |
+| **Leaks**   | The SDK's leak detector, or your own `DevConnect.reportMemoryLeak(…)`                           |
+| **Errors**  | Uncaught errors and crashes, which every SDK captures by default                                |
+
+### History
+
+When a device disconnects and doesn't come back within 15 seconds, its session moves to **History** with the logs, requests, state changes and storage writes it sent. Click a session to browse them. A device that reconnects within 15 seconds counts as a reload, and once a device connects again (the same device, or from the same IP address) its old session leaves History.
 
 ### Mock Server
 
@@ -272,20 +362,20 @@ Replace real network responses with mock data for testing edge cases without tou
 
 **Creating a rule**
 
-1. Open **Mock Server** tab
+1. Open the **Mock** tab
 2. Click **+ Add rule**
 3. Fill in:
    - **Rule name** — human-readable label (e.g. `Get user 404`)
    - **Method** — GET / POST / PUT / PATCH / DELETE
-   - **URL pattern** — regex (e.g. `^/api/users/999$`)
-   - **Status** — HTTP status code (200, 404, 500, ...)
+   - **URL pattern** — a regex found anywhere in the URL (e.g. `/api/users/\d+`)
+   - **Status** — HTTP status code; pick a preset (200, 404, 500, ...) or type one
+   - **Delay (ms)** — wait before answering; pick a preset or type one
    - **Response headers** — one per line, `key: value`
-   - **Response body** — raw string or JSON
-4. Optional wire-only fields:
-   - **Delay (ms)** — sleep before returning the mocked response
-   - **Scope deviceIds** — comma-separated; empty means every device
-   - **Expires at** — ISO-8601 timestamp; rule is ignored past this time
-5. Click **Push all** to push the full list, or **Push this** for just the selected rule
+   - **Response body** — raw string or JSON (**Format** tidies JSON)
+4. Optional **Limits**:
+   - **Only on device IDs** — comma-separated; empty means every device the rules are pushed to
+   - **Expires at** — ISO-8601 timestamp; the rule is ignored past this time
+5. Click **Save changes**, then **Push all** to send the rules to the device. The device pill in the toolbar says whether it has them (`live`) or not (`not pushed`); **Clear device** takes them off again. To delete a rule, press and hold **Hold to delete**.
 
 **On the device**
 
@@ -293,7 +383,7 @@ No code changes needed. The SDK's `MockServerInterceptor` (already installed alo
 
 **Auditing**
 
-Every intercepted request emits `client:mocked_request` back to the desktop. The Audit panel (inside the Mock Server tab) shows:
+Every intercepted request emits `client:mocked_request` back to the desktop. **Network → Mock Audit** shows:
 
 - Method + URL pattern that matched
 - HTTP status returned
@@ -308,7 +398,7 @@ Click any row for the full entry detail.
 | ---------- | --------------------------- |
 | Name       | Get user 404                |
 | Method     | GET                         |
-| URL        | `^/api/users/999$`          |
+| URL        | `/api/users/999$`           |
 | Status     | 404                         |
 | Body       | `{"error":"not found"}`     |
 | Delay      | 500                         |
@@ -331,11 +421,11 @@ When multiple apps are connected, use the device selector in the bottom bar to f
 
 ### Settings
 
-- **Server** — Start/stop WebSocket server, change port (default: 9090)
-- **Network IPs** — Your desktop IP addresses (click to copy)
-- **ADB Reverse** — One-click USB setup for Android
-- **Appearance** — Dark/light theme, scroll direction
-- **Tab Visibility** — Show/hide tabs you don't need
+- **Connection** — Start, stop or restart the WebSocket server and change its port (default: 9090); your desktop's IP addresses (click to copy); one-click ADB reverse for Android over USB
+- **Devices** — Connected devices, and every device that has connected before
+- **Appearance** — Dark/light theme, language, auto-scroll, smooth scrolling, and **Tab Visibility** to hide tabs you don't need
+- **Display & data** — Detail view defaults, how much data to keep, what All Events shows
+- **Guides** — Setup snippets for each platform, with this desktop's address filled in, and tips
 
 ---
 

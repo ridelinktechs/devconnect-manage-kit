@@ -27,6 +27,10 @@ class WsServer {
   // and a real iPhone on the same network).
   String? _machineId;
 
+  /// The desktop app's version, sent in the beacon, the HTTP reply and
+  /// `server:hello`.
+  String version = '';
+
   final _messageController = StreamController<DCMessage>.broadcast();
   final _connectionController = StreamController<DeviceInfo>.broadcast();
   final _disconnectionController = StreamController<String>.broadcast();
@@ -91,15 +95,14 @@ class WsServer {
       );
       _udpSocket!.broadcastEnabled = true;
 
-      final beacon = utf8.encode(jsonEncode({
-        'type': 'devconnect_beacon',
-        'port': wsPort,
-        'machineId': machineId,
-        'app': AppConstants.appName,
-        'version': AppConstants.appVersion,
-      }));
-
       _beaconTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+        final beacon = utf8.encode(jsonEncode({
+          'type': 'devconnect_beacon',
+          'port': wsPort,
+          'machineId': machineId,
+          'app': AppConstants.appName,
+          'version': version,
+        }));
         try {
           // Broadcast to 255.255.255.255 (limited broadcast)
           _udpSocket?.send(
@@ -174,7 +177,7 @@ class WsServer {
         ..headers.contentType = ContentType.json
         ..write(jsonEncode({
           'app': AppConstants.appName,
-          'version': AppConstants.appVersion,
+          'version': version,
           'machineId': machineId,
           'connections': _connections.length,
         }));
@@ -189,22 +192,40 @@ class WsServer {
       type: WsMessageTypes.serverHello,
       deviceId: 'server',
       timestamp: DateTime.now().millisecondsSinceEpoch,
-      payload: {'version': AppConstants.appVersion, 'machineId': machineId},
+      payload: {'version': version, 'machineId': machineId},
     );
     socket.add(jsonEncode(helloMsg.toJson()));
+
+    /// Messages arriving in chunks, by id: each chunk is acked, and the last
+    /// one hands the joined message on.
+    final chunks = <String, StringBuffer>{};
+    void handle(String data) {
+      final json = jsonDecode(data) as Map<String, dynamic>;
+      if (json['type'] == WsMessageTypes.clientChunk) {
+        final payload = json['payload'] as Map<String, dynamic>;
+        final id = payload['id'] as String;
+        chunks.putIfAbsent(id, StringBuffer.new).write(payload['data']);
+        socket.add(jsonEncode({
+          'type': WsMessageTypes.serverChunkAck,
+          'payload': {'id': id},
+        }));
+        if (payload['last'] == true) handle(chunks.remove(id)!.toString());
+        return;
+      }
+      final message = DCMessage.fromJson(json);
+
+      if (message.type == WsMessageTypes.clientHandshake) {
+        _handleHandshake(socket, message, clientIp);
+      } else {
+        _messageController.add(message);
+      }
+    }
 
     // Listen for messages
     socket.listen(
       (data) {
         try {
-          final json = jsonDecode(data as String) as Map<String, dynamic>;
-          final message = DCMessage.fromJson(json);
-
-          if (message.type == WsMessageTypes.clientHandshake) {
-            _handleHandshake(socket, message, clientIp);
-          } else {
-            _messageController.add(message);
-          }
+          handle(data as String);
         } catch (_) {
           // ignore malformed messages
         }
@@ -244,7 +265,10 @@ class WsServer {
       try { oldConn.socket.close(); } catch (_) {}
     }
 
-    // Fallback dedup: same clientIp + appName = same device (handles old SDK with random deviceId)
+    // Fallback dedup: same clientIp + appName + platform + deviceName +
+    // osVersion = same device (handles old SDK with random deviceId).
+    // clientIp + appName alone isn't enough: every simulator / emulator on
+    // this Mac shares the IP, so two of them would knock each other off.
     if (clientIp != null) {
       final appName = deviceInfo.appName;
       final staleIds = <String>[];
@@ -252,6 +276,9 @@ class WsServer {
         if (entry.key != deviceId &&
             entry.value.deviceInfo.clientIp == clientIp &&
             entry.value.deviceInfo.appName == appName &&
+            entry.value.deviceInfo.platform == deviceInfo.platform &&
+            entry.value.deviceInfo.deviceName == deviceInfo.deviceName &&
+            entry.value.deviceInfo.osVersion == deviceInfo.osVersion &&
             entry.value.socket != socket) {
           staleIds.add(entry.key);
           try { entry.value.socket.close(); } catch (_) {}

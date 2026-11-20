@@ -31,30 +31,44 @@ library;
 ///
 /// ## With BLoC:
 /// ```dart
-/// Bloc.observer = DevConnect.blocObserver();
+/// class AppBlocObserver extends BlocObserver {
+///   @override
+///   void onChange(BlocBase bloc, Change change) {
+///     super.onChange(bloc, change);
+///     DevConnect.reportBlocChange(
+///       blocName: bloc.runtimeType.toString(),
+///       fromState: change.currentState.toString(),
+///       toState: change.nextState.toString(),
+///     );
+///   }
+/// }
+///
+/// Bloc.observer = AppBlocObserver();
 /// ```
 
 export 'src/devconnect.dart';
 export 'src/devconnect_client.dart';
-export 'src/interceptors/dio_interceptor.dart';
-export 'src/interceptors/getx_interceptor.dart';
-export 'src/interceptors/http_client_interceptor.dart';
-export 'src/interceptors/log_interceptor.dart';
-export 'src/interceptors/loggy_interceptor.dart';
-export 'src/interceptors/navigation_observer.dart';
-export 'src/reporters/drift_reporter.dart';
-export 'src/reporters/isar_reporter.dart';
-export 'src/reporters/log_reporter.dart';
-export 'src/reporters/mmkv_reporter.dart';
-export 'src/reporters/secure_storage_reporter.dart';
-export 'src/reporters/signals_observer.dart';
-export 'src/reporters/storage_reporter.dart';
-export 'src/wrappers/shared_preferences_wrapper.dart';
-export 'src/wrappers/shared_preferences_async_wrapper.dart';
-export 'src/wrappers/shared_preferences_cached_wrapper.dart';
-export 'src/wrappers/hive_box_wrapper.dart';
-export 'src/wrappers/secure_storage_wrapper.dart';
-export 'src/wrappers/mmkv_wrapper.dart';
-export 'src/wrappers/sembast_wrapper.dart';
-export 'src/wrappers/realm_wrapper.dart';
-export 'src/wrappers/isar_wrapper.dart';
+export 'src/storage_adapter.dart';
+export 'src/interceptors/network/dio_interceptor.dart';
+export 'src/interceptors/network/getx_interceptor.dart';
+export 'src/interceptors/network/http_client_interceptor.dart';
+export 'src/interceptors/logging/log_interceptor.dart';
+export 'src/interceptors/logging/loggy_interceptor.dart';
+export 'src/interceptors/navigation/navigation_observer.dart';
+export 'src/interceptors/network/websocket/devconnect_websocket.dart';
+export 'src/reporters/storage/drift_reporter.dart';
+export 'src/reporters/storage/isar_reporter.dart';
+export 'src/reporters/logging/log_reporter.dart';
+export 'src/reporters/storage/mmkv_reporter.dart';
+export 'src/reporters/storage/secure_storage_reporter.dart';
+export 'src/reporters/state/signals_observer.dart';
+export 'src/reporters/storage/storage_reporter.dart';
+export 'src/wrappers/key_value/shared_preferences_wrapper.dart';
+export 'src/wrappers/key_value/shared_preferences_async_wrapper.dart';
+export 'src/wrappers/key_value/shared_preferences_cached_wrapper.dart';
+export 'src/wrappers/key_value/hive_box_wrapper.dart';
+export 'src/wrappers/key_value/secure_storage_wrapper.dart';
+export 'src/wrappers/key_value/mmkv_wrapper.dart';
+export 'src/wrappers/database/sembast_wrapper.dart';
+export 'src/wrappers/database/realm_wrapper.dart';
+export 'src/wrappers/database/isar_wrapper.dart';

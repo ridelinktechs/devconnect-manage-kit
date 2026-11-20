@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/network/network_entry.dart';
 import '../badges/net_stat_chip.dart';
 import '../charts/network_waterfall_painter.dart';

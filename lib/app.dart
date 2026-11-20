@@ -7,7 +7,7 @@ import 'core/providers/locale_provider.dart';
 import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
-import 'l10n/app_localizations.dart';
+import 'l10n/generated/app_localizations.dart';
 import 'server/providers/server_providers.dart';
 
 class DevConnectApp extends ConsumerStatefulWidget {

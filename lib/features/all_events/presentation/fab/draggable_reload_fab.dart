@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/utils/app/reload_apps.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/device_info.dart';
 
 /// Description of one reload action exposed by the FAB.
@@ -188,92 +189,17 @@ class _DraggableReloadFabState extends State<DraggableReloadFab>
 
   // ── Action discovery ─────────────────────────────────────────────────────
 
-  /// Returns the list of available reload actions for the currently
-  /// connected devices (in a stable, predictable order: hot reload before
-  /// hot restart). Mirrors the per-platform IDE hotkeys:
-  ///
-  ///   Flutter → Hot Reload + Hot Restart
-  ///   RN      → Reload Metro
-  ///   Android → Rebuild
-  ///   Mixed   → single universal "Reload app"
-  List<FabAction> _actionsFor() {
-    if (widget.devices.isEmpty) return const [];
-    bool isFlutter(String p) => p.toLowerCase() == 'flutter';
-    bool isRN(String p) {
-      final lo = p.toLowerCase();
-      return lo == 'reactnative' || lo == 'react_native' || lo == 'rn';
-    }
-    bool isAndroid(String p) => p.toLowerCase() == 'android';
-
-    final hasFlutter = widget.devices.any((d) => isFlutter(d.platform));
-    final hasRN = widget.devices.any((d) => isRN(d.platform));
-    final hasAndroid = widget.devices.any((d) => isAndroid(d.platform));
-    final platforms = (hasFlutter ? 1 : 0) +
-        (hasRN ? 1 : 0) +
-        (hasAndroid ? 1 : 0);
-
-    if (platforms > 1) {
-      // Mixed: universal reload only.
-      return [
-        FabAction(
-          icon: LucideIcons.zap,
-          tooltip: S.of(context).reloadApp,
-          spinning: widget.reloading,
-          onTap: widget.onReload,
-        ),
+  /// Reload actions for [DraggableReloadFab.devices], per platform — see
+  /// [reloadActionsFor].
+  List<FabAction> _actionsFor() => [
+        for (final a in reloadActionsFor(widget.devices, S.of(context)))
+          FabAction(
+            icon: a.icon,
+            tooltip: a.label,
+            spinning: a.hotRestart ? widget.hotRestarting : widget.reloading,
+            onTap: a.hotRestart ? widget.onHotRestart : widget.onReload,
+          ),
       ];
-    }
-    if (hasFlutter) {
-      return [
-        FabAction(
-          icon: LucideIcons.zap,
-          tooltip: S.of(context).reloadAppHotReload,
-          spinning: widget.reloading,
-          onTap: widget.onReload,
-        ),
-        FabAction(
-          icon: LucideIcons.refreshCcw,
-          tooltip: S.of(context).reloadAppHotRestart,
-          spinning: widget.hotRestarting,
-          onTap: widget.onHotRestart,
-        ),
-      ];
-    }
-    if (hasRN) {
-      return [
-        FabAction(
-          icon: LucideIcons.rocket,
-          tooltip: S.of(context).reloadAppMetro,
-          spinning: widget.reloading,
-          onTap: widget.onReload,
-        ),
-      ];
-    }
-    if (hasAndroid) {
-      // Android: Activity.recreate() is a runtime state reset — NOT a real
-      // "rebuild" of the APK. We label and icon this the same as Flutter's
-      // "Hot restart" so the UI reflects what actually happens (full state
-      // reset, no code recompile). For the *real* Android rebuild the
-      // developer has to run gradle assembleDebug + reinstall — which is
-      // outside what a runtime SDK can trigger.
-      return [
-        FabAction(
-          icon: LucideIcons.refreshCcw,
-          tooltip: S.of(context).reloadAppHotRestart,
-          spinning: widget.reloading,
-          onTap: widget.onReload,
-        ),
-      ];
-    }
-    return [
-      FabAction(
-        icon: LucideIcons.zap,
-        tooltip: S.of(context).reloadApp,
-        spinning: widget.reloading,
-        onTap: widget.onReload,
-      ),
-    ];
-  }
 
   // ── Sizing ──────────────────────────────────────────────────────────────
 

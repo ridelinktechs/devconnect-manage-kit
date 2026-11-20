@@ -10,10 +10,37 @@ Module._load = function (request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain);
 };
 
+// DevConnect builds its own socket from the WebSocket present when client.js loads.
+class FakeSocket {
+  constructor() { this.sent = []; FakeSocket.last = this; }
+  send(json) { this.sent.push(JSON.parse(json)); }
+  close() {}
+}
+global.WebSocket = FakeSocket;
+
 const clientModule = require('../dist-test/client.js');
-const interceptor = require('../dist-test/interceptors/mockServerInterceptor.js');
+const interceptor = require('../dist-test/interceptors/network/mockServerInterceptor.js');
 const { DevConnect } = clientModule;
 const { setMockRules, findMockMatch, buildMockResponse, installMockServerInterceptor } = interceptor;
+const realSafeSend = DevConnect.safeSend;
+
+let socket;
+let networkCalls = 0;
+test.before(async () => {
+  global.fetch = async () => { networkCalls++; return new Response('real'); };
+  await DevConnect.init({
+    appName: 'MockTest', host: '127.0.0.1', auto: false, enabled: true,
+    autoInterceptFetch: true, autoInterceptXHR: false, autoInterceptConsole: false,
+    autoPerformance: false, autoMemoryLeak: false, autoBenchmark: false, autoError: false,
+  });
+  socket = FakeSocket.last;
+  socket.onopen();
+});
+
+/** Delivers a message to DevConnect the way the desktop does. */
+function fromDesktop(type, payload) {
+  socket.onmessage({ data: JSON.stringify({ type, payload }) });
+}
 
 function rule(overrides = {}) {
   const out = {
@@ -36,7 +63,7 @@ function rule(overrides = {}) {
   return out;
 }
 
-test.after(() => { Module._load = originalLoad; });
+test.after(() => { DevConnect.disconnect(); Module._load = originalLoad; });
 
 test('setRules only keeps enabled rules', () => {
   setMockRules([rule({ id: 'off', enabled: false }), rule({ id: 'on' })]);
@@ -128,20 +155,41 @@ test('buildMockResponse emits client:mocked_request', async () => {
   assert.equal(calls[0].payload.requestId, 'req-3');
 });
 
-test('install is idempotent, handles rule updates, and preserves original handler', () => {
-  let fallbackCalls = 0;
-  DevConnect.onMessage = () => { fallbackCalls++; };
+test('rules pushed by the desktop apply with no app call; an empty list clears them', () => {
+  installMockServerInterceptor(); // kept for compatibility: a harmless no-op
   installMockServerInterceptor();
-  const installedHandler = DevConnect.onMessage;
-  installMockServerInterceptor();
-  assert.equal(DevConnect.onMessage, installedHandler);
-
-  DevConnect.onMessage({ type: 'server:mock_rules_update', payload: { rules: [rule({ id: 'pushed' })] } });
+  fromDesktop('server:mock_rules_update', { rules: [rule({ id: 'pushed' })] });
   assert.equal(findMockMatch('GET', 'https://example.com/items')?.id, 'pushed');
-  assert.equal(fallbackCalls, 1);
+  fromDesktop('server:mock_rules_update', { rules: [] });
+  assert.equal(findMockMatch('GET', 'https://example.com/items'), null);
+});
 
-  DevConnect.onMessage({ type: 'server:other' });
-  assert.equal(fallbackCalls, 2);
+test('a pushed rule makes fetch return the mock, reported like any other fetch', async () => {
+  DevConnect.safeSend = realSafeSend; // earlier tests stub it
+  // Scoped to this device, so the match also proves fetch passes the device id.
+  const deviceId = DevConnect.getInstance().deviceId;
+  fromDesktop('server:mock_rules_update', { rules: [rule({ id: 'pushed', scope: { deviceIds: [deviceId] } })] });
+  socket.sent = [];
+
+  const res = await fetch('https://example.com/items');
+  assert.equal(res.status, 201);
+  assert.equal(await res.text(), '{"mocked":true}');
+  assert.equal(res.headers.get('x-devconnect-mock'), 'pushed');
+  assert.equal(networkCalls, 0);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  const sent = (type) => socket.sent.find((m) => m.type === type)?.payload;
+  const { requestId } = sent('client:network:request_start');
+  const complete = sent('client:network:request_complete');
+  assert.equal(complete.requestId, requestId);
+  assert.equal(complete.statusCode, 201);
+  assert.deepEqual(complete.responseBody, { mocked: true });
+  assert.equal(complete.responseHeaders['x-devconnect-mock'], 'pushed');
+  const { timestamp, ...mocked } = sent('client:mocked_request');
+  assert.deepEqual(mocked, { ruleId: 'pushed', url: 'https://example.com/items', method: 'GET', status: 201, requestId });
+
+  await fetch('https://example.com/other'); // no rule matches: the real network
+  assert.equal(networkCalls, 1);
 });
 
 test('findMatch enforces scope.deviceIds when provided', () => {

@@ -3,11 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/theme/color_tokens.dart';
 import '../../../display/provider/display_providers.dart' as dp show asyncOperationEntriesProvider, asyncOpDisplayProvider, asyncOpTotalSeenProvider;
 import '../../../../models/display/display_entry.dart';
+import '../../../settings/presentation/tips/page_guide_button.dart';
 
 /// Async Ops Inspector.
 ///
@@ -59,7 +60,7 @@ class _AsyncOpsPageState extends ConsumerState<AsyncOpsPage> {
         ),
         Expanded(
           child: entries.isEmpty
-              ? EmptyState(
+              ? EmptyStateWithPulse(
                   icon: LucideIcons.workflow,
                   title: 'No async operations',
                   subtitle:
@@ -162,6 +163,7 @@ class _Toolbar extends ConsumerWidget {
               color: isDark ? Colors.white : Colors.black87,
             ),
           ),
+          const PageGuideButton(route: '/async'),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

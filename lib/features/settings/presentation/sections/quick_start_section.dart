@@ -1,67 +1,96 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/theme/color_tokens.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/theme/chrome_palette.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../header/section_title.dart';
+import '../quickstart/install_box.dart';
 
-/// "Quick Start" card — three side-by-side [StepCard]s (install / init /
-/// connect) showing copy-paste code snippets for each platform.
+/// Quick Start card — an install box per platform (Flutter / React Native
+/// / Android) with the code that starts the SDK, then how each kind of
+/// device reaches this machine at [ip] on [port].
 class QuickStartSection extends StatelessWidget {
   final String ip;
+  final int port;
 
-  const QuickStartSection({super.key, required this.ip});
+  const QuickStartSection({super.key, required this.ip, required this.port});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final codeBg = isDark ? ColorTokens.darkSurface : const Color(0xFFF0F0F0);
+    final s = S.of(context);
+    final p = ChromePalette.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionTitle(icon: LucideIcons.zap, title: S.of(context).quickStart),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        SectionTitle(icon: LucideIcons.zap, title: s.quickStart),
+        Text(
+          s.quickStartDesc,
+          style: TextStyle(fontSize: 12, height: 1.45, color: p.textMuted),
+        ),
+        const SizedBox(height: 14),
+        InstallBox(
+          nextLabel: s.quickStartNext,
+          copyLabel: s.copy,
+          copiedLabel: s.copied,
+          targets: const [
+            (
+              name: 'Flutter',
+              prompt: true,
+              before: ['flutter pub add '],
+              package: 'devconnect_manage_kit',
+              after: '',
+              next: [
+                '// main.dart › main()',
+                'await DevConnect.initAndRunApp(',
+                "  appName: 'MyApp',",
+                '  runApp: () async => runApp(const MyApp()),',
+                ');',
+              ],
+            ),
+            (
+              name: 'React Native',
+              prompt: true,
+              before: ['yarn add ', 'npm install '],
+              package: 'devconnect-manage-kit',
+              after: '',
+              next: [
+                '// App.tsx',
+                'import { DevConnect } from "devconnect-manage-kit";',
+                'DevConnect.init({ appName: "MyApp" });',
+              ],
+            ),
+            (
+              name: 'Android',
+              prompt: false,
+              before: ['implementation("'],
+              package: 'io.github.buivietphi:devconnect-android:1.1.0',
+              after: '")',
+              next: [
+                '// MyApp.kt › onCreate()',
+                'DevConnect.installForApp(',
+                '    context = this,',
+                '    appName = "MyApp",',
+                '    enabled = BuildConfig.DEBUG,',
+                ')',
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            Expanded(
-              child: StepCard(
-                number: '1',
-                icon: LucideIcons.package,
-                accent: const Color(0xFF42A5F5),
-                title: S.of(context).installSdk,
-                code: 'Flutter:  flutter pub add devconnect_manage_kit\n'
-                    'RN:      yarn add devconnect-manage-kit\n'
-                    'Android: implementation("com.github...")',
-                codeBg: codeBg,
-              ),
+            _Hint(
+              icon: LucideIcons.monitorSmartphone,
+              text: s.quickStartEmulator,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StepCard(
-                number: '2',
-                icon: LucideIcons.playCircle,
-                accent: ColorTokens.primary,
-                title: S.of(context).initialize,
-                code: 'Flutter:  await DevConnect.init(appName: "MyApp");\n'
-                    'RN:      await DevConnect.init({ appName: "MyApp" });\n'
-                    'Android: DevConnect.init(ctx, appName = "MyApp")',
-                codeBg: codeBg,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StepCard(
-                number: '3',
-                icon: LucideIcons.radio,
-                accent: ColorTokens.success,
-                title: S.of(context).connect,
-                code: 'Emulator: auto-detect\n'
-                    'WiFi:     host: "$ip"\n'
-                    'USB:      see USB Tools above',
-                codeBg: codeBg,
-              ),
+            _Hint(icon: LucideIcons.wifi, text: s.quickStartWifi, value: ip),
+            _Hint(
+              icon: LucideIcons.usb,
+              text: s.quickStartUsb,
+              value: 'adb reverse tcp:$port tcp:$port',
             ),
           ],
         ),
@@ -70,89 +99,45 @@ class QuickStartSection extends StatelessWidget {
   }
 }
 
-/// One of the three numbered Quick Start cards: circle badge + icon +
-/// title, followed by a mono-font code block (selectable text).
-class StepCard extends StatelessWidget {
-  final String number;
+/// A way to connect: icon, a few words and an optional value in mono.
+class _Hint extends StatelessWidget {
   final IconData icon;
-  final Color accent;
-  final String title;
-  final String code;
-  final Color codeBg;
+  final String text;
+  final String? value;
 
-  const StepCard({
-    super.key,
-    required this.number,
-    required this.icon,
-    required this.accent,
-    required this.title,
-    required this.code,
-    required this.codeBg,
-  });
+  const _Hint({required this.icon, required this.text, this.value});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-                border: Border.all(color: accent.withValues(alpha: 0.4)),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                number,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: accent,
-                  fontFamily: AppConstants.monoFontFamily,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(icon, size: 14, color: accent),
-            const SizedBox(width: 5),
-            Expanded(
-              child: Text(
-                title,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.2,
-                ),
+    final p = ChromePalette.of(context);
+    final value = this.value;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: p.text.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: p.border.withValues(alpha: 0.8)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: p.textMuted),
+          const SizedBox(width: 7),
+          Text(text, style: TextStyle(fontSize: 12, color: p.text)),
+          if (value != null) ...[
+            const SizedBox(width: 7),
+            Text(
+              value,
+              style: chromeMono(
+                context,
+                size: 11.5,
+                color: p.textMuted,
+                weight: FontWeight.w600,
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: codeBg,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: SelectableText(
-            code,
-            style: TextStyle(
-              fontFamily: AppConstants.monoFontFamily,
-              fontSize: 10,
-              color: isDark ? const Color(0xFF8B949E) : Colors.black87,
-              height: 1.55,
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -1,9 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/all_events/presentation/pages/all_events_page.dart';
+import '../../features/async_ops/presentation/pages/async_ops_page.dart';
 import '../../features/console/presentation/pages/console_page.dart';
+import '../../features/custom_commands/presentation/pages/custom_commands_page.dart';
 import '../../features/database_viewer/presentation/pages/database_viewer_page.dart';
+import '../../features/display/presentation/pages/display_page.dart';
+import '../../features/layout_inspector/presentation/layout_inspector_page.dart';
 import '../../features/network_inspector/presentation/pages/network_inspector_page.dart';
 import '../../features/last_connected/presentation/pages/last_connected_page.dart';
 import '../../features/mock_server/presentation/mock_server_page.dart';
@@ -14,102 +18,46 @@ import '../../features/performance/presentation/pages/memory_leaks_page.dart';
 import '../../features/benchmark/presentation/pages/benchmark_page.dart';
 import '../../features/error_inspector/presentation/pages/error_inspector_page.dart';
 import '../../features/storage_viewer/presentation/pages/storage_viewer_page.dart';
-import '../routes/app_shell.dart';
+import 'app_shell.dart';
 
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
-final _shellNavigatorKey = GlobalKey<NavigatorState>();
+/// The pages by path. Each is a branch of its own, kept alive with its
+/// selection, scroll and fields while another page is shown.
+const _pages = <(String, Widget)>[
+  ('/all', AllEventsPage()),
+  ('/console', ConsolePage()),
+  ('/network', NetworkInspectorPage()),
+  ('/state', StateInspectorPage()),
+  ('/storage', StorageViewerPage()),
+  ('/database', DatabaseViewerPage()),
+  ('/performance', PerformancePage()),
+  ('/memory-leaks', MemoryLeaksPage()),
+  ('/benchmark', BenchmarkPage()),
+  ('/errors', ErrorInspectorPage()),
+  ('/display', DisplayPage()),
+  ('/async', AsyncOpsPage()),
+  ('/commands', CustomCommandsPage()),
+  ('/layout', LayoutInspectorPage()),
+  ('/mock-server', MockServerPage()),
+  ('/history', LastConnectedPage()),
+  ('/settings', SettingsPage()),
+];
 
 final appRouter = GoRouter(
-  navigatorKey: _rootNavigatorKey,
   initialLocation: '/all',
   routes: [
-    ShellRoute(
-      navigatorKey: _shellNavigatorKey,
-      builder: (context, state, child) {
-        return AppShell(
-          currentPath: state.uri.path,
-          child: child,
-        );
-      },
-      routes: [
-        GoRoute(
-          path: '/all',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: AllEventsPage(),
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, shell) =>
+          AppShell(currentPath: state.uri.path, child: shell),
+      branches: [
+        for (final (path, page) in _pages)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: path,
+                pageBuilder: (context, state) => NoTransitionPage(child: page),
+              ),
+            ],
           ),
-        ),
-        GoRoute(
-          path: '/console',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: ConsolePage(),
-          ),
-        ),
-        GoRoute(
-          path: '/network',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: NetworkInspectorPage(),
-          ),
-        ),
-        GoRoute(
-          path: '/state',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: StateInspectorPage(),
-          ),
-        ),
-        GoRoute(
-          path: '/storage',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: StorageViewerPage(),
-          ),
-        ),
-        GoRoute(
-          path: '/database',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: DatabaseViewerPage(),
-          ),
-        ),
-        GoRoute(
-          path: '/performance',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: PerformancePage(),
-          ),
-        ),
-        GoRoute(
-          path: '/memory-leaks',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: MemoryLeaksPage(),
-          ),
-        ),
-        GoRoute(
-          path: '/benchmark',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: BenchmarkPage(),
-          ),
-        ),
-        GoRoute(
-          path: '/errors',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: ErrorInspectorPage(),
-          ),
-        ),
-        GoRoute(
-          path: '/mock-server',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: MockServerPage(),
-          ),
-        ),
-        GoRoute(
-          path: '/history',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: LastConnectedPage(),
-          ),
-        ),
-        GoRoute(
-          path: '/settings',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: SettingsPage(),
-          ),
-        ),
       ],
     ),
   ],

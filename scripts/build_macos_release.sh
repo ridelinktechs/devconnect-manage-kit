@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-VERSION="${1:-1.0.3}"
+VERSION="${1:-$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)}"
 SRC_APP="build/macos/Build/Products/Release/DevConnect.app"
 APP_NAME="DevConnect"                       # name of the .app inside the dmg/zip
 VOLNAME="DevConnect Manage Tool v${VERSION}"

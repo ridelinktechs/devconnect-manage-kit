@@ -20,7 +20,39 @@ class DevConnectSharedPrefs private constructor(
 
     companion object {
         fun wrap(prefs: SharedPreferences): DevConnectSharedPrefs {
-            return DevConnectSharedPrefs(prefs)
+            val wrapped = DevConnectSharedPrefs(prefs)
+            // Lets the desktop's Storage tab list and edit it; edits go
+            // through the tracked editor so they're reported like the app's.
+            DevConnect.registerStorage("shared_preferences", object : DevConnect.StorageAdapter {
+                override fun getAll(): Map<String, Any?> = prefs.all
+
+                override fun set(key: String, value: Any?) {
+                    val editor = wrapped.edit()
+                    when (value) {
+                        null -> editor.remove(key)
+                        is Boolean -> editor.putBoolean(key, value)
+                        // Keep the stored type, or the app's getInt() throws.
+                        is Number -> when (prefs.all[key]) {
+                            is Int -> editor.putInt(key, value.toInt())
+                            is Long -> editor.putLong(key, value.toLong())
+                            is Float -> editor.putFloat(key, value.toFloat())
+                            else -> when (value) {
+                                is Int -> editor.putInt(key, value)
+                                is Long -> editor.putLong(key, value)
+                                else -> editor.putFloat(key, value.toFloat())
+                            }
+                        }
+                        is Collection<*> -> editor.putStringSet(key, value.map { "$it" }.toSet())
+                        else -> editor.putString(key, value.toString())
+                    }
+                    editor.apply()
+                }
+
+                override fun remove(key: String) = wrapped.edit().remove(key).apply()
+
+                override fun clear() = wrapped.edit().clear().apply()
+            })
+            return wrapped
         }
     }
 

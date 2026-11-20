@@ -6,8 +6,8 @@ import '../../../../components/misc/status_badge.dart';
 import '../../../../components/viewers/json_viewer.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../core/utils/screenshot_filename.dart';
-import '../../../../core/utils/screenshot_utils.dart';
+import '../../../../core/utils/files/screenshot_filename.dart';
+import '../../../../core/utils/files/screenshot_utils.dart';
 import '../../../../models/log/log_entry.dart';
 import '../shared/level_color.dart';
 

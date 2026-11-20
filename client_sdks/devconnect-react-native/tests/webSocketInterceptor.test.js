@@ -10,9 +10,18 @@ Module._load = function (request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain);
 };
 
+// DevConnect captures the WebSocket present when client.js loads; record what it builds.
+class NativeWebSocket {
+  constructor(url) { this.url = url; this.sent = []; NativeWebSocket.built.push(this); }
+  send(data) { this.sent.push(data); }
+  close() {}
+}
+NativeWebSocket.built = [];
+global.WebSocket = NativeWebSocket;
+
 const clientModule = require('../dist-test/client.js');
 const { DevConnect } = clientModule;
-const wsModule = require('../dist-test/interceptors/webSocketInterceptor.js');
+const wsModule = require('../dist-test/interceptors/network/webSocketInterceptor.js');
 const { installWebSocketInterceptor } = wsModule;
 
 test.after(() => { Module._load = originalLoad; });
@@ -120,5 +129,80 @@ test('cleanup restores only if global.WebSocket is still the wrapper', () => {
   assert.notEqual(global.WebSocket, wrapperRef);
   // Restore for cleanliness.
   global.WebSocket = wrapperRef;
+  uninstall();
+});
+
+test('passes every constructor argument through and exposes the readyState constants', () => {
+  let args;
+  global.WebSocket = class { constructor(...a) { args = a; return makeFakeInner(); } };
+  const uninstall = installWebSocketInterceptor();
+  const options = { headers: { Authorization: 'Bearer x' } }; // RN's third argument
+  const w = new global.WebSocket('ws://example.com', ['chat'], options);
+  assert.deepEqual(args, ['ws://example.com', ['chat'], options]);
+  for (const [name, value] of Object.entries({ CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 })) {
+    assert.equal(global.WebSocket[name], value);
+    assert.equal(w[name], value);
+  }
+  uninstall();
+});
+
+test('one connectionId per socket, text and binary frames, an error folded into the single close', () => {
+  const events = [];
+  DevConnect.safeSend = (type, payload) => events.push({ type, payload });
+  const inner = makeFakeInner();
+  installFakeWebSocket(inner);
+  const uninstall = installWebSocketInterceptor();
+  const w = new global.WebSocket('ws://example.com');
+  inner._fireOpen();
+  w.send('é€😀'); // 2 + 3 + 4 UTF-8 bytes
+  inner._fireMessage(new ArrayBuffer(4));
+  inner._fireError();
+  inner.onclose({ code: 1006, reason: '' });
+
+  assert.deepEqual(events.map((e) => e.type), ['client:ws_open', 'client:ws_frame', 'client:ws_frame', 'client:ws_close']);
+  const [open, sent, received, close] = events.map((e) => e.payload);
+  const { connectionId } = open;
+  assert.ok(connectionId);
+  assert.deepEqual(open, { connectionId, url: 'ws://example.com' });
+  assert.deepEqual(sent, { connectionId, url: 'ws://example.com', direction: 'send', opcode: 'text', payload: 'é€😀', sizeBytes: 9 });
+  assert.deepEqual(received, { connectionId, url: 'ws://example.com', direction: 'receive', opcode: 'binary', payload: '<binary 4 bytes>', sizeBytes: 4 });
+  assert.equal(close.connectionId, connectionId);
+  assert.equal(close.code, 1006);
+  assert.equal(close.error, 'boom');
+  uninstall();
+});
+
+test('a report that goes out through a wrapped socket is not reported again', () => {
+  const events = [];
+  const inner = makeFakeInner();
+  installFakeWebSocket(inner);
+  const uninstall = installWebSocketInterceptor();
+  const w = new global.WebSocket('ws://example.com');
+  // Worst case: DevConnect's own socket wrapped, so every report is itself a send.
+  DevConnect.safeSend = (type, payload) => { events.push({ type, payload }); w.send(JSON.stringify(payload)); };
+  w.send('hello');
+  assert.equal(events.length, 1);
+  assert.equal(inner._lastSent, 'hello');
+  uninstall();
+});
+
+test("DevConnect's own socket is built with the native constructor, never the wrapper", async () => {
+  const events = [];
+  DevConnect.safeSend = (type, payload) => events.push({ type, payload });
+  const inner = makeFakeInner();
+  installFakeWebSocket(inner);
+  const uninstall = installWebSocketInterceptor();
+  await DevConnect.init({
+    appName: 'WsTest', host: '127.0.0.1', auto: false, enabled: true,
+    autoInterceptFetch: false, autoInterceptXHR: false, autoInterceptConsole: false,
+    autoPerformance: false, autoMemoryLeak: false, autoBenchmark: false, autoError: false,
+  });
+  assert.equal(NativeWebSocket.built.length, 1);
+  const own = NativeWebSocket.built[0];
+  own.onopen();
+  DevConnect.getInstance().send('client:log', { message: 'hi' });
+  assert.equal(own.sent.length, 1);
+  assert.equal(events.length, 0); // nothing was reported as a ws frame
+  DevConnect.disconnect();
   uninstall();
 });

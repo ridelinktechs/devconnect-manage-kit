@@ -7,13 +7,17 @@ import io.grpc.ClientCall
 import io.grpc.ClientInterceptor
 import io.grpc.ForwardingClientCall
 import io.grpc.ForwardingClientCallListener
+import io.grpc.KnownLength
 import io.grpc.Metadata
 import io.grpc.MethodDescriptor
 import io.grpc.Status
+import java.io.InputStream
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * gRPC `ClientInterceptor` that emits `client:grpc_*` events on every
- * unary RPC.
+ * RPC.
  *
  * Wire it into the gRPC managed channel:
  * ```kotlin
@@ -24,11 +28,11 @@ import io.grpc.Status
  * ```
  *
  * Spec (Round 3 / 3.2):
- *  - On `interceptCall`: parse method descriptor → `service`, `method`.
- *    Emit `client:grpc_call_start`.
- *  - On `onMessage`: capture request bytes (count only).
- *  - On `onClose`: emit `client:grpc_call_end { service, method, latencyMs,
- *    status, requestBytes, responseBytes }`.
+ *  - On `start`: parse method descriptor → `service`, `method`.
+ *    Emit `client:grpc_call_start` with a per-call `callId`.
+ *  - On `sendMessage` / `onMessage`: add up request / response bytes.
+ *  - On `onClose`: emit `client:grpc_call_end { callId, service, method,
+ *    latencyMs, status, requestBytes, responseBytes }`.
  *
  * Notes:
  *  - Streaming RPCs (server / bidi) emit `start` and `end` but the byte
@@ -49,21 +53,10 @@ class DevConnectGrpcClientInterceptor : ClientInterceptor {
         val service = parts.firstOrNull() ?: "unknown"
         val rpcMethod = parts.drop(1).joinToString("/").ifEmpty { fullMethod }
 
-        val startTime = System.currentTimeMillis()
-        var requestBytes = 0L
-        var responseBytes = 0L
-
-        try {
-            DevConnect.safeSend("client:grpc_call_start", mapOf(
-                "service" to service,
-                "method" to rpcMethod,
-                "fullMethod" to fullMethod,
-                "requestStreaming" to (method.type == MethodDescriptor.MethodType.CLIENT_STREAMING ||
-                    method.type == MethodDescriptor.MethodType.BIDI_STREAMING),
-                "responseStreaming" to (method.type == MethodDescriptor.MethodType.SERVER_STREAMING ||
-                    method.type == MethodDescriptor.MethodType.BIDI_STREAMING),
-            ))
-        } catch (_: Throwable) {}
+        val callId = UUID.randomUUID().toString()
+        // sendMessage runs on the app's thread, onMessage on gRPC's executor.
+        val requestBytes = AtomicLong()
+        val responseBytes = AtomicLong()
 
         val call = next.newCall(method, callOptions)
 
@@ -71,26 +64,40 @@ class DevConnectGrpcClientInterceptor : ClientInterceptor {
             override fun delegate(): ClientCall<ReqT, RespT> = call
 
             override fun start(responseListener: Listener<RespT>, headers: Metadata) {
+                val startNanos = System.nanoTime()
+                try {
+                    DevConnect.safeSend("client:grpc_call_start", mapOf(
+                        "callId" to callId,
+                        "service" to service,
+                        "method" to rpcMethod,
+                        "fullMethod" to fullMethod,
+                        "requestStreaming" to (method.type == MethodDescriptor.MethodType.CLIENT_STREAMING ||
+                            method.type == MethodDescriptor.MethodType.BIDI_STREAMING),
+                        "responseStreaming" to (method.type == MethodDescriptor.MethodType.SERVER_STREAMING ||
+                            method.type == MethodDescriptor.MethodType.BIDI_STREAMING),
+                    ))
+                } catch (_: Throwable) {}
+
                 val wrappedListener = object : ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
                     override fun onMessage(message: RespT) {
                         try {
-                            // Best-effort byte count: estimate via toString().length for non-trivial types.
-                            responseBytes += estimateSize(message)
+                            responseBytes.addAndGet(wireSize(method.streamResponse(message)))
                         } catch (_: Throwable) {}
                         super.onMessage(message)
                     }
 
                     override fun onClose(status: Status, trailers: Metadata) {
-                        val latencyMs = System.currentTimeMillis() - startTime
+                        val latencyMs = (System.nanoTime() - startNanos) / 1_000_000
                         try {
                             val payload = buildMap<String, Any?> {
+                                put("callId", callId)
                                 put("service", service)
                                 put("method", rpcMethod)
                                 put("latencyMs", latencyMs)
                                 put("status", status.code.name)
                                 put("statusDescription", status.description ?: "")
-                                put("requestBytes", requestBytes)
-                                put("responseBytes", responseBytes)
+                                put("requestBytes", requestBytes.get())
+                                put("responseBytes", responseBytes.get())
                                 if (!status.isOk) {
                                     put("error", status.cause?.message ?: status.description ?: "")
                                 }
@@ -105,7 +112,7 @@ class DevConnectGrpcClientInterceptor : ClientInterceptor {
 
             override fun sendMessage(message: ReqT) {
                 try {
-                    requestBytes += estimateSize(message)
+                    requestBytes.addAndGet(wireSize(method.streamRequest(message)))
                 } catch (_: Throwable) {}
                 super.sendMessage(message)
             }
@@ -113,16 +120,10 @@ class DevConnectGrpcClientInterceptor : ClientInterceptor {
     }
 
     /**
-     * Best-effort byte size. For ProtoBuf messages this is just the
-     * toString().length — accurate enough for a UI counter. Avoids
-     * pulling in the full proto runtime here.
+     * Wire size of a message, from the call's own marshaller: protobuf's
+     * stream is a [KnownLength] whose size is `getSerializedSize()`, read
+     * without serializing (and without a protobuf dependency here).
      */
-    private fun estimateSize(message: Any?): Long {
-        if (message == null) return 0L
-        return try {
-            message.toString().length.toLong()
-        } catch (_: Throwable) {
-            0L
-        }
-    }
+    // shortcut: other marshallers count 0 and may serialize once more here; size their streams if one shows up.
+    private fun wireSize(stream: InputStream): Long = (stream as? KnownLength)?.available()?.toLong() ?: 0L
 }

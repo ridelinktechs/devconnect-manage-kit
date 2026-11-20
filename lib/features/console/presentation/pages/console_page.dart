@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' as rendering;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
-import '../../../../core/theme/color_tokens.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/log/log_entry.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../provider/console_providers.dart';
 import '../detail/detail_panel.dart';
+import '../empty/no_match_state.dart';
 import '../event_row/log_entry_content.dart';
 import '../header/toolbar.dart';
 
@@ -30,7 +32,8 @@ class ConsolePage extends ConsumerStatefulWidget {
   ConsumerState<ConsolePage> createState() => _ConsolePageState();
 }
 
-class _ConsolePageState extends ConsumerState<ConsolePage> {
+class _ConsolePageState extends ConsumerState<ConsolePage>
+    with ListenWhileShown {
   final _scrollController = SmoothScrollController();
   final _selectedId = ValueNotifier<String?>(null);
   final _entryCount = ValueNotifier<int>(0);
@@ -39,6 +42,21 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
   int _visibleCount = 0;
   int _generation = 0;
   final List<LogEntry> _entries = [];
+
+  /// Every log of each row standing for a run of identical logs.
+  Map<String, List<LogEntry>> _runs = const {};
+
+  /// Rows that arrived with the latest update, so they rise in.
+  Set<String> _fresh = const {};
+  bool _primed = false;
+
+  /// Whether the user is scrolling the list (wheel, drag or trackpad).
+  bool _userScrolling = false;
+
+  /// The search box's text, kept in step with [consoleSearchProvider].
+  late final _search = TextEditingController(
+    text: ref.read(consoleSearchProvider),
+  );
 
   @override
   void initState() {
@@ -50,17 +68,25 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
     // `StableListView.shouldRebuild` returned false and new entries
     // were never materialised in the viewport even though
     // `_visibleCount` had grown.
-    ref.listenManual<List<LogEntry>>(
-      filteredConsoleEntriesProvider,
+    listenWhileShown(
+      groupedConsoleEntriesProvider,
       (previous, next) {
-        _entries..clear()..addAll(next);
+        final appended = _primed &&
+            next.entries.length > _entries.length &&
+            (_entries.isEmpty ||
+                next.entries[_entries.length - 1].id == _entries.last.id);
+        _fresh = appended
+            ? {for (final e in next.entries.skip(_entries.length)) e.id}
+            : const {};
+        _primed = true;
+        _entries..clear()..addAll(next.entries);
+        _runs = next.runs;
         _entryCount.value = _entries.length;
         _visibleCount = _entries.length;
         _generation++;
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
       },
-      fireImmediately: true,
     );
   }
 
@@ -75,7 +101,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
         ? pos.pixels - pos.minScrollExtent
         : pos.maxScrollExtent - pos.pixels;
 
-    if (!_autoScroll && atBottom) {
+    if (!_autoScroll && atBottom && !_userScrolling) {
       _autoScroll = true;
       _visibleCount = _entries.length;
       setState(() {});
@@ -94,6 +120,22 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
         setState(() {});
       }
     }
+  }
+
+  /// The user scrolling the list stops auto-scroll at once, even while it is
+  /// still easing to a new log; it resumes once they come to rest at the
+  /// newest end.
+  bool _onUserScroll(UserScrollNotification n) {
+    if (n.depth != 0) return false;
+    _userScrolling = n.direction != rendering.ScrollDirection.idle;
+    if (_userScrolling && _autoScroll) {
+      _autoScroll = false;
+      _programmaticScroll = false;
+      setState(() {});
+    } else if (!_userScrolling) {
+      _onScroll();
+    }
+    return false;
   }
 
   void _autoScrollIfNeeded() {
@@ -145,12 +187,69 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
     return _entries.where((e) => e.id == id).firstOrNull;
   }
 
+  /// What the no-match state offers: show every level, clear the search,
+  /// or both when neither alone brings a log back.
+  List<NoMatchFix> _fixes(WidgetRef ref, List<LogEntry> logs) {
+    final s = S.of(context);
+    final levels = ref.watch(consoleFilterProvider);
+    final query = ref.watch(consoleSearchProvider);
+    final hidden = [
+      for (final l in LogLevel.values)
+        if (!levels.contains(l)) l.name.toUpperCase(),
+    ];
+    final withAllLevels = ref
+        .watch(consoleLevelCountsProvider)
+        .values
+        .fold(0, (sum, n) => sum + n);
+    final withoutSearch = logs.where((e) => levels.contains(e.level)).length;
+    void showAllLevels() =>
+        ref.read(consoleFilterProvider.notifier).set(LogLevel.values.toSet());
+    void clearSearch() {
+      _search.clear();
+      ref.read(consoleSearchProvider.notifier).set('');
+    }
+
+    final dropsLevels = hidden.length <= 2
+        ? hidden.join(' · ')
+        : '${hidden.first} +${hidden.length - 1}';
+    return [
+      if (hidden.isNotEmpty && withAllLevels > 0)
+        (
+          drops: dropsLevels,
+          label: s.consoleShowAllLevels,
+          count: withAllLevels,
+          apply: showAllLevels,
+        ),
+      if (query.isNotEmpty && withoutSearch > 0)
+        (
+          drops: '"$query"',
+          label: s.consoleClearSearch,
+          count: withoutSearch,
+          apply: clearSearch,
+        ),
+      if (withAllLevels == 0 && withoutSearch == 0)
+        (
+          drops: [
+            if (hidden.isNotEmpty) dropsLevels,
+            if (query.isNotEmpty) '"$query"',
+          ].join(' · '),
+          label: s.consoleResetFilters,
+          count: logs.length,
+          apply: () {
+            showAllLevels();
+            clearSearch();
+          },
+        ),
+    ];
+  }
+
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _selectedId.dispose();
     _entryCount.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -164,6 +263,7 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
       children: [
         Toolbar(
           entryCount: _entryCount,
+          searchController: _search,
           autoScroll: _autoScroll,
           onToggleAutoScroll: () {
             if (_autoScroll) {
@@ -191,11 +291,18 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
         const Divider(height: 1),
         Expanded(
           child: _entries.isEmpty
-              ? EmptyState(
-                  icon: LucideIcons.terminal,
-                  title: S.of(context).noLogsYet,
-                  subtitle:
-                      S.of(context).connectDeviceToSeeLogs,
+              ? Consumer(
+                  builder: (context, ref, _) {
+                    final logs = ref.watch(consoleDeviceEntriesProvider);
+                    if (logs.isEmpty) {
+                      return EmptyStateWithPulse(
+                        icon: LucideIcons.terminal,
+                        title: S.of(context).noLogsYet,
+                        subtitle: S.of(context).connectDeviceToSeeLogs,
+                      );
+                    }
+                    return NoMatchState(fixes: _fixes(ref, logs));
+                  },
                 )
               : Stack(
                   children: [
@@ -207,14 +314,20 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                         // guarantee the user's scroll position is stable when
                         // new entries arrive.
                         Expanded(
-                          child: StableListView<LogEntry>(
+                          child: NotificationListener<UserScrollNotification>(
+                            onNotification: _onUserScroll,
+                            child: StableListView<LogEntry>(
                             controller: _scrollController,
                             reverse: isReversed,
                             generation: _generation,
                             childCount: _visibleCount,
-                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
                             entries: _entries,
-                            itemExtent: 64,
+                            itemExtent: 70,
                             idOf: (e) => e.id,
                             selectedId: _selectedId,
                             onSelect: (entry) {
@@ -235,24 +348,15 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                               return LogEntryContent(
                                 entry: entry,
                                 platform: device?.platform,
+                                source: device == null
+                                    ? null
+                                    : '${device.appName} · ${device.deviceName}',
+                                run: _runs[entry.id] ?? const [],
+                                fresh: _fresh.contains(entry.id),
+                                selection: _selectedId,
                               );
                             },
-                            decorationBuilder: (isSelected, isDark) {
-                              return BoxDecoration(
-                                color: isSelected
-                                    ? ColorTokens.selectedBg(isDark)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? ColorTokens.selectedBorder(isDark)
-                                      : (isDark
-                                          ? Colors.white.withValues(alpha: 0.04)
-                                          : Colors.black.withValues(alpha: 0.04)),
-                                  width: 1,
-                                ),
-                              );
-                            },
+                          ),
                           ),
                         ),
                         // ── Detail panel ──
@@ -275,6 +379,12 @@ class _ConsolePageState extends ConsumerState<ConsolePage> {
                                   child: LogDetailPanel(
                                     key: ValueKey(selected.id),
                                     entry: selected,
+                                    occurrences: _runs[selected.id] ?? const [],
+                                    source: ref
+                                        .read(connectedDevicesProvider)
+                                        .where((d) => d.deviceId == selected.deviceId)
+                                        .map((d) => '${d.appName} · ${d.deviceName}')
+                                        .firstOrNull,
                                     onClose: () => _selectedId.value = null,
                                   ),
                                 ),

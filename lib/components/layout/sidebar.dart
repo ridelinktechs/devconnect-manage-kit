@@ -5,7 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/providers/tab_visibility_provider.dart';
 import '../../core/theme/color_tokens.dart';
 import '../../core/theme/theme_provider.dart';
-import '../../core/utils/smooth_scroll_controller.dart';
+import '../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../server/providers/server_providers.dart';
 
 class SidebarItem {
@@ -80,6 +80,16 @@ final sidebarItems = [
     label: 'Async',
     icon: LucideIcons.workflow,
     routePath: '/async',
+  ),
+  const SidebarItem(
+    label: 'Layout',
+    icon: LucideIcons.scanSearch,
+    routePath: '/layout',
+  ),
+  const SidebarItem(
+    label: 'Commands',
+    icon: LucideIcons.squareTerminal,
+    routePath: '/commands',
   ),
   const SidebarItem(
     label: 'Mock',

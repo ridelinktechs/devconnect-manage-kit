@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/providers/retention_provider.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../core/theme/chrome_palette.dart';
+import '../controls/settings_row.dart';
 import '../header/section_title.dart';
 import '../shared/preset_dropdown.dart';
 
@@ -29,35 +31,20 @@ class AllEventsDisplaySection extends ConsumerWidget {
         ),
         Text(
           S.of(context).allEventsDisplayDesc,
-          style: TextStyle(fontSize: 11, color: Colors.grey[500], height: 1.4),
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.45,
+            color: ChromePalette.of(context).textMuted,
+          ),
         ),
-        const SizedBox(height: 14),
-
-        // Visible entries
-        Row(
-          children: [
-            SizedBox(
-              width: 100,
-              child: Text(
-                S.of(context).maxItems,
-                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-              ),
-            ),
-            Expanded(
-              child: PresetDropdown(
-                selected: preset,
-                onSelected: (p) =>
-                    ref.read(allEventsDisplayLimitProvider.notifier).set(p),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Padding(
-          padding: const EdgeInsets.only(left: 100),
-          child: Text(
-            S.of(context).allEventsDisplayHelper,
-            style: TextStyle(fontSize: 10, color: Colors.grey[600], height: 1.4),
+        const SizedBox(height: 10),
+        SettingsRow(
+          first: true,
+          title: S.of(context).maxItems,
+          description: S.of(context).allEventsDisplayHelper,
+          control: PresetDropdown(
+            selected: preset,
+            onSelected: (p) => ref.read(allEventsDisplayLimitProvider.notifier).set(p),
           ),
         ),
       ],

@@ -2,8 +2,6 @@ package com.devconnect.interceptors
 
 import com.devconnect.DevConnect
 import okhttp3.Response
-import okhttp3.ResponseBody.Companion.toResponseBody
-import okio.Buffer
 import org.json.JSONObject
 import java.util.UUID
 
@@ -36,6 +34,7 @@ class OkHttpInterceptor : okhttp3.Interceptor {
     override fun intercept(chain: okhttp3.Interceptor.Chain): Response {
         val requestId = UUID.randomUUID().toString()
         val request = chain.request()
+        OkHttpCalls.remember(requestId, chain.call())
         val startTime = System.currentTimeMillis()
 
         // Extract request info
@@ -72,10 +71,12 @@ class OkHttpInterceptor : okhttp3.Interceptor {
                                 "length" to part.body.contentLength()
                             ))
                         } else {
-                            val buffer = okio.Buffer()
-                            part.body.writeTo(buffer)
                             // Field name may carry a credential — redact value.
-                            fields[name] = redactValue(name, buffer.readUtf8())
+                            fields[name] = bodySummary(part.body) ?: run {
+                                val buffer = okio.Buffer()
+                                part.body.writeTo(buffer)
+                                redactValue(name, buffer.readUtf8())
+                            }
                         }
                     }
                     val result = mutableMapOf<String, Any?>()
@@ -86,13 +87,10 @@ class OkHttpInterceptor : okhttp3.Interceptor {
                     }
                     requestBody = result
                 } else {
-                    val buffer = okio.Buffer()
-                    body.writeTo(buffer)
-                    val bodyStr = buffer.readUtf8()
-                    requestBody = try {
-                        JSONObject(bodyStr)
-                    } catch (_: Exception) {
-                        bodyStr
+                    requestBody = bodySummary(body) ?: run {
+                        val buffer = okio.Buffer()
+                        body.writeTo(buffer)
+                        parseText(buffer.readUtf8())
                     }
                 }
             }
@@ -123,6 +121,8 @@ class OkHttpInterceptor : okhttp3.Interceptor {
 
         // Execute the request
         return try {
+            // Desktop-set throttling; failing here reports like a real failure.
+            DevConnect.applyNetworkConditions()
             val response = chain.proceed(request)
 
             // Response headers — same redaction pass.
@@ -131,41 +131,10 @@ class OkHttpInterceptor : okhttp3.Interceptor {
                 resHeaders[name] = redactHeader(name, value)
             }
 
-            // Response body — capture up to MAX_CAPTURED_BODY_BYTES bytes
-            // without consuming the underlying stream. We buffer the
-            // source into a fresh Buffer and re-attach a synthesized
-            // body so the call chain downstream still sees the full
-            // response.
-            //
-            // OkHttp 4.12.0 does not expose `ResponseBody.peekBody` (that
-            // arrived in OkHttp 5.x), so we read via `source().request(N)`
-            // ourselves.
-            var responseBody: Any? = null
-            val originalBody = response.body
-            val responseBodyStr: String? = if (originalBody != null) {
-                try {
-                    val sink = Buffer()
-                    originalBody.source().request(MAX_CAPTURED_BODY_BYTES.toLong())
-                    sink.write(originalBody.source(), originalBody.source().buffer.size)
-                    val bytes = sink.readByteArray()
-                    bytes.toString(Charsets.UTF_8)
-                } catch (e: Exception) {
-                    null
-                }
-            } else null
-            val displayBody = if (responseBodyStr != null &&
-                responseBodyStr.length > MAX_CAPTURED_BODY_BYTES
-            ) {
-                responseBodyStr.substring(0, MAX_CAPTURED_BODY_BYTES) + "…[truncated]"
-            } else {
-                responseBodyStr
-            }
-            displayBody?.let { str ->
-                responseBody = try {
-                    JSONObject(str)
-                } catch (_: Exception) {
-                    str
-                }
+            val responseBody: Any? = try {
+                captureResponseBody(response)
+            } catch (_: Exception) {
+                null
             }
 
             // Report complete
@@ -181,10 +150,7 @@ class OkHttpInterceptor : okhttp3.Interceptor {
                 responseBody = responseBody
             )
 
-            // Rebuild response with body since we consumed it
-            response.newBuilder()
-                .body((responseBodyStr ?: "").toResponseBody(response.body?.contentType()))
-                .build()
+            response
         } catch (e: Exception) {
             DevConnect.reportNetworkComplete(
                 requestId = requestId,
@@ -201,11 +167,15 @@ class OkHttpInterceptor : okhttp3.Interceptor {
     }
 
     private companion object {
-        // Cap captured bodies at 1 MB. The desktop inspector renders a
-        // small fraction of any body anyway; this avoids OOM on chatty
-        // or large-response APIs (e.g. Firebase Real Database snapshots,
-        // S3 list-objects).
+        // Request bodies that aren't text are summarised past 1 MB, so a
+        // big upload isn't buffered; text is captured whole.
         const val MAX_CAPTURED_BODY_BYTES = 1_048_576
+
+        /** Images up to this many bytes are sent for the desktop to show; bigger ones by their size. */
+        const val MAX_IMAGE_BYTES = 10 * 1_048_576
+
+        /** Text longer than this is sent unparsed: the desktop parses it, off its UI thread. */
+        const val MAX_PARSE_CHARS = 1_048_576
 
         // Header names that carry credentials. Compared case-insensitively.
         val SENSITIVE_HEADERS = setOf(
@@ -233,5 +203,92 @@ class OkHttpInterceptor : okhttp3.Interceptor {
             val lower = key.lowercase()
             return if (SENSITIVE_KEY_HINTS.any { lower.contains(it) }) "[REDACTED]" else value
         }
+
+        // Content types decoded as text for the report; others are summarised.
+        val TEXT_TYPE_HINTS = listOf(
+            "text/", "json", "xml", "javascript", "x-www-form-urlencoded", "graphql",
+        )
+
+        /**
+         * What to report instead of reading [body], or null when it's safe to
+         * read: one-shot / duplex bodies would be consumed before the real
+         * send, and unknown-length or large ones (file uploads) buffered whole.
+         */
+        fun bodySummary(body: okhttp3.RequestBody): String? {
+            val length = body.contentLength()
+            val type = body.contentType()?.toString()?.lowercase() ?: ""
+            return when {
+                body.isOneShot() || body.isDuplex() || length < 0 -> sized("stream", length)
+                length > MAX_CAPTURED_BODY_BYTES && TEXT_TYPE_HINTS.none { type.contains(it) } ->
+                    sized("large", length)
+                else -> null
+            }
+        }
+
+        /** Text bodies whole, images as a `data:` URL; other binary bodies and streams as a summary. */
+        fun captureResponseBody(response: Response): Any {
+            val body = response.body
+            val type = body.contentType()?.toString()?.lowercase() ?: ""
+            val length = body.contentLength()
+            return when {
+                length == 0L -> ""
+                type.startsWith("image/") && !type.contains("svg") && length <= MAX_IMAGE_BYTES -> {
+                    val bytes = response.peekBody(MAX_IMAGE_BYTES + 1L).byteString()
+                    if (bytes.size > MAX_IMAGE_BYTES) {
+                        sized("binary", length)
+                    } else {
+                        "data:${type.substringBefore(';').trim()};base64,${bytes.base64()}"
+                    }
+                }
+                type.isNotEmpty() && TEXT_TYPE_HINTS.none { type.contains(it) } -> sized("binary", length)
+                // SSE / NDJSON stay open: peeking them would block the call.
+                type.contains("stream") || type.contains("ndjson") -> "<stream>"
+                else -> parseText(response.peekBody(Long.MAX_VALUE).string())
+            }
+        }
+
+        /** [text] as a JSONObject when it is one, unless it's longer than [MAX_PARSE_CHARS]. */
+        fun parseText(text: String): Any = if (text.length > MAX_PARSE_CHARS) {
+            text
+        } else {
+            try {
+                JSONObject(text)
+            } catch (_: Exception) {
+                text
+            }
+        }
+
+        /** "<kind, N bytes>", or "<kind>" when the length is unknown. */
+        fun sized(kind: String, length: Long) = if (length < 0) "<$kind>" else "<$kind, $length bytes>"
+    }
+}
+
+/** Recent OkHttp calls by request id, so the desktop can replay one. */
+internal object OkHttpCalls {
+    private val recent = object : LinkedHashMap<String, okhttp3.Call>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, okhttp3.Call>?) =
+            size > 200
+    }
+
+    @Synchronized
+    fun remember(requestId: String, call: okhttp3.Call) {
+        recent[requestId] = call
+    }
+
+    /**
+     * Sends call [requestId] again as an OkHttp clone: the app's own client
+     * and interceptors run it (real auth headers, which the capture
+     * redacts) and DevConnect records it. False when it's not remembered.
+     */
+    fun replay(requestId: String): Boolean {
+        val call = synchronized(this) { recent[requestId] } ?: return false
+        call.clone().enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+
+            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                response.close()
+            }
+        })
+        return true
     }
 }

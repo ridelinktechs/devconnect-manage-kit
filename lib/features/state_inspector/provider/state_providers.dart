@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/retention_provider.dart';
-import '../../../core/utils/list_retention.dart';
-import '../../../core/utils/retention_capped.dart';
+import '../../../core/utils/collections/list_retention.dart';
+import '../../../core/utils/collections/retention_capped.dart';
 import '../../../models/state/state_change.dart';
 import '../../../server/providers/server_providers.dart';
 
@@ -62,7 +62,58 @@ class _StateSearchNotifier extends Notifier<String> {
   void set(String v) => state = v;
 }
 
+/// The family of a reported `stateManager` as a filter key: `zustand:cart`
+/// gives `zustand`, `ReactQuery::todos` gives `reactquery`.
+String stateManagerKey(String type) {
+  final cut = type.indexOf(':');
+  final family = cut < 0 ? type : type.substring(0, cut);
+  final key = family.trim().toLowerCase().replaceAll(RegExp(r'[\s_\-.]'), '');
+  return key.isEmpty ? 'unknown' : key;
+}
+
+/// State library families hidden from the timeline, by [stateManagerKey].
+final stateHiddenManagersProvider =
+    NotifierProvider<_StateHiddenManagersNotifier, Set<String>>(
+  _StateHiddenManagersNotifier.new,
+);
+
+class _StateHiddenManagersNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => const {};
+
+  void toggle(String key) => state =
+      state.contains(key) ? ({...state}..remove(key)) : {...state, key};
+}
+
+/// The families in [stateSearchedChangesProvider], in the order they first
+/// appear: a `stateManager` that names it and how many changes it has.
+final stateManagerCountsProvider =
+    Provider<List<({String key, String type, int count})>>((ref) {
+  final counts = <String, ({String key, String type, int count})>{};
+  for (final e in ref.watch(stateSearchedChangesProvider)) {
+    final key = stateManagerKey(e.stateManagerType);
+    final seen = counts[key];
+    counts[key] = (
+      key: key,
+      type: seen?.type ?? e.stateManagerType,
+      count: (seen?.count ?? 0) + 1,
+    );
+  }
+  return counts.values.toList();
+});
+
 final filteredStateChangesProvider = Provider<List<StateChange>>((ref) {
+  final hidden = ref.watch(stateHiddenManagersProvider);
+  final entries = ref.watch(stateSearchedChangesProvider);
+  if (hidden.isEmpty) return entries;
+  return entries
+      .where((e) => !hidden.contains(stateManagerKey(e.stateManagerType)))
+      .toList();
+});
+
+/// The picked device's changes that match the search, before the family
+/// filter.
+final stateSearchedChangesProvider = Provider<List<StateChange>>((ref) {
   final entries = ref.watch(stateChangesDisplayProvider).items;
   final search = ref.watch(stateSearchProvider).toLowerCase();
   final selectedDevice = ref.watch(selectedDeviceProvider);

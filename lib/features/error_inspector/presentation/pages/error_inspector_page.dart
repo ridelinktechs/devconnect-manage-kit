@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/routes/listen_while_shown.dart';
+import '../../../../core/theme/color_tokens.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/position_retained_scroll_physics.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/scroll/position_retained_scroll_physics.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
 import '../../../../models/log/error_event.dart';
 import '../../provider/error_providers.dart';
 import '../detail/error_detail_panel.dart';
 import '../event_row/error_list_item.dart';
 import '../header/toolbar.dart';
-import '../shared/empty_state_with_pulse.dart';
 
 /// Top-level Error Inspector page. Composes:
 ///
@@ -36,7 +39,8 @@ class ErrorInspectorPage extends ConsumerStatefulWidget {
       _ErrorInspectorPageState();
 }
 
-class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
+class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage>
+    with ListenWhileShown {
   final _scrollController = SmoothScrollController();
   final _selectedId = ValueNotifier<String?>(null);
   final _entryCount = ValueNotifier<int>(0);
@@ -51,7 +55,7 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    ref.listenManual<List<ErrorEvent>>(
+    listenWhileShown<List<ErrorEvent>>(
       filteredErrorEntriesProvider,
       (previous, next) {
         final prevLen = _entries.length;
@@ -73,7 +77,6 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
           if (_autoScroll) _autoScrollIfNeeded();
         }
       },
-      fireImmediately: true,
     );
     // Selection changes must also bump generation — StableBuilderDelegate
     // short-circuits shouldRebuild when generation is unchanged, which
@@ -205,6 +208,8 @@ class _ErrorInspectorPageState extends ConsumerState<ErrorInspectorPage> {
         Expanded(
           child: _entries.isEmpty
               ? const EmptyStateWithPulse(
+                  icon: LucideIcons.shieldCheck,
+                  color: ColorTokens.logError,
                   title: 'No errors recorded',
                   subtitle:
                       "When the connected app reports an error, it'll show up here.",

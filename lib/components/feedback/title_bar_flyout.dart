@@ -5,8 +5,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/providers/sdk_versions_provider.dart';
 import '../../core/theme/chrome_palette.dart';
-import '../../core/utils/sdk_version.dart';
-import '../../l10n/app_localizations.dart';
+import '../../core/utils/app/sdk_version.dart';
+import '../../l10n/generated/app_localizations.dart';
 
 /// A title-bar pill that previews a popover on hover and pins it on click
 /// (or Enter/Space); Esc or a click outside closes a pinned one. The

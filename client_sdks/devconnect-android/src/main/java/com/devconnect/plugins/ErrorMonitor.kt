@@ -84,26 +84,28 @@ object ErrorMonitor {
         previousHandler = Thread.getDefaultUncaughtExceptionHandler()
 
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            val message = throwable.message ?: "Uncaught exception"
-            val stackTrace = throwable.stackTraceToString()
+            try {
+                val message = throwable.message ?: "Uncaught exception"
+                val stackTrace = throwable.stackTraceToString()
 
-            val deviceInfo = getDeviceInfo()
+                val deviceInfo = getDeviceInfo()
 
-            sendError(
-                platform = "android",
-                severity = "fatal",
-                message = message,
-                stackTrace = stackTrace,
-                source = "uncaught_exception",
-                metadata = mapOf(
-                    "threadName" to thread.name,
-                    "deviceInfo" to deviceInfo,
-                    "isNativeCrash" to "true"
+                sendError(
+                    platform = "android",
+                    severity = "fatal",
+                    message = message,
+                    stackTrace = stackTrace,
+                    source = "uncaught_exception",
+                    metadata = mapOf(
+                        "threadName" to thread.name,
+                        "deviceInfo" to deviceInfo,
+                        "isNativeCrash" to "true"
+                    )
                 )
-            )
-
-            // Call previous handler (usually logs to logcat and exits)
-            previousHandler?.uncaughtException(thread, throwable)
+            } finally {
+                // Call previous handler (usually logs to logcat and exits)
+                previousHandler?.uncaughtException(thread, throwable)
+            }
         }
     }
 

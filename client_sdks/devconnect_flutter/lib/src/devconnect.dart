@@ -5,31 +5,29 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'devconnect_client.dart';
-import 'interceptors/dio_interceptor.dart';
-import 'interceptors/getx_interceptor.dart';
-import 'interceptors/http_client_interceptor.dart';
-import 'interceptors/log_interceptor.dart';
-import 'interceptors/loggy_interceptor.dart';
-import 'interceptors/navigation_observer.dart';
-import 'reporters/drift_reporter.dart';
-import 'reporters/isar_reporter.dart';
-import 'reporters/log_reporter.dart';
-import 'reporters/mmkv_reporter.dart';
-import 'reporters/secure_storage_reporter.dart';
-import 'reporters/signals_observer.dart';
-import 'reporters/storage_reporter.dart';
-import 'wrappers/isar_wrapper.dart';
-import 'wrappers/realm_wrapper.dart';
-import 'plugins/performance_monitor.dart' as perf_monitor;
-import 'plugins/memory_leak_detector.dart' as memory_detector;
-import 'plugins/app_benchmark.dart' as app_bench;
-import 'plugins/error_monitor.dart' as error_monitor;
+import 'core/devconnect_setup.dart';
+import 'storage_adapter.dart';
+import 'interceptors/network/dio_interceptor.dart';
+import 'interceptors/network/getx_interceptor.dart';
+import 'interceptors/network/http_client_interceptor.dart';
+import 'interceptors/logging/log_interceptor.dart';
+import 'interceptors/logging/loggy_interceptor.dart';
+import 'interceptors/navigation/navigation_observer.dart';
+import 'reporters/storage/drift_reporter.dart';
+import 'reporters/storage/isar_reporter.dart';
+import 'reporters/logging/log_reporter.dart';
+import 'reporters/storage/mmkv_reporter.dart';
+import 'reporters/storage/secure_storage_reporter.dart';
+import 'reporters/state/signals_observer.dart';
+import 'reporters/storage/storage_reporter.dart';
+import 'wrappers/database/isar_wrapper.dart';
+import 'wrappers/database/realm_wrapper.dart';
 // Round 2-5 additions — auto-wired lazily by static helpers below.
-import 'interceptors/bloc/devconnect_bloc_observer.dart' as bloc_helper;
-import 'interceptors/provider/provider_tree_walker.dart' as provider_helper;
-import 'interceptors/graphql/devconnect_link.dart' as graphql_helper;
-import 'interceptors/websocket/devconnect_websocket.dart' as ws_helper;
-import 'interceptors/mock_server_interceptor.dart' as mock_helper;
+import 'interceptors/state/bloc/devconnect_bloc_observer.dart' as bloc_helper;
+import 'interceptors/state/provider/provider_tree_walker.dart' as provider_helper;
+import 'interceptors/network/graphql/devconnect_link.dart' as graphql_helper;
+import 'interceptors/network/websocket/devconnect_websocket.dart' as ws_helper;
+import 'interceptors/network/mock_server_interceptor.dart' as mock_helper;
 
 /// DevConnect Flutter SDK - Main entry point.
 ///
@@ -61,24 +59,8 @@ class DevConnect {
 
   /// Safe no-op guard for release builds.
   /// Returns true if SDK is active (debug + initialized).
-  static bool get _active => kDebugMode && _initialized;
+  static bool get _active => kDebugMode && _initialized && clientSafe != null;
 
-  /// One-line setup: init + intercept ALL HTTP + capture ALL developer logs.
-  ///
-  /// ```dart
-  /// void main() {
-  ///   DevConnect.runApp(
-  ///     appName: 'MyApp',
-  ///     app: const MyApp(),
-  ///   );
-  /// }
-  /// ```
-  ///
-  /// This single call:
-  /// - Connects to DevConnect desktop
-  /// - Intercepts ALL HTTP (http, Dio, Chopper, GraphQL, Firebase, OAuth2...)
-  /// - Captures print(), debugPrint(), log() from dart:developer
-  /// - Does NOT capture framework/system logs, only YOUR code's print statements
   /// One-line setup that wraps your runApp call.
   ///
   /// ```dart
@@ -129,27 +111,9 @@ class DevConnect {
     // IMPORTANT: Do NOT call WidgetsFlutterBinding.ensureInitialized()
     // before initAndRunApp. Put ALL your init (Firebase, prefs, etc.)
     // inside the runApp callback.
-    if (autoInterceptLogs) {
-      DevConnectLogInterceptor.runZoned(() async {
-        WidgetsFlutterBinding.ensureInitialized();
-        await _initAndRun(
-          autoPerformance: autoPerformance,
-          autoMemoryLeak: autoMemoryLeak,
-          autoBenchmark: autoBenchmark,
-          autoError: autoError,
-          appName: appName,
-          appVersion: appVersion,
-          versionCode: versionCode,
-          host: host,
-          port: port,
-          auto_: auto_,
-          autoInterceptHttp: autoInterceptHttp,
-          runApp: runApp,
-        );
-      });
-    } else {
+    Future<void> start() async {
       WidgetsFlutterBinding.ensureInitialized();
-      await _initAndRun(
+      await initAndRun(
         autoPerformance: autoPerformance,
         autoMemoryLeak: autoMemoryLeak,
         autoBenchmark: autoBenchmark,
@@ -164,48 +128,12 @@ class DevConnect {
         runApp: runApp,
       );
     }
-  }
 
-  /// Internal: start monitors → connect → runApp
-  static Future<void> _initAndRun({
-    required bool autoPerformance,
-    required bool autoMemoryLeak,
-    required bool autoBenchmark,
-    required bool autoError,
-    required String appName,
-    required String appVersion,
-    required String? versionCode,
-    required String? host,
-    required int port,
-    required bool auto_,
-    required bool autoInterceptHttp,
-    required Future<void> Function() runApp,
-  }) async {
-    // Monitoring plugins (binding is already initialized)
-    if (autoPerformance) perf_monitor.startPerformanceMonitor();
-    if (autoMemoryLeak) memory_detector.startMemoryLeakDetector();
-    if (autoBenchmark) app_bench.setupAppBenchmark();
-    if (autoError) error_monitor.startErrorMonitor();
-
-    await init(
-      appName: appName,
-      appVersion: appVersion,
-      versionCode: versionCode,
-      host: host,
-      port: port,
-      auto_: auto_,
-      enabled: true,
-      autoPerformance: false,
-      autoMemoryLeak: false,
-      autoBenchmark: false,
-    );
-
-    // Intercept ALL HTTP traffic globally
-    if (autoInterceptHttp) {
-      HttpOverrides.global = DevConnectHttpOverrides();
+    if (autoInterceptLogs) {
+      DevConnectLogInterceptor.runZoned(start);
+    } else {
+      await start();
     }
-
-    await runApp();
   }
 
   /// Initialize DevConnect and connect to desktop app.
@@ -230,7 +158,8 @@ class DevConnect {
   }) async {
     // Production kill-switch: no-op in release builds by default.
     if (!(enabled ?? kDebugMode) || _initialized) return;
-    _initFuture ??= _doInit(
+    _initialized = true;
+    _initFuture ??= doInit(
       appName: appName,
       appVersion: appVersion,
       versionCode: versionCode,
@@ -243,37 +172,6 @@ class DevConnect {
       autoBenchmark: autoBenchmark,
     );
     return _initFuture;
-  }
-
-  static Future<void> _doInit({
-    required String appName,
-    String appVersion = '1.0.0',
-    String? versionCode,
-    String? host,
-    int port = 9090,
-    String platform = 'flutter',
-    bool auto_ = true,
-    bool autoPerformance = true,
-    bool autoMemoryLeak = true,
-    bool autoBenchmark = true,
-  }) async {
-    _initialized = true;
-
-    await DevConnectClient.init(
-      host: host,
-      port: port,
-      appName: appName,
-      appVersion: appVersion,
-      versionCode: versionCode,
-      auto_: auto_,
-      deviceName: Platform.localHostname,
-      platform: platform,
-    );
-
-    // Auto-start monitoring plugins
-    if (autoPerformance) perf_monitor.startPerformanceMonitor();
-    if (autoMemoryLeak) memory_detector.startMemoryLeakDetector();
-    if (autoBenchmark) app_bench.setupAppBenchmark();
   }
 
   /// Run a callback in a Zone that captures print() and debugPrint().
@@ -307,13 +205,16 @@ class DevConnect {
   /// Dio-specific interceptor for granular control.
   ///
   /// Use this if you want to intercept only specific Dio instances
-  /// instead of all HTTP globally.
+  /// instead of all HTTP globally. Pass Dio's `Response.new` as
+  /// [responseFactory] to let desktop mock rules answer requests.
   ///
   /// ```dart
-  /// dio.interceptors.add(DevConnect.dioInterceptor());
+  /// final dc = DevConnect.dioInterceptor(responseFactory: Response.new);
+  /// dio.interceptors.add(InterceptorsWrapper(
+  ///     onRequest: dc.onRequest, onResponse: dc.onResponse, onError: dc.onError));
   /// ```
-  static DevConnectDioInterceptor dioInterceptor() {
-    return DevConnectDioInterceptor();
+  static DevConnectDioInterceptor dioInterceptor({Function? responseFactory}) {
+    return DevConnectDioInterceptor(responseFactory: responseFactory);
   }
 
   // ---- Navigation ----
@@ -653,13 +554,26 @@ class DevConnect {
   /// Set handler for state restore from desktop.
   ///
   /// ```dart
-  /// DevConnect.onStateRestore((state) {
+  /// DevConnect.onStateRestore = (state) {
   ///   ref.read(appStateProvider.notifier).restore(state);
-  /// });
+  /// };
   /// ```
   static set onStateRestore(void Function(Map<String, dynamic> state)? handler) {
     if (!_active) return;
     clientSafe?.onStateRestore = handler;
+  }
+
+  /// Set handler for the actions the desktop sends from State Inspector ›
+  /// Controls › Dispatch action. Set it after [init].
+  ///
+  /// ```dart
+  /// DevConnect.onReduxDispatch = (action) => store.dispatch(action);
+  /// ```
+  static set onReduxDispatch(
+    void Function(Map<String, dynamic> action)? handler,
+  ) {
+    if (!_active) return;
+    clientSafe?.onReduxDispatch = handler;
   }
 
   /// Set custom handler for "reload" requests from the desktop.
@@ -751,6 +665,46 @@ class DevConnect {
   ) {
     if (!_active) return;
     client.registerCommand(name, handler);
+  }
+
+  // ---- Storage ----
+
+  /// Lets the desktop's Storage tab list, edit, delete and clear a
+  /// key-value store. `DevConnectSharedPreferences.wrap` registers its own;
+  /// call this for any other store:
+  ///
+  /// ```dart
+  /// DevConnect.registerStorage('hive:settings', DevConnectStorageAdapter(
+  ///   getAll: () => box.toMap().map((k, v) => MapEntry('$k', v)),
+  ///   set: box.put,
+  ///   remove: box.delete,
+  ///   clear: box.clear,
+  /// ));
+  /// ```
+  static void registerStorage(
+    String storageType,
+    DevConnectStorageAdapter adapter,
+  ) =>
+      DevConnectClient.registerStorage(storageType, adapter);
+
+  // ---- Database ----
+
+  /// Lets the desktop's Database tab browse and query a SQLite database.
+  /// [query] runs one SQL statement and returns its rows — `db.rawQuery`
+  /// with sqflite:
+  ///
+  /// ```dart
+  /// DevConnect.registerDatabase('app.db', db.rawQuery);
+  /// // drift:
+  /// DevConnect.registerDatabase('app', (sql) async =>
+  ///     [for (final r in await db.customSelect(sql).get()) r.data]);
+  /// ```
+  static void registerDatabase(
+    String name,
+    Future<List<Map<String, Object?>>> Function(String sql) query,
+  ) {
+    if (!_active) return;
+    client.registerDatabase(name, query);
   }
 
   // ---- Network (manual) ----
@@ -868,16 +822,31 @@ class DevConnect {
 
   // ---- Round 2: State auto-discovery (BLoC / Provider) ----
 
-  /// Returns a BLoC observer that reports state changes to the desktop.
-  /// No hard dependency on `flutter_bloc` — call this only when you
-  /// already have `flutter_bloc` on the classpath.
+  /// Not a `flutter_bloc` `BlocObserver` (this package doesn't depend on
+  /// bloc), so `Bloc.observer` can't take it. Use [reportBlocChange].
+  @Deprecated('Not a flutter_bloc BlocObserver. Extend BlocObserver in your '
+      'app and call DevConnect.reportBlocChange from onChange.')
+  static bloc_helper.DevConnectBlocObserver blocObserver() =>
+      bloc_helper.DevConnectBlocObserver();
+
+  /// Reports a single BLoC state change. With `flutter_bloc`, call it from
+  /// your app's own observer:
   ///
   /// ```dart
-  /// Bloc.observer = DevConnect.blocObserver();
+  /// class AppBlocObserver extends BlocObserver {
+  ///   @override
+  ///   void onChange(BlocBase bloc, Change change) {
+  ///     super.onChange(bloc, change);
+  ///     DevConnect.reportBlocChange(
+  ///       blocName: bloc.runtimeType.toString(),
+  ///       fromState: change.currentState.toString(),
+  ///       toState: change.nextState.toString(),
+  ///     );
+  ///   }
+  /// }
+  ///
+  /// Bloc.observer = AppBlocObserver();
   /// ```
-  static dynamic blocObserver() => bloc_helper.DevConnectBlocObserver();
-
-  /// Helper for non-BLoC consumers. Reports a single BLoC state change.
   static void reportBlocChange({
     required String blocName,
     required String? fromState,
@@ -910,42 +879,68 @@ class DevConnect {
 
   // ---- Round 3: Protocol inspectors ----
 
-  /// Returns a [gql_link]-compatible link (or stub). Requires
-  /// `gql_link` / `graphql_flutter` on the classpath; otherwise the
-  /// returned object is a `DevConnectLinkBase` you can compose
-  /// yourself via [DevConnectGraphQLHelper].
+  /// Returns a `DevConnectLink`, built on this package's own link types
+  /// (no `gql_link` dependency). For `graphql_flutter` / ferry, use the
+  /// `DevConnectGqlLink` adapter from the README, built on
+  /// [reportGraphQLOperation] and [reportGraphQLResponse].
   static dynamic graphqlLink() => graphql_helper.DevConnectLink();
 
-  /// Helper for non-Link GraphQL transports.
-  static void reportGraphQLOperation({
-    required String operationName,
+  /// Reports a GraphQL operation (null/empty [operationName] = "anonymous")
+  /// and returns its `operationId`. Pass that id to [reportGraphQLResponse]
+  /// when the result arrives, or the operation stays pending on the desktop.
+  static String reportGraphQLOperation({
+    String? operationName,
     required String operationType,
     Map<String, dynamic>? variables,
   }) {
-    graphql_helper.DevConnectGraphQLHelper.reportOperation(
+    return graphql_helper.DevConnectGraphQLHelper.reportOperation(
       operationName: operationName,
       operationType: operationType,
       variables: variables,
     );
   }
 
+  /// Completes an operation from [reportGraphQLOperation]: the server's
+  /// [data] and [errors] (maps or gql `GraphQLError`s), or [error] for a
+  /// transport failure.
+  static void reportGraphQLResponse({
+    required String operationId,
+    String? operation,
+    required int latencyMs,
+    Map<String, dynamic>? data,
+    List<Object?>? errors,
+    String? error,
+  }) {
+    graphql_helper.DevConnectGraphQLHelper.reportResponse(
+      operationId: operationId,
+      operation: operation,
+      latencyMs: latencyMs,
+      data: data,
+      errors: errors,
+      error: error,
+    );
+  }
+
   /// Connect to a WebSocket endpoint with DevConnect frame capture.
-  static Future<dynamic> websocketConnect(String url,
+  static Future<ws_helper.DevConnectWebSocket> websocketConnect(String url,
           {Iterable<String>? protocols, Map<String, dynamic>? headers}) =>
       ws_helper.DevConnectWebSocket.connect(url,
           protocols: protocols, headers: headers);
 
   /// Wrap an already-connected [dart:io] `WebSocket`.
-  static dynamic websocketWrap(Object socket, String url) =>
-      ws_helper.DevConnectWebSocket.wrap(socket as dynamic, url);
+  static ws_helper.DevConnectWebSocket websocketWrap(
+          WebSocket socket, String url) =>
+      ws_helper.DevConnectWebSocket.wrap(socket, url);
 
   /// Push a single WebSocket frame event from a manually-managed socket.
+  /// [connectionId] groups one connection's frames (defaults to [url]).
   static void reportWebSocketFrame({
     required String url,
     required String direction,
     required String opcode,
     dynamic payload,
     int? sizeBytes,
+    String? connectionId,
   }) {
     ws_helper.DevConnectWebSocketHelper.reportFrame(
       url: url,
@@ -953,6 +948,7 @@ class DevConnect {
       opcode: opcode,
       payload: payload,
       sizeBytes: sizeBytes,
+      connectionId: connectionId,
     );
   }
 

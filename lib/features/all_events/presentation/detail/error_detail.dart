@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../../../../components/text/text_component.dart';
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../core/utils/toast_utils.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../core/utils/ui/toast_utils.dart';
 import '../../../../models/log/error_event.dart';
 import '../shared/copy_button.dart';
 import '../shared/error_block.dart';

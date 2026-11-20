@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
+import '../../../../components/feedback/empty_state_with_pulse.dart';
+import '../../../../components/layout/segmented_tab_bar.dart';
 import '../../../../components/lists/stable_list_view.dart';
 import '../../../../components/misc/jump_to_latest_fab.dart';
+import '../../../../core/routes/listen_while_shown.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../../core/utils/position_retained_scroll_physics.dart';
-import '../../../../core/utils/smooth_scroll_controller.dart';
-import '../../../../l10n/app_localizations.dart';
+import '../../../../core/utils/scroll/position_retained_scroll_physics.dart';
+import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/network/network_entry.dart';
 import '../../../round/presentation/mock_audit_panel.dart';
 import '../../../round/presentation/protocol_panel.dart';
+import '../../../round/provider/round_providers.dart';
 import '../../provider/network_providers.dart';
 import '../request/request_card.dart';
 import '../request/request_detail_panel.dart';
@@ -38,7 +41,7 @@ class NetworkInspectorPage extends ConsumerStatefulWidget {
 
 class _NetworkInspectorPageState
     extends ConsumerState<NetworkInspectorPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, ListenWhileShown {
   final _scrollController = SmoothScrollController();
   final _entryCount = ValueNotifier<int>(0);
   bool _autoScroll = true;
@@ -51,9 +54,13 @@ class _NetworkInspectorPageState
   @override
   void initState() {
     super.initState();
-    _outerTab = TabController(length: 3, vsync: this);
+    _outerTab = TabController(
+      length: 3,
+      vsync: this,
+      animationDuration: ref.read(tabAnimationProvider),
+    );
     _scrollController.addListener(_onScroll);
-    ref.listenManual(
+    listenWhileShown(
       filteredNetworkEntriesProvider,
       (previous, next) {
         // Network has in-place updates (response arrives for pending request).
@@ -67,7 +74,6 @@ class _NetworkInspectorPageState
         setState(() {});
         if (_autoScroll) _autoScrollIfNeeded();
       },
-      fireImmediately: true,
     );
   }
 
@@ -199,7 +205,7 @@ class _NetworkInspectorPageState
     final scrollDir = ref.watch(scrollDirectionProvider);
     final isReversed = scrollDir == ScrollDirection.top;
     return _entries.isEmpty
-        ? EmptyState(
+        ? EmptyStateWithPulse(
             icon: LucideIcons.globe,
             title: S.of(context).noNetworkRequests,
             subtitle: S.of(context).apiCallsAppearHere,
@@ -302,35 +308,45 @@ class _NetworkInspectorPageState
   }
 }
 
-class _TopTabBar extends StatelessWidget {
+/// HTTP / Protocols / Mock Audit, each with how many items it holds.
+class _TopTabBar extends ConsumerWidget {
   final TabController controller;
   const _TopTabBar({required this.controller});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(
-              color: theme.dividerColor.withValues(alpha: 0.5)),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loc = S.of(context);
+    final http =
+        ref.watch(filteredNetworkEntriesProvider.select((e) => e.length));
+    final graphql =
+        ref.watch(graphqlDisplayProvider.select((d) => d.items.length));
+    final websocket =
+        ref.watch(websocketDisplayProvider.select((d) => d.items.length));
+    final grpc = ref.watch(grpcDisplayProvider.select((d) => d.items.length));
+    final mocked =
+        ref.watch(mockAuditDisplayProvider.select((d) => d.items.length));
+    return SegmentedTabBar(
+      controller: controller,
+      tabs: [
+        SegmentedTab(
+          icon: LucideIcons.globe,
+          label: 'HTTP',
+          count: http,
+          tooltip: loc.networkTabHttpHint,
         ),
-      ),
-      child: TabBar(
-        controller: controller,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        labelColor: theme.colorScheme.primary,
-        unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-        indicatorColor: theme.colorScheme.primary,
-        indicatorWeight: 2,
-        tabs: const [
-          Tab(text: 'HTTP'),
-          Tab(text: 'Protocols'),
-          Tab(text: 'Mock Audit'),
-        ],
-      ),
+        SegmentedTab(
+          icon: LucideIcons.network,
+          label: 'Protocols',
+          count: graphql + websocket + grpc,
+          tooltip: loc.networkTabProtocolsHint,
+        ),
+        SegmentedTab(
+          icon: LucideIcons.scrollText,
+          label: 'Mock Audit',
+          count: mocked,
+          tooltip: loc.networkTabMockAuditHint,
+        ),
+      ],
     );
   }
 }
