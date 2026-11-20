@@ -1393,13 +1393,37 @@ abstract class S {
   ///
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 row} other{{count} rows}}'**
-  String dbRows(num count);
+  String dbRows(int count);
 
   /// No description provided for @dbTruncated.
   ///
   /// In en, this message translates to:
   /// **'first {count} only'**
   String dbTruncated(Object count);
+
+  /// No description provided for @dbFilterTables.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter tables'**
+  String get dbFilterTables;
+
+  /// No description provided for @dbData.
+  ///
+  /// In en, this message translates to:
+  /// **'Data'**
+  String get dbData;
+
+  /// No description provided for @dbStructure.
+  ///
+  /// In en, this message translates to:
+  /// **'Structure'**
+  String get dbStructure;
+
+  /// No description provided for @dbColumnCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 column} other{{count} columns}}'**
+  String dbColumnCount(int count);
 
   /// No description provided for @dbNoResponse.
   ///

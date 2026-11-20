@@ -2,23 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../components/feedback/empty_state.dart';
-import '../../../../components/feedback/empty_state_with_pulse.dart';
 import '../../../../core/theme/chrome_palette.dart';
 import '../../../../core/theme/color_tokens.dart';
-import '../../../../core/utils/format/duration_format.dart';
-import '../../../../core/utils/scroll/smooth_scroll_controller.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../models/device_info.dart';
 import '../../../../models/storage/storage_entry.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../settings/presentation/tips/page_guide_button.dart';
 import '../../provider/database_providers.dart';
+import '../editor/sql_editor.dart';
+import '../grid/query_status_bar.dart';
+import '../grid/result_grid.dart';
+import '../header/table_bar.dart';
+import '../shared/db_look.dart';
+import '../shared/quiet_state.dart';
+import '../sidebar/table_sidebar.dart';
 
 /// Browses and queries the SQLite databases an app registered with
-/// `DevConnect.registerDatabase`: tables (with row counts) on the left, a
-/// SQL editor and the result grid on the right. Picking a table runs a
-/// preview query.
+/// `DevConnect.registerDatabase`, laid out like a desktop database client:
+/// the databases and their tables on the left; on the right the picked
+/// table's bar, then the SQL editor, the result grid and its status bar, or
+/// the table's structure. Picking a table runs a preview query.
 class DatabaseViewerPage extends ConsumerStatefulWidget {
   const DatabaseViewerPage({super.key});
 
@@ -31,6 +35,9 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
 
   /// The picked (database, table).
   (String, String)? _picked;
+
+  /// Whether the picked table shows its structure rather than its data.
+  bool _structure = false;
 
   /// Devices already asked for their schema, so rebuilds don't re-ask.
   final _asked = <String>{};
@@ -67,10 +74,21 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
     _run(device, schemas);
   }
 
+  /// The picked table in [schemas], once they list it.
+  DatabaseTable? _table(List<DatabaseSchema> schemas) {
+    final (database, table) = _picked ?? ('', '');
+    return schemas
+        .where((s) => s.name == database)
+        .firstOrNull
+        ?.tables
+        .where((t) => t.name == table)
+        .firstOrNull;
+  }
+
   @override
   Widget build(BuildContext context) {
     final loc = S.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final p = ChromePalette.of(context);
     final devices = ref.watch(connectedDevicesProvider);
     final selectedId = ref.watch(selectedDeviceProvider);
     // The selected device, else the only one connected.
@@ -78,8 +96,8 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
         devices.where((d) => d.deviceId == selectedId).firstOrNull ??
         (devices.length == 1 ? devices.single : null);
     final schemas = target == null
-        ? null
-        : ref.watch(databaseSchemasProvider)[target.deviceId];
+        ? const <DatabaseSchema>[]
+        : ref.watch(databaseSchemasProvider)[target.deviceId] ?? const [];
     final query = target == null
         ? null
         : ref.watch(databaseQueryProvider)[target.deviceId];
@@ -90,33 +108,31 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
         }
       });
     }
-    final divider = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.black.withValues(alpha: 0.08);
+    final table = _table(schemas);
 
     return Column(
       children: [
         Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          height: 48,
+          padding: const EdgeInsets.only(left: 16, right: 8),
           decoration: BoxDecoration(
-            color: isDark ? ColorTokens.darkBackground : Colors.white,
-            border: Border(bottom: BorderSide(color: divider)),
+            color: p.isDark ? ColorTokens.darkBackground : Colors.white,
+            border: Border(bottom: BorderSide(color: p.border)),
           ),
           child: Row(
             children: [
-              Icon(LucideIcons.hardDrive, size: 15, color: ColorTokens.primary),
+              const Icon(
+                LucideIcons.hardDrive,
+                size: 16,
+                color: ColorTokens.primary,
+              ),
               const SizedBox(width: 8),
               Text(
                 loc.database,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
+                style: Theme.of(context).textTheme.titleMedium,
               ),
               const PageGuideButton(route: '/database'),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: target == null
                     ? const SizedBox.shrink()
@@ -124,16 +140,14 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                         '${target.appName} · ${target.deviceName}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(fontSize: 12, color: p.textMuted),
                       ),
               ),
               if (target != null)
                 IconButton(
                   icon: const Icon(LucideIcons.refreshCw, size: 14),
-                  color: isDark ? Colors.grey[500] : Colors.grey[600],
+                  color: p.textMuted,
+                  visualDensity: VisualDensity.compact,
                   tooltip: loc.dbRefresh,
                   onPressed: () => ref
                       .read(databaseSchemasProvider.notifier)
@@ -144,8 +158,7 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
         ),
         Expanded(
           child: target == null
-              ? EmptyStateWithPulse(
-                  icon: LucideIcons.hardDrive,
+              ? QuietState(
                   title: loc.database,
                   subtitle: devices.isEmpty
                       ? loc.dbNoDevice
@@ -155,48 +168,43 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
-                      width: 240,
-                      child: _TableList(
-                        schemas: schemas ?? const [],
+                      width: 248,
+                      child: TableSidebar(
+                        schemas: schemas,
                         picked: _picked,
-                        isDark: isDark,
-                        onPick: (database, table) => _pickTable(
-                          target,
-                          schemas ?? const [],
-                          database,
-                          table,
-                        ),
+                        onPick: (database, name) =>
+                            _pickTable(target, schemas, database, name),
                       ),
                     ),
-                    VerticalDivider(width: 1, color: divider),
+                    VerticalDivider(width: 1, thickness: 1, color: p.border),
                     Expanded(
-                      child: Column(
-                        children: [
-                          _SqlEditor(
-                            controller: _sql,
-                            running: query != null && query.result == null,
-                            isDark: isDark,
-                            divider: divider,
-                            onRun: () => _run(target, schemas ?? const []),
-                          ),
-                          Expanded(
-                            child: switch (query) {
-                              null => EmptyState(
-                                icon: LucideIcons.table2,
-                                title: loc.dbRunHint,
-                                subtitle: loc.dbRunHintSubtitle,
+                      child: ColoredBox(
+                        color: p.isDark
+                            ? ColorTokens.darkSurface
+                            : Colors.white,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (table != null)
+                              TableBar(
+                                table: table,
+                                structure: _structure,
+                                onStructure: (v) =>
+                                    setState(() => _structure = v),
                               ),
-                              DatabaseQuery(result: null) => const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                            if (table != null && _structure)
+                              Expanded(child: _structureOf(table))
+                            else ...[
+                              SqlEditor(
+                                controller: _sql,
+                                running: query != null && query.result == null,
+                                onRun: () => _run(target, schemas),
                               ),
-                              DatabaseQuery(:final result?) => _QueryResultView(
-                                result: result,
-                              ),
-                            },
-                          ),
-                        ],
+                              Divider(height: 1, thickness: 1, color: p.border),
+                              Expanded(child: _results(query, table)),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -205,324 +213,117 @@ class _DatabaseViewerPageState extends ConsumerState<DatabaseViewerPage> {
       ],
     );
   }
-}
 
-class _TableList extends StatelessWidget {
-  final List<DatabaseSchema> schemas;
-  final (String, String)? picked;
-  final bool isDark;
-  final void Function(String database, String table) onPick;
+  /// [table]'s columns as a grid: name, type, key and nullability.
+  Widget _structureOf(DatabaseTable table) {
+    if (table.columns.isEmpty) return QuietState(title: S.of(context).noData);
+    return ResultGrid(
+      key: ValueKey('structure ${table.name}'),
+      columns: const ['column', 'type', 'primary_key', 'nullable'],
+      rows: [
+        for (final c in table.columns)
+          {
+            'column': c.name,
+            'type': c.type,
+            'primary_key': c.isPrimaryKey ? 'YES' : '',
+            'nullable': c.isNullable ? 'YES' : 'NO',
+          },
+      ],
+    );
+  }
 
-  const _TableList({
-    required this.schemas,
-    required this.picked,
-    required this.isDark,
-    required this.onPick,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  /// The last query's outcome: a hint before any, a thin bar while it runs,
+  /// its error, or its rows with the status bar.
+  Widget _results(DatabaseQuery? query, DatabaseTable? table) {
     final loc = S.of(context);
-    final muted = Colors.grey[500];
-    final header = TextStyle(
-      fontSize: 10,
-      fontWeight: FontWeight.w700,
-      color: muted,
-      letterSpacing: 1,
-    );
-    return Container(
-      color: isDark ? ColorTokens.darkSurface : ColorTokens.lightSurface,
-      child: schemas.every((s) => s.tables.isEmpty)
-          ? Padding(
-              padding: const EdgeInsets.all(14),
-              child: Text(
-                loc.dbNoDatabases,
-                style: TextStyle(fontSize: 12, height: 1.5, color: muted),
-              ),
-            )
-          : ListView(
-              padding: const EdgeInsets.only(bottom: 8),
-              children: [
-                for (final schema in schemas) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-                    child: Text(
-                      schemas.length > 1
-                          ? schema.name.toUpperCase()
-                          : loc.dbTables.toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: header,
+    final p = ChromePalette.of(context);
+    return switch (query) {
+      null => QuietState(title: loc.dbRunHint, subtitle: loc.dbRunHintSubtitle),
+      DatabaseQuery(result: null) => Align(
+        alignment: Alignment.topCenter,
+        child: LinearProgressIndicator(
+          minHeight: 2,
+          color: dbSelection(p.isDark),
+          backgroundColor: Colors.transparent,
+        ),
+      ),
+      DatabaseQuery(result: QueryResult(:final error?)) => _ErrorNote(
+        error: error,
+      ),
+      DatabaseQuery(:final sql, :final database, result: final result?) =>
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: result.columns.isEmpty
+                  ? QuietState(title: loc.dbRows(0))
+                  : ResultGrid(
+                      key: ObjectKey(result),
+                      columns: result.columns,
+                      rows: result.rows,
+                      schema: table != null && sql.contains(table.name)
+                          ? {for (final c in table.columns) c.name: c}
+                          : const {},
                     ),
-                  ),
-                  for (final table in schema.tables)
-                    _TableTile(
-                      table: table,
-                      selected: picked == (schema.name, table.name),
-                      isDark: isDark,
-                      onTap: () => onPick(schema.name, table.name),
-                    ),
-                ],
-              ],
             ),
-    );
+            QueryStatusBar(
+              rows: result.rows.length,
+              truncated: result.truncated,
+              ms: result.executionTimeMs,
+              database: database,
+            ),
+          ],
+        ),
+    };
   }
 }
 
-class _TableTile extends StatelessWidget {
-  final DatabaseTable table;
-  final bool selected;
-  final bool isDark;
-  final VoidCallback onTap;
+/// A failed query's error as a callout at the top of the results, in mono
+/// so it reads like the database said it.
+class _ErrorNote extends StatelessWidget {
+  final String error;
 
-  const _TableTile({
-    required this.table,
-    required this.selected,
-    required this.isDark,
-    required this.onTap,
-  });
+  const _ErrorNote({required this.error});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    final p = ChromePalette.of(context);
+    return Align(
+      alignment: Alignment.topLeft,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: selected ? ColorTokens.selectedBg(isDark) : null,
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            ColorTokens.error.withValues(alpha: 0.08),
+            p.isDark ? ColorTokens.darkSurface : Colors.white,
+          ),
+          border: const Border(
+            left: BorderSide(color: ColorTokens.error, width: 2),
+          ),
+        ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              LucideIcons.table2,
-              size: 14,
-              color: selected ? ColorTokens.selectedAccent : Colors.grey[500],
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                table.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: selected ? ColorTokens.selectedAccent : null,
-                ),
+            const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: Icon(
+                LucideIcons.circleAlert,
+                size: 14,
+                color: ColorTokens.error,
               ),
             ),
-            Text(
-              '${table.rowCount}',
-              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+            const SizedBox(width: 8),
+            Flexible(
+              child: SelectableText(
+                error,
+                style: chromeMono(context, size: 12, color: p.text),
+              ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SqlEditor extends StatelessWidget {
-  final TextEditingController controller;
-  final bool running;
-  final bool isDark;
-  final Color divider;
-  final VoidCallback onRun;
-
-  const _SqlEditor({
-    required this.controller,
-    required this.running,
-    required this.isDark,
-    required this.divider,
-    required this.onRun,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? ColorTokens.darkBackground : Colors.white,
-        border: Border(bottom: BorderSide(color: divider)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              style: chromeMono(
-                context,
-                size: 13,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-              decoration: InputDecoration(
-                hintText: 'SELECT * FROM table_name LIMIT 100',
-                hintStyle: chromeMono(
-                  context,
-                  size: 13,
-                  color: Colors.grey[500]!,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: divider),
-                ),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-              ),
-              maxLines: 3,
-              minLines: 1,
-              onSubmitted: (_) => onRun(),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 38,
-            child: FilledButton.icon(
-              onPressed: running ? null : onRun,
-              icon: running
-                  ? const SizedBox.square(
-                      dimension: 12,
-                      child: CircularProgressIndicator(strokeWidth: 1.5),
-                    )
-                  : const Icon(LucideIcons.play, size: 14),
-              label: Text(S.of(context).dbRun),
-              style: FilledButton.styleFrom(
-                backgroundColor: ColorTokens.primary,
-                foregroundColor: Colors.white,
-                textStyle: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QueryResultView extends StatefulWidget {
-  final QueryResult result;
-
-  const _QueryResultView({required this.result});
-
-  @override
-  State<_QueryResultView> createState() => _QueryResultViewState();
-}
-
-class _QueryResultViewState extends State<_QueryResultView> {
-  final _verticalScrollController = SmoothScrollController();
-  final _horizontalScrollController = SmoothScrollController();
-
-  @override
-  void dispose() {
-    _verticalScrollController.dispose();
-    _horizontalScrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = S.of(context);
-    final result = widget.result;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    if (result.error case final error?) {
-      return Center(
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: ColorTokens.error.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: ColorTokens.error.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.circleAlert, color: ColorTokens.error, size: 24),
-              const SizedBox(height: 8),
-              SelectableText(
-                error,
-                style: chromeMono(context, size: 12, color: ColorTokens.error),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final stats = TextStyle(fontSize: 11, color: Colors.grey[500]);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          color: isDark ? ColorTokens.darkBackground : ColorTokens.lightSurface,
-          child: Row(
-            children: [
-              Text(loc.dbRows(result.rows.length), style: stats),
-              if (result.truncated) ...[
-                const SizedBox(width: 8),
-                Text(
-                  loc.dbTruncated(result.rows.length),
-                  style: stats.copyWith(color: ColorTokens.warning),
-                ),
-              ],
-              const SizedBox(width: 12),
-              Text(
-                formatDuration(result.executionTimeMs),
-                style: chromeMono(context, size: 11, color: Colors.grey[500]!),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _horizontalScrollController,
-            scrollDirection: Axis.horizontal,
-            child: SingleChildScrollView(
-              controller: _verticalScrollController,
-              child: DataTable(
-                headingRowHeight: 36,
-                dataRowMinHeight: 32,
-                dataRowMaxHeight: 32,
-                columnSpacing: 24,
-                headingTextStyle: chromeMono(
-                  context,
-                  size: 11,
-                  color: ColorTokens.primary,
-                  weight: FontWeight.w700,
-                ),
-                dataTextStyle: chromeMono(
-                  context,
-                  size: 11,
-                  color: isDark ? Colors.white70 : Colors.black87,
-                ),
-                columns: result.columns
-                    .map((c) => DataColumn(label: Text(c)))
-                    .toList(),
-                rows: result.rows.map((row) {
-                  return DataRow(
-                    cells: result.columns.map((col) {
-                      return DataCell(
-                        Text(
-                          row[col]?.toString() ?? 'NULL',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

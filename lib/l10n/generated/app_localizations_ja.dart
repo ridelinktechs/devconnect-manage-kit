@@ -776,11 +776,15 @@ class SJa extends S {
   String get dbRunHintSubtitle => 'テーブルを選ぶと先頭 50 行をプレビューします。';
 
   @override
-  String dbRows(num count) {
+  String dbRows(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count 行',
+      other: '$countString 行',
     );
     return '$_temp0';
   }
@@ -788,6 +792,29 @@ class SJa extends S {
   @override
   String dbTruncated(Object count) {
     return '先頭 $count 行のみ';
+  }
+
+  @override
+  String get dbFilterTables => 'テーブルを絞り込む';
+
+  @override
+  String get dbData => 'データ';
+
+  @override
+  String get dbStructure => '構造';
+
+  @override
+  String dbColumnCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString 列',
+    );
+    return '$_temp0';
   }
 
   @override

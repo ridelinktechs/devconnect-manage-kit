@@ -784,11 +784,15 @@ class SEn extends S {
   String get dbRunHintSubtitle => 'Picking a table previews its first 50 rows.';
 
   @override
-  String dbRows(num count) {
+  String dbRows(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count rows',
+      other: '$countString rows',
       one: '1 row',
     );
     return '$_temp0';
@@ -797,6 +801,30 @@ class SEn extends S {
   @override
   String dbTruncated(Object count) {
     return 'first $count only';
+  }
+
+  @override
+  String get dbFilterTables => 'Filter tables';
+
+  @override
+  String get dbData => 'Data';
+
+  @override
+  String get dbStructure => 'Structure';
+
+  @override
+  String dbColumnCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString columns',
+      one: '1 column',
+    );
+    return '$_temp0';
   }
 
   @override

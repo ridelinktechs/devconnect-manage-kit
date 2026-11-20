@@ -784,11 +784,15 @@ class SVi extends S {
   String get dbRunHintSubtitle => 'Chọn một bảng để xem trước 50 dòng đầu.';
 
   @override
-  String dbRows(num count) {
+  String dbRows(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count dòng',
+      other: '$countString dòng',
     );
     return '$_temp0';
   }
@@ -796,6 +800,29 @@ class SVi extends S {
   @override
   String dbTruncated(Object count) {
     return 'chỉ $count dòng đầu';
+  }
+
+  @override
+  String get dbFilterTables => 'Lọc bảng';
+
+  @override
+  String get dbData => 'Dữ liệu';
+
+  @override
+  String get dbStructure => 'Cấu trúc';
+
+  @override
+  String dbColumnCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString cột',
+    );
+    return '$_temp0';
   }
 
   @override

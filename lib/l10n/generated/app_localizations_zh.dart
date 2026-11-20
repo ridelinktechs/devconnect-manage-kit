@@ -765,11 +765,15 @@ class SZh extends S {
   String get dbRunHintSubtitle => '选择表即可预览前 50 行。';
 
   @override
-  String dbRows(num count) {
+  String dbRows(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count 行',
+      other: '$countString 行',
     );
     return '$_temp0';
   }
@@ -777,6 +781,29 @@ class SZh extends S {
   @override
   String dbTruncated(Object count) {
     return '仅前 $count 行';
+  }
+
+  @override
+  String get dbFilterTables => '筛选表';
+
+  @override
+  String get dbData => '数据';
+
+  @override
+  String get dbStructure => '结构';
+
+  @override
+  String dbColumnCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString 列',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -3100,11 +3127,15 @@ class SZhCn extends SZh {
   String get dbRunHintSubtitle => '选择表即可预览前 50 行。';
 
   @override
-  String dbRows(num count) {
+  String dbRows(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count 行',
+      other: '$countString 行',
     );
     return '$_temp0';
   }
@@ -3112,6 +3143,29 @@ class SZhCn extends SZh {
   @override
   String dbTruncated(Object count) {
     return '仅前 $count 行';
+  }
+
+  @override
+  String get dbFilterTables => '筛选表';
+
+  @override
+  String get dbData => '数据';
+
+  @override
+  String get dbStructure => '结构';
+
+  @override
+  String dbColumnCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString 列',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -5435,11 +5489,15 @@ class SZhTw extends SZh {
   String get dbRunHintSubtitle => '選擇資料表即可預覽前 50 列。';
 
   @override
-  String dbRows(num count) {
+  String dbRows(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count 列',
+      other: '$countString 列',
     );
     return '$_temp0';
   }
@@ -5447,6 +5505,29 @@ class SZhTw extends SZh {
   @override
   String dbTruncated(Object count) {
     return '僅前 $count 列';
+  }
+
+  @override
+  String get dbFilterTables => '篩選資料表';
+
+  @override
+  String get dbData => '資料';
+
+  @override
+  String get dbStructure => '結構';
+
+  @override
+  String dbColumnCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString 個欄位',
+    );
+    return '$_temp0';
   }
 
   @override

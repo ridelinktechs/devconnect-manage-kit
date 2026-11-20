@@ -790,11 +790,15 @@ class SFr extends S {
       'Choisir une table affiche ses 50 premières lignes.';
 
   @override
-  String dbRows(num count) {
+  String dbRows(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count lignes',
+      other: '$countString lignes',
       one: '1 ligne',
     );
     return '$_temp0';
@@ -803,6 +807,30 @@ class SFr extends S {
   @override
   String dbTruncated(Object count) {
     return 'seulement les $count premières';
+  }
+
+  @override
+  String get dbFilterTables => 'Filtrer les tables';
+
+  @override
+  String get dbData => 'Données';
+
+  @override
+  String get dbStructure => 'Structure';
+
+  @override
+  String dbColumnCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString colonnes',
+      one: '1 colonne',
+    );
+    return '$_temp0';
   }
 
   @override
