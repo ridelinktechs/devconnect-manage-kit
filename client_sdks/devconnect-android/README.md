@@ -319,7 +319,9 @@ When `autoAnrWatchdog = true` (the default for `installForApp`), a
 daemon thread pings the main `Looper` every 500 ms and reports an
 `anr` `performance_metric` event the moment the main thread is blocked
 for ≥6 seconds. The event payload includes the first 20 frames of the
-main thread's stack trace.
+main thread's stack trace. The same monitor reports uncaught Java/Kotlin
+exceptions, which show in the desktop's **Errors** tab with their stack
+trace.
 
 **Native (C++/JNI) crashes** are captured automatically by the bundled
 NDK signal handler — call `NativeCrashHandler.start()` once after
@@ -354,11 +356,13 @@ channel = ManagedChannelBuilder.forAddress(host, port)
     .build()
 ```
 
-### Mock server (Round 4)
+### Mock Server
 
-The desktop pushes mock rules down over the websocket. Add the mock
-interceptor to your OkHttp client, **after** DevConnect's own interceptor
-so mocked responses still show in the HTTP tab:
+Rules you save in the desktop's **Mock** tab reach the app over the
+websocket when you click **Push all**; each mocked request is listed in the
+desktop's **Network › Mock Audit**. Add the mock interceptor to your OkHttp
+client, **after** DevConnect's own interceptor so mocked responses still
+show in the HTTP tab:
 
 ```kotlin
 val client = OkHttpClient.Builder()
@@ -458,11 +462,19 @@ sdl.reportExecute("INSERT INTO users (name) VALUES (?)", mapOf("name" to "John")
 
 ### Performance
 
+With `autoPerformance` (on by default) the desktop's **Perf** tab fills in on
+its own: FPS, jank frames, frame build time, CPU, memory and its peak,
+threads and startup time. Report your own metrics too:
+
 ```kotlin
 DevConnect.reportPerformanceMetric(metricType = "fps", value = 58.5, label = "Main Thread FPS")
 ```
 
 ### Benchmark
+
+With `autoBenchmark` (on by default) the desktop's **Bench** tab times the
+app's startup and each stay in the background. Time your own flows step by
+step:
 
 ```kotlin
 DevConnect.benchmarkStart("loadHome")
@@ -471,6 +483,60 @@ DevConnect.benchmarkStep("loadHome")
 fetchPosts()
 DevConnect.benchmarkStop("loadHome")
 ```
+
+Or time a screen; the returned function stops the timer:
+
+```kotlin
+val stop = com.devconnect.plugins.benchmarkScreen("HomeScreen")
+// ... once the screen is shown
+stop()
+```
+
+### Memory Leaks
+
+`MemoryLeakDetector` (`autoMemoryLeak`, on by default) reports to the
+desktop's **Leaks** tab. Report your own:
+
+```kotlin
+DevConnect.reportMemoryLeak(
+    leakType = "growing_collection",
+    severity = "critical", // info, warning or critical
+    objectName = "imageCache",
+    detail = "Map grows without bound: 15,200 entries, expected under 500",
+    retainedSizeBytes = 48_000_000,
+)
+```
+
+From Java: `DevConnectJava.reportMemoryLeak("growing_collection", "critical", "imageCache");`
+
+### Display
+
+Send any value to watch in the desktop's **Display** tab; each call adds a
+snapshot:
+
+```kotlin
+DevConnect.display(
+    "Feature Flags",
+    value = mapOf("newCheckout" to true, "wishlist" to false),
+    preview = "newCheckout on · wishlist off",
+)
+```
+
+From Java: `DevConnectJava.display("Feature Flags", flags, "newCheckout on");`
+
+### Async Operations
+
+Report the start and the end of async work; the desktop's **Async** tab
+shows each with its duration:
+
+```kotlin
+DevConnect.reportAsyncOperation("background_job", "syncCart", "start")
+syncCart()
+DevConnect.reportAsyncOperation("background_job", "syncCart", "resolve", duration = 840)
+// or "reject", with error = "..."
+```
+
+From Java: `DevConnectJava.reportAsyncOperation("background_job", "syncCart", "resolve", 840L, null, null, null);`
 
 ### Custom Commands
 
@@ -517,6 +583,26 @@ DevConnect.registerStorage("settings", object : DevConnect.StorageAdapter {
 Nothing to set up: the desktop's **Layout** tab captures a screenshot of
 the current activity and its view tree, with each view's bounds,
 properties, padding and margin (Compose content shows as its `ComposeView`).
+Click **Capture** whenever you want the current screen;
+[the desktop guide](https://github.com/ridelinktechs/devconnect-manage-kit#layout-inspector)
+covers picking elements, zooming and measuring.
+
+### Reload from Desktop
+
+The desktop's reload (<kbd>⌘</kbd> <kbd>R</kbd>, or <kbd>Ctrl</kbd> <kbd>R</kbd>
+on Windows; add <kbd>Shift</kbd> for a restart) recreates the current
+activity: the closest Android has to a hot reload. To wipe in-memory state
+first, set your own handler, which then does the reload itself:
+
+```kotlin
+DevConnect.onReloadRequest = {
+    viewModelCache.clear()
+    startActivity(
+        Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+    )
+}
+```
 
 ## Production Safety
 
@@ -530,7 +616,8 @@ DevConnect.init(context = this, appName = "MyApp", enabled = BuildConfig.DEBUG)
 
 - [Main Repository](https://github.com/ridelinktechs/devconnect-manage-kit)
 - [Desktop App Download](https://github.com/ridelinktechs/devconnect-manage-kit/releases)
-- [Full Documentation](https://github.com/ridelinktechs/devconnect-manage-kit#android-native-sdk)
+- [Full Documentation](https://github.com/ridelinktechs/devconnect-manage-kit#sdks)
+- [Using the desktop app, page by page](https://github.com/ridelinktechs/devconnect-manage-kit#using-the-desktop-app)
 
 ## License
 

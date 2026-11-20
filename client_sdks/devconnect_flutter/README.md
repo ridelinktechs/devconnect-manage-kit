@@ -73,9 +73,10 @@ dio.interceptors.add(InterceptorsWrapper(
 
 ### Mock Server
 
-Rules from the desktop's **Mock Server** tab reach the app on their own and
-answer matching requests with the rule's status, body, headers and delay;
-the desktop logs each mocked request. A rule matches on method, URL regex
+Rules you save in the desktop's **Mock** tab reach the app when you click
+**Push all**, with no app code, and answer matching requests with the rule's
+status, body, headers and delay; each mocked request is listed in the
+desktop's **Network › Mock Audit**. A rule matches on method, URL regex
 (found anywhere in the URL), optional header regexes (names
 case-insensitive; a request without the header never matches),
 `scope.deviceIds` and `expiresAt`.
@@ -336,11 +337,19 @@ isarReporter.reportQuery('User', results);
 
 ### Performance
 
+With `autoPerformance` (on by default) the desktop's **Perf** tab fills in on
+its own: FPS, frame build and raster times, jank frames, CPU, memory,
+threads and startup time. Report your own metrics too:
+
 ```dart
 DevConnect.reportPerformanceMetric(metricType: 'fps', value: 58.5, label: 'Main Thread FPS');
 ```
 
 ### Benchmark
+
+With `autoBenchmark` (on by default) the desktop's **Bench** tab times the
+app's startup (Dart VM initialized, first frame, fully interactive) and each
+stay in the background. Time your own flows step by step:
 
 ```dart
 DevConnect.benchmarkStart('loadHome');
@@ -348,6 +357,62 @@ await fetchUser();
 DevConnect.benchmarkStep('loadHome');
 await fetchPosts();
 DevConnect.benchmarkStop('loadHome');
+```
+
+### Errors
+
+Uncaught errors are captured on their own (`autoError`, on by default):
+framework errors (`FlutterError.onError`), uncaught async errors
+(`PlatformDispatcher.onError`) and errors in the app's zone. Each shows in
+the desktop's **Errors** tab with its stack trace.
+
+### Memory Leaks
+
+The leak detector (`autoMemoryLeak`, on by default) watches the heap's
+growth and reports to the desktop's **Leaks** tab. Report your own:
+
+```dart
+DevConnect.reportMemoryLeak(
+  leakType: 'growing_collection',
+  objectName: 'imageCache',
+  detail: 'Map grows without bound: 15,200 entries, expected under 500',
+  severity: 'critical', // info, warning (default) or critical
+  retainedSizeBytes: 48000000,
+);
+```
+
+### Display
+
+Send any value to watch in the desktop's **Display** tab; each call adds a
+snapshot:
+
+```dart
+DevConnect.display(
+  'Feature Flags',
+  value: {'newCheckout': true, 'wishlist': false},
+  preview: 'newCheckout on · wishlist off',
+);
+```
+
+### Async Operations
+
+Report the start and the end of async work; the desktop's **Async** tab
+shows each with its duration:
+
+```dart
+DevConnect.reportAsyncOperation(
+  operationType: 'async_task', // or background_job, saga_call, custom, ...
+  description: 'fetchProducts',
+  status: 'start',
+);
+final products = await api.fetchProducts();
+DevConnect.reportAsyncOperation(
+  operationType: 'async_task',
+  description: 'fetchProducts',
+  status: 'resolve', // or 'reject', with error: '...'
+  duration: 312,
+  result: {'items': products.length},
+);
 ```
 
 ### Custom Commands
@@ -391,7 +456,10 @@ DevConnect.registerStorage('hive:settings', DevConnectStorageAdapter(
 ### Layout Inspector
 
 Nothing to set up: the desktop's **Layout** tab captures a screenshot and
-the widget tree, with each widget's bounds, properties and padding.
+the widget tree, with each widget's bounds, properties and padding. Click
+**Capture** whenever you want the current screen;
+[the desktop guide](https://github.com/ridelinktechs/devconnect-manage-kit#layout-inspector)
+covers picking elements, zooming and measuring.
 
 ### Hot Reload / Hot Restart from Desktop
 
@@ -430,7 +498,8 @@ DevConnect.init(appName: 'MyApp', enabled: false);
 
 - [Main Repository](https://github.com/ridelinktechs/devconnect-manage-kit)
 - [Desktop App Download](https://github.com/ridelinktechs/devconnect-manage-kit/releases)
-- [Full Documentation](https://github.com/ridelinktechs/devconnect-manage-kit#flutter-sdk)
+- [Full Documentation](https://github.com/ridelinktechs/devconnect-manage-kit#sdks)
+- [Using the desktop app, page by page](https://github.com/ridelinktechs/devconnect-manage-kit#using-the-desktop-app)
 
 ## License
 

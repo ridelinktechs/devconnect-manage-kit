@@ -77,11 +77,12 @@ DevConnect's own connection is never captured.
 
 ### Mock Server
 
-Rules made in the desktop's **Mock** tab are pushed to the app and applied
-right away, with no setup call (`installMockServerInterceptor()` is now a
-no-op kept for older code). A matching `fetch` gets the mocked response
-without touching the network. It still shows in the Network tab, with an
-`x-devconnect-mock: <ruleId>` response header.
+Rules you save in the desktop's **Mock** tab reach the app when you click
+**Push all**, and apply right away, with no setup call
+(`installMockServerInterceptor()` is now a no-op kept for older code). A
+matching `fetch` gets the mocked response without touching the network. It
+still shows in the Network tab, with an `x-devconnect-mock: <ruleId>`
+response header, and in **Network › Mock Audit**.
 
 > Only `fetch` is mocked. `XMLHttpRequest` requests (axios included) always
 > go to the network.
@@ -276,6 +277,10 @@ custom.reportDelete("key");
 
 ### Performance
 
+With `autoPerformance` (on by default) the desktop's **Perf** tab fills in on
+its own: FPS, jank frames, frame build time, memory, CPU, threads and
+startup time. Report your own metrics too:
+
 ```typescript
 DevConnect.reportPerformanceMetric({
   metricType: "fps",
@@ -286,12 +291,98 @@ DevConnect.reportPerformanceMetric({
 
 ### Benchmark
 
+With `autoBenchmark` (on by default) the desktop's **Bench** tab times the
+app's startup (JS bundle loaded, first render, fully interactive) and each
+stay in the background. Time your own flows step by step:
+
 ```typescript
 DevConnect.benchmark("loadUserData");
 await fetchUser();
 DevConnect.benchmarkStep("loadUserData", "fetched user");
 await fetchPosts();
 DevConnect.benchmarkStop("loadUserData");
+```
+
+Or time a screen until it's laid out, or any async function:
+
+```typescript
+import { benchmarkAsync, benchmarkScreen } from "devconnect-manage-kit";
+
+useEffect(() => benchmarkScreen("HomeScreen"), []);
+
+const orders = await benchmarkAsync("loadOrders", () => api.getOrders());
+```
+
+### Errors
+
+Uncaught JS errors are captured on their own (`autoError`, on by default)
+through React Native's global error handler. Each shows in the desktop's
+**Errors** tab with its stack trace.
+
+### Memory Leaks
+
+The leak detector (`autoMemoryLeak`, on by default) reports to the
+desktop's **Leaks** tab. Watch a collection that shouldn't grow without
+bound, or report a leak yourself:
+
+```typescript
+import { DevConnect, watchCollection } from "devconnect-manage-kit";
+
+// Reported when it holds more than 500 items; call stop() to quit watching.
+const stop = watchCollection("eventCache", () => cache.length, 500);
+
+DevConnect.reportMemoryLeak({
+  leakType: "undisposed_stream",
+  severity: "warning", // info, warning or critical
+  objectName: "CartSubscription",
+  detail: "Listener not removed when CartScreen unmounts",
+});
+```
+
+### Display
+
+Send any value to watch in the desktop's **Display** tab; each call adds a
+snapshot:
+
+```typescript
+DevConnect.display("Feature Flags", {
+  value: { newCheckout: true, wishlist: false },
+  preview: "newCheckout on · wishlist off",
+});
+```
+
+### Async Operations
+
+Redux Thunk actions are tracked by a middleware; wrap any other async work
+with `trackAsync`. The desktop's **Async** tab shows each with its duration
+and result:
+
+```typescript
+import { devConnectThunkTracker, trackAsync } from "devconnect-manage-kit";
+
+const store = createStore(reducer, applyMiddleware(devConnectThunkTracker, thunk));
+
+const user = await trackAsync("fetchUser", () => api.getUser(id));
+```
+
+Sagas or anything else: report the start, then the resolve or reject.
+
+```typescript
+DevConnect.reportAsyncOperation({
+  operationType: "saga_call",
+  description: "loadPromotions",
+  status: "start",
+  sagaName: "homeSaga",
+});
+// ...
+DevConnect.reportAsyncOperation({
+  operationType: "saga_call",
+  description: "loadPromotions",
+  status: "reject", // or "resolve", with a result
+  duration: 487,
+  sagaName: "homeSaga",
+  error: "Request failed with status code 500",
+});
 ```
 
 ### Custom Commands
@@ -348,7 +439,10 @@ import { captureScreen } from "react-native-view-shot";
 DevConnect.registerScreenshot(() => captureScreen({ format: "png", result: "base64" }));
 ```
 
-Without one the tab draws the components' outlines only.
+Without one the tab draws the components' outlines only. Click **Capture**
+whenever you want the current screen;
+[the desktop guide](https://github.com/ridelinktechs/devconnect-manage-kit#layout-inspector)
+covers picking elements, zooming and measuring.
 
 ### Hot Reload from Desktop
 
@@ -358,7 +452,8 @@ delegates to `DevSettings.reload()` (the same path the dev menu's
 "Reload" option uses).
 
 ```typescript
-import { DevConnect, DevSettings } from "devconnect-manage-kit";
+import { DevSettings } from "react-native";
+import { DevConnect } from "devconnect-manage-kit";
 
 // Optional: wipe in-memory state before the reload, then trigger reload
 DevConnect.registerReloadHandler(() => {
@@ -382,7 +477,8 @@ DevConnect.init({ appName: "MyApp", enabled: false });
 
 - [Main Repository](https://github.com/ridelinktechs/devconnect-manage-kit)
 - [Desktop App Download](https://github.com/ridelinktechs/devconnect-manage-kit/releases)
-- [Full Documentation](https://github.com/ridelinktechs/devconnect-manage-kit#react-native-sdk)
+- [Full Documentation](https://github.com/ridelinktechs/devconnect-manage-kit#sdks)
+- [Using the desktop app, page by page](https://github.com/ridelinktechs/devconnect-manage-kit#using-the-desktop-app)
 
 ## License
 
