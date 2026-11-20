@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.1.0
+
+- **Database inspector**: new `DevConnect.registerDatabase(name, query)`
+  (with the `DatabaseQuery` type) lets the desktop's Database page list
+  tables and run SQL (`server:database:request_schema`,
+  `server:database:query`).
+- **Storage editing**: new `DevConnect.registerStorage(storageType, adapter)`
+  (with the `StorageAdapter` type) lets the desktop's Storage page show,
+  edit, delete and clear keys (`server:storage:write`,
+  `server:storage:delete`, `server:storage:clear`).
+- **Layout Inspector**: `server:layout:capture` returns the component tree
+  plus a screenshot from the new `DevConnect.registerScreenshot(capture)`.
+- **Desktop commands**: open a URL or deep link (`server:open_url`), show
+  the dev menu (`server:dev_menu`), add latency or go offline
+  (`server:network:throttle`), and replay a request
+  (`server:network:replay`).
+- **Mock server**: rules pushed from the desktop now take effect
+  (`server:mock_rules_update` replaces the whole list; an empty list
+  clears it).
+- **State controls**: a Redux dispatch or `onStateRestore` handler that
+  throws is reported to the desktop as an error log.
+- **Large messages**: JSON over 1 MB is sent in acknowledged chunks
+  (`client:chunk` / `server:chunk_ack`).
+- **Handshake**: reports the SDK's real version (generated
+  `src/version.ts`) instead of `1.0.0`.
+- New `DevConnect.isListening()`: true while connected or while the first
+  connection attempt is still under way, when changes are queued rather
+  than lost.
+
 ## 1.0.9
 
 - **WebSocket inspector (Round 3)**: new `installWebSocketInterceptor()`
