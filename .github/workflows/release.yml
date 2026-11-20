@@ -30,6 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.47.7"
           channel: stable
       - run: flutter pub get
       # *.g.dart / *.freezed.dart are gitignored, so generate them first.
@@ -58,6 +59,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.47.7"
           channel: stable
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
