@@ -403,7 +403,7 @@ List<Guide> buildGuides(S s) => [
     code: const [
       (
         'app/build.gradle.kts',
-        'implementation("io.github.buivietphi:devconnect-android:1.1.0")',
+        'implementation("io.github.buivietphi:devconnect-android:1.2.0")',
       ),
       (
         'MyApp.kt',

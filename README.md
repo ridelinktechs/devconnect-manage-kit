@@ -201,7 +201,7 @@ Each SDK ships as its own package with a complete install + API guide. Pick your
 ```yaml
 # pubspec.yaml
 dependencies:
-  devconnect_manage_kit: ^1.0.6
+  devconnect_manage_kit: ^1.1.0
 ```
 
 - Network (dio, http, GraphQL, gRPC) · State (Riverpod, BLoC, GetX, Provider, ViewModel) · Storage (SharedPreferences, Hive, MMKV) · Database (Drift, Isar, SQLite) · Performance + Memory Leak Detection + Benchmark · Mock server
@@ -225,7 +225,7 @@ yarn add devconnect-manage-kit
 ```gradle
 // app/build.gradle.kts
 dependencies {
-    implementation("io.github.buivietphi:devconnect-android:1.1.0")
+    implementation("io.github.buivietphi:devconnect-android:1.2.0")
 }
 ```
 

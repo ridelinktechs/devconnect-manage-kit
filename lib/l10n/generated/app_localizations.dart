@@ -3900,7 +3900,7 @@ abstract class S {
   /// No description provided for @guideSdkAndroidSteps.
   ///
   /// In en, this message translates to:
-  /// **'Add io.github.buivietphi:devconnect-android:1.1.0 to app/build.gradle.kts\nCall DevConnect.installForApp in Application.onCreate with enabled = BuildConfig.DEBUG — it\'s off by default\nAdd DevConnect.okHttpInterceptor() to every OkHttpClient, Retrofit\'s included\nLog with DCLog instead of android.util.Log; for Timber, plant a Tree that calls DevConnectTimberHelper.log\nMake sure the app\'s manifest requests the INTERNET permission'**
+  /// **'Add io.github.buivietphi:devconnect-android:1.2.0 to app/build.gradle.kts\nCall DevConnect.installForApp in Application.onCreate with enabled = BuildConfig.DEBUG — it\'s off by default\nAdd DevConnect.okHttpInterceptor() to every OkHttpClient, Retrofit\'s included\nLog with DCLog instead of android.util.Log; for Timber, plant a Tree that calls DevConnectTimberHelper.log\nMake sure the app\'s manifest requests the INTERNET permission'**
   String get guideSdkAndroidSteps;
 
   /// No description provided for @guideSdkAndroidTip.

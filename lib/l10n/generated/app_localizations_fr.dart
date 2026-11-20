@@ -2258,7 +2258,7 @@ class SFr extends S {
 
   @override
   String get guideSdkAndroidSteps =>
-      'Ajoutez io.github.buivietphi:devconnect-android:1.1.0 à app/build.gradle.kts\nAppelez DevConnect.installForApp dans Application.onCreate avec enabled = BuildConfig.DEBUG — c\'est désactivé par défaut\nAjoutez DevConnect.okHttpInterceptor() à chaque OkHttpClient, y compris celui de Retrofit\nLoguez avec DCLog au lieu de android.util.Log ; pour Timber, plantez un Tree qui appelle DevConnectTimberHelper.log\nVérifiez que le manifeste de l\'appli demande la permission INTERNET';
+      'Ajoutez io.github.buivietphi:devconnect-android:1.2.0 à app/build.gradle.kts\nAppelez DevConnect.installForApp dans Application.onCreate avec enabled = BuildConfig.DEBUG — c\'est désactivé par défaut\nAjoutez DevConnect.okHttpInterceptor() à chaque OkHttpClient, y compris celui de Retrofit\nLoguez avec DCLog au lieu de android.util.Log ; pour Timber, plantez un Tree qui appelle DevConnectTimberHelper.log\nVérifiez que le manifeste de l\'appli demande la permission INTERNET';
 
   @override
   String get guideSdkAndroidTip =>

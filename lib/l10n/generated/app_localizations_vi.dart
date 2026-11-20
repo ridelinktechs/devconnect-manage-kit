@@ -2249,7 +2249,7 @@ class SVi extends S {
 
   @override
   String get guideSdkAndroidSteps =>
-      'Thêm io.github.buivietphi:devconnect-android:1.1.0 vào app/build.gradle.kts\nGọi DevConnect.installForApp trong Application.onCreate với enabled = BuildConfig.DEBUG — mặc định SDK tắt\nThêm DevConnect.okHttpInterceptor() vào mọi OkHttpClient, kể cả của Retrofit\nGhi log bằng DCLog thay cho android.util.Log; với Timber, plant một Tree gọi DevConnectTimberHelper.log\nĐảm bảo manifest của app có quyền INTERNET';
+      'Thêm io.github.buivietphi:devconnect-android:1.2.0 vào app/build.gradle.kts\nGọi DevConnect.installForApp trong Application.onCreate với enabled = BuildConfig.DEBUG — mặc định SDK tắt\nThêm DevConnect.okHttpInterceptor() vào mọi OkHttpClient, kể cả của Retrofit\nGhi log bằng DCLog thay cho android.util.Log; với Timber, plant một Tree gọi DevConnectTimberHelper.log\nĐảm bảo manifest của app có quyền INTERNET';
 
   @override
   String get guideSdkAndroidTip =>

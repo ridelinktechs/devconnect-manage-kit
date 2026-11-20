@@ -1,5 +1,26 @@
-## Unreleased
+## 1.1.0
 
+- **Database inspector**: new `DevConnect.registerDatabase(name, query)`
+  lets the desktop's Database page list tables and run SQL through your
+  own query function (sqflite `db.rawQuery`, drift `customSelect`)
+  (`server:database:request_schema`, `server:database:query`).
+- **Storage editing**: new `DevConnect.registerStorage(storageType, adapter)`
+  with the exported `DevConnectStorageAdapter` lets the desktop's Storage
+  page show, edit, delete and clear keys (`server:storage:write`,
+  `server:storage:delete`, `server:storage:clear`).
+- **Layout Inspector**: `server:layout:capture` answers with the widget
+  tree (position, size, padding, props) and a screenshot
+  (`client:layout:snapshot`).
+- **Desktop commands**: open a deep link through the app's Router
+  (`server:open_url`), add latency or go offline
+  (`server:network:throttle`), and replay a captured request
+  (`server:network:replay`).
+- **State controls**: new `DevConnect.onReduxDispatch` receives the actions
+  sent from State Inspector › Controls › Dispatch action.
+- **Custom commands**: registered commands are announced to the desktop
+  (`client:custom:commands`) so its Commands panel lists them.
+- **Handshake**: reports the SDK's real version (`lib/src/version.dart`)
+  instead of `1.0.0`.
 - **Mock server**: desktop rules now answer requests. `server:mock_rules_update`
   is handled from `init` (each push replaces the whole list); matching
   requests are served through `HttpOverrides` (any `dart:io` client) and

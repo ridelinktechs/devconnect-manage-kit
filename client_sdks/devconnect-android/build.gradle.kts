@@ -6,7 +6,7 @@ plugins {
 
 // Published version — also baked into BuildConfig.SDK_VERSION so the
 // handshake reports what the app actually ships with.
-val sdkVersion = "1.1.0"
+val sdkVersion = "1.2.0"
 
 android {
     namespace = "com.devconnect"
