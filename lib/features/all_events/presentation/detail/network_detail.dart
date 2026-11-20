@@ -45,13 +45,18 @@ class NetworkDetail extends ConsumerStatefulWidget {
 }
 
 class _NetworkDetailState extends ConsumerState<NetworkDetail>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = _makeController();
+    _tabController = _makeController(
+      0,
+      (Uri.tryParse(widget.entry.url)?.queryParametersAll.isNotEmpty ?? false)
+          ? 5
+          : 4,
+    );
     _tabController.addListener(_onTabIndexChange);
   }
 

@@ -52,14 +52,18 @@ class RequestDetailPanel extends ConsumerStatefulWidget {
 }
 
 class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 4,
+      length:
+          (Uri.tryParse(widget.entry.url)?.queryParametersAll.isNotEmpty ??
+              false)
+          ? 5
+          : 4,
       vsync: this,
       animationDuration: ref.read(tabAnimationProvider),
     );
@@ -75,7 +79,7 @@ class _RequestDetailPanelState extends ConsumerState<RequestDetailPanel>
     final oldIndex = _tabController.index;
     _tabController.dispose();
     _tabController = TabController(
-      length: 4,
+      length: _tabController.length,
       vsync: this,
       animationDuration: ref.read(tabAnimationProvider),
       initialIndex: oldIndex,

@@ -45,7 +45,7 @@ class ErrorDetailPanel extends ConsumerStatefulWidget {
 }
 
 class _ErrorDetailPanelState extends ConsumerState<ErrorDetailPanel>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
   final _messageScrollController = SmoothScrollController();
   final _stackTraceScrollController = SmoothScrollController();

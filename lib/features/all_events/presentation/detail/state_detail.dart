@@ -40,7 +40,7 @@ class StateDetail extends ConsumerStatefulWidget {
 }
 
 class _StateDetailState extends ConsumerState<StateDetail>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
   final _diffScrollController = SmoothScrollController();
 
