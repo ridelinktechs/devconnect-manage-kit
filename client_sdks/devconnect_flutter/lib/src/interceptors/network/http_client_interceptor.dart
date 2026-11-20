@@ -51,9 +51,37 @@ class _DevConnectHttpClient implements HttpClient {
   // Intercept all request methods
   @override
   Future<HttpClientRequest> openUrl(String method, Uri url) async {
-    await DevConnectClient.applyNetworkConditions(url);
+    final startTime = DateTime.now().millisecondsSinceEpoch;
+    await _applyNetworkConditions(method, url, startTime);
     final request = await _inner.openUrl(method, url);
-    return _DevConnectHttpClientRequest(request, method, url, _uuid);
+    return _DevConnectHttpClientRequest(request, method, url, _uuid, startTime);
+  }
+
+  /// Holds a request back for the desktop's simulated network. One the
+  /// simulated offline network refuses never gets a request, so it is
+  /// reported as failed here.
+  Future<void> _applyNetworkConditions(
+      String method, Uri url, int startTime) async {
+    try {
+      await DevConnectClient.applyNetworkConditions(url);
+    } on SocketException catch (e) {
+      final requestId = _uuid.v4();
+      DevConnectClient.safeReportNetworkStart(
+        requestId: requestId,
+        method: method,
+        url: url.toString(),
+        headers: const {},
+      );
+      DevConnectClient.safeReportNetworkComplete(
+        requestId: requestId,
+        method: method,
+        url: url.toString(),
+        statusCode: 0,
+        startTime: startTime,
+        error: e.message,
+      );
+      rethrow;
+    }
   }
 
   @override
@@ -76,12 +104,14 @@ class _DevConnectHttpClient implements HttpClient {
 
   @override
   Future<HttpClientRequest> open(
-          String method, String host, int port, String path) =>
-      DevConnectClient.applyNetworkConditions(
-              Uri(scheme: 'http', host: host, port: port, path: path))
-          .then((_) => _inner.open(method, host, port, path))
-          .then((request) => _DevConnectHttpClientRequest(
-              request, method, request.uri, _uuid));
+      String method, String host, int port, String path) async {
+    final startTime = DateTime.now().millisecondsSinceEpoch;
+    await _applyNetworkConditions(method,
+        Uri(scheme: 'http', host: host, port: port, path: path), startTime);
+    final request = await _inner.open(method, host, port, path);
+    return _DevConnectHttpClientRequest(
+        request, method, request.uri, _uuid, startTime);
+  }
 
   @override
   Future<HttpClientRequest> get(String host, int port, String path) =>
@@ -175,9 +205,9 @@ class _DevConnectHttpClientRequest implements HttpClientRequest {
   late final _body = _BodyCapture(_inner.headers);
   Future<HttpClientResponse>? _closeFuture;
 
-  _DevConnectHttpClientRequest(this._inner, this._method, this._url, Uuid uuid)
-      : _requestId = uuid.v4(),
-        _startTime = DateTime.now().millisecondsSinceEpoch {
+  _DevConnectHttpClientRequest(
+      this._inner, this._method, this._url, Uuid uuid, this._startTime)
+      : _requestId = uuid.v4() {
     // Report request start — dart:io headers are always String→List<String>,
     // so we don't need to defend against nested objects here. The desktop
     // inspector still gets the full multi-value list (joined with ", ").
@@ -418,30 +448,29 @@ class _DevConnectHttpClientResponse extends Stream<List<int>>
     void Function()? onDone,
     bool? cancelOnError,
   }) {
-    // Safely proxy the stream using map.
-    // This ensures our body capture cannot be bypassed by onData reassignment
-    // while perfectly preserving stream semantics (pause, resume, etc).
-    final interceptedStream = _inner.map((data) {
-      _body.add(data);
-      return data;
-    });
+    // Capture and report inside the stream, not in the subscriber's
+    // handlers: onData reassignment, drain() and asFuture() replace those.
+    final interceptedStream = _inner.transform(
+      StreamTransformer<List<int>, List<int>>.fromHandlers(
+        handleData: (data, sink) {
+          _body.add(data);
+          sink.add(data);
+        },
+        handleError: (error, stackTrace, sink) {
+          _reportComplete();
+          sink.addError(error, stackTrace);
+        },
+        handleDone: (sink) {
+          _reportComplete();
+          sink.close();
+        },
+      ),
+    );
 
     return interceptedStream.listen(
       onData,
-      onError: (Object error, StackTrace stackTrace) {
-        _reportComplete();
-        if (onError != null) {
-          if (onError is void Function(Object, StackTrace)) {
-            onError(error, stackTrace);
-          } else if (onError is void Function(Object)) {
-            onError(error);
-          }
-        }
-      },
-      onDone: () {
-        _reportComplete();
-        onDone?.call();
-      },
+      onError: onError,
+      onDone: onDone,
       cancelOnError: cancelOnError,
     );
   }
