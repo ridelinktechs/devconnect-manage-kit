@@ -632,7 +632,7 @@
   "guideSdkFlutterSteps": "运行 flutter pub add devconnect_manage_kit\n在 main() 中用 DevConnect.initAndRunApp 启动应用，并传入异步的 runApp 回调\n使用 Riverpod 或 BLoC 时，在你的 observer 中调用 DevConnect.reportStateChange 或 reportBlocChange\n运行调试版本——profile 和 release 版本保持关闭",
   "guideSdkFlutterTip": "把 Firebase 和其他启动代码放进 runApp 回调里——在 initAndRunApp 之前调用 ensureInitialized() 会导致 zone 不匹配。",
   "guideSdkAndroidSummary": "添加 Maven Central 依赖，并在 Application.onCreate 中调用 installForApp：println 输出、崩溃、ANR、性能和 ViewModel state 都会被捕获；HTTP 则需要 OkHttp 拦截器。",
-  "guideSdkAndroidSteps": "把 io.github.buivietphi:devconnect-android:1.1.0 添加到 app/build.gradle.kts\n在 Application.onCreate 中调用 DevConnect.installForApp，并传入 enabled = BuildConfig.DEBUG——默认是关闭的\n把 DevConnect.okHttpInterceptor() 添加到每个 OkHttpClient，Retrofit 使用的也不例外\n用 DCLog 代替 android.util.Log 打日志；使用 Timber 时，plant 一个调用 DevConnectTimberHelper.log 的 Tree\n确保应用的 manifest 声明了 INTERNET 权限",
+  "guideSdkAndroidSteps": "把 io.github.buivietphi:devconnect-android:1.2.0 添加到 app/build.gradle.kts\n在 Application.onCreate 中调用 DevConnect.installForApp，并传入 enabled = BuildConfig.DEBUG——默认是关闭的\n把 DevConnect.okHttpInterceptor() 添加到每个 OkHttpClient，Retrofit 使用的也不例外\n用 DCLog 代替 android.util.Log 打日志；使用 Timber 时，plant 一个调用 DevConnectTimberHelper.log 的 Tree\n确保应用的 manifest 声明了 INTERNET 权限",
   "guideSdkAndroidTip": "SDK 只在启动时查找一次 DevConnect——请先启动 DevConnect（以及 adb reverse），或重启应用。",
   "guideMockApiTitle": "模拟 API",
   "guideMockApiSummary": "用你自己的状态、标头和正文响应匹配的请求，还可以设置延迟，无需改动服务器或应用。",

@@ -225,7 +225,7 @@ yarn add devconnect-manage-kit
 ```gradle
 // app/build.gradle.kts
 dependencies {
-    implementation("io.github.buivietphi:devconnect-android:1.1.0")
+    implementation("io.github.buivietphi:devconnect-android:1.2.0")
 }
 ```
 

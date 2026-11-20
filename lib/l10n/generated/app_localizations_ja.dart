@@ -2218,7 +2218,7 @@ class SJa extends S {
 
   @override
   String get guideSdkAndroidSteps =>
-      'app/build.gradle.kts に io.github.buivietphi:devconnect-android:1.1.0 を追加\nApplication.onCreate で enabled = BuildConfig.DEBUG を指定して DevConnect.installForApp を呼ぶ（既定ではオフ）\nRetrofit のものも含め、すべての OkHttpClient に DevConnect.okHttpInterceptor() を追加\nandroid.util.Log の代わりに DCLog でログを出力。Timber では DevConnectTimberHelper.log を呼ぶ Tree を plant する\nアプリのマニフェストに INTERNET 権限があることを確認';
+      'app/build.gradle.kts に io.github.buivietphi:devconnect-android:1.2.0 を追加\nApplication.onCreate で enabled = BuildConfig.DEBUG を指定して DevConnect.installForApp を呼ぶ（既定ではオフ）\nRetrofit のものも含め、すべての OkHttpClient に DevConnect.okHttpInterceptor() を追加\nandroid.util.Log の代わりに DCLog でログを出力。Timber では DevConnectTimberHelper.log を呼ぶ Tree を plant する\nアプリのマニフェストに INTERNET 権限があることを確認';
 
   @override
   String get guideSdkAndroidTip =>

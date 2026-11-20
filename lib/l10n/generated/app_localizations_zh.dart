@@ -2195,7 +2195,7 @@ class SZh extends S {
 
   @override
   String get guideSdkAndroidSteps =>
-      '把 io.github.buivietphi:devconnect-android:1.1.0 添加到 app/build.gradle.kts\n在 Application.onCreate 中调用 DevConnect.installForApp，并传入 enabled = BuildConfig.DEBUG——默认是关闭的\n把 DevConnect.okHttpInterceptor() 添加到每个 OkHttpClient，Retrofit 使用的也不例外\n用 DCLog 代替 android.util.Log 打日志；使用 Timber 时，plant 一个调用 DevConnectTimberHelper.log 的 Tree\n确保应用的 manifest 声明了 INTERNET 权限';
+      '把 io.github.buivietphi:devconnect-android:1.2.0 添加到 app/build.gradle.kts\n在 Application.onCreate 中调用 DevConnect.installForApp，并传入 enabled = BuildConfig.DEBUG——默认是关闭的\n把 DevConnect.okHttpInterceptor() 添加到每个 OkHttpClient，Retrofit 使用的也不例外\n用 DCLog 代替 android.util.Log 打日志；使用 Timber 时，plant 一个调用 DevConnectTimberHelper.log 的 Tree\n确保应用的 manifest 声明了 INTERNET 权限';
 
   @override
   String get guideSdkAndroidTip =>
@@ -4557,7 +4557,7 @@ class SZhCn extends SZh {
 
   @override
   String get guideSdkAndroidSteps =>
-      '把 io.github.buivietphi:devconnect-android:1.1.0 添加到 app/build.gradle.kts\n在 Application.onCreate 中调用 DevConnect.installForApp，并传入 enabled = BuildConfig.DEBUG——默认是关闭的\n把 DevConnect.okHttpInterceptor() 添加到每个 OkHttpClient，Retrofit 使用的也不例外\n用 DCLog 代替 android.util.Log 打日志；使用 Timber 时，plant 一个调用 DevConnectTimberHelper.log 的 Tree\n确保应用的 manifest 声明了 INTERNET 权限';
+      '把 io.github.buivietphi:devconnect-android:1.2.0 添加到 app/build.gradle.kts\n在 Application.onCreate 中调用 DevConnect.installForApp，并传入 enabled = BuildConfig.DEBUG——默认是关闭的\n把 DevConnect.okHttpInterceptor() 添加到每个 OkHttpClient，Retrofit 使用的也不例外\n用 DCLog 代替 android.util.Log 打日志；使用 Timber 时，plant 一个调用 DevConnectTimberHelper.log 的 Tree\n确保应用的 manifest 声明了 INTERNET 权限';
 
   @override
   String get guideSdkAndroidTip =>
@@ -6922,7 +6922,7 @@ class SZhTw extends SZh {
 
   @override
   String get guideSdkAndroidSteps =>
-      '把 io.github.buivietphi:devconnect-android:1.1.0 加入 app/build.gradle.kts\n在 Application.onCreate 中呼叫 DevConnect.installForApp，並傳入 enabled = BuildConfig.DEBUG——預設是關閉的\n把 DevConnect.okHttpInterceptor() 加到每個 OkHttpClient，Retrofit 使用的也不例外\n用 DCLog 取代 android.util.Log 來記錄日誌；使用 Timber 時，plant 一個呼叫 DevConnectTimberHelper.log 的 Tree\n確保應用程式的 manifest 宣告了 INTERNET 權限';
+      '把 io.github.buivietphi:devconnect-android:1.2.0 加入 app/build.gradle.kts\n在 Application.onCreate 中呼叫 DevConnect.installForApp，並傳入 enabled = BuildConfig.DEBUG——預設是關閉的\n把 DevConnect.okHttpInterceptor() 加到每個 OkHttpClient，Retrofit 使用的也不例外\n用 DCLog 取代 android.util.Log 來記錄日誌；使用 Timber 時，plant 一個呼叫 DevConnectTimberHelper.log 的 Tree\n確保應用程式的 manifest 宣告了 INTERNET 權限';
 
   @override
   String get guideSdkAndroidTip =>

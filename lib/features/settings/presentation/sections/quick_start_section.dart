@@ -64,7 +64,7 @@ class QuickStartSection extends StatelessWidget {
               name: 'Android',
               prompt: false,
               before: ['implementation("'],
-              package: 'io.github.buivietphi:devconnect-android:1.1.0',
+              package: 'io.github.buivietphi:devconnect-android:1.2.0',
               after: '")',
               next: [
                 '// MyApp.kt › onCreate()',

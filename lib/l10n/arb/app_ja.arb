@@ -632,7 +632,7 @@
   "guideSdkFlutterSteps": "flutter pub add devconnect_manage_kit を実行\nmain() で DevConnect.initAndRunApp を使ってアプリを起動し、async の runApp コールバックを渡す\nRiverpod や BLoC では、observer から DevConnect.reportStateChange または reportBlocChange を呼ぶ\nデバッグビルドを実行（profile と release のビルドではオフのまま）",
   "guideSdkFlutterTip": "Firebase などの起動時のコードは runApp コールバックの中に置いてください。initAndRunApp の前に ensureInitialized() を呼ぶと、zone mismatch が起きます。",
   "guideSdkAndroidSummary": "Maven Central の依存関係を追加し、Application.onCreate で installForApp を呼ぶと、println の出力、クラッシュ、ANR、パフォーマンス、ViewModel の state が記録されます。HTTP には OkHttp インターセプターが必要です。",
-  "guideSdkAndroidSteps": "app/build.gradle.kts に io.github.buivietphi:devconnect-android:1.1.0 を追加\nApplication.onCreate で enabled = BuildConfig.DEBUG を指定して DevConnect.installForApp を呼ぶ（既定ではオフ）\nRetrofit のものも含め、すべての OkHttpClient に DevConnect.okHttpInterceptor() を追加\nandroid.util.Log の代わりに DCLog でログを出力。Timber では DevConnectTimberHelper.log を呼ぶ Tree を plant する\nアプリのマニフェストに INTERNET 権限があることを確認",
+  "guideSdkAndroidSteps": "app/build.gradle.kts に io.github.buivietphi:devconnect-android:1.2.0 を追加\nApplication.onCreate で enabled = BuildConfig.DEBUG を指定して DevConnect.installForApp を呼ぶ（既定ではオフ）\nRetrofit のものも含め、すべての OkHttpClient に DevConnect.okHttpInterceptor() を追加\nandroid.util.Log の代わりに DCLog でログを出力。Timber では DevConnectTimberHelper.log を呼ぶ Tree を plant する\nアプリのマニフェストに INTERNET 権限があることを確認",
   "guideSdkAndroidTip": "SDK が DevConnect を探すのは起動時の一度だけです。先に DevConnect を起動する（必要なら adb reverse も実行）か、アプリを再起動してください。",
   "guideMockApiTitle": "API をモックする",
   "guideMockApiSummary": "一致するリクエストに、独自のステータス、ヘッダー、ボディで応答します。遅延も付けられ、サーバーもアプリも変更する必要はありません。",
