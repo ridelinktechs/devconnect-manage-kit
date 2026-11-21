@@ -32,27 +32,33 @@
 
 ## Why DevConnect Manage Kit?
 
-If you've used **Reactotron**, **Flipper**, or **Flutter DevTools** — you know they're powerful but limited to one framework. DevConnect Manage Kit is a **single desktop app** that works with all of them.
+If you've used **Reactotron**, **Flipper**, or **Flutter DevTools**, you know the trade-off: Reactotron is for React Native, Flutter DevTools is for Flutter, and Flipper, which covered several platforms, is now archived. DevConnect Manage Kit is a **single desktop app** for Flutter, React Native and native Android apps.
 
-|                        |          DevConnect Manage Kit           |  Reactotron   |    Flipper    | Flutter DevTools |
-| ---------------------- | :--------------------------------------: | :-----------: | :-----------: | :--------------: |
-| Flutter support        |                    ✅                    |      ❌       |   ⚠️ plugin   |        ✅        |
-| React Native support   |                    ✅                    |      ✅       |      ✅       |        ❌        |
-| Android Native support |                    ✅                    |      ❌       |      ✅       |        ❌        |
-| Network inspector      |                    ✅                    |      ✅       |      ✅       |        ✅        |
-| State debugging        | ✅ Redux/MobX/Zustand/BLoC/Riverpod/GetX | ✅ Redux/MobX |      ✅       |        ❌        |
-| Log viewer             |                    ✅                    |      ✅       |      ✅       |        ✅        |
-| Storage viewer         |                    ✅                    |      ✅       |      ✅       |        ❌        |
-| Database browser       |                    ✅                    |      ❌       |      ✅       |        ❌        |
-| Performance profiling  |          ✅ FPS/CPU/Memory/Jank          |      ❌       |      ❌       |        ✅        |
-| Memory leak detection  |                    ✅                    |      ❌       |      ❌       |        ✅        |
-| Benchmark timing       |                    ✅                    |      ✅       |      ❌       |        ✅        |
-| Custom commands        |                    ✅                    |      ✅       |      ❌       |        ❌        |
-| Multi-device           |                    ✅                    |      ❌       |      ✅       |        ❌        |
-| Zero-config setup      |              ✅ auto-detect              |   ❌ manual   |      ⚠️       |        ⚠️        |
-| macOS + Windows        |                    ✅                    |      ✅       | ⚠️ deprecated |        ✅        |
-| Dark + Light theme     |                    ✅                    |      ✅       |      ✅       |        ✅        |
-| Active maintenance     |                    ✅                    |    ⚠️ slow    | ❌ deprecated |        ✅        |
+|                             |          DevConnect Manage Kit          |  Reactotron  |        Flipper        |  Flutter DevTools  |
+| --------------------------- | :-------------------------------------: | :----------: | :-------------------: | :----------------: |
+| Flutter support             |                    ✅                    |      ❌       |       ⚠️ plugin       |         ✅          |
+| React Native support        |                    ✅                    |      ✅       | ⚠️ dropped in RN 0.74 |         ❌          |
+| Android Native support      |                    ✅                    |      ❌       |           ✅           |         ❌          |
+| iOS Native support          |                    ❌                    |      ❌       |           ✅           |         ❌          |
+| Network inspector           |                    ✅                    |      ✅       |           ✅           |         ✅          |
+| API mocking                 |                    ✅                    |      ❌       |       ⚠️ Android      |         ❌          |
+| Network throttling & replay |                    ✅                    |      ❌       |           ❌           |         ❌          |
+| State debugging             | ✅ Redux/MobX/Zustand/BLoC/Riverpod/GetX | ✅ Redux/MobX |           ✅           |   ⚠️ extensions    |
+| State snapshot / restore    |                    ✅                    |      ✅       |           ❌           |         ❌          |
+| Log viewer                  |                    ✅                    |      ✅       |           ✅           |         ✅          |
+| Error & crash reports       |        ✅ JS + native, source maps       | ⚠️ JS errors |    ⚠️ crash plugin    |    ⚠️ logs only    |
+| Storage viewer              |              ✅ view + edit              |      ✅       |           ✅           |    ⚠️ extension    |
+| Database browser            |              ✅ + SQL editor             |      ❌       |           ✅           | ⚠️ drift extension |
+| Layout inspector            |                    ✅                    |      ❌       |           ✅           |         ✅          |
+| Performance profiling       |          ✅ FPS/CPU/Memory/Jank          |      ❌       |           ❌           |         ✅          |
+| Memory leak detection       |                    ✅                    |      ❌       |  ⚠️ LeakCanary plugin |         ✅          |
+| Benchmark timing            |                    ✅                    |      ✅       |           ❌           |         ✅          |
+| Custom commands             |                    ✅                    |      ✅       |           ❌           |         ❌          |
+| Multi-device                |                    ✅                    |      ✅       |           ✅           |         ❌          |
+| Zero-config setup           |              ✅ auto-detect              |   ❌ manual   |           ⚠️          |         ⚠️         |
+| macOS + Windows             |                    ✅                    |      ✅       |      ⚠️ archived      |         ✅          |
+| Dark + Light theme          |                    ✅                    |      ✅       |           ✅           |         ✅          |
+| Active maintenance          |                    ✅                    |      ✅       |       ❌ archived      |         ✅          |
 
 > **TL;DR** — One tool to replace Reactotron + Flipper + DevTools. Works with Flutter, React Native, and Android Native. Auto-detects everything.
 
