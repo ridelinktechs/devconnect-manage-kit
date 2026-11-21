@@ -16,6 +16,11 @@ on:
           - all
           - macos
           - windows
+      publish:
+        description: "Create the GitHub release (off: build artifacts only)"
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: release-${{ inputs.version_name }}
@@ -72,15 +77,25 @@ jobs:
         run: |
           Compress-Archive -Path build/windows/x64/runner/Release/* `
             -DestinationPath "DevConnectManageTool-Windows-v$env:VERSION.zip"
+      # The same build as an installable MSIX (msix_config in pubspec.yaml).
+      - name: MSIX
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version_name }}
+        run: |
+          dart run msix:create --build-windows false --version "$env:VERSION.0" `
+            --output-path . --output-name "DevConnectManageTool-Windows-v$env:VERSION"
       - uses: actions/upload-artifact@v4
         with:
           name: DevConnect-windows-${{ inputs.version_name }}
-          path: DevConnectManageTool-Windows-v${{ inputs.version_name }}.zip
+          path: |
+            DevConnectManageTool-Windows-v${{ inputs.version_name }}.zip
+            DevConnectManageTool-Windows-v${{ inputs.version_name }}.msix
 
   release-github:
     name: Create GitHub Release
     needs: [build-macos, build-windows]
-    if: always() && (needs.build-macos.result == 'success' || needs.build-windows.result == 'success')
+    if: always() && inputs.publish && (needs.build-macos.result == 'success' || needs.build-windows.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -94,5 +109,7 @@ jobs:
         with:
           tag_name: v${{ inputs.version_name }}
           name: DevConnect Manage Tool v${{ inputs.version_name }}
-          files: artifacts/**/*.zip
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.msix
           generate_release_notes: true

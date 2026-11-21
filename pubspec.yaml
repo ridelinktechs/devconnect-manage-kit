@@ -49,6 +49,7 @@ dev_dependencies:
   freezed: ^3.2.3
   json_serializable: ^6.11.0
   riverpod_generator: ^3.0.3
+  msix: ^3.18.0
 
 flutter:
   generate: true
@@ -58,3 +59,14 @@ flutter:
     - assets/icons/
     - assets/images/
     - docs/donate/
+
+# The Windows MSIX the release workflow builds. Same identity as v1.0.0's
+# and, like it, signed with msix's test certificate, so it updates that
+# install; users trust that certificate once before installing.
+msix_config:
+  display_name: DevConnect Manage Tool
+  publisher_display_name: RideLinkTech
+  identity_name: com.ridelinktech.devconnect
+  logo_path: macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_512.png
+  capabilities: internetClient
+  install_certificate: false
